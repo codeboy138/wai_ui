@@ -1,54 +1,45 @@
-// ==========================================
-// UI 해상도 계산 로직
-// 역할: 화면 비율과 해상도 계산 유틸리티
-// 경로: App/Utils/UICustom
-// ==========================================
+/**
+ * ==========================================
+ * UICustom.js
+ * 
+ * 역할: UI 관련 유틸리티 함수 모음 (Ratio 파싱, 해상도 계산 등)
+ * 경로: frontend/js/components/UICustom.js
+ * 
+ * 주요 기능:
+ * - parseRatio: 비율 문자열(16:9) → 숫자 배열 변환
+ * - qualityBaseHeight: 품질(4K, FHD 등) → 기준 높이(px) 변환
+ * - getResolutions: Ratio + Quality → 사용 가능한 해상도 목록 반환
+ * ==========================================
+ */
 
-export const UILogic = {
-    /**
-     * 화면 비율 문자열을 숫자로 변환
-     * @param {string} ratioStr - 비율 문자열 (예: "16:9")
-     * @returns {number} - 비율 값 (예: 1.777...)
-     * @example parseRatio("16:9") → 1.777...
-     */
-    parseRatio(ratioStr) {
-        if (!ratioStr) return 16/9;
-        const parts = ratioStr.split(':');
-        return parts.length === 2 ? Number(parts[0]) / Number(parts[1]) : 16/9;
-    },
+/**
+ * Ratio 문자열을 [width, height] 배열로 변환
+ * 
+ * @function parseRatio
+ * @param {String} ratio - 비율 문자열 (예: '16:9', '4:3', '1:1')
+ * @returns {Array<Number>} [너비, 높이] 형식의 배열 (예: [16, 9])
+ * 
+ * @example
+ * parseRatio('16:9')   // [16, 9]
+ * parseRatio('4:3')    // [4, 3]
+ * parseRatio('21:9')   // [21, 9]
+ */
+function parseRatio(ratio) {
+  return ratio.split(':').map(Number);
+}
 
-    /**
-     * 품질별 기본 높이 (픽셀)
-     * @type {Object<string, number>}
-     */
-    qualityBaseHeight: {
-        '8K': 4320,
-        '6K': 3240,
-        '4K': 2160,
-        '3K': 1620,
-        '2K': 1440,
-        'FHD': 1080,
-        'HD': 720
-    },
-
-    /**
-     * 화면 비율에 따른 해상도 목록 생성
-     * @param {string} aspectRatioStr - 화면 비율 (예: "16:9")
-     * @returns {Array<Object>} - 해상도 목록 [{ label, value }, ...]
-     * @example getResolutions("16:9") → [
-     *   { label: "8K (7680 x 4320)", value: "8K" },
-     *   { label: "4K (3840 x 2160)", value: "4K" },
-     *   ...
-     * ]
-     */
-    getResolutions(aspectRatioStr) {
-        const ratio = this.parseRatio(aspectRatioStr);
-        return Object.entries(this.qualityBaseHeight).map(([label, h]) => {
-            const w = Math.round(h * ratio);
-            return {
-                label: `${label} (${w} x ${h})`,
-                value: label
-            };
-        });
-    }
-};
+/**
+ * 품질(Quality) 문자열을 기준 높이(px)로 변환
+ * 
+ * @function qualityBaseHeight
+ * @param {String} quality - 품질 문자열 ('4K', 'FHD', 'HD', 'SD')
+ * @returns {Number} 해당 품질의 기준 높이 (px)
+ * 
+ * @example
+ * qualityBaseHeight('4K')   // 2160
+ * qualityBaseHeight('FHD')  // 1080
+ * qualityBaseHeight('HD')   // 720
+ * qualityBaseHeight('SD')   // 480
+ * 
+ * @description
+ * 지원 품질:
