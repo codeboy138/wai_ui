@@ -1,146 +1,123 @@
 /**
- * ==========================================
- * devMode.js - 개발자 모드 Mixin
- * 
- * 역할: Inspector + DATA-DEV 모드
- * 경로: frontend/js/mixins/devMode.js
- * ==========================================
+ * [DATA-DEV: devMode Mixin]
+ * - 역할: Inspector + DATA-DEV 모드 구현
+ * - 고유ID: mixin-devmode
+ * - 기능: 요소 검사, 하이라이트, 정보 표시
+ * - 로직: body 클래스 토글 → 호버 이벤트 등록 → 툴팁 표시
+ * - 데이터: devMode (null | 'inspect' | 'data-dev')
+ * - 경로: frontend/js/mixins/devMode.js
+ * - 명령: toggleDevMode(mode), setupInspectorMode()
  */
 
-export const devModeMixin = {
-    methods: {
-        toggleDevMode(mode) {
-            if (mode === 'inspect') {
-                this.isDevModeActive = !this.isDevModeActive;
-                document.body.classList.toggle('dev-mode-active', this.isDevModeActive);
-                if (this.isDevModeActive) {
-                    this.isDevModeFull = false;
-                    document.body.classList.remove('dev-mode-full');
-                }
-            } else if (mode === 'datadev') {
-                this.isDevModeFull = !this.isDevModeFull;
-                document.body.classList.toggle('dev-mode-full', this.isDevModeFull);
-                if (this.isDevModeFull) {
-                    this.isDevModeActive = false;
-                    document.body.classList.remove('dev-mode-active');
-                }
-            }
-        },
+import { getElementSpec } from '../utils.js';
+
+export default {
+  methods: {
+    toggleDevMode(mode) {
+      if (this.devMode === mode) {
+        this.devMode = null;
+        document.body.classList.remove('dev-mode-inspect', 'dev-mode-data-dev');
+        console.log('[DevMode] 모드 해제');
+      } else {
+        this.devMode = mode;
+        document.body.classList.remove('dev-mode-inspect', 'dev-mode-data-dev');
+        document.body.classList.add('dev-mode-' + mode);
+        console.log('[DevMode] 모드 활성:', mode);
         
-        setupInspectorMode() {
-            const self = this;
-            
-            document.addEventListener('mousemove', async (e) => {
-                if (!self.isDevModeActive && !self.isDevModeFull) return;
-                
-                let target = e.target;
-                if (target.classList.contains('c-devmode-overlay__highlight') || 
-                    target.classList.contains('c-devmode-overlay__tooltip')) {
-                    return;
-                }
-                
-                if (target && target.tagName !== 'HTML' && target.tagName !== 'BODY') {
-                    const rect = target.getBoundingClientRect();
-                    
-                    self.highlightStyle = {
-                        width: `${rect.width}px`,
-                        height: `${rect.height}px`,
-                        top: `${rect.top}px`,
-                        left: `${rect.left}px`,
-                    };
-                    
-                    const elementId = target.id || target.className.split(' ')[0] || target.tagName;
-                    
-                    if (self.isDevModeActive) {
-                        self.inspector = {
-                            name: elementId,
-                            width: Math.round(rect.width),
-                            height: Math.round(rect.height)
-                        };
-                    }
-                    
-                    if (self.isDevModeFull && target.id) {
-                        const spec = await self.getElementSpec(target.id);
-                        self.inspector = {
-                            id: target.id,
-                            action: target.dataset.action || 'N/A',
-                            io: spec?.io || 'N/A',
-                            logic: spec?.logic || 'N/A'
-                        };
-                    }
-                    
-                    self.tooltipStyle = {
-                        top: `${rect.top - 50}px`,
-                        left: `${rect.left + rect.width + 10}px`,
-                        transform: 'translateY(0)'
-                    };
-                    
-                    if (rect.top - 50 < 0) {
-                        self.tooltipStyle.top = `${rect.bottom + 10}px`;
-                    }
-                } else {
-                    self.inspector = { name: '', width: 0, height: 0 };
-                }
-            });
-            
-            document.addEventListener('click', (e) => {
-                if (!self.isDevModeActive) return;
-                
-                let target = e.target;
-                if (target.classList.contains('c-devmode-overlay__highlight') || 
-                    target.classList.contains('c-devmode-overlay__tooltip')) {
-                    return;
-                }
-                
-                if (target && target.id) {
-                    self.copyToClipboard(target.id);
-                    e.preventDefault();
-                    e.stopPropagation();
-                }
-            }, true);
-        },
-        
-        async getElementSpec(id) {
-            try {
-                const module = await import('../docs/element-specs.js');
-                const elementSpecs = module.default;
-                
-                if (elementSpecs[id]) {
-                    return elementSpecs[id];
-                }
-                
-                for (let pattern in elementSpecs) {
-                    if (pattern.includes('{id}')) {
-                        const regex = new RegExp('^' + pattern.replace('{id}', '.*') + '$');
-                        if (regex.test(id)) {
-                            return elementSpecs[pattern];
-                        }
-                    }
-                }
-                
-                return null;
-            } catch (err) {
-                console.error('element-specs.js 로드 실패:', err);
-                return null;
-            }
-        },
-        
-        copyToClipboard(text) {
-            navigator.clipboard.writeText(text).then(() => {
-                Swal.fire({
-                    toast: true,
-                    position: 'top-end',
-                    icon: 'success',
-                    title: '복사 완료',
-                    text: text,
-                    showConfirmButton: false,
-                    timer: 1500,
-                    background: '#1e1e1e',
-                    color: '#fff'
-                });
-            }).catch(err => {
-                console.error('복사 실패:', err);
-            });
+        if (mode === 'inspect') {
+          this.setupInspectorMode();
+        } else if (mode === 'data-dev') {
+          this.setupDataDevMode();
         }
+      }
+    },
+    
+    setupInspectorMode() {
+      console.log('[DevMode] Inspector 모드 설정');
+      
+      document.addEventListener('mouseover', this.handleInspectorHover);
+      document.addEventListener('click', this.handleInspectorClick);
+    },
+    
+    handleInspectorHover(e) {
+      if (this.devMode !== 'inspect') return;
+      
+      const target = e.target;
+      if (!target.id) return;
+      
+      target.style.outline = '2px solid red';
+      
+      const rect = target.getBoundingClientRect();
+      const info = target.id + ' (' + Math.round(rect.width) + 'x' + Math.round(rect.height) + ')';
+      
+      console.log('[Inspector] 호버:', info);
+    },
+    
+    handleInspectorClick(e) {
+      if (this.devMode !== 'inspect') return;
+      
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const target = e.target;
+      if (!target.id) return;
+      
+      this.copyToClipboard(target.id);
+      
+      if (typeof Swal !== 'undefined') {
+        Swal.fire({
+          icon: 'success',
+          title: '복사 완료',
+          text: target.id,
+          timer: 1500,
+          showConfirmButton: false
+        });
+      } else {
+        alert('복사 완료: ' + target.id);
+      }
+      
+      console.log('[Inspector] 클릭 복사:', target.id);
+    },
+    
+    setupDataDevMode() {
+      console.log('[DevMode] DATA-DEV 모드 설정');
+      
+      document.addEventListener('mouseover', this.handleDataDevHover);
+    },
+    
+    async handleDataDevHover(e) {
+      if (this.devMode !== 'data-dev') return;
+      
+      const target = e.target;
+      if (!target.id) return;
+      
+      target.style.outline = '2px solid blue';
+      
+      const spec = await getElementSpec(target.id);
+      
+      if (spec) {
+        const info = 'ID: ' + target.id + '\n' +
+                     'Action: ' + (target.dataset.action || '-') + '\n' +
+                     'IO: ' + (spec.io || '-') + '\n' +
+                     'Logic: ' + (spec.logic || '-');
+        
+        console.log('[DATA-DEV] 정보:\n' + info);
+      }
+    },
+    
+    copyToClipboard(text) {
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
     }
+  }
 };
