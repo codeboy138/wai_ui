@@ -42,4 +42,79 @@ function parseRatio(ratio) {
  * qualityBaseHeight('SD')   // 480
  * 
  * @description
- * 지원 품질:
+ * 지원 품질:
+ * - 4K:  2160px (3840 × 2160)
+ * - FHD: 1080px (1920 × 1080)
+ * - HD:  720px  (1280 × 720)
+ * - SD:  480px  (640 × 480)
+ */
+function qualityBaseHeight(quality) {
+  const qualityMap = {
+    '4K': 2160,
+    'FHD': 1080,
+    'HD': 720,
+    'SD': 480
+  };
+  
+  return qualityMap[quality] || 1080; // 기본값: FHD
+}
+
+/**
+ * Ratio와 Quality 조합으로 사용 가능한 해상도 목록 생성
+ * 
+ * @function getResolutions
+ * @param {String} ratio - 화면 비율 ('16:9', '4:3', '1:1', '21:9')
+ * @param {String} quality - 영상 품질 ('4K', 'FHD', 'HD', 'SD')
+ * @returns {Array<Object>} 해상도 객체 배열
+ * 
+ * @example
+ * getResolutions('16:9', 'FHD')
+ * // [
+ * //   { label: '1920 × 1080', width: 1920, height: 1080 },
+ * //   { label: '1280 × 720', width: 1280, height: 720 },
+ * //   { label: '640 × 360', width: 640, height: 360 }
+ * // ]
+ * 
+ * @description
+ * 주어진 비율과 품질에 따라 3단계 해상도를 생성:
+ * 1. 최대 해상도 (품질 기준)
+ * 2. 중간 해상도 (최대의 2/3)
+ * 3. 최소 해상도 (최대의 1/3)
+ */
+function getResolutions(ratio, quality) {
+  const [ratioW, ratioH] = parseRatio(ratio);
+  const baseHeight = qualityBaseHeight(quality);
+  
+  // 기준 높이에서 너비 계산
+  const baseWidth = Math.round((baseHeight * ratioW) / ratioH);
+  
+  // 3단계 해상도 생성 (100%, 66%, 33%)
+  const resolutions = [
+    {
+      label: `${baseWidth} × ${baseHeight}`,
+      width: baseWidth,
+      height: baseHeight
+    },
+    {
+      label: `${Math.round(baseWidth * 0.66)} × ${Math.round(baseHeight * 0.66)}`,
+      width: Math.round(baseWidth * 0.66),
+      height: Math.round(baseHeight * 0.66)
+    },
+    {
+      label: `${Math.round(baseWidth * 0.33)} × ${Math.round(baseHeight * 0.33)}`,
+      width: Math.round(baseWidth * 0.33),
+      height: Math.round(baseHeight * 0.33)
+    }
+  ];
+  
+  return resolutions;
+}
+
+// CommonJS 모듈로 내보내기
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    parseRatio,
+    qualityBaseHeight,
+    getResolutions
+  };
+}
