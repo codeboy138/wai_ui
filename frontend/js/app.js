@@ -1,124 +1,75 @@
 /**
- * ==========================================
- * app.js - Vue 3 앱 초기화
- * 
- * 역할: Vue 애플리케이션 생성, 컴포넌트 등록, 마운트
- * 경로: frontend/js/app.js
- * ==========================================
+ * [DATA-DEV: app.js]
+ * - 역할: Vue 3 앱 진입점
+ * - 고유ID: app-root
+ * - 기능: 컴포넌트 등록, 전역 상태 연결, Python 브릿지
+ * - 로직: createApp → components 등록 → mixins 적용 → mount
+ * - 데이터: store.js에서 가져옴
+ * - 경로: frontend/js/app.js
+ * - 명령: firePython() 전역 제공
  */
 
-import store from './store.js';
+import { appState } from './store.js';
+import pythonBridge from './mixins/pythonBridge.js';
+import panelResizer from './mixins/panelResizer.js';
+import devMode from './mixins/devMode.js';
+
 import Header from './components/Header.js';
 import AppMain from './components/AppMain.js';
+import DropdownMenu from './components/DropdownMenu.js';
 import ProjectModal from './components/ProjectModal.js';
-import { devModeMixin } from './mixins/devMode.js';
-import { panelResizerMixin } from './mixins/panelResizer.js';
-import { pythonBridgeMixin } from './mixins/pythonBridge.js';
 
-const { createApp } = window.Vue;
+const { createApp } = Vue;
 
-const App = {
-    name: 'App',
+const app = createApp({
+  data() {
+    return appState;
+  },
+  
+  mixins: [pythonBridge, panelResizer, devMode],
+  
+  mounted() {
+    console.log('[App] Vue 앱 마운트 완료');
     
-    mixins: [devModeMixin, panelResizerMixin, pythonBridgeMixin],
+    // 개발 모드 초기화
+    this.setupDevMode();
     
-    data() {
-        return store;
-    },
+    // 패널 리사이저 초기화
+    this.setupLeftPanelResizer();
+    this.setupRightPanelResizer();
+    this.setupTimelineResizer();
+    this.setupCanvasScaler();
     
-    mounted() {
-        this.$nextTick(() => {
-            this.setupPanelResizers();
-            this.setupCanvasScaler();
-            this.setupInspectorMode();
+    console.log('[App] 초기화 완료');
+  },
+  
+  methods: {
+    setupDevMode() {
+      const inspectBtn = document.getElementById('header-devmode-inspect-btn');
+      const dataDevBtn = document.getElementById('header-devmode-datadev-btn');
+      
+      if (inspectBtn) {
+        inspectBtn.addEventListener('click', () => {
+          this.toggleDevMode('inspect');
         });
-        window.vm = this;
-        console.log('✅ WAI Studio v3.0 시작 완료!');
-    },
-    
-    methods: {
-        updateBoxPosition(id, dx, dy, dw, dh, isResizeEnd = false) {
-            const index = this.canvasBoxes.findIndex(b => b.id === id);
-            if (index === -1) return;
-            
-            const box = this.canvasBoxes[index];
-            const newBoxes = [...this.canvasBoxes];
-            
-            newBoxes[index] = {
-                ...box,
-                x: box.x + dx,
-                y: box.y + dy,
-                w: isResizeEnd ? dw : box.w,
-                h: isResizeEnd ? dh : box.h
-            };
-            this.canvasBoxes = newBoxes;
-        },
-        
-        updateClip(clipId, startChange, durationChange) {
-            const index = this.clips.findIndex(c => c.id === clipId);
-            if (index !== -1) {
-                const clip = this.clips[index];
-                const newClips = [...this.clips];
-                
-                const newStart = Math.max(0, clip.start + startChange);
-                const newDuration = Math.max(0.1, clip.duration + durationChange - (newStart - clip.start));
-                
-                newClips[index] = {
-                    ...clip,
-                    start: newStart,
-                    duration: newDuration
-                };
-                this.clips = newClips;
-            }
-        },
-        
-        moveClip(clipId, timeChange) {
-            const index = this.clips.findIndex(c => c.id === clipId);
-            if (index !== -1) {
-                const clip = this.clips[index];
-                const newClips = [...this.clips];
-                newClips[index] = {
-                    ...clip,
-                    start: Math.max(0, clip.start + timeChange)
-                };
-                this.clips = newClips;
-            }
-        }
-    },
-    
-    template: \`
-        <div class="app-root">
-            <app-header :vm="$data"></app-header>
-            <app-main :vm="$data"></app-main>
-            <project-modal v-if="isProjectModalOpen" @close="isProjectModalOpen = false"></project-modal>
-            
-            <div class="c-devmode-overlay" 
-                 v-if="isDevModeActive || isDevModeFull">
-                <div class="c-devmode-overlay__highlight" 
-                     :style="highlightStyle"></div>
-                <div class="c-devmode-overlay__tooltip" 
-                     :style="tooltipStyle">
-                    <div v-if="isDevModeActive">
-                        <strong>Name:</strong> {{ inspector.name }}<br>
-                        <strong>Size:</strong> {{ inspector.width }} × {{ inspector.height }}<br>
-                        <span style="opacity: 0.7; font-size: 9px;">클릭하여 이름 복사</span>
-                    </div>
-                    <div v-if="isDevModeFull">
-                        <strong>ID:</strong> {{ inspector.id }}<br>
-                        <strong>Action:</strong> {{ inspector.action }}<br>
-                        <strong>IO:</strong> {{ inspector.io }}<br>
-                        <strong>Logic:</strong> {{ inspector.logic }}
-                    </div>
-                </div>
-            </div>
-        </div>
-    \`
-};
+      }
+      
+      if (dataDevBtn) {
+        dataDevBtn.addEventListener('click', () => {
+          this.toggleDevMode('data-dev');
+        });
+      }
+    }
+  }
+});
 
-const app = createApp(App);
-
+// 컴포넌트 등록
 app.component('app-header', Header);
 app.component('app-main', AppMain);
+app.component('dropdown-menu', DropdownMenu);
 app.component('project-modal', ProjectModal);
 
+// 앱 마운트
 app.mount('#vue-app');
+
+console.log('[App] Vue 3 앱 시작');
