@@ -22,8 +22,17 @@ import ProjectModal from './components/ProjectModal.js';
 const { createApp } = Vue;
 
 const app = createApp({
+  template: '<div id="app-root" class="c-app-root">' +
+            '<app-header></app-header>' +
+            '<app-main></app-main>' +
+            '<project-modal :isOpen="isProjectModalOpen" @close="isProjectModalOpen = false"></project-modal>' +
+            '</div>',
+  
   data() {
-    return appState;
+    return {
+      ...appState,
+      isProjectModalOpen: false
+    };
   },
   
   mixins: [pythonBridge, panelResizer, devMode],
@@ -34,11 +43,13 @@ const app = createApp({
     // 개발 모드 초기화
     this.setupDevMode();
     
-    // 패널 리사이저 초기화
-    this.setupLeftPanelResizer();
-    this.setupRightPanelResizer();
-    this.setupTimelineResizer();
-    this.setupCanvasScaler();
+    // 패널 리사이저 초기화 (다음 틱에서 실행)
+    this.$nextTick(() => {
+      this.setupLeftPanelResizer();
+      this.setupRightPanelResizer();
+      this.setupTimelineResizer();
+      this.setupCanvasScaler();
+    });
     
     console.log('[App] 초기화 완료');
   },
