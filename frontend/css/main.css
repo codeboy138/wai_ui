@@ -1,125 +1,679 @@
-@charset "UTF-8";
+/**
+ * ==========================================
+ * WAI Studio - Main CSS
+ * Zinc-Dark Edition
+ * ==========================================
+ */
 
-body { background-color: #09090b; color: #f4f4f5; height: 100vh; overflow: hidden; user-select: none; font-family: 'Pretendard', sans-serif; }
+/* ==========================================
+   전역 스타일
+   ========================================== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
-/* [Z-Index System] */
-.z-base { z-index: 10; } .z-content { z-index: 20; } .z-sticky { z-index: 40; } 
-.z-toolbar { z-index: 100 !important; } .z-header { z-index: 200000 !important; } 
-.z-menu { z-index: 200001 !important; } .z-inspect { z-index: 300000 !important; }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-size: 14px;
+  background: #09090b;
+  color: #f4f4f5;
+  overflow: hidden;
+}
 
-/* [RESTORED: Layer Matrix Grid] - 이게 없어서 테이블이 투명했습니다 */
-.layer-cell {
-    width: 50px; height: 24px; 
-    border: 1px solid #27272a; border-radius: 4px; 
-    background-color: #27272a; 
-    display: flex; align-items: center; justify-content: center; 
-    cursor: pointer; transition: all 0.1s;
-    position: relative;
+/* ==========================================
+   앱 레이아웃 (Header + Main + Timeline)
+   ========================================== */
+.c-app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
 }
-.layer-cell:hover { border-color: #fff; background-color: #3f3f46; }
-.layer-cell span { font-size: 9px; font-weight: bold; color: white; }
 
-/* [Preview Area] */
-.preview-container { position: relative; display: flex; flex-direction: column; width: 100%; overflow: hidden; background-color: #27272a; border-bottom: 1px solid #27272a; }
-.preview-stage { flex: 1; position: relative; width: 100%; height: 100%; overflow: hidden; background-color: #202023; background-image: radial-gradient(#3f3f46 1px, transparent 1px); background-size: 20px 20px; display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 20px rgba(0,0,0,0.5); }
-.preview-screen { position: absolute; background-color: #000; box-shadow: 0 0 50px rgba(0,0,0,0.8); border: 1px solid rgba(255, 255, 255, 0.15); }
+/* ==========================================
+   Header (최상단 고정)
+   ========================================== */
+.c-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 60px;
+  padding: 0 24px;
+  background: #18181b;
+  border-bottom: 1px solid #27272a;
+  z-index: 200000;
+}
 
-/* [Menu System] */
-.c-nav-group { position: relative; height: 100%; display: flex; align-items: center; cursor: pointer; }
-.c-dropdown-menu { 
-    display: none; 
-    position: absolute; 
-    top: 34px; /* 버튼 높이(34px)와 일치시켜 틈새 제거 완료 */ 
-    left: 0; 
-    min-width: 160px; 
-    background-color: #18181b; 
-    border: 1px solid #27272a; 
-    flex-direction: column; 
-    box-shadow: 0 10px 40px rgba(0,0,0,0.9); 
-    padding: 4px 0; 
-    z-index: 200001; 
-    pointer-events: none; 
+.c-header__logo {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
-.c-dropdown-menu::before { 
-    content: ''; 
-    position: absolute; 
-    top: -34px; /* 수정: 상위 버튼 높이(34px)까지 안전 영역 확장 */
-    left: 0; 
-    width: 100%; 
-    height: 34px; /* 수정: 상위 버튼 높이(34px)까지 안전 영역 확장 */ 
-    background: transparent; 
-    pointer-events: auto; /* 추가: ::before 영역이 마우스 이벤트를 확실히 받도록 설정 */
-    z-index: 1; /* 추가: 메뉴와 버튼 사이에 위치하여 닫힘 이벤트 방지 */
-}
-.c-submenu { 
-    display: none; 
-    position: absolute; 
-    left: 98%; 
-    top: -5px; 
-    min-width: 180px; 
-    background-color: #18181b; 
-    border: 1px solid #27272a; 
-    box-shadow: 0 10px 40px rgba(0,0,0,0.9); 
-    flex-direction: column; 
-    padding: 4px 0; 
-    z-index: 200002; 
-    pointer-events: none; 
-}
-.c-submenu::before { 
-    content: ''; 
-    position: absolute; 
-    top: 0; 
-    left: -40px; /* 수정: 좌측으로 더 넓게 안전 영역 확장 */
-    width: 40px; /* 수정: 안전 영역 너비 증가 */
-    height: 100%; 
-    background: transparent; 
-    pointer-events: auto; /* 추가: ::before 영역이 마우스 이벤트를 확실히 받도록 설정 */
-    z-index: 1;
-}
-.c-nav-group:hover > .c-dropdown-menu { display: flex; }
-.group\/sub:hover > .c-submenu { display: flex; }
-.c-menu-item { 
-    padding: 8px 16px; 
-    font-size: 11px; 
-    color: #a1a1aa; 
-    display: flex; 
-    justify-content: space-between; 
-    align-items: center; 
-    transition: background 0.1s; 
-    position: relative; 
-    background-color: transparent; 
-    pointer-events: auto;
-}
-.c-menu-item:hover { background-color: #3b82f6; color: white; }
 
-/* [Timeline & Common] */
-.timeline-container { display: grid; grid-template-columns: 200px 1fr; grid-auto-rows: max-content; overflow: auto; height: 100%; position: relative; background-color: #09090b; row-gap: 0; }
-.tl-corner, .tl-ruler, .tl-header { position: sticky; background: #18181b; border-bottom: 1px solid #27272a; }
-.tl-corner { top: 0; left: 0; z-index: 45; border-right: 1px solid #27272a; height: 24px; display: flex; justify-content: center; align-items: center; }
-.tl-ruler { top: 0; z-index: 40; height: 24px; min-width: max-content; background: #09090b; }
-.tl-header { left: 0; z-index: 30; border-right: 1px solid #27272a; display: flex; align-items: center; padding: 0 8px; }
-.tl-track { position: relative; border-bottom: 1px solid #27272a; background: transparent; min-width: max-content; }
-.canvas-frame-border { position: absolute; inset: 0; border: 1px solid rgba(255, 255, 255, 0.2); pointer-events: none; z-index: 5; }
-.canvas-scaler { position: absolute; top: 50%; left: 50%; transform-origin: center center; }
-.clip { position: absolute; top: 1px; height: calc(100% - 2px); border-radius: 2px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); cursor: pointer; }
-.clip.selected { border: 2px solid #fff; z-index: 10; }
-.playhead-line { position: absolute; top: 0; bottom: 0; width: 1px; background: #ef4444; z-index: 40; pointer-events: none; }
-.playhead-handle { position: absolute; top: 0; width: 11px; height: 12px; background: #ef4444; transform: translateX(-50%); clip-path: polygon(0 0, 100% 0, 50% 100%); cursor: ew-resize; z-index: 50; }
-.canvas-box { position: absolute; border: 2px dashed rgba(255,255,255,0.3); background: rgba(255,255,255,0.05); box-sizing: border-box; }
-.canvas-box.selected { border-style: solid; border-color: #3b82f6; z-index: 1000; }
-.canvas-label { position: absolute; right: 0; bottom: -16px; background: #3b82f6; color: #fff; padding: 0 4px; font-size: 9px; font-weight: bold; }
-.box-handle { position: absolute; width: 8px; height: 8px; background: #fff; border: 1px solid #000; display: none; }
-.canvas-box.selected .box-handle { display: block; }
-.bh-tl { top: -4px; left: -4px; cursor: nwse-resize; } .bh-br { bottom: -4px; right: -4px; cursor: nwse-resize; }
-.header-compact { height: 34px; font-size: 11px; } .header-compact .nav-btn { font-size: 11px; padding: 0 10px; } .header-compact .win-btn { width: 34px; }
-.nav-btn { height: 100%; display: flex; align-items: center; color: #a1a1aa; cursor: pointer; } .nav-btn:hover, .nav-btn.active { color: #fff; background: #27272a; }
-.win-btn { height: 100%; display: flex; align-items: center; justify-content: center; color: #a1a1aa; } .win-btn:hover { background: #27272a; color: #fff; } .win-btn.close:hover { background: #ef4444; }
-.tool-btn { padding: 4px; border-radius: 4px; color: #a1a1aa; font-size: 10px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; } .tool-btn:hover { color: #fff; background: #27272a; }
-.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 5000; }
-.modal-window { background: #18181b; border: 1px solid #27272a; border-radius: 8px; width: 80%; height: 80%; max-width: 1200px; max-height: 800px; display: flex; flex-direction: column; overflow: hidden; }
-.file-row { display: grid; grid-template-columns: 2fr 1fr 1fr 40px; padding: 0 12px; height: 32px; border-bottom: 1px solid #27272a; font-size: 11px; color: #a1a1aa; align-items: center; } .file-row:hover { background: #27272a; color: #fff; } .file-row.selected { background: #3f3f46; color: white; }
-.panel-resizer-v { position: absolute; top: 0; bottom: 0; width: 4px; cursor: col-resize; z-index: 100; } .panel-resizer-v:hover { background: #3b82f6; }
-.panel-resizer-h { width: 100%; height: 4px; background: #18181b; cursor: row-resize; z-index: 100; border-top: 1px solid #27272a; border-bottom: 1px solid #27272a; } .panel-resizer-h:hover { background: #3b82f6; }
-.track-resizer-h { position: absolute; bottom: 0; left: 0; width: 100%; height: 4px; cursor: row-resize; z-index: 25; } .track-resizer-h:hover { background: #3b82f6; }
-.header-resizer-v { position: absolute; top: 0; right: 0; width: 4px; height: 100%; cursor: col-resize; z-index: 50; } .header-resizer-v:hover { background: #3b82f6; }
-.dev-overlay { display: none; position: fixed; inset: 0; z-index: 9998; pointer-events: none; } .dev-mode-active .dev-overlay { display: block; } .dev-highlight { position: absolute; border: 1px solid #ef4444; background: rgba(239, 68, 68, 0.1); } .dev-tooltip { position: absolute; background: #ef4444; color: white; padding: 4px; font-size: 10px; z-index: 9999; }
+.c-header__title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #f4f4f5;
+}
+
+.c-header__project-name {
+  font-size: 14px;
+  color: #a1a1aa;
+}
+
+.c-header__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.c-header__btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: #27272a;
+  border: 1px solid #3f3f46;
+  border-radius: 6px;
+  color: #f4f4f5;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.c-header__btn:hover {
+  background: #3f3f46;
+  border-color: #52525b;
+}
+
+.c-header__btn--primary {
+  background: #3b82f6;
+  border-color: #3b82f6;
+}
+
+.c-header__btn--primary:hover {
+  background: #2563eb;
+}
+
+.c-header__btn--secondary {
+  background: transparent;
+  border-color: #3f3f46;
+}
+
+/* ==========================================
+   Main (Left + Center + Right)
+   ========================================== */
+.c-app__main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.c-app__panel {
+  display: flex;
+  flex-direction: column;
+  background: #18181b;
+  border-right: 1px solid #27272a;
+}
+
+.c-app__panel--left {
+  width: 280px;
+}
+
+.c-app__panel--center {
+  flex: 1;
+  border-right: none;
+  background: #09090b;
+}
+
+.c-app__panel--right {
+  width: 300px;
+  border-right: none;
+}
+
+/* ==========================================
+   Left Panel (Asset Library)
+   ========================================== */
+.c-left-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.c-left-panel__header {
+  display: flex;
+  border-bottom: 1px solid #27272a;
+}
+
+.c-left-panel__tab {
+  flex: 1;
+  padding: 12px 8px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #a1a1aa;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.c-left-panel__tab:hover {
+  color: #f4f4f5;
+  background: #27272a;
+}
+
+.c-left-panel__tab--active {
+  color: #f4f4f5;
+  border-bottom-color: #3b82f6;
+}
+
+.c-left-panel__assets {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.c-asset-list__item {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 12px;
+  padding: 8px;
+  background: #27272a;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.c-asset-list__item:hover {
+  background: #3f3f46;
+}
+
+.c-asset-list__thumbnail {
+  width: 100%;
+  height: 120px;
+  background: #09090b;
+  background-size: cover;
+  background-position: center;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.c-asset-list__name {
+  font-size: 13px;
+  color: #f4f4f5;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.c-left-panel__empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: #71717a;
+  font-size: 13px;
+}
+
+.c-left-panel__actions {
+  display: flex;
+  gap: 8px;
+  padding: 16px;
+  border-top: 1px solid #27272a;
+}
+
+.c-left-panel__btn {
+  flex: 1;
+  padding: 10px;
+  background: #27272a;
+  border: 1px solid #3f3f46;
+  border-radius: 6px;
+  color: #f4f4f5;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.c-left-panel__btn:hover {
+  background: #3f3f46;
+}
+
+/* ==========================================
+   Center Panel (Preview Canvas + Toolbar)
+   ========================================== */
+.c-preview-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 12px 24px;
+  background: #18181b;
+  border-bottom: 1px solid #27272a;
+}
+
+.c-preview-toolbar__group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.c-preview-toolbar__label {
+  font-size: 13px;
+  color: #a1a1aa;
+}
+
+.c-preview-toolbar__select {
+  padding: 6px 12px;
+  background: #27272a;
+  border: 1px solid #3f3f46;
+  border-radius: 4px;
+  color: #f4f4f5;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.c-preview-canvas {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #09090b;
+  overflow: hidden;
+}
+
+.c-preview-canvas__stage {
+  position: relative;
+  width: 80%;
+  aspect-ratio: 16/9;
+  background: #000;
+  border: 1px solid #3f3f46;
+}
+
+.c-canvas-object {
+  position: absolute;
+  border: 2px solid transparent;
+  transition: border-color 0.2s;
+}
+
+.c-canvas-object--selected {
+  border-color: #3b82f6;
+}
+
+.c-canvas-object__img,
+.c-canvas-object__video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.c-preview-canvas__empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: #71717a;
+  font-size: 14px;
+}
+
+.c-preview-canvas__zoom-controls {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #18181b;
+  border: 1px solid #3f3f46;
+  border-radius: 6px;
+}
+
+.c-preview-canvas__zoom-btn {
+  width: 28px;
+  height: 28px;
+  background: #27272a;
+  border: none;
+  border-radius: 4px;
+  color: #f4f4f5;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.c-preview-canvas__zoom-btn:hover {
+  background: #3f3f46;
+}
+
+.c-preview-canvas__zoom-level {
+  font-size: 13px;
+  color: #a1a1aa;
+  min-width: 50px;
+  text-align: center;
+}
+
+/* ==========================================
+   Right Panel (Layer Matrix)
+   ========================================== */
+.c-right-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.c-right-panel__header {
+  padding: 16px;
+  border-bottom: 1px solid #27272a;
+}
+
+.c-right-panel__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #f4f4f5;
+}
+
+.c-layer-matrix {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.c-layer-matrix__row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.c-layer-cell {
+  flex: 1;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #27272a;
+  border: 2px solid #3f3f46;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.c-layer-cell:hover {
+  background: #3f3f46;
+  border-color: #52525b;
+}
+
+.c-layer-cell--active {
+  background: #1e3a8a;
+  border-color: #3b82f6;
+}
+
+.c-layer-cell--empty {
+  color: #71717a;
+  font-size: 12px;
+}
+
+.c-layer-cell__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 8px;
+}
+
+.c-layer-cell__name {
+  font-size: 11px;
+  color: #f4f4f5;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.c-layer-cell__delete {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  background: #ef4444;
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.c-layer-cell:hover .c-layer-cell__delete {
+  opacity: 1;
+}
+
+/* ==========================================
+   Timeline Panel (하단 고정)
+   ========================================== */
+.c-app__timeline {
+  height: 200px;
+  background: #18181b;
+  border-top: 1px solid #27272a;
+}
+
+.c-timeline-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.c-timeline-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 24px;
+  border-bottom: 1px solid #27272a;
+}
+
+.c-timeline-controls__btn {
+  width: 36px;
+  height: 36px;
+  background: #27272a;
+  border: 1px solid #3f3f46;
+  border-radius: 6px;
+  color: #f4f4f5;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.c-timeline-controls__btn:hover {
+  background: #3f3f46;
+}
+
+.c-timeline-controls__time {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #a1a1aa;
+}
+
+.c-timeline-tracks {
+  position: relative;
+  flex: 1;
+  overflow: auto;
+  background: #09090b;
+}
+
+.c-timeline-ruler {
+  position: sticky;
+  top: 0;
+  display: flex;
+  height: 30px;
+  background: #18181b;
+  border-bottom: 1px solid #3f3f46;
+  z-index: 40;
+}
+
+.c-timeline-ruler__tick {
+  position: absolute;
+  font-size: 11px;
+  color: #71717a;
+  padding: 6px;
+  border-left: 1px solid #3f3f46;
+}
+
+.c-timeline-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #3b82f6;
+  z-index: 40;
+  pointer-events: none;
+}
+
+.c-timeline-track {
+  display: flex;
+  height: 50px;
+  border-bottom: 1px solid #27272a;
+}
+
+.c-timeline-track__label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 150px;
+  padding: 0 12px;
+  background: #18181b;
+  border-right: 1px solid #27272a;
+  font-size: 12px;
+  color: #f4f4f5;
+}
+
+.c-timeline-clip {
+  position: relative;
+  height: 100%;
+  background: #3b82f6;
+  border-radius: 4px;
+  margin: 8px;
+  cursor: move;
+}
+
+.c-timeline-clip__preview {
+  padding: 8px;
+  font-size: 11px;
+  color: #fff;
+}
+
+.c-timeline-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 8px;
+  color: #71717a;
+  font-size: 13px;
+}
+
+/* ==========================================
+   모달 (Design Guide, Project Modal)
+   ========================================== */
+.c-design-guide,
+.c-project-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 300000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c-design-guide__overlay,
+.c-project-modal__overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.c-design-guide__content,
+.c-project-modal__content {
+  position: relative;
+  width: 90%;
+  max-width: 1200px;
+  max-height: 90vh;
+  background: #18181b;
+  border: 1px solid #3f3f46;
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.c-design-guide__header,
+.c-project-modal__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #27272a;
+}
+
+.c-design-guide__title,
+.c-project-modal__title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #f4f4f5;
+}
+
+.c-design-guide__close,
+.c-project-modal__close {
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  color: #a1a1aa;
+  font-size: 20px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.c-design-guide__close:hover,
+.c-project-modal__close:hover {
+  background: #27272a;
+  color: #f4f4f5;
+}
+
+.c-design-guide__body,
+.c-project-modal__body {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+/* ==========================================
+   스크롤바 스타일
+   ========================================== */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #18181b;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
+}
