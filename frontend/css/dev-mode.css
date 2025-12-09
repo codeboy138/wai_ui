@@ -1,69 +1,119 @@
 /**
- * ==========================================
- * dev-mode.css - 개발자 모드(Inspector) 스타일
- * 
- * 역할: Inspector 모드 오버레이 및 툴팁 스타일
- * 경로: frontend/css/dev-mode.css
- * 
- * DATA-DEV:
- * 요소의 역할: 개발자 모드(Inspector) 시각 효과
- * 요소의 고유ID: css-dev-mode
- * 요소의 기능 목적 정의: .dev-overlay, .dev-highlight, .dev-tooltip 스타일 제공
- * 요소의 동작 로직 설명: body.dev-mode-active 시 오버레이 표시, 호버 시 data-dev 속성 툴팁 표시
- * 요소의 입출력 데이터 구조: 입력: 없음. 출력: Inspector 오버레이 스타일
- * 요소의 경로정보: frontend/css/dev-mode.css
- * 요소의 수행해야 할 백엔드/JS 명령: JS: setupInspectorMode() (app.js)
- * ==========================================
+ * [DATA-DEV: dev-mode.css]
+ * - 역할: Inspector + DATA-DEV 모드 스타일
+ * - 고유ID: dev-mode-styles
+ * - 기능: 요소 하이라이트, 툴팁 표시
+ * - 경로: frontend/css/dev-mode.css
  */
 
-/* 개발자 모드 (Dev Mode Overlay) */
-.dev-overlay { 
-    pointer-events: none; 
-    position: fixed; 
-    inset: 0; 
-    z-index: 9999; 
-    display: none; 
+/* Dev Mode 활성 시 body 클래스 */
+body.dev-mode-inspect,
+body.dev-mode-data-dev {
+  cursor: crosshair !important;
 }
 
-body.dev-mode-active .dev-overlay { display: block; }
-
-.dev-highlight { 
-    position: absolute; 
-    border: 1px solid #ef4444; 
-    background: rgba(239, 68, 68, 0.1); 
-    transition: all 0.05s ease-out; 
-    pointer-events: none;
+/* Inspector 모드 */
+body.dev-mode-inspect * {
+  transition: outline 0.1s;
 }
 
-.dev-tooltip { 
-    position: absolute; 
-    background: #ef4444; 
-    color: white; 
-    padding: 4px 8px; 
-    font-size: 10px; 
-    border-radius: 2px; 
-    font-family: monospace; 
-    white-space: pre; 
-    z-index: 10000; 
-    box-shadow: 0 2px 8px rgba(0,0,0,0.5); 
-    pointer-events: none;
+body.dev-mode-inspect *:hover {
+  outline: 2px solid var(--color-accent-red) !important;
+  outline-offset: 2px;
 }
 
-body.dev-mode-full [data-dev]:hover::after {
-    content: attr(data-dev); 
-    position: absolute; 
-    z-index: 99999;
-    background: rgba(0,0,0,0.95); 
-    color: #00ff00; 
-    padding: 6px; 
-    border: 1px solid #ef4444;
-    font-size: 10px; 
-    font-family: monospace; 
-    white-space: pre; 
-    border-radius: 2px;
-    bottom: 100%; 
-    left: 0; 
-    min-width: 200px; 
-    pointer-events: none; 
-    text-align: left;
+/* DATA-DEV 모드 */
+body.dev-mode-data-dev * {
+  transition: outline 0.1s;
+}
+
+body.dev-mode-data-dev *:hover {
+  outline: 2px solid var(--color-accent-blue) !important;
+  outline-offset: 2px;
+}
+
+/* Inspector 툴팁 */
+.c-inspector-tooltip {
+  position: fixed;
+  background-color: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: 4px;
+  font-size: var(--font-size-sm);
+  font-family: 'Courier New', monospace;
+  pointer-events: none;
+  z-index: var(--z-overlay);
+  white-space: pre-wrap;
+  max-width: 400px;
+  border: 1px solid var(--color-accent-red);
+}
+
+/* DATA-DEV 툴팁 */
+.c-datadev-tooltip {
+  position: fixed;
+  background-color: rgba(0, 0, 0, 0.95);
+  color: white;
+  padding: var(--spacing-md);
+  border-radius: 4px;
+  font-size: var(--font-size-sm);
+  font-family: 'Courier New', monospace;
+  pointer-events: none;
+  z-index: var(--z-overlay);
+  white-space: pre-wrap;
+  max-width: 500px;
+  border: 1px solid var(--color-accent-blue);
+  line-height: 1.6;
+}
+
+.c-datadev-tooltip strong {
+  color: var(--color-accent-blue);
+}
+
+/* Dev Mode 버튼 활성 상태 */
+body.dev-mode-inspect #header-devmode-inspect-btn {
+  background-color: var(--color-accent-red) !important;
+}
+
+body.dev-mode-data-dev #header-devmode-datadev-btn {
+  background-color: var(--color-accent-blue) !important;
+}
+
+/* 요소 정보 오버레이 */
+.c-dev-overlay {
+  position: fixed;
+  top: 60px;
+  right: 20px;
+  background-color: rgba(0, 0, 0, 0.9);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: var(--spacing-md);
+  font-family: 'Courier New', monospace;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  z-index: var(--z-overlay);
+  max-width: 400px;
+  pointer-events: none;
+}
+
+.c-dev-overlay__title {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  margin-bottom: var(--spacing-sm);
+  color: var(--color-accent-green);
+}
+
+.c-dev-overlay__field {
+  margin-bottom: var(--spacing-xs);
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.c-dev-overlay__label {
+  color: var(--color-text-secondary);
+  min-width: 80px;
+}
+
+.c-dev-overlay__value {
+  color: var(--color-accent-blue);
+  word-break: break-all;
 }
