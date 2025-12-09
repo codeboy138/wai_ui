@@ -1,153 +1,77 @@
 /**
- * ==========================================
- * store.js - 전역 상태 관리
- * 
- * 역할: 중앙 집중식 상태 관리
- * 경로: frontend/js/store.js
- * ==========================================
+ * [DATA-DEV: store.js]
+ * - 역할: 전역 상태 관리 (Global State)
+ * - 고유ID: global-store
+ * - 기능: UI 상태, 트랙/클립/박스 데이터, 선택 상태
+ * - 로직: reactive 객체로 Vue 반응성 제공
+ * - 데이터: 아래 appState 객체 참조
+ * - 경로: frontend/js/store.js
+ * - 명령: 없음 (데이터 저장소)
  */
 
-const { reactive } = window.Vue;
-
-const Z_INDEX_OFFSETS = { 'BG': 20, 'TXT': 40, 'VID': 60, 'EFF': 80 };
-
-const store = reactive({
-    leftPanelWidth: 240,
-    rightPanelWidth: 320,
-    previewContainerHeight: '50%',
-    timelineContainerHeight: '50%',
-    isProjectModalOpen: false,
-    isDevModeActive: false,
-    isDevModeFull: false,
-    
-    tracks: [
-        { id: 't1', name: 'Global', type: 'video', color: '#64748b', visible: true, locked: false },
-        { id: 't2', name: 'Top', type: 'text', color: '#eab308', visible: true, locked: false },
-        { id: 't3', name: 'Middle', type: 'video', color: '#22c55e', visible: true, locked: false },
-        { id: 't4', name: 'Bottom', type: 'text', color: '#3b82f6', visible: true, locked: false },
-        { id: 't5', name: 'BGM', type: 'audio', color: '#a855f7', visible: true, locked: false }
-    ],
-    
-    clips: [
-        { id: 'c1', trackId: 't1', name: 'Intro_BG.mp4', start: 0, duration: 10, type: 'video' },
-        { id: 'c3', trackId: 't5', name: 'BGM_Main.mp3', start: 0, duration: 30, type: 'audio' }
-    ],
-    
-    canvasBoxes: [
-        { id: 'box_init', colIdx: 1, type: 'TXT', zIndex: 240, color: '#eab308', x: 1720, y: 980, w: 400, h: 200 }
-    ],
-    
-    zoom: 20,
-    selectedClip: null,
-    selectedBoxId: null,
-    layerMainName: "",
-    layerTemplates: [],
-    isMagnet: true,
-    isAutoRipple: false,
-    isTimelineCollapsed: false,
-    currentTime: 0,
-    dragItemIndex: null,
-    dragOverItemIndex: null,
-    
-    aspectRatio: '16:9',
-    resolution: '4K',
-    canvasSize: { w: 3840, h: 2160 },
-    mouseCoord: { x: 0, y: 0 },
-    isMouseOverCanvas: false,
-    canvasScale: 1.0,
-    
-    inspector: { name: '', width: 0, height: 0, id: '', action: '', io: '', logic: '' },
-    highlightStyle: { width: '0', height: '0', top: '0', left: '0' },
-    tooltipStyle: { top: '0', left: '0' },
-    mouseMarkerPos: { x: 0, y: 0 },
-    
-    layerCols: [
-        { id: 'c1', name: '전체', color: '#64748b' },
-        { id: 'c2', name: '상단', color: '#eab308' },
-        { id: 'c3', name: '중단', color: '#22c55e' },
-        { id: 'c4', name: '하단', color: '#3b82f6' }
-    ],
-    
-    COLORS: ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#10b981', '#06b6d4', '#0ea5e9', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#ffffff', '#9ca3af', '#4b5563', '#000000'],
-    
-    getZIndex(colIdx, type) {
-        const base = (colIdx * 100) + 100;
-        const offset = Z_INDEX_OFFSETS[type] || 60;
-        return base + offset;
-    },
-    
-    addLayerBox(colIdx, type, color) {
-        const zIndex = this.getZIndex(colIdx, type);
-        const newBox = {
-            id: \`box_\${Date.now()}\`,
-            colIdx,
-            type,
-            zIndex,
-            color,
-            x: 1920 - 200 + (colIdx * 50),
-            y: 1080 - 150 + (colIdx * 50),
-            w: 400,
-            h: 300
-        };
-        this.canvasBoxes.push(newBox);
-    },
-    
-    removeBox(id) {
-        this.canvasBoxes = this.canvasBoxes.filter(b => b.id !== id);
-        if (this.selectedBoxId === id) this.selectedBoxId = null;
-    },
-    
-    setSelectedBoxId(id) {
-        this.selectedBoxId = (this.selectedBoxId === id) ? null : id;
-        this.selectedClip = null;
-    },
-    
-    removeClip(id) {
-        this.clips = this.clips.filter(c => c.id !== id);
-    },
-    
-    setSelectedClip(clip) {
-        this.selectedClip = (this.selectedClip && this.selectedClip.id === clip.id) ? null : clip;
-        this.selectedBoxId = null;
-    },
-    
-    saveLayerTemplate(name) {
-        const newTpl = { id: \`tpl_\${Date.now()}\`, name, cols: this.layerCols };
-        this.layerTemplates.push(newTpl);
-        this.layerMainName = name;
-    },
-    
-    addClipFromDrop(fileType, trackIndex, time, assetName) {
-        const trackId = this.tracks[trackIndex] ? this.tracks[trackIndex].id : null;
-        if (!trackId) return;
-        const newClip = {
-            id: \`c_\${Date.now()}\`,
-            trackId,
-            name: assetName,
-            start: time,
-            duration: 10,
-            type: fileType
-        };
-        this.clips.push(newClip);
-    },
-    
-    moveTrack(fromIndex, toIndex) {
-        if (fromIndex === null || toIndex === null || fromIndex === toIndex) return;
-        const tracks = [...this.tracks];
-        const [removed] = tracks.splice(fromIndex, 1);
-        tracks.splice(toIndex, 0, removed);
-        this.tracks = tracks;
-    },
-    
-    toggleTrackVisibility(trackId) {
-        const track = this.tracks.find(t => t.id === trackId);
-        if (track) track.visible = !track.visible;
-    },
-    
-    toggleTrackLock(trackId) {
-        const track = this.tracks.find(t => t.id === trackId);
-        if (track) track.locked = !track.locked;
-    }
-});
-
-export default store;
+export const appState = {
+  // UI 상태
+  currentPage: 'explore',
+  devMode: null, // 'inspect' | 'data-dev' | null
+  
+  // 패널 크기
+  leftPanelWidth: 240,
+  rightPanelWidth: 280,
+  timelinePanelHeight: 200,
+  
+  // 캔버스 설정
+  canvasRatio: '16:9',
+  canvasResolution: '1920x1080',
+  canvasScale: 1,
+  snapEnabled: true,
+  
+  // 타임라인 설정
+  timelineZoom: 30,
+  playhead: 0,
+  
+  // 레이어 (4x3 매트릭스)
+  layers: [
+    { id: 1, name: 'L1', content: null },
+    { id: 2, name: 'L2', content: null },
+    { id: 3, name: 'L3', content: null },
+    { id: 4, name: 'L4', content: null },
+    { id: 5, name: 'L5', content: null },
+    { id: 6, name: 'L6', content: null },
+    { id: 7, name: 'L7', content: null },
+    { id: 8, name: 'L8', content: null },
+    { id: 9, name: 'L9', content: null },
+    { id: 10, name: 'L10', content: null },
+    { id: 11, name: 'L11', content: null },
+    { id: 12, name: 'L12', content: null }
+  ],
+  selectedLayerId: null,
+  
+  // 트랙
+  tracks: [
+    { id: 1, name: '트랙 1', type: 'video' },
+    { id: 2, name: '트랙 2', type: 'video' },
+    { id: 3, name: '트랙 3', type: 'audio' }
+  ],
+  
+  // 클립
+  clips: [
+    { id: 1, trackId: 1, name: '클립 1', start: 0, duration: 5, assetId: 'asset1' },
+    { id: 2, trackId: 1, name: '클립 2', start: 6, duration: 3, assetId: 'asset2' }
+  ],
+  selectedClipId: null,
+  
+  // 캔버스 박스
+  canvasBoxes: [
+    { id: 1, name: '텍스트 1', x: 100, y: 100, width: 200, height: 100, zIndex: 10, bgColor: '#3b82f6' },
+    { id: 2, name: '이미지 1', x: 350, y: 150, width: 300, height: 200, zIndex: 5, bgColor: '#10b981' }
+  ],
+  selectedCanvasBoxId: null,
+  
+  // Inspector 데이터
+  inspectorData: {
+    elementId: '',
+    dataAction: '',
+    io: '',
+    logic: ''
+  }
+};
