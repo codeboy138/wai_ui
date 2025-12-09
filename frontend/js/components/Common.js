@@ -1,134 +1,250 @@
-const { defineComponent } = Vue;
+/**
+ * ==========================================
+ * Common.js
+ * 
+ * 역할: 공통 UI 컴포넌트 (드롭다운 메뉴, 눈금자 등)
+ * 경로: frontend/js/components/Common.js
+ * ==========================================
+ */
 
-// ==========================================
-// [Smart Dropdown Component]
-// ==========================================
-export const DropdownMenu = defineComponent({
-    props: ['label', 'currentValue', 'items', 'id', 'itemTextKey'], 
-    template: `
-        <div :id="id" 
-             class="c-dropdown" 
-             :class="{ 'c-dropdown--open': isOpen }" 
-             @click.stop="toggleDropdown"
-             @mouseenter="isHovered = true"
-             @mouseleave="isHovered = false"
-             :data-dev="'Role: Dropdown | ID: c-dropdown-' + id + ' | Func: 드롭다운 메뉴 | Goal: 항목 선택 UI 제공 | State: isOpen=' + isOpen + ', currentValue=' + currentValue + ' | Path: App/Common/Dropdown | Py: None | JS: toggleDropdown()'">
-            
-            <div class="c-dropdown__trigger flex items-center gap-2 min-w-[60px] justify-between px-3 h-full border-r border-ui-border last:border-r-0"
-                 :data-js-trigger="id"
-                 :data-dev="'Role: Button | ID: c-dropdown-trigger-' + id + ' | Func: 드롭다운 트리거 | Goal: 메뉴 열기/닫기 토글 | State: isHovered=' + isHovered + ' | Path: App/Common/Dropdown/Trigger | Py: None | JS: @click=toggleDropdown()'">
-                
-                <span class="c-dropdown__label text-[10px] font-bold" 
-                      :class="isHovered ? 'text-ui-accent' : 'text-text-sub'"
-                      :data-dev="'Role: Label | ID: c-dropdown-label-' + id + ' | Func: 라벨 텍스트 | Goal: 현재 선택값 또는 라벨 표시 | State: displayText=' + displayText + ' | Path: App/Common/Dropdown/Label | Py: None | JS: None'">
-                    {{ displayText }}
-                </span>
-                
-                <i class="c-dropdown__icon fa-solid fa-caret-down text-[8px] text-text-sub transition-transform" 
-                   :class="{'c-dropdown__icon--rotated': isOpen}"
-                   :data-dev="'Role: Icon | ID: c-dropdown-icon-' + id + ' | Func: 화살표 아이콘 | Goal: 열림/닫힘 상태 시각화 | State: isOpen=' + isOpen + ' | Path: App/Common/Dropdown/Icon | Py: None | JS: None'"></i>
-            </div>
-            
-            <div class="c-dropdown__menu"
-                 :data-dev="'Role: Menu | ID: c-dropdown-menu-' + id + ' | Func: 드롭다운 메뉴 컨테이너 | Goal: 선택 가능한 항목 목록 표시 | State: items.length=' + items.length + ', visible=' + isOpen + ' | Path: App/Common/Dropdown/Menu | Py: None | JS: None'">
-                
-                <div v-if="$slots.header" 
-                     class="c-dropdown__header p-2 border-b border-ui-border bg-bg-panel text-[10px] text-text-main font-bold text-center"
-                     :data-dev="'Role: Header | ID: c-dropdown-header-' + id + ' | Func: 메뉴 헤더 | Goal: 카테고리 또는 설명 표시 | State: None | Path: App/Common/Dropdown/Menu/Header | Py: None | JS: None'">
-                    <slot name="header"></slot>
-                </div>
-
-                <div class="c-dropdown__item c-menu-item" 
-                     v-for="(item, idx) in items" 
-                     :key="idx" 
-                     @click.stop="selectItem(item)"
-                     :data-js-item="'dropdown-' + id + '-item-' + idx"
-                     :data-dev="'Role: MenuItem | ID: c-dropdown-item-' + id + '-' + idx + ' | Func: 메뉴 항목 | Goal: 항목 선택 시 부모에 emit | State: item=' + (typeof item === \\'object\\' ? item.value : item) + ' | Path: App/Common/Dropdown/Menu/Item | Py: None | JS: selectItem(item), emit(\\'select\\', value)'">
-                    
-                    <span v-if="typeof item === 'object'">
-                        {{ item.label }} 
-                        <span class="c-menu-item__desc text-text-sub text-[9px] ml-1" v-if="item.desc">({{ item.desc }})</span>
-                    </span>
-                    <span v-else>{{ item }}</span>
-                </div>
-            </div>
-        </div>
-    `,
-    data() { 
-        return { 
-            isOpen: false, 
-            isHovered: false 
-        } 
+/**
+ * ==========================================
+ * DropdownMenu 컴포넌트
+ * 
+ * 역할: 우클릭 컨텍스트 메뉴 또는 버튼 클릭 드롭다운 메뉴
+ * ==========================================
+ */
+const DropdownMenu = {
+  name: 'DropdownMenu',
+  
+  props: {
+    // 메뉴 항목 배열 [{ label: 'Copy', action: 'copy', divider: false }, ...]
+    items: {
+      type: Array,
+      required: true
     },
-    computed: {
-        displayText() {
-            if (this.isHovered || this.isOpen) {
-                return this.currentValue;
-            }
-            return this.label;
-        }
+    // 메뉴 표시 위치 { x: number, y: number }
+    position: {
+      type: Object,
+      default: () => ({ x: 0, y: 0 })
     },
-    methods: {
-        toggleDropdown() { 
-            this.isOpen = !this.isOpen; 
-        },
-        selectItem(item) {
-            const val = (typeof item === 'object') ? item.value : item;
-            this.$emit('select', val);
-            this.isOpen = false;
-        },
-        closeOnOutsideClick(e) { 
-            if (!this.$el.contains(e.target)) this.isOpen = false; 
-        }
-    },
-    mounted() { 
-        document.addEventListener('click', this.closeOnOutsideClick); 
-    },
-    beforeUnmount() { 
-        document.removeEventListener('click', this.closeOnOutsideClick); 
+    // 메뉴 표시 여부
+    visible: {
+      type: Boolean,
+      default: false
     }
-});
-
-// ==========================================
-// [Ruler Component]
-// ==========================================
-export const RulerLine = defineComponent({
-    props: ['orientation', 'maxSize', 'scale'],
-    template: `
-        <div class="c-ruler absolute inset-0 overflow-hidden pointer-events-none"
-             :data-dev="'Role: Ruler | ID: c-ruler-' + orientation + ' | Func: 눈금자 | Goal: 캔버스 좌표 가이드 제공 | State: orientation=' + orientation + ', maxSize=' + maxSize + ', scale=' + scale + ' | Path: App/Common/Ruler | Py: None | JS: None'">
-            
-            <template v-if="orientation === 'h'">
-                <div v-for="i in majorTicks" 
-                     :key="'h-' + i" 
-                     :style="{left: i + 'px'}" 
-                     class="c-ruler__tick c-ruler__tick--horizontal absolute top-0 text-xxs text-text-sub font-mono pl-1 border-l border-ui-border h-full"
-                     :data-dev="'Role: Tick | ID: c-ruler-tick-h-' + i + ' | Func: 가로 눈금 | Goal: X축 위치 표시 | State: position=' + i + 'px | Path: App/Common/Ruler/Tick | Py: None | JS: None'">
-                    {{ i }}
-                </div>
-            </template>
-            
-            <template v-else>
-                <div v-for="i in majorTicks" 
-                     :key="'v-' + i" 
-                     :style="{top: i + 'px'}" 
-                     class="c-ruler__tick c-ruler__tick--vertical absolute left-0 text-xxs text-text-sub font-mono pt-px border-t border-ui-border w-full"
-                     :data-dev="'Role: Tick | ID: c-ruler-tick-v-' + i + ' | Func: 세로 눈금 | Goal: Y축 위치 표시 | State: position=' + i + 'px | Path: App/Common/Ruler/Tick | Py: None | JS: None'">
-                    {{ i }}
-                </div>
-            </template>
-        </div>
-    `,
-    computed: {
-        majorTicks() {
-            const step = 100; 
-            const ticks = [];
-            for (let i = step; i < this.maxSize; i += step) {
-                if (i * this.scale < (this.orientation === 'h' ? 3840 : 2160)) {
-                    ticks.push(i);
-                }
-            }
-            return ticks;
-        }
+  },
+  
+  methods: {
+    /**
+     * 메뉴 항목 클릭 핸들러
+     * @param {Object} item - 클릭된 메뉴 항목 { label, action }
+     */
+    handleItemClick(item) {
+      if (item.action) {
+        this.$emit('select', item.action);
+      }
+      this.close();
+    },
+    
+    /**
+     * 메뉴 닫기
+     */
+    close() {
+      this.$emit('close');
     }
-});
+  },
+  
+  mounted() {
+    // 외부 클릭 시 메뉴 닫기
+    document.addEventListener('click', this.close);
+  },
+  
+  beforeUnmount() {
+    document.removeEventListener('click', this.close);
+  },
+  
+  template: `
+    <div 
+      v-if="visible"
+      :id="'dropdown-menu-' + _uid"
+      class="c-dropdown"
+      :style="{
+        left: position.x + 'px',
+        top: position.y + 'px'
+      }"
+      @click.stop
+      :data-dev='{
+        "role": "드롭다운 컨텍스트 메뉴",
+        "id": "dropdown-menu-" + _uid,
+        "func": "우클릭 또는 버튼 클릭 시 메뉴 항목 목록 표시",
+        "goal": "사용자가 선택 가능한 액션 목록을 제공하고, 클릭 시 해당 액션 실행",
+        "state": {
+          "visible": "메뉴 표시 여부 (Boolean)",
+          "position": "메뉴 위치 { x: number, y: number }",
+          "items": "메뉴 항목 배열 [{ label, action, divider }]"
+        },
+        "path": "frontend/js/components/Common.js → DropdownMenu",
+        "py": "",
+        "js": "handleItemClick(item), close()"
+      }'
+    >
+      <div 
+        :id="'dropdown-menu-list-' + _uid"
+        class="c-dropdown__menu"
+        :data-dev='{
+          "role": "드롭다운 메뉴 항목 리스트",
+          "id": "dropdown-menu-list-" + _uid,
+          "func": "메뉴 항목들을 수직 리스트로 표시",
+          "goal": "사용자가 메뉴 항목을 스캔하고 선택",
+          "state": { "items": "표시 중인 메뉴 항목 배열" },
+          "path": "frontend/js/components/Common.js → DropdownMenu → menu list",
+          "py": "",
+          "js": "handleItemClick(item)"
+        }'
+      >
+        <template v-for="(item, index) in items" :key="index">
+          <!-- 구분선 -->
+          <div 
+            v-if="item.divider"
+            :id="'dropdown-divider-' + _uid + '-' + index"
+            class="c-dropdown__divider"
+            :data-dev='{
+              "role": "메뉴 항목 구분선",
+              "id": "dropdown-divider-" + _uid + "-" + index,
+              "func": "메뉴 항목 그룹을 시각적으로 구분",
+              "goal": "사용자가 메뉴 항목의 논리적 그룹을 인식",
+              "state": {},
+              "path": "frontend/js/components/Common.js → DropdownMenu → divider",
+              "py": "",
+              "js": ""
+            }'
+          ></div>
+          
+          <!-- 메뉴 항목 -->
+          <div 
+            v-else
+            :id="'dropdown-item-' + _uid + '-' + index"
+            class="c-dropdown__item"
+            :data-js-item="item.action"
+            @click="handleItemClick(item)"
+            :data-dev='{
+              "role": "드롭다운 메뉴 항목",
+              "id": "dropdown-item-" + _uid + "-" + index,
+              "func": "클릭 시 해당 액션 실행 및 메뉴 닫기",
+              "goal": "사용자가 원하는 작업(Copy, Delete 등)을 선택",
+              "state": {
+                "item": { "label": item.label, "action": item.action }
+              },
+              "path": "frontend/js/components/Common.js → DropdownMenu → menu item",
+              "py": "",
+              "js": "handleItemClick(item)"
+            }'
+          >
+            {{ item.label }}
+          </div>
+        </template>
+      </div>
+    </div>
+  `
+};
+
+/**
+ * ==========================================
+ * RulerLine 컴포넌트
+ * 
+ * 역할: 캔버스 눈금자 (가로/세로)
+ * ==========================================
+ */
+const RulerLine = {
+  name: 'RulerLine',
+  
+  props: {
+    // 눈금자 방향 ('horizontal' | 'vertical')
+    direction: {
+      type: String,
+      default: 'horizontal',
+      validator: (value) => ['horizontal', 'vertical'].includes(value)
+    },
+    // 눈금자 길이 (px)
+    length: {
+      type: Number,
+      default: 1000
+    },
+    // 눈금 간격 (px)
+    interval: {
+      type: Number,
+      default: 50
+    }
+  },
+  
+  computed: {
+    /**
+     * 눈금 배열 생성
+     * @returns {Array} 눈금 위치 배열 [0, 50, 100, 150, ...]
+     */
+    ticks() {
+      const result = [];
+      for (let i = 0; i <= this.length; i += this.interval) {
+        result.push(i);
+      }
+      return result;
+    }
+  },
+  
+  template: `
+    <div 
+      :id="'ruler-line-' + direction + '-' + _uid"
+      :class="[
+        'c-ruler',
+        'c-ruler--' + direction
+      ]"
+      :data-dev='{
+        "role": "캔버스 눈금자",
+        "id": "ruler-line-" + direction + "-" + _uid,
+        "func": "캔버스의 가로 또는 세로 눈금을 표시하여 객체 위치 파악 지원",
+        "goal": "사용자가 캔버스 상의 픽셀 위치를 시각적으로 확인",
+        "state": {
+          "direction": "눈금자 방향 (horizontal | vertical)",
+          "length": "눈금자 전체 길이 (px)",
+          "interval": "눈금 간격 (px)",
+          "ticks": "눈금 위치 배열"
+        },
+        "path": "frontend/js/components/Common.js → RulerLine",
+        "py": "",
+        "js": ""
+      }'
+    >
+      <div 
+        v-for="tick in ticks"
+        :key="tick"
+        :id="'ruler-tick-' + direction + '-' + _uid + '-' + tick"
+        class="c-ruler__tick"
+        :style="direction === 'horizontal' 
+          ? { left: tick + 'px' } 
+          : { top: tick + 'px' }
+        "
+        :data-dev='{
+          "role": "눈금자 눈금 마크",
+          "id": "ruler-tick-" + direction + "-" + _uid + "-" + tick,
+          "func": "특정 픽셀 위치에 눈금선 표시",
+          "goal": "사용자가 정확한 픽셀 단위 위치를 확인",
+          "state": {
+            "position": tick,
+            "direction": direction
+          },
+          "path": "frontend/js/components/Common.js → RulerLine → tick",
+          "py": "",
+          "js": ""
+        }'
+      >
+        <span class="c-ruler__label">{{ tick }}</span>
+      </div>
+    </div>
+  `
+};
+
+// CommonJS 모듈로 내보내기
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { DropdownMenu, RulerLine };
+}
