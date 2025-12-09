@@ -19,18 +19,19 @@ import RightPanel from './components/RightPanel.js';
 import TimelinePanel from './components/TimelinePanel.js';
 import Header from './components/Header.js';
 
+// ES6 Module 내에서 window.Vue 사용
+const { createApp } = window.Vue;
+
 /**
  * ==========================================
  * Vue 3 앱 생성
  * ==========================================
  */
-const app = Vue.createApp({
+const app = createApp({
   name: 'App',
   
   data() {
-    return {
-      // 앱 레벨 상태는 store에서 관리
-    };
+    return {};
   },
   
   mounted() {
@@ -80,6 +81,7 @@ const app = Vue.createApp({
         const target = e.target.closest('[data-dev]');
         if (target && target.dataset.dev) {
           try {
+            // JSON 파싱 시도
             const devData = JSON.parse(target.dataset.dev);
             
             // Inspector 패널 내용 업데이트
@@ -105,7 +107,7 @@ const app = Vue.createApp({
               </div>
               <div style="margin-bottom: 8px;">
                 <strong style="color: #a1a1aa;">State:</strong><br>
-                <pre style="background: #09090b; padding: 8px; border-radius: 4px; color: #fbbf24; overflow-x: auto;">${JSON.stringify(devData.state, null, 2)}</pre>
+                <pre style="background: #09090b; padding: 8px; border-radius: 4px; color: #fbbf24; overflow-x: auto; white-space: pre-wrap;">${JSON.stringify(devData.state, null, 2)}</pre>
               </div>
               <div style="margin-bottom: 8px;">
                 <strong style="color: #a1a1aa;">Path:</strong><br>
@@ -123,7 +125,9 @@ const app = Vue.createApp({
             
             inspectorPanel.style.display = 'block';
           } catch (err) {
-            console.error('❌ data-dev 파싱 실패:', err);
+            // JSON 파싱 실패 시 에러를 표시하지 않고 무시
+            console.warn('⚠️ data-dev 파싱 실패 (무시됨):', target.dataset.dev);
+            inspectorPanel.style.display = 'none';
           }
         } else {
           inspectorPanel.style.display = 'none';
@@ -138,20 +142,7 @@ const app = Vue.createApp({
     <div 
       id="app-container"
       class="c-app"
-      :data-dev='{
-        "role": "WAI Studio 메인 앱 컨테이너",
-        "id": "app-container",
-        "func": "전체 앱 레이아웃을 구성하고 모든 하위 컴포넌트를 포함",
-        "goal": "사용자가 헤더, 패널, 캔버스, 타임라인을 통합된 인터페이스로 사용",
-        "state": {
-          "projectName": "$store.projectName",
-          "selectedRatio": "$store.selectedRatio",
-          "selectedQuality": "$store.selectedQuality"
-        },
-        "path": "frontend/js/app.js",
-        "py": "",
-        "js": "initDataDevInspector()"
-      }'
+      data-dev='{"role":"WAI Studio 메인 앱 컨테이너","id":"app-container","func":"전체 앱 레이아웃 구성","goal":"통합 인터페이스 제공","state":{},"path":"frontend/js/app.js","py":"","js":"initDataDevInspector()"}'
     >
       <!-- 헤더 -->
       <Header />
@@ -160,68 +151,32 @@ const app = Vue.createApp({
       <main 
         id="app-main"
         class="c-app__main"
-        :data-dev='{
-          "role": "앱 메인 콘텐츠 영역",
-          "id": "app-main",
-          "func": "헤더 제외 메인 작업 공간 (Left, Center, Right 패널)",
-          "goal": "사용자가 에셋, 캔버스, 레이어를 통합 관리",
-          "state": {},
-          "path": "frontend/js/app.js → main",
-          "py": "",
-          "js": ""
-        }'
+        data-dev='{"role":"메인 작업 영역","id":"app-main","func":"3개 패널 배치","goal":"에셋/캔버스/레이어 관리","state":{},"path":"frontend/js/app.js → main","py":"","js":""}'
       >
-        <!-- 왼쪽 패널 (Asset Library) -->
+        <!-- 왼쪽 패널 -->
         <aside 
           id="app-left-panel"
           class="c-app__panel c-app__panel--left"
-          :data-dev='{
-            "role": "왼쪽 패널 (Asset Library)",
-            "id": "app-left-panel",
-            "func": "이미지, 비디오, 오디오, 텍스트 에셋 관리",
-            "goal": "사용자가 에셋을 추가하고 캔버스로 드래그",
-            "state": {},
-            "path": "frontend/js/app.js → main → left panel",
-            "py": "",
-            "js": ""
-          }'
+          data-dev='{"role":"에셋 라이브러리","id":"app-left-panel","func":"미디어 에셋 관리","goal":"캔버스로 드래그","state":{},"path":"frontend/js/app.js → left","py":"","js":""}'
         >
           <LeftPanel />
         </aside>
         
-        <!-- 중앙 패널 (Preview Canvas) -->
+        <!-- 중앙 패널 -->
         <section 
           id="app-center-panel"
           class="c-app__panel c-app__panel--center"
-          :data-dev='{
-            "role": "중앙 패널 (Preview Canvas)",
-            "id": "app-center-panel",
-            "func": "미리보기 캔버스 및 툴바 표시",
-            "goal": "사용자가 레이어를 시각적으로 편집",
-            "state": {},
-            "path": "frontend/js/app.js → main → center panel",
-            "py": "",
-            "js": ""
-          }'
+          data-dev='{"role":"프리뷰 캔버스","id":"app-center-panel","func":"캔버스 및 툴바","goal":"레이어 시각 편집","state":{},"path":"frontend/js/app.js → center","py":"","js":""}'
         >
           <PreviewToolbar />
           <PreviewCanvas />
         </section>
         
-        <!-- 오른쪽 패널 (Layer Matrix) -->
+        <!-- 오른쪽 패널 -->
         <aside 
           id="app-right-panel"
           class="c-app__panel c-app__panel--right"
-          :data-dev='{
-            "role": "오른쪽 패널 (Layer Matrix)",
-            "id": "app-right-panel",
-            "func": "4x4 레이어 행렬 관리",
-            "goal": "사용자가 레이어 구조를 시각적으로 관리",
-            "state": {},
-            "path": "frontend/js/app.js → main → right panel",
-            "py": "",
-            "js": ""
-          }'
+          data-dev='{"role":"레이어 행렬","id":"app-right-panel","func":"4x4 레이어 관리","goal":"레이어 구조 관리","state":{},"path":"frontend/js/app.js → right","py":"","js":""}'
         >
           <RightPanel />
         </aside>
@@ -231,16 +186,7 @@ const app = Vue.createApp({
       <footer 
         id="app-timeline-panel"
         class="c-app__timeline"
-        :data-dev='{
-          "role": "타임라인 패널",
-          "id": "app-timeline-panel",
-          "func": "비디오/오디오 타임라인 관리 및 재생 제어",
-          "goal": "사용자가 타이밍을 조정하고 재생",
-          "state": {},
-          "path": "frontend/js/app.js → timeline panel",
-          "py": "",
-          "js": ""
-        }'
+        data-dev='{"role":"타임라인 패널","id":"app-timeline-panel","func":"비디오/오디오 타임라인","goal":"타이밍 조정 및 재생","state":{},"path":"frontend/js/app.js → timeline","py":"","js":""}'
       >
         <TimelinePanel />
       </footer>
