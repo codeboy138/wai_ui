@@ -4,15 +4,6 @@
  * 
  * 역할: 캔버스 박스 렌더링 및 Interact.js 드래그/리사이즈
  * 경로: frontend/js/components/PreviewCanvas.js
- * 
- * DATA-DEV:
- * 요소의 역할: 프리뷰 캔버스 박스 관리 및 상호작용
- * 요소의 고유ID: component-preview-canvas
- * 요소의 기능 목적 정의: 캔버스 박스 렌더링, Interact.js를 이용한 드래그/리사이즈, 컨텍스트 메뉴
- * 요소의 동작 로직 설명: mounted/updated 시 initInteract() 호출하여 Interact.js 초기화, 드래그/리사이즈 종료 시 updateBoxPosition() 호출
- * 요소의 입출력 데이터 구조: 입력: canvasBoxes(배열), selectedBoxId(문자열). 출력: @select-box, @remove-box 이벤트
- * 요소의 경로정보: frontend/js/components/PreviewCanvas.js
- * 요소의 수행해야 할 백엔드/JS 명령: JS: initInteract(), $emit('select-box'), $emit('remove-box')
  * ==========================================
  */
 
@@ -61,10 +52,10 @@ export default {
                         let x = (parseFloat(target.getAttribute('data-x')) || 0) + (e.dx / scale);
                         let y = (parseFloat(target.getAttribute('data-y')) || 0) + (e.dy / scale);
                         
-                        const cx = x + (e.rect.width / 2);
-                        const centerX = 3840 / 2;
                         const guideV = document.getElementById('canvas-guide-vertical');
                         if (guideV) {
+                            const cx = x + (e.rect.width / 2);
+                            const centerX = 3840 / 2;
                             guideV.style.display = Math.abs(cx - centerX) < 20 ? 'block' : 'none';
                         }
                         
@@ -136,19 +127,10 @@ export default {
         }
     },
     
-    template: `
-        <div ref="container" 
-             class="c-canvas" 
+    template: \`
+        <div class="c-canvas" 
              @click="contextMenu = null; $emit('select-box', null)"
-             data-js="canvas-container"
-             title="캔버스 영역"
-             data-dev="요소의 역할: 캔버스 박스 컨테이너
-요소의 고유ID: component-canvas-root
-요소의 기능 목적 정의: 캔버스 박스 렌더링 및 상호작용 관리
-요소의 동작 로직 설명: 박스 클릭으로 선택, 드래그로 이동, 리사이즈 핸들로 크기 조절, 우클릭으로 컨텍스트 메뉴
-요소의 입출력 데이터 구조: 입력: canvasBoxes(배열), selectedBoxId(문자열). 출력: @select-box, @remove-box 이벤트
-요소의 경로정보: frontend/js/components/PreviewCanvas.js#root
-요소의 수행해야 할 백엔드/JS 명령: JS: initInteract(), $emit('select-box'), $emit('remove-box')">
+             title="캔버스 영역">
             <div v-for="box in canvasBoxes" 
                  :key="box.id" 
                  :id="'canvas-box-' + box.id"
@@ -166,64 +148,29 @@ export default {
                  @contextmenu.prevent="handleContext($event, box.id)"
                  data-x="0" 
                  data-y="0"
-                 :data-js="'canvas-box-' + box.id"
-                 :title="'박스 (Z:' + box.zIndex + ')'"
-                 :data-dev="'요소의 역할: 캔버스 박스\\n요소의 고유ID: component-canvas-box-' + box.id + '\\n요소의 기능 목적 정의: 캔버스 상에 렌더링되는 개별 박스\\n요소의 동작 로직 설명: 클릭으로 선택, 드래그로 이동, 리사이즈 핸들로 크기 조절\\n요소의 입출력 데이터 구조: 입력: box (객체). 출력: 위치/크기 변경 이벤트\\n요소의 경로정보: frontend/js/components/PreviewCanvas.js#box\\n요소의 수행해야 할 백엔드/JS 명령: JS: $emit(\\'select-box\\', id), Interact.js 드래그/리사이즈'">
+                 :title="'박스 (Z:' + box.zIndex + ')'">
                 <div class="c-canvas-box__label" 
                      :style="{ backgroundColor: box.color }"
-                     :data-js="'canvas-box-label-' + box.id"
                      :title="'Z-Index: ' + box.zIndex">
                     Z:{{ box.zIndex }}
                 </div>
-                <div class="c-canvas-box__handle c-canvas-box__handle--tl"
-                     :data-js="'canvas-handle-tl-' + box.id"
-                     title="좌상단 핸들"></div>
-                <div class="c-canvas-box__handle c-canvas-box__handle--tr"
-                     :data-js="'canvas-handle-tr-' + box.id"
-                     title="우상단 핸들"></div>
-                <div class="c-canvas-box__handle c-canvas-box__handle--bl"
-                     :data-js="'canvas-handle-bl-' + box.id"
-                     title="좌하단 핸들"></div>
-                <div class="c-canvas-box__handle c-canvas-box__handle--br"
-                     :data-js="'canvas-handle-br-' + box.id"
-                     title="우하단 핸들"></div>
+                <div class="c-canvas-box__handle c-canvas-box__handle--tl" title="좌상단 핸들"></div>
+                <div class="c-canvas-box__handle c-canvas-box__handle--tr" title="우상단 핸들"></div>
+                <div class="c-canvas-box__handle c-canvas-box__handle--bl" title="좌하단 핸들"></div>
+                <div class="c-canvas-box__handle c-canvas-box__handle--br" title="우하단 핸들"></div>
             </div>
             
             <div v-if="contextMenu" 
                  class="c-context-menu" 
                  :style="{top: contextMenu.y + 'px', left: contextMenu.x + 'px'}"
-                 data-js="canvas-context-menu"
-                 title="컨텍스트 메뉴"
-                 data-dev="요소의 역할: 캔버스 박스 컨텍스트 메뉴
-요소의 고유ID: component-canvas-context-menu
-요소의 기능 목적 정의: 박스 관련 작업 메뉴 표시
-요소의 동작 로직 설명: 우클릭 시 표시, 메뉴 항목 클릭 시 해당 액션 수행
-요소의 입출력 데이터 구조: 입력: contextMenu(좌표, boxId). 출력: handleContextAction()
-요소의 경로정보: frontend/js/components/PreviewCanvas.js#context-menu
-요소의 수행해야 할 백엔드/JS 명령: JS: handleContextAction(action)">
+                 title="컨텍스트 메뉴">
                 <div class="c-context-menu__item" 
                      @click="handleContextAction('top')"
-                     data-js="canvas-context-top"
-                     title="맨 위로"
-                     data-dev="요소의 역할: 맨 위로 메뉴 항목
-요소의 고유ID: component-canvas-context-top
-요소의 기능 목적 정의: 박스를 최상단 레이어로 이동
-요소의 동작 로직 설명: 클릭 시 박스 Z-Index 최대값으로 변경
-요소의 입출력 데이터 구조: 입력: 클릭. 출력: handleContextAction('top')
-요소의 경로정보: frontend/js/components/PreviewCanvas.js#context-top
-요소의 수행해야 할 백엔드/JS 명령: JS: handleContextAction('top')">맨 위로</div>
+                     title="맨 위로">맨 위로</div>
                 <div class="c-context-menu__item" 
                      @click="handleContextAction('delete')"
-                     data-js="canvas-context-delete"
-                     title="삭제"
-                     data-dev="요소의 역할: 삭제 메뉴 항목
-요소의 고유ID: component-canvas-context-delete
-요소의 기능 목적 정의: 선택된 박스 삭제
-요소의 동작 로직 설명: 클릭 시 $emit('remove-box') 호출
-요소의 입출력 데이터 구조: 입력: 클릭. 출력: @remove-box 이벤트
-요소의 경로정보: frontend/js/components/PreviewCanvas.js#context-delete
-요소의 수행해야 할 백엔드/JS 명령: JS: $emit('remove-box', boxId)">삭제</div>
+                     title="삭제">삭제</div>
             </div>
         </div>
-    `
+    \`
 };
