@@ -2,147 +2,74 @@
  * ==========================================
  * RightPanel.js
  * 
- * 역할: 레이어 매트릭스 + 속성 패널
+ * 역할: 4x4 레이어 행렬(Layer Matrix) 관리 패널
  * 경로: frontend/js/components/RightPanel.js
  * ==========================================
  */
 
-const RightPanel = {
+export default {
   name: 'RightPanel',
   
   data() {
     return {
-      // 레이어 매트릭스 컬럼 (타입별)
-      columns: ['Video', 'Image', 'Text', 'Audio', 'Effect'],
-      // 레이어 매트릭스 행 개수
-      rowCount: 10,
-      // 현재 선택된 레이어 ID
-      selectedLayerId: null
+      rows: 4,
+      cols: 4
     };
   },
   
   computed: {
     /**
-     * 전체 레이어 목록 (store에서 가져옴)
-     * @returns {Array} 레이어 배열
+     * 레이어 행렬 데이터 (4x4)
+     * @returns {Array<Array>} 2D 배열 [ [{layer}, ...], [{layer}, ...], ... ]
      */
-    layers() {
-      return this.$root.store.layers || [];
-    },
-    
-    /**
-     * 현재 선택된 레이어 객체
-     * @returns {Object|null} 선택된 레이어 또는 null
-     */
-    selectedLayer() {
-      if (!this.selectedLayerId) return null;
-      return this.layers.find(layer => layer.id === this.selectedLayerId);
-    },
-    
-    /**
-     * 레이어 매트릭스 셀 배열 생성
-     * @returns {Array} 셀 배열 [{ col, row, layer }, ...]
-     */
-    matrixCells() {
-      const cells = [];
-      
-      for (let row = 0; row < this.rowCount; row++) {
-        for (let col = 0; col < this.columns.length; col++) {
-          const columnType = this.columns[col];
-          
-          // 해당 셀에 배치된 레이어 찾기
-          const layer = this.layers.find(
-            l => l.matrixCol === col && l.matrixRow === row
+    layerMatrix() {
+      const matrix = [];
+      for (let row = 0; row < this.rows; row++) {
+        const rowData = [];
+        for (let col = 0; col < this.cols; col++) {
+          const layer = this.$store.layers.find(
+            l => l.row === row && l.col === col
           );
-          
-          cells.push({
-            col,
-            row,
-            columnType,
-            layer: layer || null
-          });
+          rowData.push(layer || null);
         }
+        matrix.push(rowData);
       }
-      
-      return cells;
+      return matrix;
     }
   },
   
   methods: {
     /**
-     * 레이어 매트릭스 셀 클릭 핸들러
-     * @param {Number} col - 컬럼 인덱스
-     * @param {Number} row - 행 인덱스
+     * 셀 클릭 핸들러
+     * @param {Number} row - 행 인덱스 (0~3)
+     * @param {Number} col - 열 인덱스 (0~3)
      */
-    selectCell(col, row) {
-      const cell = this.matrixCells.find(c => c.col === col && c.row === row);
-      
-      if (cell && cell.layer) {
-        this.selectedLayerId = cell.layer.id;
-        console.log('[RightPanel] Layer Selected:', cell.layer);
+    handleCellClick(row, col) {
+      const layer = this.layerMatrix[row][col];
+      if (layer) {
+        this.$store.selectLayer(layer.id);
       } else {
-        this.selectedLayerId = null;
+        this.$store.addLayerToMatrix(row, col);
       }
     },
     
     /**
-     * 새 레이어 추가 핸들러
-     * @param {Number} col - 컬럼 인덱스
-     * @param {Number} row - 행 인덱스
-     */
-    addLayer(col, row) {
-      const columnType = this.columns[col];
-      const newLayer = {
-        id: 'layer-' + Date.now(),
-        name: `${columnType} ${row + 1}`,
-        type: columnType.toLowerCase(),
-        matrixCol: col,
-        matrixRow: row,
-        visible: true,
-        locked: false,
-        zIndex: this.calculateZIndex(col, row)
-      };
-      
-      this.layers.push(newLayer);
-      console.log('[RightPanel] Layer Added:', newLayer);
-    },
-    
-    /**
-     * 레이어 삭제 핸들러
+     * 레이어 삭제
      * @param {String} layerId - 삭제할 레이어 ID
      */
     deleteLayer(layerId) {
-      const index = this.layers.findIndex(l => l.id === layerId);
-      if (index !== -1) {
-        this.layers.splice(index, 1);
-        console.log('[RightPanel] Layer Deleted:', layerId);
-        
-        if (this.selectedLayerId === layerId) {
-          this.selectedLayerId = null;
-        }
-      }
+      this.$store.deleteLayer(layerId);
     },
     
     /**
-     * 레이어 Z-Index 자동 계산 (컬럼 × 100 + 행)
-     * @param {Number} col - 컬럼 인덱스
+     * 자동 레이어 번호 생성
      * @param {Number} row - 행 인덱스
-     * @returns {Number} 계산된 Z-Index
+     * @param {Number} col - 열 인덱스
+     * @returns {String} 레이어 번호 (예: 'L1', 'L5')
      */
-    calculateZIndex(col, row) {
-      return (col * 100) + row + 20; // Base Content Z-Index: 20
-    },
-    
-    /**
-     * 레이어 속성 업데이트 핸들러
-     * @param {String} property - 속성명 (x, y, width, height, visible, locked)
-     * @param {*} value - 새 속성 값
-     */
-    updateLayerProperty(property, value) {
-      if (this.selectedLayer) {
-        this.selectedLayer[property] = value;
-        console.log('[RightPanel] Layer Property Updated:', property, value);
-      }
+    getAutoLayerNumber(row, col) {
+      const index = row * this.cols + col + 1;
+      return `L${index}`;
     }
   },
   
@@ -150,342 +77,174 @@ const RightPanel = {
     <div 
       id="right-panel-container"
       class="c-right-panel"
-      data-dev='{
-        "role": "레이어 매트릭스 + 속성 패널",
+      :data-dev='{
+        "role": "레이어 행렬 매니저 패널",
         "id": "right-panel-container",
-        "func": "레이어 매트릭스 그리드와 선택된 레이어의 속성 편집 UI 제공",
-        "goal": "사용자가 레이어를 매트릭스로 관리하고, 선택된 레이어의 속성을 수정",
+        "func": "4x4 레이어 행렬을 시각적으로 표시하고, 각 셀 클릭으로 레이어 추가/선택 가능",
+        "goal": "사용자가 레이어 구조를 직관적으로 파악하고 관리",
         "state": {
-          "layers": "전체 레이어 배열",
-          "selectedLayerId": "현재 선택된 레이어 ID",
-          "selectedLayer": "선택된 레이어 객체",
-          "matrixCells": "레이어 매트릭스 셀 배열"
+          "layerMatrix": "4x4 레이어 배열 (null이면 빈 셀)",
+          "rows": 4,
+          "cols": 4
         },
         "path": "frontend/js/components/RightPanel.js",
         "py": "",
-        "js": "selectCell(col, row), addLayer(col, row), deleteLayer(id), updateLayerProperty(prop, value)"
+        "js": "handleCellClick(row, col), deleteLayer(layerId), getAutoLayerNumber(row, col)"
       }'
     >
-      <!-- 레이어 매트릭스 섹션 -->
-      <section 
-        id="right-panel-matrix-section"
-        class="c-right-panel__section"
-        data-dev='{
-          "role": "레이어 매트릭스 섹션",
-          "id": "right-panel-matrix-section",
-          "func": "레이어를 타입별 컬럼과 행으로 구성된 그리드에 배치",
-          "goal": "사용자가 레이어를 시각적으로 관리하고 Z-Index를 직관적으로 파악",
-          "state": { "matrixCells": matrixCells },
-          "path": "frontend/js/components/RightPanel.js → matrix section",
+      <!-- 패널 헤더 -->
+      <div 
+        id="right-panel-header"
+        class="c-right-panel__header"
+        :data-dev='{
+          "role": "패널 헤더",
+          "id": "right-panel-header",
+          "func": "패널 제목 표시",
+          "goal": "사용자가 현재 패널이 레이어 매니저임을 인식",
+          "state": {},
+          "path": "frontend/js/components/RightPanel.js → header",
           "py": "",
-          "js": "selectCell(col, row), addLayer(col, row)"
+          "js": ""
         }'
       >
-        <h3 
-          id="matrix-section-title"
-          class="c-right-panel__section-title"
-          data-dev='{
-            "role": "레이어 매트릭스 제목",
-            "id": "matrix-section-title",
-            "func": "섹션 용도를 나타내는 제목 표시",
-            "goal": "사용자가 레이어 매트릭스 섹션임을 인식",
-            "state": {},
-            "path": "frontend/js/components/RightPanel.js → matrix title",
-            "py": "",
-            "js": ""
-          }'
-        >
-          Layer Matrix
-        </h3>
-
-        <!-- 레이어 매트릭스 그리드 -->
+        <h3 class="c-right-panel__title">Layer Matrix</h3>
+      </div>
+      
+      <!-- 레이어 행렬 (4x4 Grid) -->
+      <div 
+        id="layer-matrix"
+        class="c-layer-matrix"
+        :data-dev='{
+          "role": "4x4 레이어 행렬 그리드",
+          "id": "layer-matrix",
+          "func": "4행 4열 그리드로 레이어 배치 시각화",
+          "goal": "사용자가 레이어 위치를 그리드 형태로 직관적으로 파악",
+          "state": {
+            "layerMatrix": "2D 배열 [4][4]",
+            "rows": 4,
+            "cols": 4
+          },
+          "path": "frontend/js/components/RightPanel.js → layer-matrix",
+          "py": "",
+          "js": "handleCellClick(row, col)"
+        }'
+      >
         <div 
-          id="layer-matrix"
-          class="c-layer-matrix"
-          data-dev='{
-            "role": "레이어 매트릭스 그리드",
-            "id": "layer-matrix",
-            "func": "컬럼(타입) × 행(순서) 그리드로 레이어 셀 배치",
-            "goal": "사용자가 레이어를 타입별로 구분하여 배치하고 관리",
+          v-for="(rowData, rowIndex) in layerMatrix"
+          :key="'row-' + rowIndex"
+          :id="'layer-row-' + rowIndex"
+          class="c-layer-matrix__row"
+          :data-dev='{
+            "role": "레이어 행렬 행(Row)",
+            "id": "layer-row-" + rowIndex,
+            "func": "행렬의 한 행(4개 셀) 묶음",
+            "goal": "사용자가 행 단위로 레이어 배치를 인식",
             "state": {
-              "columns": columns,
-              "rowCount": rowCount,
-              "matrixCells": matrixCells
+              "rowIndex": rowIndex,
+              "rowData": "해당 행의 4개 셀 데이터"
             },
-            "path": "frontend/js/components/RightPanel.js → matrix grid",
-            "py": "",
-            "js": "selectCell(col, row)"
-          }'
-        >
-          <!-- 컬럼 헤더 -->
-          <div 
-            id="layer-matrix-header"
-            class="c-layer-matrix__header"
-            data-dev='{
-              "role": "레이어 매트릭스 컬럼 헤더",
-              "id": "layer-matrix-header",
-              "func": "각 컬럼(Video, Image, Text, Audio, Effect)의 제목 표시",
-              "goal": "사용자가 각 컬럼의 레이어 타입을 인식",
-              "state": { "columns": columns },
-              "path": "frontend/js/components/RightPanel.js → matrix header",
-              "py": "",
-              "js": ""
-            }'
-          >
-            <div 
-              v-for="(column, colIndex) in columns"
-              :key="colIndex"
-              :id="'layer-matrix-col-' + colIndex"
-              class="c-layer-matrix__col-header"
-              :data-dev='{
-                "role": "컬럼 헤더 셀",
-                "id": "layer-matrix-col-" + colIndex,
-                "func": "컬럼 타입명 표시 (Video, Image, Text 등)",
-                "goal": "사용자가 해당 컬럼의 레이어 타입을 확인",
-                "state": { "column": column },
-                "path": "frontend/js/components/RightPanel.js → col header",
-                "py": "",
-                "js": ""
-              }'
-            >
-              {{ column }}
-            </div>
-          </div>
-
-          <!-- 매트릭스 셀 그리드 -->
-          <div 
-            id="layer-matrix-body"
-            class="c-layer-matrix__body"
-            data-dev='{
-              "role": "레이어 매트릭스 본문 (셀 그리드)",
-              "id": "layer-matrix-body",
-              "func": "레이어 셀들을 컬럼 × 행 그리드로 배치",
-              "goal": "사용자가 레이어를 클릭하여 선택하거나 빈 셀에 추가",
-              "state": { "matrixCells": matrixCells },
-              "path": "frontend/js/components/RightPanel.js → matrix body",
-              "py": "",
-              "js": "selectCell(col, row), addLayer(col, row)"
-            }'
-          >
-            <div
-              v-for="cell in matrixCells"
-              :key="'cell-' + cell.col + '-' + cell.row"
-              :id="'layer-cell-' + cell.col + '-' + cell.row"
-              :class="[
-                'c-layer-cell',
-                { 'c-layer-cell--filled': cell.layer },
-                { 'c-layer-cell--selected': cell.layer && cell.layer.id === selectedLayerId }
-              ]"
-              :data-js-cell="cell.col + '-' + cell.row"
-              @click="selectCell(cell.col, cell.row)"
-              @dblclick="!cell.layer && addLayer(cell.col, cell.row)"
-              :data-dev='{
-                "role": "레이어 매트릭스 셀",
-                "id": "layer-cell-" + cell.col + "-" + cell.row,
-                "func": "레이어 배치 가능한 셀 (클릭: 선택, 더블클릭: 레이어 추가)",
-                "goal": "사용자가 레이어를 시각적으로 배치하고 선택",
-                "state": {
-                  "col": cell.col,
-                  "row": cell.row,
-                  "columnType": cell.columnType,
-                  "layer": cell.layer,
-                  "selected": cell.layer && cell.layer.id === selectedLayerId
-                },
-                "path": "frontend/js/components/RightPanel.js → layer cell",
-                "py": "",
-                "js": "selectCell(col, row), addLayer(col, row)"
-              }'
-            >
-              <span v-if="cell.layer" class="c-layer-cell__name">
-                {{ cell.layer.name }}
-              </span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 레이어 속성 섹션 -->
-      <section 
-        id="right-panel-properties-section"
-        class="c-right-panel__section"
-        data-dev='{
-          "role": "레이어 속성 패널 섹션",
-          "id": "right-panel-properties-section",
-          "func": "선택된 레이어의 속성(위치, 크기, 가시성 등) 편집 UI 제공",
-          "goal": "사용자가 선택된 레이어의 상세 속성을 수정",
-          "state": { "selectedLayer": selectedLayer },
-          "path": "frontend/js/components/RightPanel.js → properties section",
-          "py": "",
-          "js": "updateLayerProperty(prop, value), deleteLayer(id)"
-        }'
-      >
-        <h3 
-          id="properties-section-title"
-          class="c-right-panel__section-title"
-          data-dev='{
-            "role": "속성 패널 제목",
-            "id": "properties-section-title",
-            "func": "섹션 용도를 나타내는 제목 표시",
-            "goal": "사용자가 속성 패널 섹션임을 인식",
-            "state": {},
-            "path": "frontend/js/components/RightPanel.js → properties title",
+            "path": "frontend/js/components/RightPanel.js → layer-matrix → row",
             "py": "",
             "js": ""
           }'
         >
-          Properties
-        </h3>
-
-        <!-- 레이어가 선택되지 않았을 때 -->
-        <div 
-          v-if="!selectedLayer"
-          id="properties-empty"
-          class="c-properties__empty"
-          data-dev='{
-            "role": "속성 패널 빈 상태",
-            "id": "properties-empty",
-            "func": "레이어가 선택되지 않았을 때 안내 메시지 표시",
-            "goal": "사용자에게 레이어 선택 필요성을 알림",
-            "state": { "visible": !selectedLayer },
-            "path": "frontend/js/components/RightPanel.js → properties empty",
-            "py": "",
-            "js": ""
-          }'
-        >
-          No layer selected. Select a layer from the matrix.
-        </div>
-
-        <!-- 레이어가 선택되었을 때 -->
-        <div 
-          v-else
-          id="properties-panel"
-          class="c-properties"
-          data-dev='{
-            "role": "레이어 속성 편집 폼",
-            "id": "properties-panel",
-            "func": "선택된 레이어의 속성 값을 입력 필드로 표시 및 수정",
-            "goal": "사용자가 레이어 속성을 직접 편집",
-            "state": { "selectedLayer": selectedLayer },
-            "path": "frontend/js/components/RightPanel.js → properties panel",
-            "py": "",
-            "js": "updateLayerProperty(prop, value)"
-          }'
-        >
-          <!-- 레이어 이름 -->
-          <div class="c-properties__field">
-            <label for="prop-layer-name" class="c-properties__label">Name:</label>
-            <input 
-              id="prop-layer-name"
-              type="text"
-              class="c-properties__input"
-              :value="selectedLayer.name"
-              @input="updateLayerProperty('name', $event.target.value)"
-            />
-          </div>
-
-          <!-- X 위치 -->
-          <div class="c-properties__field">
-            <label for="prop-layer-x" class="c-properties__label">X:</label>
-            <input 
-              id="prop-layer-x"
-              type="number"
-              class="c-properties__input"
-              :value="selectedLayer.x || 0"
-              @input="updateLayerProperty('x', Number($event.target.value))"
-            />
-          </div>
-
-          <!-- Y 위치 -->
-          <div class="c-properties__field">
-            <label for="prop-layer-y" class="c-properties__label">Y:</label>
-            <input 
-              id="prop-layer-y"
-              type="number"
-              class="c-properties__input"
-              :value="selectedLayer.y || 0"
-              @input="updateLayerProperty('y', Number($event.target.value))"
-            />
-          </div>
-
-          <!-- Width -->
-          <div class="c-properties__field">
-            <label for="prop-layer-width" class="c-properties__label">Width:</label>
-            <input 
-              id="prop-layer-width"
-              type="number"
-              class="c-properties__input"
-              :value="selectedLayer.width || 100"
-              @input="updateLayerProperty('width', Number($event.target.value))"
-            />
-          </div>
-
-          <!-- Height -->
-          <div class="c-properties__field">
-            <label for="prop-layer-height" class="c-properties__label">Height:</label>
-            <input 
-              id="prop-layer-height"
-              type="number"
-              class="c-properties__input"
-              :value="selectedLayer.height || 100"
-              @input="updateLayerProperty('height', Number($event.target.value))"
-            />
-          </div>
-
-          <!-- Visible 체크박스 -->
-          <div class="c-properties__field">
-            <label for="prop-layer-visible" class="c-properties__label">
-              <input 
-                id="prop-layer-visible"
-                type="checkbox"
-                class="c-properties__checkbox"
-                :checked="selectedLayer.visible"
-                @change="updateLayerProperty('visible', $event.target.checked)"
-              />
-              Visible
-            </label>
-          </div>
-
-          <!-- Locked 체크박스 -->
-          <div class="c-properties__field">
-            <label for="prop-layer-locked" class="c-properties__label">
-              <input 
-                id="prop-layer-locked"
-                type="checkbox"
-                class="c-properties__checkbox"
-                :checked="selectedLayer.locked"
-                @change="updateLayerProperty('locked', $event.target.checked)"
-              />
-              Locked
-            </label>
-          </div>
-
-          <!-- 레이어 삭제 버튼 -->
-          <button 
-            id="btn-delete-layer"
-            class="c-properties__btn c-properties__btn--delete"
-            data-js-delete-layer
-            @click="deleteLayer(selectedLayer.id)"
-            title="Delete Layer"
+          <div 
+            v-for="(layer, colIndex) in rowData"
+            :key="'cell-' + rowIndex + '-' + colIndex"
+            :id="'layer-cell-' + colIndex + '-' + rowIndex"
+            :class="[
+              'c-layer-cell',
+              { 'c-layer-cell--empty': !layer },
+              { 'c-layer-cell--active': layer && layer.id === $store.selectedLayerId }
+            ]"
+            :data-js-cell="rowIndex + '-' + colIndex"
+            @click="handleCellClick(rowIndex, colIndex)"
+            :title="layer ? 'Layer: ' + layer.name : 'Empty Cell'"
             :data-dev='{
-              "role": "레이어 삭제 버튼",
-              "id": "btn-delete-layer",
-              "func": "선택된 레이어를 삭제",
-              "goal": "사용자가 불필요한 레이어를 제거",
-              "state": {},
-              "path": "frontend/js/components/RightPanel.js → delete button",
+              "role": "레이어 행렬 셀",
+              "id": "layer-cell-" + colIndex + "-" + rowIndex,
+              "func": "레이어가 할당된 셀(또는 빈 셀) 표시, 클릭 시 레이어 선택 또는 추가",
+              "goal": "사용자가 레이어를 선택하거나 빈 셀에 새 레이어 추가",
+              "state": {
+                "layer": layer ? { "id": layer.id, "name": layer.name } : null,
+                "row": rowIndex,
+                "col": colIndex,
+                "isEmpty": !layer,
+                "isActive": layer && layer.id === $store.selectedLayerId
+              },
+              "path": "frontend/js/components/RightPanel.js → layer-matrix → cell",
               "py": "",
-              "js": "deleteLayer(selectedLayer.id)"
+              "js": "handleCellClick(row, col)"
             }'
           >
-            Delete Layer
-          </button>
+            <!-- 레이어가 있는 경우 -->
+            <div 
+              v-if="layer"
+              :id="'layer-content-' + layer.id"
+              class="c-layer-cell__content"
+              :data-dev='{
+                "role": "레이어 셀 내용",
+                "id": "layer-content-" + layer.id,
+                "func": "레이어 이름과 삭제 버튼 표시",
+                "goal": "사용자가 레이어 정보를 확인하고 삭제",
+                "state": {
+                  "layerId": layer.id,
+                  "layerName": layer.name
+                },
+                "path": "frontend/js/components/RightPanel.js → layer-matrix → cell → content",
+                "py": "",
+                "js": "deleteLayer(layerId)"
+              }'
+            >
+              <span class="c-layer-cell__name">{{ layer.name }}</span>
+              <button
+                :id="'btn-delete-layer-' + layer.id"
+                class="c-layer-cell__delete"
+                :data-js-delete-layer="layer.id"
+                @click.stop="deleteLayer(layer.id)"
+                title="Delete Layer"
+                :data-dev='{
+                  "role": "레이어 삭제 버튼",
+                  "id": "btn-delete-layer-" + layer.id,
+                  "func": "클릭 시 해당 레이어 삭제",
+                  "goal": "사용자가 불필요한 레이어를 제거",
+                  "state": {
+                    "layerId": layer.id
+                  },
+                  "path": "frontend/js/components/RightPanel.js → layer-matrix → cell → delete button",
+                  "py": "",
+                  "js": "deleteLayer(layerId)"
+                }'
+              >
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            
+            <!-- 빈 셀인 경우 자동 번호 표시 -->
+            <div 
+              v-else
+              :id="'layer-empty-' + rowIndex + '-' + colIndex"
+              class="c-layer-cell__empty"
+              :data-dev='{
+                "role": "빈 레이어 셀 표시",
+                "id": "layer-empty-" + rowIndex + "-" + colIndex,
+                "func": "빈 셀에 자동 번호(L1, L2 등) 표시",
+                "goal": "사용자가 레이어 추가 가능한 위치를 시각적으로 확인",
+                "state": {
+                  "row": rowIndex,
+                  "col": colIndex,
+                  "autoNumber": getAutoLayerNumber(rowIndex, colIndex)
+                },
+                "path": "frontend/js/components/RightPanel.js → layer-matrix → cell → empty",
+                "py": "",
+                "js": "getAutoLayerNumber(row, col)"
+              }'
+            >
+              {{ getAutoLayerNumber(rowIndex, colIndex) }}
+            </div>
+          </div>
         </div>
-      </section>
+      </div>
     </div>
   `
 };
-
-// CommonJS 모듈로 내보내기
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = RightPanel;
-}
