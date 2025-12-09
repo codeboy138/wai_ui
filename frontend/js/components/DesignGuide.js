@@ -343,7 +343,4 @@ const DesignGuide = {
   `
 };
 
-// CommonJS 모듈로 내보내기
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = DesignGuide;
-}
+export default DesignGuide;
