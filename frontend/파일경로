@@ -1,3 +1,5 @@
+[Electron + Vue 3 (CDN) + ES6  + VITE +WEBPACK + Data-Dev] 기반의 WAI Studio(영상자동생성프로그램)
+
 ## **WAI Studio 최종 아키텍처 전략 - 기술 지침**
 
 ---
@@ -272,4 +274,25 @@ docs/**/*.js
 - [ ]  Inspector 모드 정상 작동
 - [ ]  DATA-DEV 모드 specs 조회
 - [ ]  Python 호출 자동 바인딩
-- [ ]  클립보드 복사 + 토스트
+- [ ]  클립보드 복사 + 토스트
+
+======================
+## 3. 아키텍처 (Architecture)
+*   **Flux-like Pattern:**
+    *   `store.js` (`Vue.reactive`)를 이용한 중앙 집중식 상태 관리.
+    *   컴포넌트는 상태를 직접 변형하지 않고 Store의 메서드(Action)를 호출하여 변경.
+*   **Component-based:**
+    *   기능 단위로 분리된 컴포넌트 구조 (`js/components/*.js`).
+*   **Bridge Pattern:**
+    *   `bridge.js`를 통해 UI(Frontend)와 Logic(Python Backend) 간의 통신 추상화.
+
+## 4. 확장성 및 제약사항 (Integration & Constraints)
+*   **Python Bridge:**
+    *   UI는 로직 계산을 최소화하고, 복잡한 연산이나 파일 시스템 제어는 Python 백엔드에 위임(IPC).
+*   **Performance:**
+    *   DOM 조작 최소화 및 `requestAnimationFrame` 등을 활용한 렌더링 최적화.
+*   **Offline Capability:**
+    *   외부 네트워크 의존성을 최소화하여 로컬 환경에서 완벽하게 동작하도록 설계.
+
+====================================================
+위 내용으로 작업하고, 파일을 기능단위로 컴포넌트 형식으로 파일을 나누고, 이 화면은 그대로 지켜내야해.
