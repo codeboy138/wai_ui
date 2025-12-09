@@ -71,7 +71,6 @@ export const panelResizerMixin = {
             const resizer = document.getElementById('layout-resizer-timeline');
             if (!resizer) return;
             
-            let startY;
             const self = this;
             const headerHeight = 48;
             
@@ -90,7 +89,6 @@ export const panelResizerMixin = {
             
             resizer.addEventListener('mousedown', (e) => {
                 e.preventDefault();
-                startY = e.clientY;
                 document.addEventListener('mousemove', onMove);
                 document.addEventListener('mouseup', onUp);
             });
