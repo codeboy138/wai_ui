@@ -7,6 +7,8 @@
  * ==========================================
  */
 
+import { getResolutions } from './UICustom.js';
+
 const PreviewToolbar = {
   name: 'PreviewToolbar',
   
@@ -63,11 +65,7 @@ const PreviewToolbar = {
      * @returns {Array} 해상도 객체 배열 [{ label, width, height }, ...]
      */
     availableResolutions() {
-      // UICustom.js의 getResolutions 함수 사용
-      if (typeof getResolutions === 'function') {
-        return getResolutions(this.selectedRatio, this.selectedQuality);
-      }
-      return [];
+      return getResolutions(this.selectedRatio, this.selectedQuality);
     }
   },
   
@@ -297,7 +295,4 @@ const PreviewToolbar = {
   `
 };
 
-// CommonJS 모듈로 내보내기
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = PreviewToolbar;
-}
+export default PreviewToolbar;
