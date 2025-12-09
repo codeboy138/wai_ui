@@ -1,108 +1,96 @@
 /**
- * ==========================================
- * utils.js - 유틸리티 함수
- * 
- * 역할: 공통으로 사용되는 헬퍼 함수 모음
- * 경로: frontend/js/utils.js
- * 
- * DATA-DEV:
- * 요소의 역할: 시간 포맷, 색상 변환, 스냅 가이드, ID 생성 등 유틸리티
- * 요소의 고유ID: js-utils
- * 요소의 기능 목적 정의: 재사용 가능한 순수 함수 제공
- * 요소의 동작 로직 설명: 입력값을 받아 변환된 값을 반환하는 순수 함수 모음
- * 요소의 입출력 데이터 구조: 입력: 다양(숫자, 문자열). 출력: 변환된 값
- * 요소의 경로정보: frontend/js/utils.js
- * 요소의 수행해야 할 백엔드/JS 명령: 없음 (순수 함수)
- * ==========================================
+ * [DATA-DEV: utils.js]
+ * - 역할: 유틸리티 함수 모음
+ * - 고유ID: utils
+ * - 기능: ID 파싱, Spec 조회, 클립보드 복사
+ * - 로직: 정규식 매칭, 패턴 검색
+ * - 데이터: 없음 (순수 함수)
+ * - 경로: frontend/js/utils.js
+ * - 명령: 없음 (헬퍼 함수)
  */
 
 /**
- * 시간 포맷 변환 (초 → MM:SS)
+ * ID에서 경로/기능 정보 파싱
+ * 예: "header-nav-explore-btn" → { area: "header", subArea: "nav", action: "explore", type: "btn" }
+ */
+export function parseElementId(id) {
+  const parts = id.split('-');
+  
+  if (parts.length < 2) {
+    return { area: id, subArea: '', action: '', type: '' };
+  }
+  
+  return {
+    area: parts[0] || '',
+    subArea: parts[1] || '',
+    action: parts[2] || '',
+    type: parts[3] || ''
+  };
+}
+
+/**
+ * element-specs.js에서 요소 명세 조회
+ * 동적 요소 패턴 매칭 지원
+ */
+export async function getElementSpec(id) {
+  try {
+    const specs = await import('./docs/element-specs.js');
+    
+    // 직접 매칭
+    if (specs.elementSpecs[id]) {
+      return specs.elementSpecs[id];
+    }
+    
+    // 패턴 매칭 (예: "timeline-clip-{id}" → "timeline-clip-1")
+    for (const [key, value] of Object.entries(specs.elementSpecs)) {
+      if (key.includes('{')) {
+        const pattern = key.replace(/\{[^}]+\}/g, '\\d+');
+        const regex = new RegExp('^' + pattern + '$');
+        if (regex.test(id)) {
+          return value;
+        }
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.warn('[Utils] element-specs.js 로드 실패:', error);
+    return null;
+  }
+}
+
+/**
+ * 클립보드 복사
+ */
+export function copyToClipboard(text) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => {
+      console.log('[Utils] 클립보드 복사:', text);
+    }).catch(err => {
+      console.error('[Utils] 클립보드 복사 실패:', err);
+    });
+  } else {
+    // Fallback
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    console.log('[Utils] 클립보드 복사 (fallback):', text);
+  }
+}
+
+/**
+ * 시간 포맷 (초 → MM:SS:FF)
  */
 export function formatTime(seconds) {
-    const min = Math.floor(seconds / 60);
-    const sec = Math.floor(seconds % 60);
-    return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-}
-
-/**
- * HEX → RGB 변환
- */
-export function hexToRgb(hex) {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? {
-        r: parseInt(result[1], 16),
-        g: parseInt(result[2], 16),
-        b: parseInt(result[3], 16)
-    } : null;
-}
-
-/**
- * RGB → HEX 변환
- */
-export function rgbToHex(r, g, b) {
-    return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
-}
-
-/**
- * 스냅 가이드라인 계산
- */
-export function snapToGuide(value, threshold, guides) {
-    for (let guide of guides) {
-        if (Math.abs(value - guide) < threshold) {
-            return guide;
-        }
-    }
-    return null;
-}
-
-/**
- * 고유 ID 생성
- */
-export function generateId(prefix = 'id') {
-    return `${prefix}-${Math.random().toString(36).substr(2, 9)}`;
-}
-
-/**
- * 비율 문자열 → 숫자 변환
- */
-export function parseRatio(ratio) {
-    const [w, h] = ratio.split(':').map(Number);
-    return w / h;
-}
-
-/**
- * 해상도 문자열 → 객체 변환
- */
-export function parseResolution(resolution) {
-    const map = {
-        '8K': { width: 7680, height: 4320 },
-        '6K': { width: 6144, height: 3456 },
-        '4K': { width: 3840, height: 2160 },
-        '3K': { width: 3072, height: 1728 },
-        '2K': { width: 2048, height: 1152 }
-    };
-    return map[resolution] || { width: 3840, height: 2160 };
-}
-
-/**
- * 디바운스 함수
- */
-export function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
-
-/**
- * 숫자를 특정 범위로 제한
- */
-export function clamp(value, min, max) {
-    return Math.min(Math.max(value, min), max);
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  const frames = Math.floor((seconds % 1) * 30);
+  return mins.toString().padStart(2, '0') + ':' + 
+         secs.toString().padStart(2, '0') + ':' + 
+         frames.toString().padStart(2, '0');
 }
