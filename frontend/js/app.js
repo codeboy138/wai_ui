@@ -40,7 +40,7 @@ const App = {
                 width: this.canvasSize.w + 'px',
                 height: this.canvasSize.h + 'px',
                 backgroundColor: '#000',
-                transform: `translate(-50%, -50%) scale(${this.canvasScale})`,
+                transform: \`translate(-50%, -50%) scale(\${this.canvasScale})\`,
                 position: 'absolute',
                 top: '50%',
                 left: '50%'
@@ -65,7 +65,7 @@ const App = {
             if (window.backend && window.backend[f]) {
                 window.backend[f]();
             } else {
-                console.log(`[DUMMY] Python call: ${f}`);
+                console.log(\`[DUMMY] Python call: \${f}\`);
             }
         },
         
@@ -94,7 +94,7 @@ const App = {
                     position: 'top-end',
                     icon: 'success',
                     title: '복사 완료',
-                    text: `${text}`,
+                    text: text,
                     showConfirmButton: false,
                     timer: 1500,
                     background: '#1e1e1e',
@@ -108,12 +108,12 @@ const App = {
         setupInspectorMode() {
             const self = this;
             
-            // 마우스 이동 시 하이라이트
             document.addEventListener('mousemove', (e) => {
                 if (!self.isDevModeActive && !self.isDevModeFull) return;
                 
                 let target = e.target;
-                if (target.classList.contains('dev-highlight') || target.classList.contains('dev-tooltip')) {
+                if (target.classList.contains('c-devmode-overlay__highlight') || 
+                    target.classList.contains('c-devmode-overlay__tooltip')) {
                     target = document.elementFromPoint(e.clientX, e.clientY);
                 }
                 
@@ -121,10 +121,10 @@ const App = {
                     const rect = target.getBoundingClientRect();
                     
                     self.highlightStyle = {
-                        width: `${rect.width}px`,
-                        height: `${rect.height}px`,
-                        top: `${rect.top}px`,
-                        left: `${rect.left}px`,
+                        width: \`\${rect.width}px\`,
+                        height: \`\${rect.height}px\`,
+                        top: \`\${rect.top}px\`,
+                        left: \`\${rect.left}px\`,
                     };
                     
                     let dataDevContent = target.getAttribute('data-dev') || '';
@@ -143,25 +143,25 @@ const App = {
                     };
                     
                     self.tooltipStyle = {
-                        top: `${rect.top - 50}px`,
-                        left: `${rect.left + rect.width + 10}px`,
+                        top: \`\${rect.top - 50}px\`,
+                        left: \`\${rect.left + rect.width + 10}px\`,
                         transform: 'translateY(0)'
                     };
                     
                     if (rect.top - 50 < 0) {
-                        self.tooltipStyle.top = `${rect.bottom + 10}px`;
+                        self.tooltipStyle.top = \`\${rect.bottom + 10}px\`;
                     }
                 } else {
                     self.inspector = { tag: '', id: '', className: '', x: 0, y: 0, w: 0, h: 0, dataDev: '', displayName: '' };
                 }
             });
             
-            // 클릭 시 복사 (Inspect 모드)
             document.addEventListener('click', (e) => {
                 if (!self.isDevModeActive) return;
                 
                 let target = e.target;
-                if (target.classList.contains('dev-highlight') || target.classList.contains('dev-tooltip')) {
+                if (target.classList.contains('c-devmode-overlay__highlight') || 
+                    target.classList.contains('c-devmode-overlay__tooltip')) {
                     return;
                 }
                 
@@ -236,8 +236,8 @@ const App = {
                         newSize = targetHeight;
                         const effectiveHeight = Math.max(minSize, newSize);
                         
-                        self.previewContainerHeight = `${effectiveHeight}px`;
-                        self.timelineContainerHeight = `calc(100% - ${effectiveHeight}px)`;
+                        self.previewContainerHeight = \`\${effectiveHeight}px\`;
+                        self.timelineContainerHeight = \`calc(100% - \${effectiveHeight}px)\`;
                     }
                 };
                 
@@ -325,9 +325,9 @@ const App = {
         }
     },
     
-    template: `
-        <header id="header-app-main" 
-                class="c-header" 
+    template: \`
+        <header class="c-header" 
+                id="header-app-main"
                 data-js="header-main"
                 title="애플리케이션 헤더"
                 data-dev="요소의 역할: 애플리케이션 상단 헤더
@@ -337,7 +337,9 @@ const App = {
 요소의 입출력 데이터 구조: 입력: 클릭 이벤트. 출력: isDevModeActive, isDevModeFull 상태 변경
 요소의 경로정보: frontend/js/app.js#header
 요소의 수행해야 할 백엔드/JS 명령: JS: toggleDevMode(), firePython('nav_*'). Py: nav(), win_minimize(), win_maximize(), win_close()">
-            <div class="c-header__left">
+            <div class="c-header__left"
+                 data-js="header-left"
+                 title="헤더 좌측">
                 <div class="c-header__logo" 
                      id="header-logo-text"
                      data-js="header-logo"
@@ -354,7 +356,16 @@ const App = {
                      id="header-menu-hamburger"
                      data-js="header-menu"
                      title="메뉴">
-                    <button class="c-header__btn">
+                    <button class="c-header__btn"
+                            data-js="header-menu-btn"
+                            title="메뉴 열기"
+                            data-dev="요소의 역할: 햄버거 메뉴 버튼
+요소의 고유ID: header-menu-hamburger
+요소의 기능 목적 정의: 모바일/작은 화면에서 메뉴 토글
+요소의 동작 로직 설명: 클릭 시 메뉴 표시/숨김
+요소의 입출력 데이터 구조: 입력: 클릭. 출력: 메뉴 토글
+요소의 경로정보: frontend/js/app.js#menu-btn
+요소의 수행해야 할 백엔드/JS 명령: JS: toggleMenu()">
                         <i class="fa-solid fa-bars"></i>
                     </button>
                 </div>
@@ -398,12 +409,21 @@ const App = {
                     <div class="c-header__nav-dropdown" 
                          id="header-nav-assets-group"
                          data-js="nav-assets-dropdown"
-                         title="자산">
+                         title="자산"
+                         data-dev="요소의 역할: 자산 드롭다운 그룹
+요소의 고유ID: header-nav-assets-group
+요소의 기능 목적 정의: 자산 관련 메뉴 표시
+요소의 동작 로직 설명: 호버 시 드롭다운 메뉴 표시
+요소의 입출력 데이터 구조: 입력: 호버. 출력: 드롭다운 메뉴 표시
+요소의 경로정보: frontend/js/app.js#nav-assets
+요소의 수행해야 할 백엔드/JS 명령: 없음">
                         <button class="c-header__nav-btn"
                                 id="header-nav-assets"
                                 data-js="nav-assets"
                                 title="자산">자산</button>
-                        <div class="c-header__nav-dropdown-menu">
+                        <div class="c-header__nav-dropdown-menu"
+                             data-js="nav-assets-menu"
+                             title="자산 메뉴">
                             <button class="c-header__nav-dropdown-item" 
                                     id="header-nav-assets-manage"
                                     data-js="nav-assets-manage"
@@ -425,16 +445,32 @@ const App = {
                             id="header-nav-settings"
                             data-js="nav-settings"
                             title="설정"
-                            @click="firePython('nav_settings')">설정</button>
+                            @click="firePython('nav_settings')"
+                            data-dev="요소의 역할: 설정 페이지 이동 버튼
+요소의 고유ID: header-nav-settings
+요소의 기능 목적 정의: 설정 페이지로 전환
+요소의 동작 로직 설명: 클릭 시 Python 함수 nav('settings') 호출
+요소의 입출력 데이터 구조: 입력: 클릭. 출력: Py:nav('settings')
+요소의 경로정보: frontend/js/app.js#nav-settings
+요소의 수행해야 할 백엔드/JS 명령: Py: nav('settings')">설정</button>
                     <button class="c-header__nav-btn" 
                             id="header-nav-research"
                             data-js="nav-research"
                             title="연구"
-                            @click="firePython('nav_research')">연구</button>
+                            @click="firePython('nav_research')"
+                            data-dev="요소의 역할: 연구 페이지 이동 버튼
+요소의 고유ID: header-nav-research
+요소의 기능 목적 정의: 연구 페이지로 전환
+요소의 동작 로직 설명: 클릭 시 Python 함수 nav('research') 호출
+요소의 입출력 데이터 구조: 입력: 클릭. 출력: Py:nav('research')
+요소의 경로정보: frontend/js/app.js#nav-research
+요소의 수행해야 할 백엔드/JS 명령: Py: nav('research')">연구</button>
                 </nav>
             </div>
             
-            <div class="c-header__right">
+            <div class="c-header__right"
+                 data-js="header-right"
+                 title="헤더 우측">
                 <button id="header-devmode-inspect" 
                         class="c-header__devmode-btn c-header__devmode-btn--left" 
                         :class="{'c-header__devmode-btn--active': isDevModeActive}"
@@ -482,221 +518,46 @@ const App = {
                             id="header-window-minimize"
                             data-js="window-minimize"
                             title="최소화"
-                            @click="firePython('win_min')">
+                            @click="firePython('win_min')"
+                            data-dev="요소의 역할: 창 최소화 버튼
+요소의 고유ID: header-window-minimize
+요소의 기능 목적 정의: 애플리케이션 창 최소화
+요소의 동작 로직 설명: 클릭 시 Python 함수 win_minimize() 호출
+요소의 입출력 데이터 구조: 입력: 클릭. 출력: Py:win_minimize()
+요소의 경로정보: frontend/js/app.js#window-minimize
+요소의 수행해야 할 백엔드/JS 명령: Py: win_minimize()">
                         <i class="fa-solid fa-minus"></i>
                     </button>
                     <button class="c-header__window-btn" 
                             id="header-window-maximize"
                             data-js="window-maximize"
                             title="최대화"
-                            @click="firePython('win_max')">
+                            @click="firePython('win_max')"
+                            data-dev="요소의 역할: 창 최대화 버튼
+요소의 고유ID: header-window-maximize
+요소의 기능 목적 정의: 애플리케이션 창 최대화/복원
+요소의 동작 로직 설명: 클릭 시 Python 함수 win_maximize() 호출
+요소의 입출력 데이터 구조: 입력: 클릭. 출력: Py:win_maximize()
+요소의 경로정보: frontend/js/app.js#window-maximize
+요소의 수행해야 할 백엔드/JS 명령: Py: win_maximize()">
                         <i class="fa-regular fa-square"></i>
                     </button>
                     <button class="c-header__window-btn c-header__window-btn--close" 
                             id="header-window-close"
                             data-js="window-close"
                             title="닫기"
-                            @click="firePython('win_close')">
+                            @click="firePython('win_close')"
+                            data-dev="요소의 역할: 창 닫기 버튼
+요소의 고유ID: header-window-close
+요소의 기능 목적 정의: 애플리케이션 종료
+요소의 동작 로직 설명: 클릭 시 Python 함수 win_close() 호출
+요소의 입출력 데이터 구조: 입력: 클릭. 출력: Py:win_close()
+요소의 경로정보: frontend/js/app.js#window-close
+요소의 수행해야 할 백엔드/JS 명령: Py: win_close()">
                         <i class="fa-solid fa-xmark"></i>
                     </button>
                 </div>
             </div>
         </header>
-        
-        <main class="c-layout" 
-              id="layout-main-container"
-              data-js="layout-main"
-              title="메인 레이아웃">
-            <aside id="layout-panel-left" 
-                   class="c-layout__panel c-layout__panel--left" 
-                   :style="{ width: leftPanelWidth + 'px', minWidth: '180px' }"
-                   data-js="panel-left"
-                   title="자산 패널">
-                <div class="c-layout__panel-header">
-                    <span>자산 (Assets)</span>
-                    <button class="c-layout__panel-btn" 
-                            @click="firePython('import_asset')"
-                            title="자산 추가">+</button>
-                </div>
-                <div class="c-layout__panel-body c-layout__panel-body--empty" 
-                     id="layout-asset-list">
-                    <i class="fa-solid fa-folder-open"></i>
-                    <div>자산 목록이 비어있습니다.</div>
-                </div>
-                
-                <div class="c-layout__resizer c-layout__resizer--vertical c-layout__resizer--right" 
-                     id="layout-resizer-left"
-                     data-js="resizer-left"
-                     title="패널 크기 조절"></div>
-            </aside>
-            
-            <section class="c-layout__center">
-                <div id="preview-container-main" 
-                     class="c-layout__preview" 
-                     :style="{ height: previewContainerHeight }"
-                     data-js="preview-container"
-                     title="프리뷰 영역">
-                    
-                    <div class="c-layout__preview-toolbar">
-                        <div class="c-layout__preview-controls">
-                            <dropdown-menu :current-value="aspectRatio" 
-                                         :items="['16:9', '9:16', '1:1']" 
-                                         @select="setAspect" 
-                                         id="preview-dropdown-ratio"></dropdown-menu>
-                            
-                            <div class="c-layout__preview-divider"></div>
-                            
-                            <div class="c-layout__preview-coord" 
-                                 id="preview-coord-display"
-                                 data-js="preview-coord"
-                                 title="마우스 좌표">
-                                <span>{{ Math.round(mouseCoord.x) }}, {{ Math.round(mouseCoord.y) }}</span>
-                            </div>
-                            
-                            <div class="c-layout__preview-divider"></div>
-                            
-                            <dropdown-menu :current-value="resolution" 
-                                         :items="['8K', '6K', '4K', '3K', '2K']" 
-                                         @select="setResolution" 
-                                         id="preview-dropdown-resolution"></dropdown-menu>
-                            
-                            <div class="c-layout__preview-divider"></div>
-                            
-                            <div class="c-layout__preview-snap" 
-                                 @click="isMagnet = !isMagnet" 
-                                 :class="{'c-layout__preview-snap--active': isMagnet}"
-                                 id="preview-toggle-snap"
-                                 data-js="preview-snap"
-                                 title="스냅 토글">
-                                <i class="fa-solid fa-magnet"></i> SNAP {{ isMagnet ? 'ON' : 'OFF' }}
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="c-layout__preview-canvas" 
-                         id="canvas-wrapper-main" 
-                         data-js="canvas-wrapper"
-                         title="캔버스"
-                         @mousemove="updateCanvasMouseCoord" 
-                         @mouseleave="mouseCoord = {x: 0, y: 0}; isMouseOverCanvas = false">
-                        
-                        <div class="c-layout__ruler c-layout__ruler--horizontal" 
-                             id="canvas-ruler-horizontal"
-                             data-js="ruler-horizontal"
-                             title="수평 눈금자">
-                            <ruler-line :orientation="'h'" :max-size="canvasSize.w" :scale="canvasScale"></ruler-line>
-                        </div>
-                        <div class="c-layout__ruler c-layout__ruler--vertical" 
-                             id="canvas-ruler-vertical"
-                             data-js="ruler-vertical"
-                             title="수직 눈금자">
-                            <ruler-line :orientation="'v'" :max-size="canvasSize.h" :scale="canvasScale"></ruler-line>
-                        </div>
-                        
-                        <div class="c-layout__crosshair" 
-                             :style="{paddingLeft: '20px', paddingTop: '20px'}">
-                            <div class="c-layout__crosshair-line c-layout__crosshair-line--vertical" 
-                                 :style="{left: mouseMarkerPos.x + 'px'}" 
-                                 v-show="isMouseOverCanvas"></div>
-                            <div class="c-layout__crosshair-line c-layout__crosshair-line--horizontal" 
-                                 :style="{top: mouseMarkerPos.y + 'px'}" 
-                                 v-show="isMouseOverCanvas"></div>
-                        </div>
-                        
-                        <div class="c-layout__canvas-viewport" 
-                             id="canvas-viewport-main"
-                             data-js="canvas-viewport"
-                             title="캔버스 뷰포트">
-                            <div id="canvas-scaler-transform" 
-                                 class="c-layout__canvas-scaler" 
-                                 :style="canvasScalerStyle"
-                                 data-js="canvas-scaler"
-                                 title="캔버스 스케일러">
-                                <div id="canvas-guide-horizontal" 
-                                     class="c-layout__guide c-layout__guide--horizontal"></div>
-                                <div id="canvas-guide-vertical" 
-                                     class="c-layout__guide c-layout__guide--vertical"></div>
-                                
-                                <preview-canvas :canvas-boxes="canvasBoxes" 
-                                              :selected-box-id="selectedBoxId" 
-                                              @select-box="setSelectedBoxId" 
-                                              @remove-box="removeBox"></preview-canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="c-layout__resizer c-layout__resizer--horizontal" 
-                     id="layout-resizer-timeline"
-                     data-js="resizer-timeline"
-                     title="타임라인 크기 조절"></div>
-                
-                <timeline-panel :vm="$data" :style="{ height: timelineContainerHeight }"></timeline-panel>
-            </section>
-            
-            <aside id="layout-panel-right" 
-                   class="c-layout__panel c-layout__panel--right" 
-                   :style="{ width: rightPanelWidth + 'px', minWidth: '250px' }"
-                   data-js="panel-right"
-                   title="속성 패널">
-                <div class="c-layout__resizer c-layout__resizer--vertical c-layout__resizer--left" 
-                     id="layout-resizer-right"
-                     data-js="resizer-right"
-                     title="패널 크기 조절"></div>
-                <div class="c-layout__panel-content" 
-                     id="layout-panel-right-content">
-                    <layer-panel :vm="$data"></layer-panel>
-                    <properties-panel :vm="$data"></properties-panel>
-                    <div class="c-layout__panel-footer">
-                        <div>Effects Library</div>
-                    </div>
-                </div>
-            </aside>
-        </main>
-        
-        <project-modal v-if="isProjectModalOpen" @close="isProjectModalOpen = false"></project-modal>
-        
-        <div class="c-devmode-overlay" 
-             id="devmode-overlay-inspector" 
-             v-if="isDevModeActive || isDevModeFull"
-             data-js="devmode-overlay"
-             title="개발자 모드 오버레이">
-            <div class="c-devmode-overlay__highlight" 
-                 :style="highlightStyle"
-                 data-js="devmode-highlight"
-                 title="요소 하이라이트"></div>
-            <div class="c-devmode-overlay__tooltip" 
-                 :style="tooltipStyle"
-                 data-js="devmode-tooltip"
-                 title="요소 정보 툴팁">
-                <div v-if="isDevModeActive">
-                    <span class="c-devmode-overlay__tooltip-tag">{{ inspector.tag }}</span> 
-                    <span class="c-devmode-overlay__tooltip-id">{{ inspector.id ? '#' + inspector.id : '' }}</span> 
-                    <span class="c-devmode-overlay__tooltip-class">{{ inspector.className ? '.' + inspector.className.split(' ')[0] : '' }}</span><br>
-                    <strong>Name:</strong> {{ inspector.displayName }}<br>
-                    <strong>Size:</strong> {{ inspector.w }} × {{ inspector.h }}<br>
-                    <span class="c-devmode-overlay__tooltip-hint">클릭하여 이름 복사</span>
-                </div>
-                <div v-if="isDevModeFull && inspector.dataDev">
-                    <span class="c-devmode-overlay__tooltip-tag">{{ inspector.tag }}</span> 
-                    <span class="c-devmode-overlay__tooltip-id">{{ inspector.id ? '#' + inspector.id : '' }}</span><br>
-                    <div class="c-devmode-overlay__tooltip-datadev">
-                        {{ inspector.dataDev }}
-                    </div>
-                </div>
-            </div>
-        </div>
-    `
+\`
 };
-
-const app = createApp(App);
-
-app.component('dropdown-menu', DropdownMenu);
-app.component('project-modal', ProjectModal);
-app.component('ruler-line', RulerLine);
-app.component('layer-panel', LayerPanel);
-app.component('properties-panel', PropertiesPanel);
-app.component('preview-canvas', PreviewCanvas);
-app.component('timeline-panel', TimelinePanel);
-
-app.mount('#vue-app');
