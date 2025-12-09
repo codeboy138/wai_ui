@@ -17,28 +17,6 @@ export const pythonBridgeMixin = {
             } else {
                 console.log(`[DUMMY] Python call: ${funcName}`, params);
             }
-        },
-        
-        handlePyCall(funcName) {
-            this.firePython(funcName);
-        }
-    },
-    
-    mounted() {
-        this.autoBindPythonEvents();
-    },
-    
-    methods: {
-        autoBindPythonEvents() {
-            document.querySelectorAll('[data-action^="py:"]').forEach(el => {
-                const action = el.getAttribute('data-action');
-                const funcName = action.replace('py:', '').split('|')[0];
-                
-                if (!el.__pyBound) {
-                    el.addEventListener('click', () => this.firePython(funcName));
-                    el.__pyBound = true;
-                }
-            });
         }
     }
 };
