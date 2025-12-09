@@ -2,226 +2,292 @@
  * ==========================================
  * app.js
  * 
- * 역할: WAI Studio 메인 애플리케이션 (Vue 앱 루트)
+ * 역할: Vue 3 앱 메인 엔트리 포인트
  * 경로: frontend/js/app.js
  * ==========================================
  */
 
-// ==========================================
-// 전역 상태 (store) 가져오기
-// ==========================================
-const store = window.store;
+// ES6 Module Imports
+import store from './store.js';
+import { DropdownMenu, RulerLine } from './components/Common.js';
+import DesignGuide from './components/DesignGuide.js';
+import ProjectModal from './components/ProjectModal.js';
+import LeftPanel from './components/LeftPanel.js';
+import PreviewToolbar from './components/PreviewToolbar.js';
+import PreviewCanvas from './components/PreviewCanvas.js';
+import RightPanel from './components/RightPanel.js';
+import TimelinePanel from './components/TimelinePanel.js';
+import Header from './components/Header.js';
 
-// ==========================================
-// Vue 애플리케이션 생성
-// ==========================================
-const { createApp } = Vue;
-
-const app = createApp({
-  name: 'WAIStudio',
+/**
+ * ==========================================
+ * Vue 3 앱 생성
+ * ==========================================
+ */
+const app = Vue.createApp({
+  name: 'App',
   
   data() {
     return {
-      // 전역 상태 store 참조
-      store: store,
-      
-      // DATA DEV 모드 활성화 여부
-      devMode: true,
-      
-      // Inspector 표시 상태
-      inspector: {
-        visible: false,
-        target: null,
-        data: {}
-      }
+      // 앱 레벨 상태는 store에서 관리
     };
+  },
+  
+  mounted() {
+    console.log('✅ WAI Studio 앱 마운트 완료');
+    console.log('📦 Store:', this.$store);
+    
+    // DATA DEV Inspector 초기화
+    this.initDataDevInspector();
   },
   
   methods: {
     /**
-     * 레이어 추가 메서드 (공통)
-     * @param {Object} layerData - 레이어 데이터 { name, type, visible, locked, asset }
-     */
-    addLayer(layerData) {
-      const newLayer = {
-        id: 'layer-' + Date.now(),
-        name: layerData.name || 'New Layer',
-        type: layerData.type || 'image',
-        visible: layerData.visible !== undefined ? layerData.visible : true,
-        locked: layerData.locked || false,
-        x: 0,
-        y: 0,
-        width: 100,
-        height: 100,
-        zIndex: 20,
-        asset: layerData.asset || null,
-        clips: []
-      };
-      
-      this.store.layers.push(newLayer);
-      console.log('[App] Layer Added:', newLayer);
-    },
-    
-    /**
      * DATA DEV Inspector 초기화
+     * 마우스 오버 시 data-dev 속성을 플로팅 패널로 표시
      */
-    initInspector() {
-      if (!this.devMode) return;
+    initDataDevInspector() {
+      let inspectorPanel = document.getElementById('data-dev-inspector');
       
-      document.addEventListener('mouseover', (event) => {
-        const target = event.target;
-        const devData = target.getAttribute('data-dev');
-        
-        if (devData) {
+      // Inspector 패널이 없으면 생성
+      if (!inspectorPanel) {
+        inspectorPanel = document.createElement('div');
+        inspectorPanel.id = 'data-dev-inspector';
+        inspectorPanel.className = 'data-dev-inspector';
+        inspectorPanel.style.cssText = `
+          position: fixed;
+          top: 10px;
+          right: 10px;
+          width: 320px;
+          max-height: 600px;
+          overflow-y: auto;
+          background: #18181b;
+          border: 1px solid #3f3f46;
+          border-radius: 8px;
+          padding: 16px;
+          font-family: 'Courier New', monospace;
+          font-size: 12px;
+          color: #f4f4f5;
+          z-index: 300000;
+          display: none;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        `;
+        document.body.appendChild(inspectorPanel);
+      }
+      
+      // 마우스 오버 이벤트 (전역)
+      document.addEventListener('mouseover', (e) => {
+        const target = e.target.closest('[data-dev]');
+        if (target && target.dataset.dev) {
           try {
-            this.inspector.data = JSON.parse(devData);
-            this.inspector.target = target;
-            this.inspector.visible = true;
-          } catch (e) {
-            console.error('[Inspector] Invalid data-dev:', e);
+            const devData = JSON.parse(target.dataset.dev);
+            
+            // Inspector 패널 내용 업데이트
+            inspectorPanel.innerHTML = `
+              <div style="margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #3f3f46;">
+                <strong style="color: #3b82f6; font-size: 14px;">DATA DEV Inspector</strong>
+              </div>
+              <div style="margin-bottom: 8px;">
+                <strong style="color: #a1a1aa;">Role:</strong><br>
+                <span style="color: #f4f4f5;">${devData.role || 'N/A'}</span>
+              </div>
+              <div style="margin-bottom: 8px;">
+                <strong style="color: #a1a1aa;">ID:</strong><br>
+                <code style="color: #22c55e;">${devData.id || 'N/A'}</code>
+              </div>
+              <div style="margin-bottom: 8px;">
+                <strong style="color: #a1a1aa;">Func:</strong><br>
+                <span style="color: #f4f4f5;">${devData.func || 'N/A'}</span>
+              </div>
+              <div style="margin-bottom: 8px;">
+                <strong style="color: #a1a1aa;">Goal:</strong><br>
+                <span style="color: #f4f4f5;">${devData.goal || 'N/A'}</span>
+              </div>
+              <div style="margin-bottom: 8px;">
+                <strong style="color: #a1a1aa;">State:</strong><br>
+                <pre style="background: #09090b; padding: 8px; border-radius: 4px; color: #fbbf24; overflow-x: auto;">${JSON.stringify(devData.state, null, 2)}</pre>
+              </div>
+              <div style="margin-bottom: 8px;">
+                <strong style="color: #a1a1aa;">Path:</strong><br>
+                <code style="color: #8b5cf6;">${devData.path || 'N/A'}</code>
+              </div>
+              <div style="margin-bottom: 8px;">
+                <strong style="color: #a1a1aa;">Python:</strong><br>
+                <code style="color: #06b6d4;">${devData.py || 'None'}</code>
+              </div>
+              <div>
+                <strong style="color: #a1a1aa;">JavaScript:</strong><br>
+                <code style="color: #f59e0b;">${devData.js || 'None'}</code>
+              </div>
+            `;
+            
+            inspectorPanel.style.display = 'block';
+          } catch (err) {
+            console.error('❌ data-dev 파싱 실패:', err);
           }
+        } else {
+          inspectorPanel.style.display = 'none';
         }
       });
       
-      document.addEventListener('mouseout', (event) => {
-        if (event.target.hasAttribute('data-dev')) {
-          this.inspector.visible = false;
-        }
-      });
-      
-      console.log('[App] DATA DEV Inspector Initialized');
+      console.log('✅ DATA DEV Inspector 초기화 완료');
     }
-  },
-  
-  mounted() {
-    console.log('[App] WAI Studio Mounted');
-    
-    // DATA DEV Inspector 초기화
-    this.initInspector();
   },
   
   template: `
     <div 
       id="app-container"
       class="c-app"
-      data-js-app
       :data-dev='{
-        "role": "WAI Studio 메인 애플리케이션 컨테이너",
+        "role": "WAI Studio 메인 앱 컨테이너",
         "id": "app-container",
-        "func": "전체 UI 레이아웃 및 컴포넌트 통합 (Header, LeftPanel, PreviewCanvas, RightPanel, Timeline)",
-        "goal": "사용자가 영상 편집 작업을 수행할 수 있는 통합 환경 제공",
+        "func": "전체 앱 레이아웃을 구성하고 모든 하위 컴포넌트를 포함",
+        "goal": "사용자가 헤더, 패널, 캔버스, 타임라인을 통합된 인터페이스로 사용",
         "state": {
-          "store": "전역 상태 (프로젝트, 캔버스, 레이어, 자산)",
-          "devMode": "DATA DEV 모드 활성화 여부",
-          "inspector": "DATA DEV Inspector 상태 { visible, target, data }"
+          "projectName": "$store.projectName",
+          "selectedRatio": "$store.selectedRatio",
+          "selectedQuality": "$store.selectedQuality"
         },
         "path": "frontend/js/app.js",
         "py": "",
-        "js": "addLayer(layerData), initInspector()"
+        "js": "initDataDevInspector()"
       }'
     >
       <!-- 헤더 -->
       <Header />
-
-      <!-- 메인 레이아웃 -->
+      
+      <!-- 메인 콘텐츠 영역 -->
       <main 
         id="app-main"
         class="c-app__main"
+        :data-dev='{
+          "role": "앱 메인 콘텐츠 영역",
+          "id": "app-main",
+          "func": "헤더 제외 메인 작업 공간 (Left, Center, Right 패널)",
+          "goal": "사용자가 에셋, 캔버스, 레이어를 통합 관리",
+          "state": {},
+          "path": "frontend/js/app.js → main",
+          "py": "",
+          "js": ""
+        }'
       >
-        <!-- 좌측 패널 (자산 라이브러리) -->
+        <!-- 왼쪽 패널 (Asset Library) -->
         <aside 
           id="app-left-panel"
           class="c-app__panel c-app__panel--left"
+          :data-dev='{
+            "role": "왼쪽 패널 (Asset Library)",
+            "id": "app-left-panel",
+            "func": "이미지, 비디오, 오디오, 텍스트 에셋 관리",
+            "goal": "사용자가 에셋을 추가하고 캔버스로 드래그",
+            "state": {},
+            "path": "frontend/js/app.js → main → left panel",
+            "py": "",
+            "js": ""
+          }'
         >
           <LeftPanel />
         </aside>
-
-        <!-- 중앙 패널 (프리뷰 캔버스) -->
+        
+        <!-- 중앙 패널 (Preview Canvas) -->
         <section 
           id="app-center-panel"
           class="c-app__panel c-app__panel--center"
+          :data-dev='{
+            "role": "중앙 패널 (Preview Canvas)",
+            "id": "app-center-panel",
+            "func": "미리보기 캔버스 및 툴바 표시",
+            "goal": "사용자가 레이어를 시각적으로 편집",
+            "state": {},
+            "path": "frontend/js/app.js → main → center panel",
+            "py": "",
+            "js": ""
+          }'
         >
           <PreviewToolbar />
           <PreviewCanvas />
         </section>
-
-        <!-- 우측 패널 (레이어 매트릭스 + 속성) -->
+        
+        <!-- 오른쪽 패널 (Layer Matrix) -->
         <aside 
           id="app-right-panel"
           class="c-app__panel c-app__panel--right"
+          :data-dev='{
+            "role": "오른쪽 패널 (Layer Matrix)",
+            "id": "app-right-panel",
+            "func": "4x4 레이어 행렬 관리",
+            "goal": "사용자가 레이어 구조를 시각적으로 관리",
+            "state": {},
+            "path": "frontend/js/app.js → main → right panel",
+            "py": "",
+            "js": ""
+          }'
         >
           <RightPanel />
         </aside>
       </main>
-
-      <!-- 타임라인 패널 (하단) -->
+      
+      <!-- 타임라인 패널 -->
       <footer 
         id="app-timeline-panel"
-        class="c-app__panel c-app__panel--bottom"
+        class="c-app__timeline"
+        :data-dev='{
+          "role": "타임라인 패널",
+          "id": "app-timeline-panel",
+          "func": "비디오/오디오 타임라인 관리 및 재생 제어",
+          "goal": "사용자가 타이밍을 조정하고 재생",
+          "state": {},
+          "path": "frontend/js/app.js → timeline panel",
+          "py": "",
+          "js": ""
+        }'
       >
         <TimelinePanel />
       </footer>
-
-      <!-- DATA DEV Inspector (devMode 활성화 시) -->
-      <div 
-        v-if="devMode && inspector.visible"
-        id="data-dev-inspector"
-        class="c-inspector"
-      >
-        <div class="c-inspector__header">
-          <strong>DATA DEV Inspector</strong>
-        </div>
-        <div class="c-inspector__body">
-          <div class="c-inspector__field">
-            <strong>Role:</strong> {{ inspector.data.role }}
-          </div>
-          <div class="c-inspector__field">
-            <strong>ID:</strong> <code>{{ inspector.data.id }}</code>
-          </div>
-          <div class="c-inspector__field">
-            <strong>Func:</strong> {{ inspector.data.func }}
-          </div>
-          <div class="c-inspector__field">
-            <strong>Goal:</strong> {{ inspector.data.goal }}
-          </div>
-          <div class="c-inspector__field">
-            <strong>State:</strong> <pre>{{ JSON.stringify(inspector.data.state, null, 2) }}</pre>
-          </div>
-          <div class="c-inspector__field">
-            <strong>Path:</strong> <code>{{ inspector.data.path }}</code>
-          </div>
-          <div class="c-inspector__field">
-            <strong>Python:</strong> <code>{{ inspector.data.py || 'N/A' }}</code>
-          </div>
-          <div class="c-inspector__field">
-            <strong>JS:</strong> <code>{{ inspector.data.js || 'N/A' }}</code>
-          </div>
-        </div>
-      </div>
+      
+      <!-- 모달: Design Guide -->
+      <DesignGuide 
+        :visible="$store.showDesignGuide"
+        @close="$store.showDesignGuide = false"
+      />
+      
+      <!-- 모달: Project Modal -->
+      <ProjectModal 
+        :visible="$store.showProjectModal"
+        @close="$store.showProjectModal = false"
+      />
     </div>
   `
 });
 
-// ==========================================
-// 컴포넌트 등록
-// ==========================================
-app.component('Header', Header);
+/**
+ * ==========================================
+ * 전역 store 주입
+ * ==========================================
+ */
+app.config.globalProperties.$store = store;
+
+/**
+ * ==========================================
+ * 컴포넌트 등록
+ * ==========================================
+ */
+app.component('DropdownMenu', DropdownMenu);
+app.component('RulerLine', RulerLine);
+app.component('DesignGuide', DesignGuide);
+app.component('ProjectModal', ProjectModal);
 app.component('LeftPanel', LeftPanel);
 app.component('PreviewToolbar', PreviewToolbar);
 app.component('PreviewCanvas', PreviewCanvas);
 app.component('RightPanel', RightPanel);
 app.component('TimelinePanel', TimelinePanel);
-app.component('ProjectModal', ProjectModal);
-app.component('DesignGuide', DesignGuide);
+app.component('Header', Header);
 
-// DropdownMenu 전역 변수 확인 후 등록
-if (typeof DropdownMenu !== 'undefined') {
-  app.component('DropdownMenu', DropdownMenu);
-}
-
-// ==========================================
-// Vue 앱 마운트 (중요! #app-root로 수정)
-// ==========================================
+/**
+ * ==========================================
+ * Vue 앱 마운트
+ * ==========================================
+ */
 app.mount('#app-root');
 
-console.log('[WAI Studio] Application Initialized');
+console.log('🚀 WAI Studio 앱이 성공적으로 시작되었습니다!');
