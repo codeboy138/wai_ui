@@ -11,61 +11,30 @@
 
 export default {
   name: 'PreviewToolbar',
-  template: '<div id="preview-toolbar-container" ' +
-            'class="c-preview-toolbar" ' +
-            'data-action="js:previewToolbar" ' +
-            'title="프리뷰 툴바">' +
-            
-            '<div id="preview-toolbar-ratio-group" ' +
-            'class="c-preview-toolbar__group" ' +
-            'data-action="js:ratioControl" ' +
-            'title="화면 비율">' +
+  template: '<div id="preview-toolbar-container" class="c-preview-toolbar" data-action="js:previewToolbar" title="프리뷰 툴바">' +
+            '<div id="preview-toolbar-ratio-group" class="c-preview-toolbar__group" data-action="js:ratioControl" title="화면 비율">' +
             '<label class="c-preview-toolbar__label">비율:</label>' +
-            '<select id="preview-toolbar-ratio-select" ' +
-            'class="c-preview-toolbar__select" ' +
-            'v-model="$root.canvasRatio" ' +
-            'data-action="py:set_canvas_ratio" ' +
-            'title="화면 비율 선택" ' +
-            '@change="changeRatio">' +
+            '<select id="preview-toolbar-ratio-select" class="c-preview-toolbar__select" v-model="$root.canvasRatio" data-action="py:set_canvas_ratio" title="화면 비율 선택" @change="changeRatio">' +
             '<option value="16:9">16:9</option>' +
             '<option value="4:3">4:3</option>' +
             '<option value="1:1">1:1</option>' +
             '<option value="9:16">9:16 (세로)</option>' +
             '</select>' +
             '</div>' +
-            
-            '<div id="preview-toolbar-resolution-group" ' +
-            'class="c-preview-toolbar__group" ' +
-            'data-action="js:resolutionControl" ' +
-            'title="해상도">' +
+            '<div id="preview-toolbar-resolution-group" class="c-preview-toolbar__group" data-action="js:resolutionControl" title="해상도">' +
             '<label class="c-preview-toolbar__label">해상도:</label>' +
-            '<select id="preview-toolbar-resolution-select" ' +
-            'class="c-preview-toolbar__select" ' +
-            'v-model="$root.canvasResolution" ' +
-            'data-action="py:set_canvas_resolution" ' +
-            'title="해상도 선택" ' +
-            '@change="changeResolution">' +
+            '<select id="preview-toolbar-resolution-select" class="c-preview-toolbar__select" v-model="$root.canvasResolution" data-action="py:set_canvas_resolution" title="해상도 선택" @change="changeResolution">' +
             '<option value="1920x1080">1920x1080 (FHD)</option>' +
             '<option value="1280x720">1280x720 (HD)</option>' +
             '<option value="3840x2160">3840x2160 (4K)</option>' +
             '</select>' +
             '</div>' +
-            
-            '<div id="preview-toolbar-snap-group" ' +
-            'class="c-preview-toolbar__group" ' +
-            'data-action="js:snapControl" ' +
-            'title="스냅">' +
+            '<div id="preview-toolbar-snap-group" class="c-preview-toolbar__group" data-action="js:snapControl" title="스냅">' +
             '<label class="c-preview-toolbar__label">스냅:</label>' +
-            '<button id="preview-toolbar-snap-toggle-btn" ' +
-            'class="c-preview-toolbar__snap-btn" ' +
-            ':class="{ \'c-preview-toolbar__snap-btn--active\': $root.snapEnabled }" ' +
-            'data-action="py:set_snap" ' +
-            'title="스냅 토글" ' +
-            '@click="toggleSnap">' +
-            '<i class="fas fa-magnet"></i> ' +
+            '<button id="preview-toolbar-snap-toggle-btn" class="c-preview-toolbar__snap-btn" data-action="py:set_snap" title="스냅 토글" @click="toggleSnap">' +
+            '<i class="fas fa-magnet"></i> <span>SNAP</span>' +
             '</button>' +
             '</div>' +
-            
             '</div>',
   
   methods: {
