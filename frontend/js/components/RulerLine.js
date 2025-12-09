@@ -37,7 +37,7 @@ export default {
     
     computed: {
         majorTicks() {
-            const step = 100; // Major tick every 100px
+            const step = 100;
             const ticks = [];
             
             for (let i = step; i < this.maxSize; i += step) {
@@ -54,13 +54,13 @@ export default {
                     width: this.maxSize * this.scale + 'px', 
                     height: '100%', 
                     transformOrigin: 'top left', 
-                    transform: `scaleX(${1 / this.scale})` 
+                    transform: \`scaleX(\${1 / this.scale})\` 
                 } : 
                 { 
                     width: '100%', 
                     height: this.maxSize * this.scale + 'px', 
                     transformOrigin: 'top left', 
-                    transform: `scaleY(${1 / this.scale})` 
+                    transform: \`scaleY(\${1 / this.scale})\` 
                 };
         }
     },
@@ -76,20 +76,48 @@ export default {
     },
     
     template: `
-        <div class="absolute inset-0 overflow-hidden" :style="wrapperStyle">
+        <div class="c-ruler" 
+             :style="wrapperStyle"
+             data-js="ruler-wrapper"
+             :title="orientation === 'h' ? '수평 눈금자' : '수직 눈금자'"
+             data-dev="요소의 역할: 눈금자 래퍼
+요소의 고유ID: component-ruler-wrapper
+요소의 기능 목적 정의: 눈금자 렌더링을 위한 컨테이너
+요소의 동작 로직 설명: orientation에 따라 수평/수직 눈금 표시, scale에 따라 크기 조정
+요소의 입출력 데이터 구조: 입력: orientation, maxSize, scale. 출력: 눈금 틱 렌더링
+요소의 경로정보: frontend/js/components/RulerLine.js#wrapper
+요소의 수행해야 할 백엔드/JS 명령: 없음">
             <template v-if="orientation === 'h'">
                 <div v-for="i in majorTicks" 
-                     :key="i" 
+                     :key="'h-tick-' + i" 
                      :style="horizontalTickStyle(i)" 
-                     class="absolute top-0 text-xxs text-text-sub font-mono pl-1 border-l border-ui-border h-full">
+                     class="c-ruler__tick c-ruler__tick--horizontal"
+                     :data-js="'ruler-tick-h-' + i"
+                     :title="i + 'px'"
+                     data-dev="요소의 역할: 수평 눈금 틱
+요소의 고유ID: component-ruler-tick-horizontal
+요소의 기능 목적 정의: 수평 좌표 표시
+요소의 동작 로직 설명: 100px 간격으로 좌표값 표시
+요소의 입출력 데이터 구조: 입력: i(좌표값). 출력: 텍스트 + 세로선
+요소의 경로정보: frontend/js/components/RulerLine.js#tick-h
+요소의 수행해야 할 백엔드/JS 명령: 없음">
                     {{ i }}
                 </div>
             </template>
             <template v-else>
                 <div v-for="i in majorTicks" 
-                     :key="i" 
+                     :key="'v-tick-' + i" 
                      :style="verticalTickStyle(i)" 
-                     class="absolute left-0 text-xxs text-text-sub font-mono pt-px border-t border-ui-border w-full">
+                     class="c-ruler__tick c-ruler__tick--vertical"
+                     :data-js="'ruler-tick-v-' + i"
+                     :title="i + 'px'"
+                     data-dev="요소의 역할: 수직 눈금 틱
+요소의 고유ID: component-ruler-tick-vertical
+요소의 기능 목적 정의: 수직 좌표 표시
+요소의 동작 로직 설명: 100px 간격으로 좌표값 표시
+요소의 입출력 데이터 구조: 입력: i(좌표값). 출력: 텍스트 + 가로선
+요소의 경로정보: frontend/js/components/RulerLine.js#tick-v
+요소의 수행해야 할 백엔드/JS 명령: 없음">
                     {{ i }}
                 </div>
             </template>
