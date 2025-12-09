@@ -69,7 +69,7 @@ const store = reactive({
     canvasScale: 1.0,
     
     // Inspector State
-    inspector: { tag: '', id: '', className: '', x: 0, y: 0, w: 0, h: 0, dataDev: '' },
+    inspector: { tag: '', id: '', className: '', x: 0, y: 0, w: 0, h: 0, dataDev: '', displayName: '' },
     highlightStyle: { width: '0', height: '0', top: '0', left: '0' },
     tooltipStyle: { top: '0', left: '0' },
     mouseMarkerPos: { x: 0, y: 0 },
