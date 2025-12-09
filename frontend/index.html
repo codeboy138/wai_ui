@@ -29,24 +29,8 @@
 
     <link rel="stylesheet" href="css/main.css">
 </head>
-<body class="flex flex-col text-xs" 
-      data-dev="요소의 역할: 애플리케이션 최상위 HTML Body 요소
-요소의 고유ID: app-body
-요소의 기능 목적 정의: WAI Studio 애플리케이션의 전체 레이아웃 컨테이너
-요소의 동작 로직 설명: 페이지 로드 시 Vue 3 앱이 #vue-app에 마운트, CDN 라이브러리 로드
-요소의 입출력 데이터 구조: 입력: 없음. 출력: Vue 앱 마운트, CDN 로드 완료
-요소의 경로정보: frontend/index.html#body
-요소의 수행해야 할 백엔드/JS 명령: JS: createApp().mount('#vue-app')">
-
-    <div id="vue-app" class="flex flex-col h-screen"
-         data-dev="요소의 역할: Vue 3 애플리케이션 마운트 포인트
-요소의 고유ID: vue-app
-요소의 기능 목적 정의: Vue 컴포넌트 트리가 렌더링되는 DOM 루트
-요소의 동작 로직 설명: js/app.js에서 createApp(App).mount('#vue-app') 실행 시 렌더링
-요소의 입출력 데이터 구조: 입력: 없음. 출력: Header, LeftPanel, Canvas, RightPanel, Timeline 렌더링
-요소의 경로정보: frontend/index.html#vue-app
-요소의 수행해야 할 백엔드/JS 명령: JS: createApp(App).mount('#vue-app')"></div>
-
+<body class="flex flex-col text-xs">
+    <div id="vue-app" class="flex flex-col h-screen"></div>
     <script type="module" src="js/app.js"></script>
 </body>
 </html>
