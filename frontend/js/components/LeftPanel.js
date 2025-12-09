@@ -294,7 +294,4 @@ const LeftPanel = {
   `
 };
 
-// CommonJS 모듈로 내보내기
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = LeftPanel;
-}
+export default LeftPanel;
