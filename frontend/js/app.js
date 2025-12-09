@@ -70,14 +70,14 @@ const App = {
         },
         
         toggleDevMode(mode) {
-            if (mode === 'active') {
+            if (mode === 'inspect') {
                 this.isDevModeActive = !this.isDevModeActive;
                 document.body.classList.toggle('dev-mode-active', this.isDevModeActive);
                 if (this.isDevModeActive) {
                     this.isDevModeFull = false;
                     document.body.classList.remove('dev-mode-full');
                 }
-            } else if (mode === 'full') {
+            } else if (mode === 'datadev') {
                 this.isDevModeFull = !this.isDevModeFull;
                 document.body.classList.toggle('dev-mode-full', this.isDevModeFull);
                 if (this.isDevModeFull) {
@@ -87,10 +87,30 @@ const App = {
             }
         },
         
+        copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: '복사 완료',
+                    text: `${text}`,
+                    showConfirmButton: false,
+                    timer: 1500,
+                    background: '#1e1e1e',
+                    color: '#fff'
+                });
+            }).catch(err => {
+                console.error('복사 실패:', err);
+            });
+        },
+        
         setupInspectorMode() {
             const self = this;
+            
+            // 마우스 이동 시 하이라이트
             document.addEventListener('mousemove', (e) => {
-                if (!self.isDevModeActive) return;
+                if (!self.isDevModeActive && !self.isDevModeFull) return;
                 
                 let target = e.target;
                 if (target.classList.contains('dev-highlight') || target.classList.contains('dev-tooltip')) {
@@ -108,7 +128,7 @@ const App = {
                     };
                     
                     let dataDevContent = target.getAttribute('data-dev') || '';
-                    dataDevContent = dataDevContent.replace(/\\n/g, '\n');
+                    const elementId = target.id || target.className.split(' ')[0] || target.tagName;
                     
                     self.inspector = {
                         tag: target.tagName,
@@ -118,7 +138,8 @@ const App = {
                         y: Math.round(rect.top),
                         w: Math.round(rect.width),
                         h: Math.round(rect.height),
-                        dataDev: dataDevContent
+                        dataDev: dataDevContent,
+                        displayName: elementId
                     };
                     
                     self.tooltipStyle = {
@@ -131,9 +152,26 @@ const App = {
                         self.tooltipStyle.top = `${rect.bottom + 10}px`;
                     }
                 } else {
-                    self.inspector = { tag: '', id: '', className: '', x: 0, y: 0, w: 0, h: 0, dataDev: '' };
+                    self.inspector = { tag: '', id: '', className: '', x: 0, y: 0, w: 0, h: 0, dataDev: '', displayName: '' };
                 }
             });
+            
+            // 클릭 시 복사 (Inspect 모드)
+            document.addEventListener('click', (e) => {
+                if (!self.isDevModeActive) return;
+                
+                let target = e.target;
+                if (target.classList.contains('dev-highlight') || target.classList.contains('dev-tooltip')) {
+                    return;
+                }
+                
+                if (target && target.tagName !== 'HTML' && target.tagName !== 'BODY') {
+                    const elementId = target.id || target.className.split(' ')[0] || target.tagName;
+                    self.copyToClipboard(elementId);
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            }, true);
         },
         
         // --- Preview/Canvas Logic ---
@@ -146,8 +184,8 @@ const App = {
         },
         
         updateCanvasMouseCoord(e) {
-            const wrapper = document.getElementById('canvas-wrapper');
-            const scaler = document.getElementById('canvas-scaler');
+            const wrapper = document.getElementById('canvas-wrapper-main');
+            const scaler = document.getElementById('canvas-scaler-transform');
             if (!wrapper || !scaler) return;
             
             const wrapperRect = wrapper.getBoundingClientRect();
@@ -211,7 +249,7 @@ const App = {
                 r.addEventListener('mousedown', e => {
                     e.preventDefault();
                     startS = dir === 'w' ? self[stateKey] :
-                        (rid === 'resizer-timeline' ? document.getElementById('preview-container').offsetHeight : 0);
+                        (rid === 'layout-resizer-timeline' ? document.getElementById('preview-container-main').offsetHeight : 0);
                     startP = dir === 'w' ? e.clientX : e.clientY;
                     
                     document.addEventListener('mousemove', onMove);
@@ -219,13 +257,13 @@ const App = {
                 });
             };
             
-            setup('resizer-left', 'leftPanelWidth', 180, 'w', false);
-            setup('resizer-right', 'rightPanelWidth', 250, 'w', true);
-            setup('resizer-timeline', 'previewContainerHeight', 100, 'h', false);
+            setup('layout-resizer-left', 'leftPanelWidth', 180, 'w', false);
+            setup('layout-resizer-right', 'rightPanelWidth', 250, 'w', true);
+            setup('layout-resizer-timeline', 'previewContainerHeight', 100, 'h', false);
         },
         
         setupCanvasScaler() {
-            const wrapper = document.getElementById('canvas-wrapper');
+            const wrapper = document.getElementById('canvas-wrapper-main');
             
             const updateScale = () => {
                 const padding = 20;
@@ -288,208 +326,273 @@ const App = {
     },
     
     template: `
-        <header id="app-header" 
-                class="h-12 bg-bg-panel border-b border-ui-border flex items-center justify-between shrink-0 select-none px-[15px]" 
+        <header id="header-app-main" 
+                class="c-header" 
+                data-js="header-main"
+                title="애플리케이션 헤더"
                 data-dev="요소의 역할: 애플리케이션 상단 헤더
-요소의 고유ID: app-header
+요소의 고유ID: header-app-main
 요소의 기능 목적 정의: 네비게이션, 개발자 모드 토글, 윈도우 컨트롤 제공
-요소의 동작 로직 설명: 네비게이션 버튼 클릭 시 페이지 전환, Dev 버튼 클릭 시 Inspector 모드 활성화
+요소의 동작 로직 설명: 네비게이션 버튼 클릭 시 페이지 전환, Inspect/DATA-DEV 버튼 클릭 시 개발자 모드 활성화
 요소의 입출력 데이터 구조: 입력: 클릭 이벤트. 출력: isDevModeActive, isDevModeFull 상태 변경
-요소의 경로정보: frontend/js/app.js#app-header
+요소의 경로정보: frontend/js/app.js#header
 요소의 수행해야 할 백엔드/JS 명령: JS: toggleDevMode(), firePython('nav_*'). Py: nav(), win_minimize(), win_maximize(), win_close()">
-            <div class="flex items-center h-full gap-[15px]">
-                <div class="font-bold text-lg tracking-tighter text-text-main">WAI</div>
+            <div class="c-header__left">
+                <div class="c-header__logo" 
+                     id="header-logo-text"
+                     data-js="header-logo"
+                     title="WAI Studio 로고"
+                     data-dev="요소의 역할: 애플리케이션 로고
+요소의 고유ID: header-logo-text
+요소의 기능 목적 정의: 브랜드 아이덴티티 표시
+요소의 동작 로직 설명: 정적 텍스트 표시
+요소의 입출력 데이터 구조: 입력: 없음. 출력: 'WAI' 텍스트
+요소의 경로정보: frontend/js/app.js#header-logo
+요소의 수행해야 할 백엔드/JS 명령: 없음">WAI</div>
                 
-                <div class="relative group h-full flex items-center">
-                    <button class="text-lg text-text-sub hover:text-text-main">
+                <div class="c-header__menu-icon" 
+                     id="header-menu-hamburger"
+                     data-js="header-menu"
+                     title="메뉴">
+                    <button class="c-header__btn">
                         <i class="fa-solid fa-bars"></i>
                     </button>
                 </div>
                 
-                <nav class="flex items-center gap-[15px] h-full">
-                    <button class="nav-btn hover:text-white text-text-sub" @click="firePython('nav_explore')">탐색</button>
-                    <button class="nav-btn active" @click="isProjectModalOpen = true">제작</button>
+                <nav class="c-header__nav" 
+                     id="header-nav-main"
+                     data-js="header-nav"
+                     title="네비게이션"
+                     data-dev="요소의 역할: 메인 네비게이션
+요소의 고유ID: header-nav-main
+요소의 기능 목적 정의: 페이지 간 이동 제공
+요소의 동작 로직 설명: 버튼 클릭 시 페이지 전환 또는 모달 오픈
+요소의 입출력 데이터 구조: 입력: 클릭. 출력: firePython() 또는 모달 상태 변경
+요소의 경로정보: frontend/js/app.js#nav
+요소의 수행해야 할 백엔드/JS 명령: JS: firePython('nav_*'), isProjectModalOpen=true">
+                    <button class="c-header__nav-btn" 
+                            id="header-nav-explore"
+                            data-js="nav-explore"
+                            title="탐색"
+                            @click="firePython('nav_explore')"
+                            data-dev="요소의 역할: 탐색 페이지 이동 버튼
+요소의 고유ID: header-nav-explore
+요소의 기능 목적 정의: 탐색 페이지로 전환
+요소의 동작 로직 설명: 클릭 시 Python 함수 nav('explore') 호출
+요소의 입출력 데이터 구조: 입력: 클릭. 출력: Py:nav('explore')
+요소의 경로정보: frontend/js/app.js#nav-explore
+요소의 수행해야 할 백엔드/JS 명령: Py: nav('explore')">탐색</button>
+                    <button class="c-header__nav-btn c-header__nav-btn--active" 
+                            id="header-nav-create"
+                            data-js="nav-create"
+                            title="제작"
+                            @click="isProjectModalOpen = true"
+                            data-dev="요소의 역할: 제작 페이지 이동 버튼
+요소의 고유ID: header-nav-create
+요소의 기능 목적 정의: 프로젝트 모달 오픈
+요소의 동작 로직 설명: 클릭 시 isProjectModalOpen=true
+요소의 입출력 데이터 구조: 입력: 클릭. 출력: isProjectModalOpen=true
+요소의 경로정보: frontend/js/app.js#nav-create
+요소의 수행해야 할 백엔드/JS 명령: JS: isProjectModalOpen=true">제작</button>
                     
-                    <div class="relative group h-full flex items-center">
-                        <button class="nav-btn hover:text-white text-text-sub">자산</button>
-                        <div class="absolute top-full left-0 w-32 bg-bg-panel border border-ui-border shadow-xl rounded-b hidden group-hover:block z-50">
-                            <button class="w-full text-left px-4 py-2 hover:bg-bg-hover text-xs text-text-main" 
-                                    @click="firePython('open_asset_manager')">
+                    <div class="c-header__nav-dropdown" 
+                         id="header-nav-assets-group"
+                         data-js="nav-assets-dropdown"
+                         title="자산">
+                        <button class="c-header__nav-btn"
+                                id="header-nav-assets"
+                                data-js="nav-assets"
+                                title="자산">자산</button>
+                        <div class="c-header__nav-dropdown-menu">
+                            <button class="c-header__nav-dropdown-item" 
+                                    id="header-nav-assets-manage"
+                                    data-js="nav-assets-manage"
+                                    title="자산 관리"
+                                    @click="firePython('open_asset_manager')"
+                                    data-dev="요소의 역할: 자산 관리 메뉴 항목
+요소의 고유ID: header-nav-assets-manage
+요소의 기능 목적 정의: 자산 관리 창 오픈
+요소의 동작 로직 설명: 클릭 시 Python 함수 open_asset_manager() 호출
+요소의 입출력 데이터 구조: 입력: 클릭. 출력: Py:open_asset_manager()
+요소의 경로정보: frontend/js/app.js#nav-assets-manage
+요소의 수행해야 할 백엔드/JS 명령: Py: open_asset_manager()">
                                 자산 관리
                             </button>
                         </div>
                     </div>
                     
-                    <button class="nav-btn hover:text-white text-text-sub" @click="firePython('nav_settings')">설정</button>
-                    <button class="nav-btn hover:text-white text-text-sub" @click="firePython('nav_research')">연구</button>
+                    <button class="c-header__nav-btn" 
+                            id="header-nav-settings"
+                            data-js="nav-settings"
+                            title="설정"
+                            @click="firePython('nav_settings')">설정</button>
+                    <button class="c-header__nav-btn" 
+                            id="header-nav-research"
+                            data-js="nav-research"
+                            title="연구"
+                            @click="firePython('nav_research')">연구</button>
                 </nav>
             </div>
             
-            <div class="flex items-center h-full gap-0">
-                <button id="inspector-toggle" 
-                        class="h-6 px-3 border border-ui-border rounded-l text-text-sub hover:text-white hover:bg-bg-hover flex items-center gap-1 transition-colors" 
-                        :class="{'bg-ui-selected text-text-main': isDevModeActive}"
-                        @click="toggleDevMode('active')">
+            <div class="c-header__right">
+                <button id="header-devmode-inspect" 
+                        class="c-header__devmode-btn c-header__devmode-btn--left" 
+                        :class="{'c-header__devmode-btn--active': isDevModeActive}"
+                        data-js="devmode-inspect"
+                        title="요소 검사"
+                        @click="toggleDevMode('inspect')"
+                        data-dev="요소의 역할: 요소 검사 모드 토글 버튼
+요소의 고유ID: header-devmode-inspect
+요소의 기능 목적 정의: Inspector 모드 활성화/비활성화
+요소의 동작 로직 설명: 클릭 시 toggleDevMode('inspect') 호출, 요소 호버 시 이름+크기 표시, 클릭 시 이름 복사
+요소의 입출력 데이터 구조: 입력: 클릭. 출력: isDevModeActive 상태 변경
+요소의 경로정보: frontend/js/app.js#devmode-inspect
+요소의 수행해야 할 백엔드/JS 명령: JS: toggleDevMode('inspect'), copyToClipboard()">
                     <i class="fa-solid fa-magnifying-glass"></i> Inspect
                 </button>
                 
-                <button id="dev-toggle" 
-                        class="h-6 px-3 border border-ui-border border-l-0 rounded-r text-text-sub hover:text-white hover:bg-bg-hover flex items-center gap-1 mr-4 transition-colors" 
-                        :class="{'bg-ui-selected text-text-main': isDevModeFull}"
-                        @click="toggleDevMode('full')">
-                    <i class="fa-solid fa-code"></i> Dev
+                <button id="header-devmode-datadev" 
+                        class="c-header__devmode-btn c-header__devmode-btn--right" 
+                        :class="{'c-header__devmode-btn--active': isDevModeFull}"
+                        data-js="devmode-datadev"
+                        title="DATA-DEV 보기"
+                        @click="toggleDevMode('datadev')"
+                        data-dev="요소의 역할: DATA-DEV 모드 토글 버튼
+요소의 고유ID: header-devmode-datadev
+요소의 기능 목적 정의: DATA-DEV 전체 모드 활성화/비활성화
+요소의 동작 로직 설명: 클릭 시 toggleDevMode('datadev') 호출, 요소 호버 시 DATA-DEV 7가지 필드 표시
+요소의 입출력 데이터 구조: 입력: 클릭. 출력: isDevModeFull 상태 변경
+요소의 경로정보: frontend/js/app.js#devmode-datadev
+요소의 수행해야 할 백엔드/JS 명령: JS: toggleDevMode('datadev')">
+                    <i class="fa-solid fa-code"></i> DATA-DEV
                 </button>
                 
-                <div class="flex items-center h-full ml-[15px] gap-0 border-l border-ui-border pl-2">
-                    <button class="win-btn" @click="firePython('win_min')">
-                        <i class="fa-solid fa-minus text-[10px]"></i>
+                <div class="c-header__window-controls" 
+                     id="header-window-controls"
+                     data-js="window-controls"
+                     title="창 제어"
+                     data-dev="요소의 역할: 윈도우 창 제어 버튼 그룹
+요소의 고유ID: header-window-controls
+요소의 기능 목적 정의: 창 최소화, 최대화, 닫기 제공
+요소의 동작 로직 설명: 각 버튼 클릭 시 Python 함수 호출
+요소의 입출력 데이터 구조: 입력: 클릭. 출력: Py:win_minimize(), Py:win_maximize(), Py:win_close()
+요소의 경로정보: frontend/js/app.js#window-controls
+요소의 수행해야 할 백엔드/JS 명령: Py: win_minimize(), win_maximize(), win_close()">
+                    <button class="c-header__window-btn" 
+                            id="header-window-minimize"
+                            data-js="window-minimize"
+                            title="최소화"
+                            @click="firePython('win_min')">
+                        <i class="fa-solid fa-minus"></i>
                     </button>
-                    <button class="win-btn" @click="firePython('win_max')">
-                        <i class="fa-regular fa-square text-[10px]"></i>
+                    <button class="c-header__window-btn" 
+                            id="header-window-maximize"
+                            data-js="window-maximize"
+                            title="최대화"
+                            @click="firePython('win_max')">
+                        <i class="fa-regular fa-square"></i>
                     </button>
-                    <button class="win-btn close" @click="firePython('win_close')">
-                        <i class="fa-solid fa-xmark text-[10px]"></i>
+                    <button class="c-header__window-btn c-header__window-btn--close" 
+                            id="header-window-close"
+                            data-js="window-close"
+                            title="닫기"
+                            @click="firePython('win_close')">
+                        <i class="fa-solid fa-xmark"></i>
                     </button>
                 </div>
             </div>
         </header>
         
-        <main class="flex-1 flex overflow-hidden relative" id="main-layout">
-            <aside id="panel-left" 
-                   class="bg-bg-panel flex flex-col relative border-r border-ui-border" 
-                   :style="{ width: leftPanelWidth + 'px', minWidth: '180px' }">
-                <div class="p-2 border-b border-ui-border font-bold text-text-sub flex justify-between">
+        <main class="c-layout" 
+              id="layout-main-container"
+              data-js="layout-main"
+              title="메인 레이아웃">
+            <aside id="layout-panel-left" 
+                   class="c-layout__panel c-layout__panel--left" 
+                   :style="{ width: leftPanelWidth + 'px', minWidth: '180px' }"
+                   data-js="panel-left"
+                   title="자산 패널">
+                <div class="c-layout__panel-header">
                     <span>자산 (Assets)</span>
-                    <button class="text-xs hover:text-white" @click="firePython('import_asset')">+</button>
+                    <button class="c-layout__panel-btn" 
+                            @click="firePython('import_asset')"
+                            title="자산 추가">+</button>
                 </div>
-                <div class="flex-1 overflow-y-auto p-2 flex flex-col items-center justify-center text-text-sub opacity-30 gap-2" 
-                     id="react-asset-list">
-                    <i class="fa-solid fa-folder-open text-2xl"></i>
-                    <div class="text-[10px]">자산 목록이 비어있습니다.</div>
+                <div class="c-layout__panel-body c-layout__panel-body--empty" 
+                     id="layout-asset-list">
+                    <i class="fa-solid fa-folder-open"></i>
+                    <div>자산 목록이 비어있습니다.</div>
                 </div>
                 
-                <div class="panel-resizer-v right-0" id="resizer-left"></div>
+                <div class="c-layout__resizer c-layout__resizer--vertical c-layout__resizer--right" 
+                     id="layout-resizer-left"
+                     data-js="resizer-left"
+                     title="패널 크기 조절"></div>
             </aside>
             
-            <section class="flex-1 flex flex-col bg-bg-dark min-w-[400px] relative overflow-hidden">
-                <div id="preview-container" 
-                     class="relative flex flex-col" 
-                     :style="{ height: previewContainerHeight }">
+            <section class="c-layout__center">
+                <div id="preview-container-main" 
+                     class="c-layout__preview" 
+                     :style="{ height: previewContainerHeight }"
+                     data-js="preview-container"
+                     title="프리뷰 영역">
                     
-                    <div class="h-8 bg-bg-panel border-b border-ui-border flex items-center justify-center px-2 gap-3 shrink-0 z-20">
-                        <div class="flex items-center gap-2 bg-bg-input rounded px-3 h-6 border border-ui-border">
+                    <div class="c-layout__preview-toolbar">
+                        <div class="c-layout__preview-controls">
                             <dropdown-menu :current-value="aspectRatio" 
                                          :items="['16:9', '9:16', '1:1']" 
                                          @select="setAspect" 
-                                         id="dd-ratio"></dropdown-menu>
+                                         id="preview-dropdown-ratio"></dropdown-menu>
                             
-                            <div class="w-px h-3 bg-ui-border"></div>
+                            <div class="c-layout__preview-divider"></div>
                             
-                            <div class="c-info-box px-2 flex items-center bg-bg-input rounded h-6 border border-ui-border w-24 justify-center">
-                                <span class="text-xxs font-mono text-ui-accent">
-                                    {{ Math.round(mouseCoord.x) }}, {{ Math.round(mouseCoord.y) }}
-                                </span>
+                            <div class="c-layout__preview-coord" 
+                                 id="preview-coord-display"
+                                 data-js="preview-coord"
+                                 title="마우스 좌표">
+                                <span>{{ Math.round(mouseCoord.x) }}, {{ Math.round(mouseCoord.y) }}</span>
                             </div>
                             
-                            <div class="w-px h-3 bg-ui-border"></div>
+                            <div class="c-layout__preview-divider"></div>
                             
                             <dropdown-menu :current-value="resolution" 
                                          :items="['8K', '6K', '4K', '3K', '2K']" 
                                          @select="setResolution" 
-                                         id="dd-resolution"></dropdown-menu>
+                                         id="preview-dropdown-resolution"></dropdown-menu>
                             
-                            <div class="w-px h-3 bg-ui-border"></div>
+                            <div class="c-layout__preview-divider"></div>
                             
-                            <div class="cursor-pointer flex items-center gap-1 hover:text-white text-[10px] font-bold" 
+                            <div class="c-layout__preview-snap" 
                                  @click="isMagnet = !isMagnet" 
-                                 :class="{'text-ui-accent': isMagnet, 'text-text-sub': !isMagnet}">
-                                <i class="fa-solid fa-magnet mr-1"></i> SNAP {{ isMagnet ? 'ON' : 'OFF' }}
+                                 :class="{'c-layout__preview-snap--active': isMagnet}"
+                                 id="preview-toggle-snap"
+                                 data-js="preview-snap"
+                                 title="스냅 토글">
+                                <i class="fa-solid fa-magnet"></i> SNAP {{ isMagnet ? 'ON' : 'OFF' }}
                             </div>
                         </div>
                     </div>
                     
-                    <div class="flex-1 relative overflow-hidden bg-black flex items-center justify-center" 
-                         id="canvas-wrapper" 
+                    <div class="c-layout__preview-canvas" 
+                         id="canvas-wrapper-main" 
+                         data-js="canvas-wrapper"
+                         title="캔버스"
                          @mousemove="updateCanvasMouseCoord" 
                          @mouseleave="mouseCoord = {x: 0, y: 0}; isMouseOverCanvas = false">
                         
-                        <div class="absolute top-0 left-0 w-full h-5 bg-[#121212] border-b border-[#333] z-20 pl-5 flex overflow-hidden" 
-                             id="ruler-h">
+                        <div class="c-layout__ruler c-layout__ruler--horizontal" 
+                             id="canvas-ruler-horizontal"
+                             data-js="ruler-horizontal"
+                             title="수평 눈금자">
                             <ruler-line :orientation="'h'" :max-size="canvasSize.w" :scale="canvasScale"></ruler-line>
                         </div>
-                        <div class="absolute top-0 left-0 w-5 h-full bg-[#121212] border-r border-[#333] z-20 pt-5 flex flex-col overflow-hidden" 
-                             id="ruler-v">
+                        <div class="c-layout__ruler c-layout__ruler--vertical" 
+                             id="canvas-ruler-vertical"
+                             data-js="ruler-vertical"
+                             title="수직 눈금자">
                             <ruler-line :orientation="'v'" :max-size="canvasSize.h" :scale="canvasScale"></ruler-line>
                         </div>
                         
-                        <div class="absolute top-0 left-0 w-full h-full z-30 pointer-events-none" 
+                        <div class="c-layout__crosshair" 
                              :style="{paddingLeft: '20px', paddingTop: '20px'}">
-                            <div class="absolute w-px h-full bg-ui-accent opacity-30" 
-                                 :style="{left: mouseMarkerPos.x + 'px'}" 
-                                 v-show="isMouseOverCanvas"></div>
-                            <div class="absolute h-px w-full bg-ui-accent opacity-30" 
-                                 :style="{top: mouseMarkerPos.y + 'px'}" 
-                                 v-show="isMouseOverCanvas"></div>
-                        </div>
-                        
-                        <div class="relative overflow-hidden" id="canvas-viewport" style="width:100%; height:100%;">
-                            <div id="canvas-scaler" class="canvas-scaler" :style="canvasScalerStyle">
-                                <div id="guide-h" class="guide-line-h" style="top: 50%;"></div>
-                                <div id="guide-v" class="guide-line-v" style="left: 50%;"></div>
-                                
-                                <preview-canvas :canvas-boxes="canvasBoxes" 
-                                              :selected-box-id="selectedBoxId" 
-                                              @select-box="setSelectedBoxId" 
-                                              @remove-box="removeBox"></preview-canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="panel-resizer-h" id="resizer-timeline"></div>
-                
-                <timeline-panel :vm="$data" :style="{ height: timelineContainerHeight }"></timeline-panel>
-            </section>
-            
-            <aside id="panel-right" 
-                   class="bg-bg-panel flex flex-col relative border-l border-ui-border" 
-                   :style="{ width: rightPanelWidth + 'px', minWidth: '250px' }">
-                <div class="panel-resizer-v left-0" id="resizer-right"></div>
-                <div class="flex-1 overflow-y-auto flex flex-col" id="vue-right-panel-root">
-                    <layer-panel :vm="$data"></layer-panel>
-                    <properties-panel :vm="$data"></properties-panel>
-                    <div class="flex-1 bg-bg-dark border-t border-ui-border p-2">
-                        <div class="text-[10px] text-text-sub text-center opacity-30 mt-4">Effects Library</div>
-                    </div>
-                </div>
-            </aside>
-        </main>
-        
-        <project-modal v-if="isProjectModalOpen" @close="isProjectModalOpen = false"></project-modal>
-        
-        <div class="dev-overlay" id="dev-overlay" v-if="inspector.tag">
-            <div class="dev-highlight" :style="highlightStyle"></div>
-            <div class="dev-tooltip" :style="tooltipStyle">
-                <span class="text-yellow-400 font-bold">{{ inspector.tag }}</span> 
-                <span class="text-blue-300">{{ inspector.id ? '#' + inspector.id : '' }}</span> 
-                <span class="text-green-300">{{ inspector.className ? '.' + inspector.className.split(' ')[0] : '' }}</span><br>
-                Size: {{ inspector.w }} x {{ inspector.h }}<br>
-                <div v-if="inspector.dataDev" class="mt-1 pt-1 border-t border-gray-500 text-[9px] text-gray-300">
-                    {{ inspector.dataDev }}
-                </div>
-            </div>
-        </div>
-    `
-};
-
-const app = createApp(App);
-
-app.component('dropdown-menu', DropdownMenu);
-app.component('project-modal', ProjectModal);
-app.component('ruler-line', RulerLine);
-app.component('layer-panel', LayerPanel);
-app.component('properties-panel', PropertiesPanel);
-app.component('preview-canvas', PreviewCanvas);
-app.component('timeline-panel', TimelinePanel);
-
-app.mount('#vue-app');
+                            <div class="c-layout__crosshair-line c-layout__crosshair-line--vertical"<span class="cursor">█</span>
