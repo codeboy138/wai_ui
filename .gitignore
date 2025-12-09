@@ -1,0 +1,29 @@
+﻿# Python
+backend/venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.log
+
+# Node.js
+node_modules/
+frontend/node_modules/
+
+# 환경 설정
+.env
+.DS_Store
+Thumbs.db
+
+# 빌드
+dist/
+build/
+
+# 백업
+frontend/_BACKUP_VITE/
+_BACKUP_*/
+
+# IDE
+.vscode/
+.idea/
