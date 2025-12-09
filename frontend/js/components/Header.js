@@ -13,8 +13,7 @@ export default {
     props: ['vm'],
     
     template: `
-        <header id="header-main" 
-                class="c-header">
+        <header id="header-main" class="c-header">
             <div class="c-header__left">
                 <div class="c-header__logo">WAI</div>
                 
