@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WAI Studio</title>
+    
+    <script>
+        window.onerror = function(msg, url, line, col, error) {
+            // 경고창 대신 콘솔에만 표시하여 사용자 경험 저해 방지 (개발 단계)
+            console.error(`⚠️ CRITICAL ERROR:\n${msg}\n\nFile: ${url}\nLine: ${line}`);
+            return false;
+        };
+    </script>
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bg: { dark: '#09090b', panel: '#18181b', hover: '#27272a', input: '#202023' },
+                        ui: { border: '#27272a', selected: '#3f3f46', accent: '#3b82f6', danger: '#ef4444' },
+                        text: { main: '#f4f4f5', sub: '#a1a1aa' }
+                    },
+                    fontSize: { 'xxs': '10px' }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+    <div id="app-root"></div>
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
