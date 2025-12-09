@@ -24,7 +24,7 @@
  * parseRatio('4:3')    // [4, 3]
  * parseRatio('21:9')   // [21, 9]
  */
-function parseRatio(ratio) {
+export function parseRatio(ratio) {
   return ratio.split(':').map(Number);
 }
 
@@ -48,7 +48,7 @@ function parseRatio(ratio) {
  * - HD:  720px  (1280 × 720)
  * - SD:  480px  (640 × 480)
  */
-function qualityBaseHeight(quality) {
+export function qualityBaseHeight(quality) {
   const qualityMap = {
     '4K': 2160,
     'FHD': 1080,
@@ -81,7 +81,7 @@ function qualityBaseHeight(quality) {
  * 2. 중간 해상도 (최대의 2/3)
  * 3. 최소 해상도 (최대의 1/3)
  */
-function getResolutions(ratio, quality) {
+export function getResolutions(ratio, quality) {
   const [ratioW, ratioH] = parseRatio(ratio);
   const baseHeight = qualityBaseHeight(quality);
   
@@ -110,11 +110,9 @@ function getResolutions(ratio, quality) {
   return resolutions;
 }
 
-// CommonJS 모듈로 내보내기
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = {
-    parseRatio,
-    qualityBaseHeight,
-    getResolutions
-  };
-}
+// 기본 export (전체 유틸리티)
+export default {
+  parseRatio,
+  qualityBaseHeight,
+  getResolutions
+};
