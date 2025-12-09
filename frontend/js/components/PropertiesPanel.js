@@ -1,113 +1,63 @@
-/**
- * [DATA-DEV: PropertiesPanel]
- * - 역할: 선택된 요소의 속성 표시 + 수정
- * - 고유ID: properties-panel
- * - 기능: 클립/박스 속성 표시, 삭제 버튼
- * - 로직: selectedClipId/selectedCanvasBoxId 변경 시 업데이트
- * - 데이터: selectedClip, selectedCanvasBox
- * - 경로: frontend/js/components/PropertiesPanel.js
- * - 명령: firePython('delete_clip', {id}), firePython('update_box_property', {id, key, value})
- */
-
-export default {
-  name: 'PropertiesPanel',
-  template: '<section id="properties-panel-container" ' +
-            'class="c-properties-panel" ' +
-            'data-action="js:propertiesDisplay" ' +
-            'title="속성 패널">' +
-            
-            '<!-- 선택된 요소 없음 -->' +
-            '<div v-if="!selectedItem" ' +
-            'id="properties-panel-empty" ' +
-            'class="c-properties-panel__empty" ' +
-            'data-action="js:emptyState" ' +
-            'title="선택된 요소 없음">' +
-            '<p>선택된 요소가 없습니다</p>' +
-            '</div>' +
-            
-            '<!-- 클립 속성 -->' +
-            '<div v-if="selectedClip" ' +
-            'id="properties-panel-clip" ' +
-            'class="c-properties-panel__clip" ' +
-            'data-action="js:clipProperties" ' +
-            'title="클립 속성">' +
-            '<h3 class="c-properties-panel__title">클립: {{ selectedClip.name }}</h3>' +
-            '<div class="c-properties-panel__field">' +
-            '<label>시작 시간:</label>' +
-            '<input type="number" v-model.number="selectedClip.start" />' +
-            '</div>' +
-            '<div class="c-properties-panel__field">' +
-            '<label>길이:</label>' +
-            '<input type="number" v-model.number="selectedClip.duration" />' +
-            '</div>' +
-            '<button id="properties-panel-delete-clip-btn" ' +
-            'class="c-properties-panel__delete-btn" ' +
-            'data-action="py:delete_clip" ' +
-            'title="클립 삭제" ' +
-            '@click="deleteClip">' +
-            '<i class="fas fa-trash"></i> 삭제' +
-            '</button>' +
-            '</div>' +
-            
-            '<!-- 박스 속성 -->' +
-            '<div v-if="selectedBox" ' +
-            'id="properties-panel-box" ' +
-            'class="c-properties-panel__box" ' +
-            'data-action="js:boxProperties" ' +
-            'title="박스 속성">' +
-            '<h3 class="c-properties-panel__title">박스: {{ selectedBox.name }}</h3>' +
-            '<div class="c-properties-panel__field">' +
-            '<label>X:</label>' +
-            '<input type="number" v-model.number="selectedBox.x" />' +
-            '</div>' +
-            '<div class="c-properties-panel__field">' +
-            '<label>Y:</label>' +
-            '<input type="number" v-model.number="selectedBox.y" />' +
-            '</div>' +
-            '<div class="c-properties-panel__field">' +
-            '<label>너비:</label>' +
-            '<input type="number" v-model.number="selectedBox.width" />' +
-            '</div>' +
-            '<div class="c-properties-panel__field">' +
-            '<label>높이:</label>' +
-            '<input type="number" v-model.number="selectedBox.height" />' +
-            '</div>' +
-            '<button id="properties-panel-delete-box-btn" ' +
-            'class="c-properties-panel__delete-btn" ' +
-            'data-action="py:delete_box" ' +
-            'title="박스 삭제" ' +
-            '@click="deleteBox">' +
-            '<i class="fas fa-trash"></i> 삭제' +
-            '</button>' +
-            '</div>' +
-            
-            '</section>',
-  
-  computed: {
-    selectedItem() {
-      return this.selectedClip || this.selectedBox;
+// Properties Panel Component
+const PropertiesPanel = {
+    props: ['vm'],
+    template: `
+        <div class="border-b border-ui-border bg-bg-panel" data-dev="ID: props-panel\nComp: RightPanel/Properties\nNote: 클립/박스 속성 표시">
+            <div class="h-8 bg-bg-hover flex items-center justify-between px-2 cursor-pointer select-none border-b border-ui-border" @click="isCollapsed = !isCollapsed" data-dev="ID: props-header">
+                <span class="text-xs font-bold text-text-main"><i class="fa-solid fa-sliders mr-2"></i>속성</span>
+                <i :class="['fa-solid', isCollapsed ? 'fa-chevron-down' : 'fa-chevron-up']" class="text-text-sub text-xs"></i>
+            </div>
+            <div v-if="!isCollapsed" class="p-3 space-y-3">
+                <div v-if="!vm.selectedClip && !vm.selectedBoxId" class="text-text-sub text-center text-[10px] py-4 opacity-50">선택된 요소 없음</div>
+                
+                <div v-else-if="vm.selectedClip" class="animate-fade-in space-y-2">
+                    <div class="bg-bg-input p-2 rounded border border-ui-border">
+                        <div class="text-[10px] text-ui-accent font-bold mb-1">CLIP</div>
+                        <div class="text-sm font-bold text-text-main truncate">{{ vm.selectedClip.name }}</div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="text-[10px] text-text-sub">Start</label>
+                            <input type="text" class="w-full bg-bg-dark border border-ui-border rounded p-1 text-[10px] text-text-main" :value="vm.selectedClip.start.toFixed(1)" readonly/>
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-text-sub">Dur</label>
+                            <input type="text" class="w-full bg-bg-dark border border-ui-border rounded p-1 text-[10px] text-text-main" :value="vm.selectedClip.duration.toFixed(1)" readonly/>
+                        </div>
+                    </div>
+                    <button class="w-full bg-ui-border hover:bg-ui-danger hover:text-white border border-ui-border text-text-sub py-1 rounded text-[10px] transition-colors" @click="deleteClip(vm.selectedClip.id)">
+                        <i class="fa-solid fa-trash mr-1"></i> 삭제
+                    </button>
+                </div>
+                
+                <div v-else-if="selectedBox" class="animate-fade-in space-y-2">
+                    <div class="bg-bg-input p-2 rounded border border-ui-border">
+                        <div class="text-[10px] text-ui-accent font-bold mb-1">BOX (Z:{{ selectedBox.zIndex }})</div>
+                        <div class="text-sm font-bold text-text-main truncate">({{ selectedBox.type }})</div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div><label class="text-[10px] text-text-sub">X</label><input type="text" class="w-full bg-bg-dark border border-ui-border rounded p-1 text-[10px] text-text-main" :value="Math.round(selectedBox.x)" readonly/></div>
+                        <div><label class="text-[10px] text-text-sub">Y</label><input type="text" class="w-full bg-bg-dark border border-ui-border rounded p-1 text-[10px] text-text-main" :value="Math.round(selectedBox.y)" readonly/></div>
+                        <div><label class="text-[10px] text-text-sub">W</label><input type="text" class="w-full bg-bg-dark border border-ui-border rounded p-1 text-[10px] text-text-main" :value="Math.round(selectedBox.w)" readonly/></div>
+                        <div><label class="text-[10px] text-text-sub">H</label><input type="text" class="w-full bg-bg-dark border border-ui-border rounded p-1 text-[10px] text-text-main" :value="Math.round(selectedBox.h)" readonly/></div>
+                    </div>
+                    <button class="w-full bg-ui-border hover:bg-ui-danger hover:text-white border border-ui-border text-text-sub py-1 rounded text-[10px] transition-colors" @click="vm.removeBox(vm.selectedBoxId)">
+                        <i class="fa-solid fa-trash mr-1"></i> 삭제
+                    </button>
+                </div>
+            </div>
+        </div>
+    `,
+    data() { return { isCollapsed: false } },
+    computed: {
+        selectedBox() {
+            return this.vm.canvasBoxes.find(b => b.id === this.vm.selectedBoxId);
+        }
     },
-    selectedClip() {
-      return this.$root.clips.find(c => c.id === this.$root.selectedClipId);
-    },
-    selectedBox() {
-      return this.$root.canvasBoxes.find(b => b.id === this.$root.selectedCanvasBoxId);
+    methods: {
+        deleteClip(id) {
+            this.vm.removeClip(id);
+            this.vm.selectedClip = null;
+        }
     }
-  },
-  
-  methods: {
-    deleteClip() {
-      if (!this.selectedClip) return;
-      console.log('[PropertiesPanel] 클립 삭제:', this.selectedClip.id);
-      this.$root.firePython('delete_clip', { id: this.selectedClip.id });
-      this.$root.selectedClipId = null;
-    },
-    
-    deleteBox() {
-      if (!this.selectedBox) return;
-      console.log('[PropertiesPanel] 박스 삭제:', this.selectedBox.id);
-      this.$root.firePython('delete_box', { id: this.selectedBox.id });
-      this.$root.selectedCanvasBoxId = null;
-    }
-  }
 };
