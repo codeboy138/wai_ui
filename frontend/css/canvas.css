@@ -1,115 +1,138 @@
 /**
- * ==========================================
- * canvas.css - 프리뷰 캔버스 전용 스타일
- * 
- * 역할: 캔버스 박스, 리사이즈 핸들, 가이드라인 스타일
- * 경로: frontend/css/canvas.css
- * 
- * DATA-DEV:
- * 요소의 역할: 프리뷰 캔버스 박스 및 스냅 가이드라인 스타일
- * 요소의 고유ID: css-canvas
- * 요소의 기능 목적 정의: .canvas-box, .box-handle, .guide-line-h/v 스타일 제공
- * 요소의 동작 로직 설명: Interact.js와 연동하여 박스 드래그/리사이즈 시각 효과 제공
- * 요소의 입출력 데이터 구조: 입력: 없음. 출력: 캔버스 박스 스타일
- * 요소의 경로정보: frontend/css/canvas.css
- * 요소의 수행해야 할 백엔드/JS 명령: JS: initInteract() (PreviewCanvas.js)
- * ==========================================
+ * [DATA-DEV: canvas.css]
+ * - 역할: 캔버스 영역 스타일
+ * - 고유ID: canvas-styles
+ * - 기능: 캔버스 박스, 눈금자, 드래그/리사이즈
+ * - 경로: frontend/css/canvas.css
  */
 
-/* 프리뷰 캔버스 박스 */
-.canvas-scaler { 
-    transform-origin: top left; 
-    background-color: #000; 
-    box-shadow: 0 0 50px rgba(0,0,0,0.5); 
-    position: relative; 
+/* Preview Canvas */
+.c-preview-canvas {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background-color: #0a0a0a;
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 20px 20px;
+  background-position: -1px -1px;
 }
 
-.canvas-box { 
-    position: absolute; 
-    border: 2px dashed rgba(255,255,255,0.3); 
-    background: rgba(255,255,255,0.05);
-    display: flex; 
-    align-items: flex-start; 
-    justify-content: flex-end; 
-    touch-action: none; 
-    box-sizing: border-box; 
+/* Canvas Box */
+.c-canvas__box {
+  position: absolute;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  cursor: move;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  user-select: none;
 }
 
-.canvas-box.selected { 
-    border-style: solid; 
-    box-shadow: 0 0 0 1px #fff, 0 0 10px rgba(0,0,0,0.5); 
-    z-index: 1000 !important; 
-    border-color: #3b82f6;
+.c-canvas__box:hover {
+  border-color: var(--color-accent-blue);
 }
 
-.canvas-label { 
-    position: absolute; 
-    right: 0; 
-    bottom: -16px; 
-    background: #3b82f6; 
-    color: #fff; 
-    padding: 0 4px; 
-    font-size: 9px; 
-    font-weight: bold; 
-    border-radius: 2px; 
-    font-family: monospace; 
-    white-space: nowrap; 
-    pointer-events: none; 
-    text-shadow: 0 1px 2px black; 
-    opacity: 0.8; 
+.c-canvas__box--selected {
+  border-color: var(--color-accent-green);
+  box-shadow: 0 0 0 2px var(--color-accent-green);
 }
 
-/* 박스 리사이즈 핸들러 */
-.box-handle { 
-    position: absolute; 
-    width: 8px; 
-    height: 8px; 
-    background: #fff; 
-    border: 1px solid #000; 
-    z-index: 20; 
-    display: none; 
+.c-canvas__box-label {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: white;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
 }
 
-.canvas-box.selected .box-handle { display: block; }
-
-.bh-tl { top: -4px; left: -4px; cursor: nwse-resize; }
-.bh-tr { top: -4px; right: -4px; cursor: nesw-resize; }
-.bh-bl { bottom: -4px; left: -4px; cursor: nesw-resize; }
-.bh-br { bottom: -4px; right: -4px; cursor: nwse-resize; }
-
-/* 스냅 플래시 효과 */
-@keyframes flash { 
-    0% { background-color: rgba(255,255,255,0.8); } 
-    100% { background-color: rgba(255,255,255,0.05); } 
-}
-.snap-flash { 
-    animation: flash 0.3s ease-out; 
-    border-color: #fff !important; 
+/* Canvas Box 리사이즈 핸들 */
+.c-canvas__box::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 12px;
+  height: 12px;
+  background-color: var(--color-accent-blue);
+  cursor: nwse-resize;
+  opacity: 0;
+  transition: opacity 0.2s;
 }
 
-/* 가이드라인 (십자선) */
-.guide-line-h { 
-    position: absolute; 
-    left: 0; 
-    right: 0; 
-    height: 1px; 
-    background-color: #3b82f6; 
-    border-top: 1px dashed #3b82f6; 
-    display: none; 
-    pointer-events: none; 
-    z-index: 9999; 
-    opacity: 0.8; 
+.c-canvas__box:hover::after,
+.c-canvas__box--selected::after {
+  opacity: 1;
 }
 
-.guide-line-v { 
-    position: absolute; 
-    top: 0; 
-    bottom: 0; 
-    width: 1px; 
-    background-color: #3b82f6; 
-    border-left: 1px dashed #3b82f6; 
-    display: none; 
-    pointer-events: none; 
-    z-index: 9999; 
-    opacity: 0.8; 
+/* Ruler */
+.c-ruler-line {
+  position: absolute;
+  background-color: var(--color-bg-secondary);
+  pointer-events: none;
+  z-index: var(--z-content);
+  font-size: 10px;
+  color: var(--color-text-secondary);
+}
+
+.c-ruler-line--horizontal {
+  top: 0;
+  left: 20px;
+  width: calc(100% - 20px);
+  height: 20px;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+}
+
+.c-ruler-line--vertical {
+  top: 20px;
+  left: 0;
+  width: 20px;
+  height: calc(100% - 20px);
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Canvas 중앙 가이드 라인 */
+.c-preview-canvas::before,
+.c-preview-canvas::after {
+  content: '';
+  position: absolute;
+  background-color: rgba(59, 130, 246, 0.3);
+  pointer-events: none;
+  z-index: var(--z-base);
+}
+
+.c-preview-canvas::before {
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 1px;
+}
+
+.c-preview-canvas::after {
+  top: 0;
+  left: 50%;
+  width: 1px;
+  height: 100%;
+}
+
+/* Interact.js 드래그/리사이즈 스타일 */
+.resize-drag {
+  touch-action: none;
+}
+
+.resize-drag.dragging {
+  opacity: 0.8;
+  cursor: move !important;
+}
+
+.resize-drag.resizing {
+  opacity: 0.8;
 }
