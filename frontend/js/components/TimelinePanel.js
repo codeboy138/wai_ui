@@ -310,11 +310,41 @@ export default {
                          @dragenter="onTrackDragEnter($event, index)" 
                          @dragend="onTrackDragEnd" 
                          @dragover.prevent 
-                         :data-dev="'요소의 역할: 타임라인 트랙\\n요소의 고유ID: track-' + track.id + '\\n요소의 기능 목적 정의: 개별 트랙 표시 및 순서 변경\\n요소의 동작 로직 설명: 드래그로 트랙 순서 변경\\n요소의 입출력 데이터 구조: 입력: track (객체). 출력: vm.moveTrack()\\n요소의 경로정보: frontend/js/components/TimelinePanel.js#track\\n요소의 수행해야 할 백엔드/JS 명령: JS: onTrackDragStart(), vm.moveTrack()'">
+                         :data-dev="'요소의 역할: 타임라인 트랙\\n요소의 고유ID: track-' + track.id + '\\n요소의 기능 목적 정의: 개별 트랙 표시 및 순서 변경, 가시성/잠금 토글\\n요소의 동작 로직 설명: 드래그로 트랙 순서 변경, 눈 아이콘으로 가시성 토글, 자물쇠 아이콘으로 잠금 토글\\n요소의 입출력 데이터 구조: 입력: track (객체). 출력: vm.moveTrack(), vm.toggleTrackVisibility(), vm.toggleTrackLock()\\n요소의 경로정보: frontend/js/components/TimelinePanel.js#track\\n요소의 수행해야 할 백엔드/JS 명령: JS: onTrackDragStart(), vm.moveTrack(), vm.toggleTrackVisibility(), vm.toggleTrackLock()'">
                         <div class="w-1 h-2/3 rounded mr-2" :style="{ backgroundColor: track.color || '#666' }"></div>
                         <span class="text-xs truncate flex-1 text-text-main" contenteditable suppressContentEditableWarning>
                             {{ track.name }}
                         </span>
+                        
+                        <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button class="w-5 h-5 flex items-center justify-center rounded hover:bg-bg-hover text-text-sub hover:text-text-main transition-colors" 
+                                    :class="{ 'text-ui-accent': track.visible, 'text-ui-danger': !track.visible }"
+                                    @click.stop="vm.toggleTrackVisibility(track.id)"
+                                    :title="track.visible ? '트랙 숨기기' : '트랙 표시'"
+                                    data-dev="요소의 역할: 트랙 가시성 토글 버튼
+요소의 고유ID: btn-track-visibility
+요소의 기능 목적 정의: 트랙의 표시/숨김 상태 전환
+요소의 동작 로직 설명: 클릭 시 track.visible 상태 토글, 아이콘 변경 (눈/눈감음)
+요소의 입출력 데이터 구조: 입력: 클릭. 출력: track.visible 상태 변경
+요소의 경로정보: frontend/js/components/TimelinePanel.js#btn-visibility
+요소의 수행해야 할 백엔드/JS 명령: JS: vm.toggleTrackVisibility(trackId)">
+                                <i :class="track.visible ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash'" class="text-[10px]"></i>
+                            </button>
+                            
+                            <button class="w-5 h-5 flex items-center justify-center rounded hover:bg-bg-hover text-text-sub hover:text-text-main transition-colors" 
+                                    :class="{ 'text-ui-danger': track.locked, 'text-text-sub': !track.locked }"
+                                    @click.stop="vm.toggleTrackLock(track.id)"
+                                    :title="track.locked ? '트랙 잠금 해제' : '트랙 잠금'"
+                                    data-dev="요소의 역할: 트랙 잠금 토글 버튼
+요소의 고유ID: btn-track-lock
+요소의 기능 목적 정의: 트랙의 잠금/해제 상태 전환
+요소의 동작 로직 설명: 클릭 시 track.locked 상태 토글, 아이콘 변경 (자물쇠 열림/닫힘)
+요소의 입출력 데이터 구조: 입력: 클릭. 출력: track.locked 상태 변경
+요소의 경로정보: frontend/js/components/TimelinePanel.js#btn-lock
+요소의 수행해야 할 백엔드/JS 명령: JS: vm.toggleTrackLock(trackId)">
+                                <i :class="track.locked ? 'fa-solid fa-lock' : 'fa-solid fa-lock-open'" class="text-[10px]"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
                 
@@ -330,19 +360,25 @@ export default {
                     
                     <div v-for="track in vm.tracks" 
                          :key="track.id" 
-                         class="h-10 border-b border-ui-border relative">
+                         class="h-10 border-b border-ui-border relative"
+                         :class="{ 'opacity-30': !track.visible }">
                         <div v-for="clip in vm.clips.filter(c => c.trackId === track.id)" 
                              :key="clip.id"
                              :id="'clip-' + clip.id"
-                             class="clip absolute top-1 h-8 rounded cursor-pointer overflow-hidden" 
-                             :class="{ 'selected': vm.selectedClip && vm.selectedClip.id === clip.id }"
+                             class="clip absolute top-1 h-8 rounded overflow-hidden" 
+                             :class="{ 
+                                 'selected': vm.selectedClip && vm.selectedClip.id === clip.id,
+                                 'cursor-not-allowed': track.locked,
+                                 'cursor-pointer': !track.locked
+                             }"
                              :style="{ 
                                  left: clip.start * vm.zoom + 'px', 
                                  width: clip.duration * vm.zoom + 'px', 
-                                 backgroundColor: 'transparent' 
+                                 backgroundColor: 'transparent',
+                                 pointerEvents: track.locked ? 'none' : 'auto'
                              }"
-                             @click.stop="vm.setSelectedClip(clip)" 
-                             :data-dev="'요소의 역할: 타임라인 클립\\n요소의 고유ID: clip-' + clip.id + '\\n요소의 기능 목적 정의: 개별 클립 표시 및 편집\\n요소의 동작 로직 설명: 드래그로 이동, 리사이즈로 길이 조절\\n요소의 입출력 데이터 구조: 입력: clip (객체). 출력: vm.updateClip(), vm.moveClip()\\n요소의 경로정보: frontend/js/components/TimelinePanel.js#clip\\n요소의 수행해야 할 백엔드/JS 명령: JS: Interact.js 드래그/리사이즈, vm.setSelectedClip()'"
+                             @click.stop="!track.locked && vm.setSelectedClip(clip)" 
+                             :data-dev="'요소의 역할: 타임라인 클립\\n요소의 고유ID: clip-' + clip.id + '\\n요소의 기능 목적 정의: 개별 클립 표시 및 편집\\n요소의 동작 로직 설명: 드래그로 이동, 리사이즈로 길이 조절 (트랙 잠금 시 비활성화)\\n요소의 입출력 데이터 구조: 입력: clip (객체). 출력: vm.updateClip(), vm.moveClip()\\n요소의 경로정보: frontend/js/components/TimelinePanel.js#clip\\n요소의 수행해야 할 백엔드/JS 명령: JS: Interact.js 드래그/리사이즈, vm.setSelectedClip()'"
                              data-x="0" 
                              data-y="0">
                             <div class="absolute inset-0 opacity-30" 
