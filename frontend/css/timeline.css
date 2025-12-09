@@ -1,0 +1,78 @@
+/**
+ * ==========================================
+ * timeline.css - 타임라인 스타일
+ * 
+ * 역할: Timeline 컴포넌트 전용 스타일
+ * 경로: frontend/css/timeline.css
+ * ==========================================
+ */
+
+/* 타임라인 그리드 레이아웃 */
+.timeline-grid { 
+  display: grid; 
+  height: 100%; 
+  overflow: hidden;
+}
+
+/* 고정 요소 (Sticky Headers & Rulers) */
+.sticky-corner { 
+  position: sticky; 
+  top: 0; 
+  left: 0; 
+  z-index: 50; 
+  background: var(--color-bg-panel); 
+  border-bottom: 1px solid var(--color-ui-border); 
+  border-right: 1px solid var(--color-ui-border); 
+}
+
+.sticky-ruler { 
+  position: sticky; 
+  top: 0; 
+  z-index: 40; 
+  background: var(--color-bg-dark); 
+  border-bottom: 1px solid var(--color-ui-border); 
+}
+
+.sticky-col { 
+  position: sticky; 
+  left: 0; 
+  z-index: 30; 
+  background: var(--color-bg-panel); 
+  border-right: 1px solid var(--color-ui-border); 
+}
+
+/* 클립(Clip) 스타일 */
+.clip { 
+  position: absolute; 
+  top: 4px; 
+  height: 32px; 
+  border-radius: 4px; 
+  overflow: hidden; 
+  border: 1px solid rgba(255,255,255,0.1); 
+  cursor: pointer; 
+  transition: box-shadow 0.1s, border-color 0.1s; 
+  touch-action: none;
+}
+
+.clip:hover { 
+  filter: brightness(1.1); 
+  z-index: 10; 
+  border-color: rgba(255,255,255,0.5); 
+}
+
+.clip.selected { 
+  border: 2px solid #fff; 
+  z-index: 20; 
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.3); 
+}
+
+.clip.dragging { 
+  opacity: 0.8; 
+  z-index: 100 !important; 
+  cursor: grabbing; 
+  box-shadow: 0 5px 15px rgba(0,0,0,0.5); 
+}
+
+.clip-label { 
+  pointer-events: none; 
+  text-shadow: 0 1px 2px black<span class="cursor">█</span>
