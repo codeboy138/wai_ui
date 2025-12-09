@@ -1,0 +1,98 @@
+/**
+ * ==========================================
+ * canvas.css - 프리뷰 캔버스 스타일
+ * 
+ * 역할: Canvas 컴포넌트 전용 스타일
+ * 경로: frontend/css/canvas.css
+ * ==========================================
+ */
+
+/* 프리뷰 캔버스 박스 */
+.canvas-scaler { 
+  transform-origin: top left; 
+  background-color: #000; 
+  box-shadow: 0 0 50px rgba(0,0,0,0.5); 
+  position: relative; 
+}
+
+.canvas-box { 
+  position: absolute; 
+  border: 2px dashed rgba(255,255,255,0.3); 
+  background: rgba(255,255,255,0.05);
+  display: flex; 
+  align-items: flex-start; 
+  justify-content: flex-end; 
+  touch-action: none; 
+  box-sizing: border-box; 
+}
+
+.canvas-box.selected { 
+  border-style: solid; 
+  box-shadow: 0 0 0 1px #fff, 0 0 10px rgba(0,0,0,0.5); 
+  z-index: 1000 !important; 
+  border-color: var(--color-ui-accent);
+}
+
+.canvas-label { 
+  position: absolute; 
+  right: 0; 
+  bottom: -16px; 
+  background: var(--color-ui-accent); 
+  color: #fff; 
+  padding: 0 4px; 
+  font-size: 9px; 
+  font-weight: bold; 
+  border-radius: 2px; 
+  font-family: monospace; 
+  white-space: nowrap; 
+  pointer-events: none; 
+  text-shadow: 0 1px 2px black; 
+  opacity: 0.8; 
+}
+
+/* 박스 리사이즈 핸들러 */
+.box-handle { 
+  position: absolute; 
+  width: 8px; 
+  height: 8px; 
+  background: #fff; 
+  border: 1px solid #000; 
+  z-index: 20; 
+  display: none; 
+}
+
+.canvas-box.selected .box-handle { 
+  display: block; 
+}
+
+.bh-tl { top: -4px; left: -4px; cursor: nwse-resize; }
+.bh-tr { top: -4px; right: -4px; cursor: nesw-resize; }
+.bh-bl { bottom: -4px; left: -4px; cursor: nesw-resize; }
+.bh-br { bottom: -4px; right: -4px; cursor: nwse-resize; }
+
+/* 가이드라인 */
+.guide-line-h { 
+  position: absolute; 
+  left: 0; 
+  right: 0; 
+  height: 1px; 
+  background-color: var(--color-ui-accent); 
+  border-top: 1px dashed var(--color-ui-accent); 
+  display: none; 
+  pointer-events: none; 
+  z-index: 9999; 
+  opacity: 0.8; 
+}
+
+.guide-line-v { 
+  position: absolute; 
+  top: 0; 
+  bottom: 0; 
+  width: 1px; 
+  background-color: var(--color-ui-accent); 
+  border-left: 1px dashed var(--color-ui-accent); 
+  display: none; 
+  pointer-events: none; 
+  z-index: 9999; 
+  opacity: 0.8; 
+}
