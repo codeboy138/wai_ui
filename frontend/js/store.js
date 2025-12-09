@@ -32,11 +32,11 @@ const store = reactive({
     
     // Timeline/Canvas State
     tracks: [
-        { id: 't1', name: 'Global', type: 'video', color: '#64748b' },
-        { id: 't2', name: 'Top', type: 'text', color: '#eab308' },
-        { id: 't3', name: 'Middle', type: 'video', color: '#22c55e' },
-        { id: 't4', name: 'Bottom', type: 'text', color: '#3b82f6' },
-        { id: 't5', name: 'BGM', type: 'audio', color: '#a855f7' }
+        { id: 't1', name: 'Global', type: 'video', color: '#64748b', visible: true, locked: false },
+        { id: 't2', name: 'Top', type: 'text', color: '#eab308', visible: true, locked: false },
+        { id: 't3', name: 'Middle', type: 'video', color: '#22c55e', visible: true, locked: false },
+        { id: 't4', name: 'Bottom', type: 'text', color: '#3b82f6', visible: true, locked: false },
+        { id: 't5', name: 'BGM', type: 'audio', color: '#a855f7', visible: true, locked: false }
     ],
     
     clips: [
@@ -152,6 +152,16 @@ const store = reactive({
         const [removed] = tracks.splice(fromIndex, 1);
         tracks.splice(toIndex, 0, removed);
         this.tracks = tracks;
+    },
+    
+    toggleTrackVisibility(trackId) {
+        const track = this.tracks.find(t => t.id === trackId);
+        if (track) track.visible = !track.visible;
+    },
+    
+    toggleTrackLock(trackId) {
+        const track = this.tracks.find(t => t.id === trackId);
+        if (track) track.locked = !track.locked;
     }
 });
 
