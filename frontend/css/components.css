@@ -1,0 +1,233 @@
+/**
+ * ==========================================
+ * components.css - 공통 UI 컴포넌트 스타일
+ * 
+ * 역할: Dropdown, Modal, ContextMenu 등 공통 UI 스타일
+ * 경로: frontend/css/components.css
+ * ==========================================
+ */
+
+/* 공통 UI 버튼 */
+.tool-btn { 
+  padding: 4px; 
+  border-radius: 4px; 
+  color: var(--color-text-sub); 
+  transition: all 0.2s; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  width: 24px; 
+  height: 24px; 
+  font-size: 12px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.tool-btn:hover { 
+  color: var(--color-text-main); 
+  background: var(--color-bg-hover); 
+}
+
+.tool-btn.active { 
+  color: var(--color-ui-accent); 
+  background: var(--color-bg-hover); 
+}
+
+/* 드롭다운 */
+.c-dropdown { 
+  position: relative; 
+  display: inline-flex; 
+  align-items: center; 
+  padding: 0 8px; 
+  height: 32px; 
+  background: var(--color-bg-input); 
+  border-radius: 4px; 
+  font-size: 10px; 
+  color: var(--color-text-sub); 
+  cursor: pointer; 
+  border: 1px solid var(--color-ui-border); 
+  user-select: none;
+  gap: 8px;
+}
+
+.c-dropdown:hover { 
+  background: var(--color-bg-hover); 
+  color: var(--color-text-main); 
+}
+
+.c-dropdown__label {
+  font-size: 11px;
+  color: var(--color-text-sub);
+}
+
+.c-dropdown__value {
+  font-size: 12px;
+  color: var(--color-text-main);
+  font-weight: 500;
+}
+
+.c-dropdown__icon {
+  font-size: 10px;
+  color: var(--color-text-sub);
+}
+
+.c-dropdown-menu { 
+  display: none; 
+  position: absolute; 
+  top: 105%; 
+  left: 0; 
+  min-width: 100%; 
+  background-color: var(--color-bg-panel); 
+  border: 1px solid var(--color-ui-border); 
+  border-radius: 4px; 
+  flex-direction: column; 
+  z-index: 1000; 
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+
+.c-dropdown.open .c-dropdown-menu { 
+  display: flex; 
+}
+
+.c-dropdown-item { 
+  padding: 8px 12px; 
+  text-align: left; 
+  transition: all 0.2s;
+  font-size: 12px;
+  color: var(--color-text-main);
+  cursor: pointer;
+}
+
+.c-dropdown-item:hover { 
+  background: var(--color-ui-accent); 
+  color: white; 
+}
+
+/* Modal */
+.modal-overlay { 
+  position: fixed; 
+  top: 0; 
+  left: 0; 
+  width: 100%; 
+  height: 100%; 
+  background-color: rgba(0, 0, 0, 0.7); 
+  display: flex; 
+  justify-content: center; 
+  align-items: center; 
+  z-index: 5000; 
+}
+
+.modal-window { 
+  background: var(--color-bg-panel); 
+  border: 1px solid var(--color-ui-border); 
+  border-radius: 8px; 
+  width: 80%; 
+  height: 80%; 
+  max-width: 1000px; 
+  max-height: 700px; 
+  display: flex; 
+  flex-direction: column; 
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--color-ui-border);
+}
+
+.modal-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-main);
+}
+
+.modal-close {
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-sub);
+  font-size: 20px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.modal-close:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-main);
+}
+
+.modal-body {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+/* 컨텍스트 메뉴 */
+.context-menu { 
+  position: fixed; 
+  background: var(--color-bg-panel); 
+  border: 1px solid var(--color-ui-border); 
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5); 
+  z-index: 5000; 
+  border-radius: 4px; 
+  padding: 4px 0; 
+  min-width: 120px; 
+}
+
+.ctx-item { 
+  padding: 8px 12px; 
+  font-size: 12px; 
+  color: var(--color-text-main); 
+  cursor: pointer; 
+  display: flex; 
+  justify-content: space-between; 
+  gap: 16px;
+  transition: all 0.2s;
+}
+
+.ctx-item:hover { 
+  background: var(--color-ui-accent); 
+  color: white; 
+}
+
+.ctx-item__label {
+  flex: 1;
+}
+
+.ctx-item__shortcut {
+  font-size: 11px;
+  color: var(--color-text-sub);
+}
+
+/* 색상 선택 그리드 */
+.color-grid { 
+  display: grid; 
+  grid-template-columns: repeat(5, 1fr); 
+  gap: 4px; 
+  padding: 8px; 
+}
+
+.color-swatch { 
+  width: 24px; 
+  height: 24px; 
+  border-radius: 4px; 
+  cursor: pointer; 
+  border: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.color-swatch:hover { 
+  border-color: white; 
+  transform: scale(1.1); 
+}
+
+.color-swatch.selected {
+  border-color: var(--color-ui-accent);
+  box-shadow: 0 0 0 2px var(--color-bg-panel), 0 0 0 4px var(--color-ui-accent);
+}
