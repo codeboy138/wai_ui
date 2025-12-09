@@ -1,107 +1,86 @@
-4.5 DATA-DEV 속성
-정의: HTML 요소에 개발자 가이드 정보를 담는 커스텀 속성.
-
-형식 (7가지 항목):
-
-Copy<button
-  id="btn-save"
-  class="c-header__btn"
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WAI Studio</title>
+  
+  <!-- Vue 3 CDN -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- SweetAlert2 CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  
+  <!-- Font Awesome CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Interact.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+  
+  <!-- Tailwind Config -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            bg: { 
+              dark: '#09090b', 
+              panel: '#18181b', 
+              hover: '#27272a', 
+              input: '#202023' 
+            },
+            ui: { 
+              border: '#27272a', 
+              selected: '#3f3f46', 
+              accent: '#3b82f6', 
+              danger: '#ef4444',
+              success: '#22c55e'
+            },
+            text: { 
+              main: '#f4f4f5', 
+              sub: '#a1a1aa',
+              inv: '#18181b'
+            }
+          },
+          fontSize: {
+            'xxs': '10px'
+          }
+        }
+      }
+    }
+  </script>
+  
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body
   data-dev="
-요소의 역할: 프로젝트 저장 버튼
-요소의 고유ID: btn-save
-요소의 기능 목적 정의: 클릭 시 현재 프로젝트를 파일로 저장
-요소의 동작 로직 설명: handleSave() 호출 → store 직렬화 → 파일 저장 API 호출
-요소의 입출력 데이터 구조: 입력: store 전체 상태. 출력: 저장 성공/실패 상태
-요소의 경로정보: frontend/js/components/Panels.js#Header → SaveButton
-요소의 수행해야 할 백엔드/JS 명령: JS: this.handleSave(), fetch('/api/save', ...)
+요소의 역할: 애플리케이션 최상위 HTML Body 요소
+요소의 고유ID: app-body
+요소의 기능 목적 정의: WAI Studio 애플리케이션의 전체 레이아웃 컨테이너로, Vue 3 앱이 마운트되는 기본 HTML 구조를 제공
+요소의 동작 로직 설명: 페이지 로드 시 Vue 3 앱이 #vue-app 요소에 마운트되며, CDN을 통해 로드된 라이브러리들이 전역으로 사용 가능하게 됨
+요소의 입출력 데이터 구조: 입력: 없음(정적 HTML). 출력: Vue 앱 마운트 포인트 제공, CDN 라이브러리 로드 완료
+요소의 경로정보: frontend/index.html#body
+요소의 수행해야 할 백엔드/JS 명령: JS: createApp().mount('#vue-app'), tailwind.config 초기화
   "
 >
-  Save
-</button>
-활용:
-
-마우스 오버 시 Inspector 패널에 상세 정보 표시
-코드 검토 시 빠른 이해 가능
-📊 5. 아키텍처 의사결정 (ADR)
-5.1 왜 Options API인가?
-기준	Options API	Composition API
-학습 곡선	⭐⭐⭐⭐⭐ (쉬움)	⭐⭐⭐ (중간)
-코드 구조	섹션별 명확 구분	setup() 내부 집중
-CDN 호환성	⭐⭐⭐⭐⭐ (완벽)	⭐⭐⭐ (구조 분해 필요)
-프로젝트 규모	중소규모 최적	대규모 최적
-결론: 본 프로젝트는 중소규모 + 빠른 프로토타입이므로 Options API가 최적.
-
-5.2 왜 ES6 Modules인가?
-기준	전역 함수 방식	ES6 Modules
-코드 재사용	❌ 중복 발생	✅ import 재사용
-네이밍 충돌	⚠️ window.* 오염	✅ 모듈 스코프
-파일 분리	❌ 모두 한 파일에	✅ 기능별 독립 파일
-유지보수성	⭐⭐⭐	⭐⭐⭐⭐⭐
-결론: 파일 길이 제약 + 코드 재사용을 위해 ES6 Modules 필수.
-
-5.3 왜 CSS 파일을 분리했는가?
-기준	단일 app.css	분리 (6개 파일)
-파일 크기	600 lines	80~180 lines
-복사 편의성	⚠️ 스크롤 길이	✅ 쉬움
-기능별 수정	❌ 검색 필요	✅ 파일 바로 찾기
-유지보수성	⭐⭐	⭐⭐⭐⭐⭐
-결론: 기능별 CSS 분리로 개발 속도 향상 + 유지보수 편의성 확보.
-
-🚀 6. 다음 단계
-6.1 PowerShell 명령 실행
-Copy# 1. 기존 frontend 폴더 백업
-Rename-Item -Path "C:\wai-ui\frontend" -NewName "frontend_v2"
-
-# 2. 새로운 frontend 폴더 구조 생성
-New-Item -ItemType Directory -Force -Path "C:\wai-ui\frontend"
-New-Item -ItemType Directory -Force -Path "C:\wai-ui\frontend\css"
-New-Item -ItemType Directory -Force -Path "C:\wai-ui\frontend\js"
-New-Item -ItemType Directory -Force -Path "C:\wai-ui\frontend\js\components"
-
-Write-Host "✅ ES6 Modules 구조 생성 완료!" -ForegroundColor Green
-6.2 Magic Sync 실행
-Copycd C:\wai-ui
-python wai_magic.py
-콘솔 출력:
-
-=============================================
-   🎩 WAI Magic Sync v3.0 (Hybrid Edition)
-   📂 로컬: C:\wai-ui\frontend
-   🌐 GitHub: https://github.com/codeboy138/wai_ui
-=============================================
-
-🔍 [Git 환경 검증 시작]
-   ✅ Git 설치: git version 2.x.x
-   ✅ Git 저장소 초기화됨
-   ✅ Git 사용자: codeboy138 <email@example.com>
-   ✅ 원격 저장소 연결됨
-✅ [Git 환경 검증 완료]
-
-   🔥 커밋 + 🚀 Push 활성
-
-   📡 [대기 중] 클립보드 감시...
-   ✅ 지원 파일:
-      - index.html
-      - css/*.css (6개)
-      - js/app.js
-      - js/store.js
-      - js/components/*.js (4개)
-      - js/utils.js
-=============================================
-6.3 파일 생성 시작
-사용자 입력: 완료
-
-AI 응답:
-Phase 1-1 시작 → index.html 코드 제공 ()
-
-✅ 7. 요약
-항목	내용
-총 파일 개수	14개 (HTML 1 + CSS 6 + JS 7)
-평균 파일 크기	150~250 lines
-모듈 시스템	ES6 Modules (import/export)
-Vue API	Options API (data, computed, methods)
-상태 관리	Vue Reactive (중앙 집중식)
-CSS 아키텍처	Modular CSS + BEM
-자동화 도구	Magic Sync (Python 스크립트)
-개발 서버	Live Server (http://localhost:5500)
-Git 저장소	https://github.com/codeboy138/wai_ui
+  <div 
+    id="vue-app"
+    data-dev="
+요소의 역할: Vue 3 애플리케이션 마운트 포인트
+요소의 고유ID: vue-app
+요소의 기능 목적 정의: Vue 3 createApp()으로 생성된 루트 애플리케이션이 마운트되는 DOM 요소
+요소의 동작 로직 설명: js/app.js에서 createApp(App).mount('#vue-app')이 실행되면, 이 요소 내부에 Vue 컴포넌트 트리가 렌더링됨
+요소의 입출력 데이터 구조: 입력: 없음(Vue 마운트 대상). 출력: 렌더링된 Vue 컴포넌트 트리 (Header, LeftPanel, Canvas, RightPanel, Timeline)
+요소의 경로정보: frontend/index.html#vue-app
+요소의 수행해야 할 백엔드/JS 명령: JS: createApp(App).mount('#vue-app')
+    "
+  ></div>
+  
+  <!-- Vue 3 App 초기화 (ES6 Module) -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
