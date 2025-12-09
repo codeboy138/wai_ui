@@ -1,0 +1,242 @@
+/**
+ * ==========================================
+ * panels.css - Header, LeftPanel, RightPanel 스타일
+ * 
+ * 역할: Panel 컴포넌트 전용 스타일
+ * 경로: frontend/css/panels.css
+ * ==========================================
+ */
+
+/* Header */
+.c-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 60px;
+  padding: 0 24px;
+  background: var(--color-bg-panel);
+  border-bottom: 1px solid var(--color-ui-border);
+  z-index: 200000;
+}
+
+.c-header__logo {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.c-header__title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-main);
+}
+
+.c-header__project-name {
+  font-size: 14px;
+  color: var(--color-text-sub);
+}
+
+.c-header__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.c-header__btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--color-bg-hover);
+  border: 1px solid var(--color-ui-selected);
+  border-radius: 6px;
+  color: var(--color-text-main);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.c-header__btn:hover {
+  background: var(--color-ui-selected);
+  border-color: #52525b;
+}
+
+.c-header__btn--primary {
+  background: var(--color-ui-accent);
+  border-color: var(--color-ui-accent);
+}
+
+.c-header__btn--primary:hover {
+  background: #2563eb;
+}
+
+.c-header__btn--secondary {
+  background: transparent;
+  border-color: var(--color-ui-selected);
+}
+
+/* Left Panel */
+.c-left-panel {
+  width: 280px;
+  background: var(--color-bg-panel);
+  border-right: 1px solid var(--color-ui-border);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.c-left-panel__header {
+  display: flex;
+  border-bottom: 1px solid var(--color-ui-border);
+}
+
+.c-left-panel__tab {
+  flex: 1;
+  padding: 12px 8px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-sub);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.c-left-panel__tab:hover {
+  color: var(--color-text-main);
+  background: var(--color-bg-hover);
+}
+
+.c-left-panel__tab--active {
+  color: var(--color-text-main);
+  border-bottom-color: var(--color-ui-accent);
+}
+
+.c-left-panel__assets {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.c-left-panel__empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: #71717a;
+  font-size: 13px;
+}
+
+.c-left-panel__actions {
+  display: flex;
+  gap: 8px;
+  padding: 16px;
+  border-top: 1px solid var(--color-ui-border);
+}
+
+.c-left-panel__btn {
+  flex: 1;
+  padding: 10px;
+  background: var(--color-bg-hover);
+  border: 1px solid var(--color-ui-selected);
+  border-radius: 6px;
+  color: var(--color-text-main);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.c-left-panel__btn:hover {
+  background: var(--color-ui-selected);
+}
+
+/* Right Panel */
+.c-right-panel {
+  width: 300px;
+  background: var(--color-bg-panel);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.c-right-panel__header {
+  padding: 16px;
+  border-bottom: 1px solid var(--color-ui-border);
+}
+
+.c-right-panel__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-main);
+}
+
+/* Layer Matrix */
+.c-layer-matrix {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.c-layer-matrix__row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.c-layer-cell {
+  flex: 1;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-hover);
+  border: 2px solid var(--color-ui-selected);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  font-size: 12px;
+  color: var(--color-text-sub);
+}
+
+.c-layer-cell:hover {
+  background: var(--color-ui-selected);
+  border-color: #52525b;
+}
+
+.c-layer-cell--active {
+  background: #1e3a8a;
+  border-color: var(--color-ui-accent);
+  color: var(--color-text-main);
+}
+
+.c-layer-cell--empty {
+  color: #71717a;
+}
+
+/* Panel Resizer */
+.panel-resizer-v { 
+  position: absolute; 
+  top: 0; 
+  bottom: 0; 
+  width: 4px; 
+  cursor: col-resize; 
+  z-index: 100; 
+  transition: background 0.2s; 
+}
+
+.panel-resizer-v:hover { 
+  background: var(--color-ui-accent); 
+}
+
+.panel-resizer-h { 
+  width: 100%; 
+  height: 4px; 
+  background: var(--color-bg-panel); 
+  cursor: row-resize; 
+  z-index: 100; 
+  transition: background 0.2s; 
+  border-top: 1px solid var(--color-ui-border); 
+  border-bottom: 1px solid var(--color-ui-border); 
+}
+
+.panel-resizer-h:hover { 
+  background: var(--color-ui-accent); 
+}
