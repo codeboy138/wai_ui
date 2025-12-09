@@ -4,14 +4,55 @@
  * 
  * 역할: 모든 CSS 파일을 @import로 통합
  * 경로: frontend/css/main.css
+ * 
+ * DATA-DEV:
+ * 요소의 역할: CSS 모듈 통합 파일
+ * 요소의 고유ID: css-main-entry
+ * 요소의 기능 목적 정의: 전역, 레이아웃, 컴포넌트, 개발자 모드 CSS를 단일 진입점으로 통합
+ * 요소의 동작 로직 설명: @import를 통해 6개의 CSS 파일을 순차적으로 로드
+ * 요소의 입출력 데이터 구조: 입력: 6개 CSS 파일. 출력: 통합된 스타일시트
+ * 요소의 경로정보: frontend/css/main.css
+ * 요소의 수행해야 할 백엔드/JS 명령: 없음 (순수 CSS)
  * ==========================================
  */
 
-/* 전역 스타일 */
-@import url('global.css');
+/* [1] 전역 스타일 */
+@import url('layout.css');
 
-/* 기능별 스타일 */
+/* [2] 타임라인 스타일 */
 @import url('timeline.css');
+
+/* [3] 캔버스 스타일 */
 @import url('canvas.css');
-@import url('panels.css');
+
+/* [4] 공통 UI 컴포넌트 */
 @import url('components.css');
+
+/* [5] 개발자 모드 */
+@import url('dev-mode.css');
+
+/* [전역 설정] */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body { 
+    background-color: #09090b; 
+    color: #f4f4f5; 
+    height: 100vh; 
+    overflow: hidden; 
+    user-select: none; 
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif; 
+}
+
+/* 스크롤바 커스터마이징 */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #18181b; }
+::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #52525b; }
+
+/* Animation */
+.animate-fade-in { animation: fadeIn 0.2s ease-in-out; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
