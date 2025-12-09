@@ -1,93 +1,41 @@
 /**
- * ==========================================
- * RulerLine.js - 눈금자 컴포넌트
- * 
- * 역할: 캔버스 상단/좌측 눈금자 렌더링
- * 경로: frontend/js/components/RulerLine.js
- * ==========================================
+ * [DATA-DEV: RulerLine]
+ * - 역할: 캔버스 눈금자 (가로/세로)
+ * - 고유ID: ruler-line
+ * - 기능: 캔버스 가이드 눈금 표시
+ * - 로직: direction prop에 따라 가로/세로 렌더링
+ * - 데이터: direction (horizontal | vertical)
+ * - 경로: frontend/js/components/RulerLine.js
+ * - 명령: 없음 (표시 전용)
  */
 
 export default {
-    name: 'RulerLine',
-    
-    props: {
-        orientation: {
-            type: String,
-            required: true,
-            validator: (value) => ['h', 'v'].includes(value)
-        },
-        maxSize: {
-            type: Number,
-            required: true
-        },
-        scale: {
-            type: Number,
-            required: true
-        }
+  name: 'RulerLine',
+  props: {
+    direction: {
+      type: String,
+      default: 'horizontal',
+      validator: (value) => ['horizontal', 'vertical'].includes(value)
+    }
+  },
+  template: '<div :id="rulerId" :class="rulerClass" :data-action="dataAction" :title="title"></div>',
+  
+  computed: {
+    rulerId() {
+      return 'ruler-line-' + this.direction;
     },
-    
-    computed: {
-        majorTicks() {
-            const step = 100;
-            const ticks = [];
-            
-            for (let i = step; i < this.maxSize; i += step) {
-                if (i * this.scale < (this.orientation === 'h' ? 3840 : 2160)) {
-                    ticks.push(i);
-                }
-            }
-            return ticks;
-        },
-        
-        wrapperStyle() {
-            return this.orientation === 'h' ? 
-                { 
-                    width: this.maxSize * this.scale + 'px', 
-                    height: '100%', 
-                    transformOrigin: 'top left', 
-                    transform: \`scaleX(\${1 / this.scale})\` 
-                } : 
-                { 
-                    width: '100%', 
-                    height: this.maxSize * this.scale + 'px', 
-                    transformOrigin: 'top left', 
-                    transform: \`scaleY(\${1 / this.scale})\` 
-                };
-        }
+    rulerClass() {
+      return 'c-ruler-line c-ruler-line--' + this.direction;
     },
-    
-    methods: {
-        horizontalTickStyle(val) {
-            return { left: val + 'px' };
-        },
-        
-        verticalTickStyle(val) {
-            return { top: val + 'px' };
-        }
+    dataAction() {
+      return 'js:ruler-' + this.direction;
     },
-    
-    template: \`
-        <div class="c-ruler" 
-             :style="wrapperStyle"
-             :title="orientation === 'h' ? '수평 눈금자' : '수직 눈금자'">
-            <template v-if="orientation === 'h'">
-                <div v-for="i in majorTicks" 
-                     :key="'h-tick-' + i" 
-                     :style="horizontalTickStyle(i)" 
-                     class="c-ruler__tick c-ruler__tick--horizontal"
-                     :title="i + 'px'">
-                    {{ i }}
-                </div>
-            </template>
-            <template v-else>
-                <div v-for="i in majorTicks" 
-                     :key="'v-tick-' + i" 
-                     :style="verticalTickStyle(i)" 
-                     class="c-ruler__tick c-ruler__tick--vertical"
-                     :title="i + 'px'">
-                    {{ i }}
-                </div>
-            </template>
-        </div>
-    \`
+    title() {
+      return this.direction === 'horizontal' ? '가로 눈금자' : '세로 눈금자';
+    }
+  },
+  
+  mounted() {
+    console.log('[RulerLine] 마운트:', this.direction);
+  }
 };
