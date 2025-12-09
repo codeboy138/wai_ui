@@ -1,78 +1,115 @@
 /**
  * ==========================================
- * timeline.css - 타임라인 스타일
+ * timeline.css - 타임라인 전용 스타일
  * 
- * 역할: Timeline 컴포넌트 전용 스타일
+ * 역할: 클립, 플레이헤드, 파형, 볼륨 라인 스타일
  * 경로: frontend/css/timeline.css
+ * 
+ * DATA-DEV:
+ * 요소의 역할: 타임라인 클립 및 오디오 파형 스타일
+ * 요소의 고유ID: css-timeline
+ * 요소의 기능 목적 정의: .clip, .playhead-line, .waveform, .volume-line 스타일 제공
+ * 요소의 동작 로직 설명: Interact.js와 연동하여 클립 드래그/리사이즈 시각 효과 제공
+ * 요소의 입출력 데이터 구조: 입력: 없음. 출력: 클립 스타일
+ * 요소의 경로정보: frontend/css/timeline.css
+ * 요소의 수행해야 할 백엔드/JS 명령: JS: initClipInteractions()
  * ==========================================
  */
 
-/* 타임라인 그리드 레이아웃 */
-.timeline-grid { 
-  display: grid; 
-  height: 100%; 
-  overflow: hidden;
-}
-
-/* 고정 요소 (Sticky Headers & Rulers) */
-.sticky-corner { 
-  position: sticky; 
-  top: 0; 
-  left: 0; 
-  z-index: 50; 
-  background: var(--color-bg-panel); 
-  border-bottom: 1px solid var(--color-ui-border); 
-  border-right: 1px solid var(--color-ui-border); 
-}
-
-.sticky-ruler { 
-  position: sticky; 
-  top: 0; 
-  z-index: 40; 
-  background: var(--color-bg-dark); 
-  border-bottom: 1px solid var(--color-ui-border); 
-}
-
-.sticky-col { 
-  position: sticky; 
-  left: 0; 
-  z-index: 30; 
-  background: var(--color-bg-panel); 
-  border-right: 1px solid var(--color-ui-border); 
-}
-
 /* 클립(Clip) 스타일 */
 .clip { 
-  position: absolute; 
-  top: 4px; 
-  height: 32px; 
-  border-radius: 4px; 
-  overflow: hidden; 
-  border: 1px solid rgba(255,255,255,0.1); 
-  cursor: pointer; 
-  transition: box-shadow 0.1s, border-color 0.1s; 
-  touch-action: none;
+    position: absolute; 
+    top: 4px; 
+    height: 32px; 
+    border-radius: 4px; 
+    overflow: hidden; 
+    border: 1px solid rgba(255,255,255,0.1); 
+    cursor: pointer; 
+    transition: box-shadow 0.1s, border-color 0.1s; 
+    touch-action: none;
 }
 
 .clip:hover { 
-  filter: brightness(1.1); 
-  z-index: 10; 
-  border-color: rgba(255,255,255,0.5); 
+    filter: brightness(1.1); 
+    z-index: 10; 
+    border-color: rgba(255,255,255,0.5); 
 }
 
 .clip.selected { 
-  border: 2px solid #fff; 
-  z-index: 20; 
-  box-shadow: 0 0 10px rgba(59, 130, 246, 0.3); 
+    border: 2px solid #fff; 
+    z-index: 20; 
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.3); 
 }
 
 .clip.dragging { 
-  opacity: 0.8; 
-  z-index: 100 !important; 
-  cursor: grabbing; 
-  box-shadow: 0 5px 15px rgba(0,0,0,0.5); 
+    opacity: 0.8; 
+    z-index: 100 !important; 
+    cursor: grabbing; 
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5); 
 }
 
 .clip-label { 
-  pointer-events: none; 
-  text-shadow: 0 1px 2px black<span class="cursor">█</span>
+    pointer-events: none; 
+    text-shadow: 0 1px 2px black; 
+    font-size: 10px;
+    padding: 2px 6px;
+    font-weight: bold;
+    color: white;
+    position: relative;
+    z-index: 2;
+}
+
+/* 오디오 파형 및 볼륨 라인 */
+.waveform { 
+    position: absolute; 
+    top: 50%; 
+    left: 0; 
+    width: 100%; 
+    height: 100%; 
+    transform: translateY(-50%); 
+    opacity: 0.6; 
+    pointer-events: none; 
+}
+
+.volume-line { 
+    position: absolute; 
+    top: 30%; 
+    left: 0; 
+    width: 100%; 
+    height: 2px; 
+    background: rgba(255,255,255,0.8); 
+    cursor: ns-resize; 
+    z-index: 5; 
+    box-shadow: 0 1px 2px rgba(0,0,0,0.5); 
+}
+.volume-line:hover { background: #3b82f6; height: 3px; }
+
+/* 플레이헤드 (Playhead) */
+.playhead-line { 
+    position: absolute; 
+    top: 0; 
+    bottom: 0; 
+    width: 1px; 
+    background: #ef4444; 
+    z-index: 40; 
+    pointer-events: none; 
+}
+
+.playhead-handle { 
+    position: absolute; 
+    top: 0; 
+    width: 11px; 
+    height: 12px; 
+    background: #ef4444; 
+    transform: translateX(-50%); 
+    clip-path: polygon(0 0, 100% 0, 50% 100%); 
+    cursor: ew-resize; 
+    pointer-events: auto; 
+    z-index: 50; 
+}
+
+/* Drag Overlay Highlight */
+.timeline-drag-over { 
+    box-shadow: inset 0 0 0 2px #3b82f6; 
+    background-color: rgba(59, 130, 246, 0.1); 
+}
