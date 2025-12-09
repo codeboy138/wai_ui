@@ -14,7 +14,7 @@
  * 역할: 우클릭 컨텍스트 메뉴 또는 버튼 클릭 드롭다운 메뉴
  * ==========================================
  */
-const DropdownMenu = {
+export const DropdownMenu = {
   name: 'DropdownMenu',
   
   props: {
@@ -156,7 +156,7 @@ const DropdownMenu = {
  * 역할: 캔버스 눈금자 (가로/세로)
  * ==========================================
  */
-const RulerLine = {
+export const RulerLine = {
   name: 'RulerLine',
   
   props: {
@@ -244,7 +244,8 @@ const RulerLine = {
   `
 };
 
-// CommonJS 모듈로 내보내기
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { DropdownMenu, RulerLine };
-}
+// 기본 export
+export default {
+  DropdownMenu,
+  RulerLine
+};
