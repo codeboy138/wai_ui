@@ -1,73 +1,480 @@
-import { store } from '../store.js';
+/**
+ * ==========================================
+ * TimelinePanel.js
+ * 
+ * 역할: 타임라인 패널 (트랙, 클립, 재생 제어)
+ * 경로: frontend/js/components/TimelinePanel.js
+ * ==========================================
+ */
 
-export default {
-    template: `
-        <div class="flex flex-col h-full bg-bg-panel select-none relative" 
-             data-dev="ID: timeline-panel | Role: Panel | Func: 타임라인 | Goal: 편집 | Path: App/Timeline | Py: None">
-            <div class="h-8 bg-bg-panel border-b border-ui-border flex items-center px-2 justify-between shrink-0 z-50 relative">
-                <div class="flex items-center gap-1">
-                    <button class="tool-btn" title="자르기" data-dev="ID: btn-cut | Role: Action | Func: 자르기 | Goal: 클립 분할 | Path: Timeline/Toolbar | Py: clip.cut()"><i class="fa-solid fa-scissors"></i></button>
-                    <button class="tool-btn" title="왼쪽 리플" data-dev="ID: btn-rip-l | Role: Action | Func: 왼쪽 리플 | Goal: 공간 삭제 | Path: Timeline/Toolbar | Py: clip.ripple_l()"><i class="fa-solid fa-arrow-left-long"></i></button>
-                    <button class="tool-btn" title="오른쪽 리플" data-dev="ID: btn-rip-r | Role: Action | Func: 오른쪽 리플 | Goal: 공간 삭제 | Path: Timeline/Toolbar | Py: clip.ripple_r()"><i class="fa-solid fa-arrow-right-long"></i></button>
-                    <button class="tool-btn" title="트림" data-dev="ID: btn-trim | Role: Action | Func: 트림 | Goal: 길이 조정 | Path: Timeline/Toolbar | Py: clip.trim()"><i class="fa-solid fa-crop"></i></button>
-                </div>
-                <span class="text-xs font-mono text-ui-accent font-bold" title="현재 시간" data-dev="ID: time-display | Role: Indicator | Func: 시간 | Goal: 위치 확인 | Path: Timeline/Toolbar | Py: None">00:00:00:00</span>
-                <div class="flex items-center gap-3">
-                    <div class="flex items-center gap-1 border border-ui-border rounded h-6 px-2" title="스냅" data-dev="ID: grp-snap | Role: Group | Func: 스냅 | Goal: 자석 모드 | Path: Timeline/Toolbar | Py: None">
-                         <i class="fa-solid fa-magnet text-text-sub text-[10px]" :class="{'text-ui-accent': store.project.isMagnet}"></i>
-                         <input type="checkbox" v-model="store.project.isMagnet" class="h-3 w-3 accent-ui-accent" data-dev="ID: chk-snap | Role: Checkbox | Func: 스냅 토글 | Goal: 제어 | Path: Timeline/Toolbar | Py: tl.set_snap(val)">
-                         <span class="text-[10px] text-text-sub ml-1">Snap</span>
-                    </div>
-                    <input type="range" min="10" max="100" v-model.number="store.project.zoom" class="w-20 accent-ui-accent h-1" title="줌" data-dev="ID: slider-zoom | Role: Slider | Func: 줌 | Goal: 확대축소 | Path: Timeline/Toolbar | Py: tl.zoom(val)"/>
-                    <button class="tool-btn" @click="toggleDock" title="도킹" data-dev="ID: btn-dock | Role: Toggle | Func: 도킹 | Goal: 창 분리 | Path: Timeline/Toolbar | Py: ui.toggle_dock()"><i class="fa-solid fa-window-maximize rotate-180"></i></button>
-                </div>
-            </div>
-            <div class="timeline-container" id="timeline-scroll-area" style="grid-template-columns: 200px 1fr" @dragover.prevent @drop="handleDrop">
-                <div class="tl-corner text-[10px] text-text-sub font-bold relative" title="트랙 헤더" data-dev="ID: tl-corner | Role: Label | Func: 헤더 | Goal: 식별 | Path: Timeline/Corner | Py: None">
-                    TRACKS <div class="header-resizer-v" @mousedown.stop="startHeaderResize"></div>
-                </div>
-                <div class="tl-ruler" :style="{ width: totalWidth + 'px' }" @mousedown="startScrub" title="룰러" data-dev="ID: ruler | Role: Ruler | Func: 눈금자 | Goal: 탐색 | Path: Timeline/Ruler | Py: tl.scrub()">
-                    <div class="h-full relative">
-                        <div v-for="i in 50" :key="i" class="absolute top-0 h-full border-l border-ui-border pl-1 pt-2 text-[9px] text-text-sub" :style="{ left: (i-1) * 5 * store.project.zoom + 'px' }">{{ (i - 1) * 5 }}s</div>
-                        <div class="playhead-handle" :style="{ left: playheadPos + 'px' }" @mousedown="startScrub" title="재생 헤드" data-dev="ID: playhead | Role: Handle | Func: 헤드 | Goal: 탐색 | Path: Timeline/Ruler | Py: tl.seek()"></div>
-                    </div>
-                </div>
-                <template v-for="track in store.tracks" :key="track.id">
-                    <div class="tl-header group hover:bg-bg-hover transition-colors relative" :style="{ height: track.height + 'px' }" 
-                         :data-dev="'ID: trk-head-' + track.id + ' | Role: Header | Func: 트랙 | Goal: 관리 | Path: Timeline/Track | Py: None'">
-                        <div class="flex gap-1 mr-2 text-[10px]" @click.stop>
-                            <button @click="toggleProp(track.id, 'isVisible')" :class="track.isVisible ? 'text-ui-accent' : 'text-ui-danger'" title="가시성" data-dev="'ID: btn-eye | Role: Toggle | Func: 보기 | Goal: 제어 | Path: Timeline/Track | Py: trk.vis()'"><i class="fa-solid" :class="track.isVisible ? 'fa-eye' : 'fa-eye-slash'"></i></button>
-                            <button @click="toggleProp(track.id, 'isLocked')" :class="track.isLocked ? 'text-ui-danger' : 'text-text-sub'" title="잠금" data-dev="'ID: btn-lock | Role: Toggle | Func: 잠금 | Goal: 보호 | Path: Timeline/Track | Py: trk.lock()'"><i class="fa-solid" :class="track.isLocked ? 'fa-lock' : 'fa-lock-open'"></i></button>
-                        </div>
-                        <div class="w-1 h-3/4 rounded mr-2" :style="{ backgroundColor: track.color }"></div>
-                        <span class="text-xs truncate flex-1 text-text-main outline-none px-1 rounded focus:bg-bg-input" contenteditable="true" @blur="updateTrackName(track.id, $event)" title="이름 변경" data-dev="'ID: input-name | Role: Input | Func: 이름 | Goal: 식별 | Path: Timeline/Track | Py: trk.rename()'">{{ track.name }}</span>
-                        <div class="track-resizer-h" @mousedown.stop="startTrackResize(track.id, $event)"></div>
-                        <div class="header-resizer-v" @mousedown.stop="startHeaderResize"></div>
-                    </div>
-                    <div class="tl-track" :style="{ width: totalWidth + 'px', height: track.height + 'px' }" :data-dev="'ID: trk-body-' + track.id + ' | Role: Area | Func: 트랙 | Goal: 배치 | Path: Timeline/Track | Py: None'">
-                        <div v-for="clip in getClips(track.id)" :key="clip.id" :id="'clip-' + clip.id" class="clip"
-                             :style="{ left: clip.start * store.project.zoom + 'px', width: clip.duration * store.project.zoom + 'px' }"
-                             @click.stop="store.selectClip(clip.id)" title="클립"
-                             :data-dev="'ID: clip-' + clip.id + ' | Role: Item | Func: 클립 | Goal: 편집 | Path: Timeline/Track | Py: clip.select()'">
-                            <div class="absolute inset-0 opacity-30" :style="{backgroundColor: track.color}"></div>
-                            <div class="text-[9px] px-2 text-white truncate font-bold relative z-10 mt-1">{{ clip.name }}</div>
-                        </div>
-                        <div class="playhead-line" :style="{ left: playheadPos + 'px' }"></div>
-                    </div>
-                </template>
-            </div>
-        </div>
-    `,
-    data() { return { store } },
-    computed: { totalWidth() { return Math.max(2000, store.project.zoom * 300); }, playheadPos() { return store.project.currentTime * store.project.zoom; } },
-    mounted() { this.$nextTick(() => { this.initInteractions(); }); },
-    watch: { 'store.clips': { handler() { this.$nextTick(this.initInteractions); }, deep: true } },
-    methods: {
-        getClips(tid) { return store.clips.filter(c => c.trackId === tid); },
-        toggleDock() { store.layout.isTimelineDocked = !store.layout.isTimelineDocked; },
-        toggleProp(id, prop) { store.toggleTrackProp(id, prop); },
-        updateTrackName(id, e) { store.renameTrack(id, e.target.innerText); },
-        startHeaderResize(e) { /*...*/ }, startTrackResize(tid, e) { /*...*/ }, startScrub(e) { /*...*/ }, handleDrop(e) { /*...*/ },
-        initInteractions() { interact('.clip').draggable({ listeners: { move(e) { /*...*/ } } }).resizable({ /*...*/ }); }
+const TimelinePanel = {
+  name: 'TimelinePanel',
+  
+  data() {
+    return {
+      // 재생 상태 (playing, paused, stopped)
+      playState: 'stopped',
+      // 현재 재생 시간 (초)
+      currentTime: 0,
+      // 전체 지속 시간 (초)
+      duration: 60,
+      // 타임라인 줌 레벨 (픽셀/초)
+      pixelsPerSecond: 10,
+      // 현재 선택된 클립 ID
+      selectedClipId: null
+    };
+  },
+  
+  computed: {
+    /**
+     * 레이어 기반 타임라인 트랙 목록 생성
+     * @returns {Array} 트랙 배열 (각 레이어당 1개 트랙)
+     */
+    tracks() {
+      const layers = this.$root.store.layers || [];
+      return layers.map(layer => ({
+        id: 'track-' + layer.id,
+        layerId: layer.id,
+        name: layer.name,
+        type: layer.type,
+        clips: layer.clips || []
+      }));
+    },
+    
+    /**
+     * Playhead 위치 (픽셀)
+     * @returns {Number} Playhead의 left 위치
+     */
+    playheadPosition() {
+      return this.currentTime * this.pixelsPerSecond;
+    },
+    
+    /**
+     * 타임라인 전체 너비 (픽셀)
+     * @returns {Number} 타임라인 너비
+     */
+    timelineWidth() {
+      return this.duration * this.pixelsPerSecond;
     }
-}
+  },
+  
+  methods: {
+    /**
+     * 재생 시작
+     */
+    play() {
+      this.playState = 'playing';
+      console.log('[TimelinePanel] Play');
+      
+      // TODO: 재생 로직 구현 (requestAnimationFrame)
+    },
+    
+    /**
+     * 재생 일시정지
+     */
+    pause() {
+      this.playState = 'paused';
+      console.log('[TimelinePanel] Pause');
+    },
+    
+    /**
+     * 재생 정지 (처음으로)
+     */
+    stop() {
+      this.playState = 'stopped';
+      this.currentTime = 0;
+      console.log('[TimelinePanel] Stop');
+    },
+    
+    /**
+     * Playhead 이동
+     * @param {Number} time - 이동할 시간 (초)
+     */
+    seekTo(time) {
+      this.currentTime = Math.max(0, Math.min(this.duration, time));
+      console.log('[TimelinePanel] Seek To:', this.currentTime);
+    },
+    
+    /**
+     * 타임라인 클릭 시 Playhead 이동
+     * @param {Event} event - 마우스 이벤트
+     */
+    handleTimelineClick(event) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const clickX = event.clientX - rect.left;
+      const clickTime = clickX / this.pixelsPerSecond;
+      this.seekTo(clickTime);
+    },
+    
+    /**
+     * 클립 선택 핸들러
+     * @param {String} clipId - 선택할 클립 ID
+     */
+    selectClip(clipId) {
+      this.selectedClipId = clipId;
+      console.log('[TimelinePanel] Clip Selected:', clipId);
+    },
+    
+    /**
+     * 클립 드래그 시작 핸들러
+     * @param {Event} event - 마우스 이벤트
+     * @param {String} clipId - 드래그 중인 클립 ID
+     */
+    startClipDrag(event, clipId) {
+      console.log('[TimelinePanel] Clip Drag Start:', clipId);
+      // TODO: Interact.js 드래그 로직 구현
+    },
+    
+    /**
+     * 타임라인 줌 인/아웃
+     * @param {Number} delta - 줌 변화량 (+1 또는 -1)
+     */
+    zoom(delta) {
+      this.pixelsPerSecond = Math.max(5, Math.min(50, this.pixelsPerSecond + delta));
+      console.log('[TimelinePanel] Zoom Level:', this.pixelsPerSecond);
+    },
+    
+    /**
+     * 시간을 MM:SS 형식으로 포맷
+     * @param {Number} seconds - 초 단위 시간
+     * @returns {String} MM:SS 형식 문자열
+     */
+    formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+  },
+  
+  template: `
+    <div 
+      id="timeline-container"
+      class="c-timeline"
+      data-dev='{
+        "role": "타임라인 패널",
+        "id": "timeline-container",
+        "func": "레이어별 트랙과 클립을 시간축으로 배치하고 재생 제어 제공",
+        "goal": "사용자가 클립을 시간축에 배치하고 편집하며, 재생 시간을 제어",
+        "state": {
+          "playState": "재생 상태 (playing|paused|stopped)",
+          "currentTime": "현재 재생 시간 (초)",
+          "duration": "전체 지속 시간 (초)",
+          "pixelsPerSecond": "타임라인 줌 레벨 (픽셀/초)",
+          "tracks": "타임라인 트랙 배열",
+          "selectedClipId": "선택된 클립 ID"
+        },
+        "path": "frontend/js/components/TimelinePanel.js",
+        "py": "",
+        "js": "play(), pause(), stop(), seekTo(time), selectClip(id), zoom(delta)"
+      }'
+    >
+      <!-- 타임라인 툴바 (재생 제어) -->
+      <div 
+        id="timeline-toolbar"
+        class="c-timeline__toolbar"
+        data-dev='{
+          "role": "타임라인 툴바 (재생 제어)",
+          "id": "timeline-toolbar",
+          "func": "재생, 일시정지, 정지 버튼 및 현재 시간 표시",
+          "goal": "사용자가 타임라인 재생을 제어",
+          "state": {
+            "playState": playState,
+            "currentTime": currentTime
+          },
+          "path": "frontend/js/components/TimelinePanel.js → toolbar",
+          "py": "",
+          "js": "play(), pause(), stop()"
+        }'
+      >
+        <button 
+          id="btn-play"
+          class="c-timeline__btn c-timeline__btn--play"
+          data-js-play
+          @click="play"
+          :disabled="playState === 'playing'"
+          title="Play"
+          :data-dev='{
+            "role": "재생 버튼",
+            "id": "btn-play",
+            "func": "타임라인 재생 시작",
+            "goal": "사용자가 프로젝트를 재생",
+            "state": { "disabled": playState === "playing" },
+            "path": "frontend/js/components/TimelinePanel.js → play button",
+            "py": "",
+            "js": "play()"
+          }'
+        >
+          ▶
+        </button>
+
+        <button 
+          id="btn-pause"
+          class="c-timeline__btn c-timeline__btn--pause"
+          data-js-pause
+          @click="pause"
+          :disabled="playState !== 'playing'"
+          title="Pause"
+          :data-dev='{
+            "role": "일시정지 버튼",
+            "id": "btn-pause",
+            "func": "타임라인 재생 일시정지",
+            "goal": "사용자가 재생 중인 프로젝트를 일시정지",
+            "state": { "disabled": playState !== "playing" },
+            "path": "frontend/js/components/TimelinePanel.js → pause button",
+            "py": "",
+            "js": "pause()"
+          }'
+        >
+          ⏸
+        </button>
+
+        <button 
+          id="btn-stop"
+          class="c-timeline__btn c-timeline__btn--stop"
+          data-js-stop
+          @click="stop"
+          title="Stop"
+          :data-dev='{
+            "role": "정지 버튼",
+            "id": "btn-stop",
+            "func": "타임라인 재생 정지 및 처음으로 이동",
+            "goal": "사용자가 재생을 멈추고 처음으로 돌아감",
+            "state": {},
+            "path": "frontend/js/components/TimelinePanel.js → stop button",
+            "py": "",
+            "js": "stop()"
+          }'
+        >
+          ⏹
+        </button>
+
+        <span 
+          id="timeline-time-display"
+          class="c-timeline__time-display"
+          :data-dev='{
+            "role": "현재 재생 시간 표시",
+            "id": "timeline-time-display",
+            "func": "현재 시간 / 전체 시간을 MM:SS 형식으로 표시",
+            "goal": "사용자가 현재 재생 위치를 확인",
+            "state": {
+              "currentTime": currentTime,
+              "duration": duration
+            },
+            "path": "frontend/js/components/TimelinePanel.js → time display",
+            "py": "",
+            "js": "formatTime(seconds)"
+          }'
+        >
+          {{ formatTime(currentTime) }} / {{ formatTime(duration) }}
+        </span>
+
+        <!-- 줌 컨트롤 -->
+        <div 
+          id="timeline-zoom-controls"
+          class="c-timeline__zoom-controls"
+          :data-dev='{
+            "role": "타임라인 줌 컨트롤",
+            "id": "timeline-zoom-controls",
+            "func": "타임라인 확대/축소 버튼",
+            "goal": "사용자가 타임라인 시간축을 확대/축소",
+            "state": { "pixelsPerSecond": pixelsPerSecond },
+            "path": "frontend/js/components/TimelinePanel.js → zoom controls",
+            "py": "",
+            "js": "zoom(delta)"
+          }'
+        >
+          <button 
+            id="btn-zoom-in-timeline"
+            class="c-timeline__zoom-btn"
+            @click="zoom(5)"
+            title="Zoom In"
+          >
+            +
+          </button>
+          <button 
+            id="btn-zoom-out-timeline"
+            class="c-timeline__zoom-btn"
+            @click="zoom(-5)"
+            title="Zoom Out"
+          >
+            -
+          </button>
+        </div>
+      </div>
+
+      <!-- 타임라인 메인 영역 (트랙 + 클립) -->
+      <div 
+        id="timeline-main"
+        class="c-timeline__main"
+        @click="handleTimelineClick"
+        data-dev='{
+          "role": "타임라인 메인 영역",
+          "id": "timeline-main",
+          "func": "트랙과 클립을 시간축으로 배치하는 스크롤 가능한 영역",
+          "goal": "사용자가 클립을 시간축에서 편집하고 Playhead를 이동",
+          "state": {
+            "tracks": tracks,
+            "timelineWidth": timelineWidth
+          },
+          "path": "frontend/js/components/TimelinePanel.js → main area",
+          "py": "",
+          "js": "handleTimelineClick(event), selectClip(id)"
+        }'
+      >
+        <!-- Playhead (재생 위치 표시) -->
+        <div 
+          id="timeline-playhead"
+          class="c-playhead"
+          :style="{ left: playheadPosition + 'px' }"
+          data-js-playhead
+          :data-dev='{
+            "role": "Playhead (재생 위치 인디케이터)",
+            "id": "timeline-playhead",
+            "func": "현재 재생 시간을 시각적으로 표시하는 수직선",
+            "goal": "사용자가 현재 재생 위치를 시각적으로 확인",
+            "state": {
+              "currentTime": currentTime,
+              "position": playheadPosition
+            },
+            "path": "frontend/js/components/TimelinePanel.js → playhead",
+            "py": "",
+            "js": ""
+          }'
+        ></div>
+
+        <!-- 트랙 리스트 -->
+        <div 
+          id="timeline-tracks"
+          class="c-timeline__tracks"
+          :style="{ width: timelineWidth + 'px' }"
+          data-dev='{
+            "role": "타임라인 트랙 리스트",
+            "id": "timeline-tracks",
+            "func": "레이어별 트랙을 수직으로 배치",
+            "goal": "사용자가 각 레이어의 클립을 시간축에서 관리",
+            "state": {
+              "tracks": tracks,
+              "width": timelineWidth
+            },
+            "path": "frontend/js/components/TimelinePanel.js → tracks list",
+            "py": "",
+            "js": ""
+          }'
+        >
+          <div
+            v-for="track in tracks"
+            :key="track.id"
+            :id="track.id"
+            class="c-timeline__track"
+            :data-js-track="track.id"
+            :data-dev='{
+              "role": "타임라인 트랙 (레이어별)",
+              "id": track.id,
+              "func": "특정 레이어의 클립들을 배치하는 수평 트랙",
+              "goal": "사용자가 레이어별로 클립을 시간축에 배치",
+              "state": {
+                "track": track,
+                "clips": track.clips
+              },
+              "path": "frontend/js/components/TimelinePanel.js → track",
+              "py": "",
+              "js": "selectClip(clipId)"
+            }'
+          >
+            <!-- 트랙 헤더 (레이어명) -->
+            <div 
+              :id="track.id + '-header'"
+              class="c-timeline__track-header"
+              :data-dev='{
+                "role": "트랙 헤더 (레이어명)",
+                "id": track.id + "-header",
+                "func": "트랙의 레이어명 표시",
+                "goal": "사용자가 트랙이 어느 레이어인지 확인",
+                "state": { "name": track.name },
+                "path": "frontend/js/components/TimelinePanel.js → track header",
+                "py": "",
+                "js": ""
+              }'
+            >
+              {{ track.name }}
+            </div>
+
+            <!-- 클립 리스트 -->
+            <div 
+              :id="track.id + '-clips'"
+              class="c-timeline__track-clips"
+              :data-dev='{
+                "role": "트랙 클립 컨테이너",
+                "id": track.id + "-clips",
+                "func": "트랙 내 클립들을 시간축에 배치",
+                "goal": "사용자가 클립을 드래그하여 위치/길이 조정",
+                "state": { "clips": track.clips },
+                "path": "frontend/js/components/TimelinePanel.js → track clips",
+                "py": "",
+                "js": "selectClip(clip.id), startClipDrag(event, clip.id)"
+              }'
+            >
+              <div
+                v-for="clip in track.clips"
+                :key="clip.id"
+                :id="'timeline-clip-' + clip.id"
+                :class="[
+                  'c-timeline__clip',
+                  { 'c-timeline__clip--selected': selectedClipId === clip.id }
+                ]"
+                :style="{
+                  left: (clip.startTime * pixelsPerSecond) + 'px',
+                  width: (clip.duration * pixelsPerSecond) + 'px'
+                }"
+                :data-js-clip="clip.id"
+                @click.stop="selectClip(clip.id)"
+                @mousedown="startClipDrag($event, clip.id)"
+                :data-dev='{
+                  "role": "타임라인 클립",
+                  "id": "timeline-clip-" + clip.id,
+                  "func": "미디어 클립을 시간축에 시각화 (드래그, 리사이즈 가능)",
+                  "goal": "사용자가 클립을 편집하여 시작/종료 시간 조정",
+                  "state": {
+                    "clip": clip,
+                    "startTime": clip.startTime,
+                    "duration": clip.duration,
+                    "selected": selectedClipId === clip.id
+                  },
+                  "path": "frontend/js/components/TimelinePanel.js → clip",
+                  "py": "",
+                  "js": "selectClip(clip.id), startClipDrag(event, clip.id)"
+                }'
+              >
+                <span class="c-timeline__clip-name">{{ clip.name }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 트랙 없을 때 -->
+          <div 
+            v-if="tracks.length === 0"
+            id="timeline-empty"
+            class="c-timeline__empty"
+            data-dev='{
+              "role": "타임라인 빈 상태",
+              "id": "timeline-empty",
+              "func": "트랙이 없을 때 안내 메시지 표시",
+              "goal": "사용자에게 레이어 추가 필요성을 알림",
+              "state": { "visible": tracks.length === 0 },
+              "path": "frontend/js/components/TimelinePanel.js → empty state",
+              "py": "",
+              "js": ""
+            }'
+          >
+            No tracks available. Add layers from the right panel.
+          </div>
+        </div>
+      </div>
+    </div>
+  `
+};
+
+// CommonJS 모듈로 내보내기
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = TimelinePanel;
+}
