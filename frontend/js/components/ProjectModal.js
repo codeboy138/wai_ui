@@ -459,7 +459,4 @@ const ProjectModal = {
   `
 };
 
-// CommonJS 모듈로 내보내기
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = ProjectModal;
-}
+export default ProjectModal;
