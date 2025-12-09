@@ -1,0 +1,148 @@
+🎯 WAI Studio 최종 아키텍처 전략 - 기술 지침
+📐 핵심 원칙
+1. 분리된 진실의 원천 (Separated Source of Truth)
+DOM: 경로(ID) + 액션(data-action) + 툴팁(title)만
+외부 파일: 기술 명세(IO, Logic, 함수명)
+추론 가능: 역할/목적/경로는 ID에서 자동 유추
+2. 파일 최대 분할 원칙
+단일 파일 최대 200줄 제한
+컴포넌트 단위 분리
+Mixin으로 공통 로직 추출
+3. 최소 속성 원칙
+ID: 시멘틱 경로 (필수)
+class: BEM 스타일 (필수)
+data-action: 액션 정의 (상호작용 요소만)
+title: 사용자 툴팁 (필수)
+data-dev: 완전 제거
+📋 ID 네이밍 규칙
+구조
+[영역]-[서브영역]-[기능]-[타입]
+동적 요소 패턴
+타입-{변수명}
+ID 부여 기준
+필수: 버튼, 인풋, 드롭다운, 드래그 가능 요소
+동적: v-for 생성 요소 (패턴 사용)
+불필요: 아이콘, 순수 텍스트, 레이아웃 컨테이너
+📋 data-action 규칙
+포맷
+py:함수명        - Python 호출
+js:액션명        - JS 액션
+py:함수|js:액션  - 복합 실행
+적용 대상
+모든 인터랙티브 요소 (클릭/입력 가능)
+Python/JS 함수 호출이 필요한 요소
+📋 element-specs.js 구조
+필수 필드
+io: 입출력 정의 (형식: "입력:X → 출력:Y")
+logic: 실행 로직 (코드 수준)
+선택 필드
+py_func: Python 함수명
+py_params: Python 파라미터 구조
+js_action: JS 액션명
+methods: 관련 메서드 배열
+affects: 영향받는 시스템/모듈
+동적 요소
+키에 {id} 패턴 사용
+런타임에 정규식 매칭
+📋 파일 분리 전략
+컴포넌트 분리 기준
+UI 영역별 (Header, Timeline, Canvas 등)
+파일당 50~200줄 목표
+독립적 기능 단위
+Mixin 추출 대상
+devMode: Inspector 로직
+panelResizer: 패널 크기 조절
+pythonBridge: Python 통신
+디렉토리 구조
+js/
+├── app.js              - 진입점 (100줄)
+├── store.js            - 전역 상태
+├── utils.js            - 유틸리티
+├── components/         - UI 컴포넌트
+└── mixins/             - 재사용 로직
+
+docs/
+└── element-specs.js    - 기술 명세
+
+css/
+└── (BEM 기반 모듈화)
+📋 Inspector 모드 사양
+Inspect 모드
+기능: 요소 호버 시 ID + 크기 표시
+클릭: ID 클립보드 복사 + SweetAlert2 토스트
+DATA-DEV 모드
+기능: element-specs.js 조회하여 상세 정보 표시
+표시 항목: ID, data-action, IO, Logic
+동적 요소: 패턴 매칭으로 조회
+공통
+하이라이트: 빨간 테두리
+툴팁: 마우스 우측 상단
+토글: body 클래스로 제어
+📋 CSS 규칙
+Class 네이밍 (BEM)
+.c-block__element--modifier
+ID vs Class 역할
+ID: 기능/경로 식별, JS 후킹
+Class: 스타일링 전용
+z-index 레이어
+L0 (Base):     10
+L1 (Content):  20
+L2 (Sticky):   40
+L3 (Toolbar):  100
+L4 (Dropdown): 9000
+L5 (Overlay):  9999
+📋 Python 연동 규격
+JS → Python
+CopyfirePython(funcName, params)
+요구사항
+data-action에서 py: 프리픽스로 함수명 추출
+element-specs.js에서 파라미터 구조 조회
+window.backend 객체로 호출
+명세 위치
+element-specs.js의 py_func, py_params 필드
+📋 자동화 요구사항
+자동 이벤트 바인딩
+[data-action^="py:"] 선택자로 전체 스캔
+클릭 이벤트 자동 등록
+firePython() 자동 호출
+ID 파싱 유틸리티
+parseElementId() 함수 제공
+반환: area, subArea, type, action 객체
+Spec 조회 유틸리티
+getElementSpec(id) 함수 제공
+동적 요소 패턴 매칭 지원
+📋 Git/배포 전략
+wai_magic.py 호환
+개별 파일 200줄 이하 → 자동 복사 가능
+복사 헤더: 분할 업로드 불필요
+파일 감시 대상
+index.html
+js/**/*.js
+css/**/*.css
+docs/**/*.js
+🎯 성능 목표
+항목	목표
+개별 파일 최대 크기	200줄
+HTML 요소당 평균 속성	4개 (id, class, data-action, title)
+DOM에서 data-dev 제거율	100%
+파일 분리 개수	20개 이상
+자동 복사 성공률	100%
+✅ 검증 체크리스트
+DOM
+ 모든 data-dev 제거 완료
+ 인터랙티브 요소에 ID 존재
+ data-action 형식 준수
+ title 속성 존재
+element-specs.js
+ 모든 인터랙티브 요소 등록
+ io, logic 필수 필드 존재
+ 동적 요소 패턴 정의
+파일 구조
+ 개별 파일 200줄 이하
+ 컴포넌트 독립성 확보
+ Mixin 중복 제거
+기능
+ Inspector 모드 정상 작동
+ DATA-DEV 모드 specs 조회
+ Python 호출 자동 바인딩
+ 클립보드 복사 + 토스트
