@@ -1,98 +1,147 @@
 /**
- * ==========================================
- * layout.css - 패널 레이아웃 스타일
- * 
- * 역할: 패널 리사이저, 타임라인 그리드 레이아웃
- * 경로: frontend/css/layout.css
- * 
- * DATA-DEV:
- * 요소의 역할: 3-패널 레이아웃(좌/중앙/우) 및 타임라인 그리드 스타일
- * 요소의 고유ID: css-layout
- * 요소의 기능 목적 정의: 패널 너비 조절, 타임라인 그리드, Sticky 요소 스타일 제공
- * 요소의 동작 로직 설명: .panel-resizer-v/h 클래스로 드래그 가능한 리사이저 구현
- * 요소의 입출력 데이터 구조: 입력: 없음. 출력: 패널 리사이저 스타일
- * 요소의 경로정보: frontend/css/layout.css
- * 요소의 수행해야 할 백엔드/JS 명령: JS: setupPanelResizers()
- * ==========================================
+ * [DATA-DEV: layout.css]
+ * - 역할: 레이아웃 구조 (헤더/메인/패널)
+ * - 고유ID: layout-styles
+ * - 기능: 3패널 레이아웃, 패널 리사이저
+ * - 경로: frontend/css/layout.css
  */
 
-/* 타임라인 그리드 레이아웃 */
-.timeline-grid { 
-    display: grid; 
-    height: 100%; 
-    overflow: hidden;
+/* 앱 루트 */
+.c-app-root {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
-/* 고정 요소 (Sticky Headers & Rulers) */
-.sticky-corner { 
-    position: sticky; 
-    top: 0; 
-    left: 0; 
-    z-index: 50; 
-    background: #18181b; 
-    border-bottom: 1px solid #27272a; 
-    border-right: 1px solid #27272a; 
+/* 헤더 */
+.c-header {
+  height: 48px;
+  background-color: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--spacing-md);
+  z-index: var(--z-toolbar);
 }
 
-.sticky-ruler { 
-    position: sticky; 
-    top: 0; 
-    z-index: 40; 
-    background: #09090b; 
-    border-bottom: 1px solid #27272a; 
+.c-header__nav {
+  display: flex;
+  gap: var(--spacing-sm);
 }
 
-.sticky-col { 
-    position: sticky; 
-    left: 0; 
-    z-index: 30; 
-    background: #18181b; 
-    border-right: 1px solid #27272a; 
+.c-header__nav-btn {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background-color: var(--color-bg-tertiary);
+  border-radius: 4px;
+  transition: background-color 0.2s;
 }
 
-/* 패널 리사이저 (Panel Resizers) */
-.panel-resizer-v { 
-    position: absolute; 
-    top: 0; 
-    bottom: 0; 
-    width: 4px; 
-    cursor: col-resize; 
-    z-index: 100; 
-    transition: background 0.2s; 
-}
-.panel-resizer-v:hover { background: #3b82f6; }
-
-.panel-resizer-h { 
-    width: 100%; 
-    height: 4px; 
-    background: #18181b; 
-    cursor: row-resize; 
-    z-index: 100; 
-    transition: background 0.2s; 
-    border-top: 1px solid #27272a; 
-    border-bottom: 1px solid #27272a; 
-}
-.panel-resizer-h:hover { background: #3b82f6; }
-
-/* 트랙 리사이저 */
-.resizer-w { 
-    position: absolute; 
-    top: 0; 
-    right: 0; 
-    width: 5px; 
-    height: 100%; 
-    cursor: col-resize; 
-    z-index: 60; 
+.c-header__nav-btn:hover {
+  background-color: var(--color-accent-blue);
 }
 
-.resizer-h { 
-    position: absolute; 
-    bottom: 0; 
-    left: 0; 
-    width: 100%; 
-    height: 5px; 
-    cursor: row-resize; 
-    z-index: 60; 
+.c-header__devmode {
+  display: flex;
+  gap: var(--spacing-sm);
 }
 
-.resizer-h:hover, .resizer-w:hover { background-color: #3b82f6; }
+.c-header__devmode-btn {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background-color: var(--color-bg-tertiary);
+  border-radius: 4px;
+  font-size: var(--font-size-sm);
+  transition: background-color 0.2s;
+}
+
+.c-header__devmode-btn:hover {
+  background-color: var(--color-accent-green);
+}
+
+.c-header__window-controls {
+  display: flex;
+  gap: var(--spacing-xs);
+}
+
+.c-header__window-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.c-header__window-btn:hover {
+  background-color: var(--color-bg-tertiary);
+}
+
+/* 메인 레이아웃 */
+.c-app-main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.c-app-main__left-panel {
+  width: 240px;
+  background-color: var(--color-bg-secondary);
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.c-app-main__center-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.c-app-main__right-panel {
+  width: 280px;
+  background-color: var(--color-bg-secondary);
+  border-left: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.c-app-main__canvas-container {
+  flex: 1;
+  position: relative;
+  overflow: auto;
+  background-color: var(--color-bg-primary);
+}
+
+/* 패널 리사이저 */
+.c-panel-resizer {
+  position: absolute;
+  background-color: transparent;
+  z-index: var(--z-sticky);
+  transition: background-color 0.2s;
+}
+
+.c-panel-resizer:hover {
+  background-color: var(--color-accent-blue);
+}
+
+.c-panel-resizer--vertical {
+  width: 4px;
+  height: 100%;
+  right: 0;
+  top: 0;
+  cursor: ew-resize;
+}
+
+.c-panel-resizer--horizontal {
+  height: 4px;
+  width: 100%;
+  top: 0;
+  left: 0;
+  cursor: ns-resize;
+}
