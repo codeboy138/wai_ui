@@ -1,149 +1,349 @@
-import { store } from '../store.js';
+/**
+ * ==========================================
+ * DesignGuide.js
+ * 
+ * 역할: 디자인 가이드 모달 (Zinc-Dark Edition 문서 표시)
+ * 경로: frontend/js/components/DesignGuide.js
+ * ==========================================
+ */
 
-export default {
-    template: `
-        <div class="c-modal-overlay" 
-             @click="$emit('close')"
-             data-dev="Role: Overlay | ID: design-guide-overlay | Func: 모달 배경 | Goal: 외부 클릭 시 닫기 | State: visible=true | Path: App/Modal/DesignGuide/Overlay | Py: None | JS: @click=emit('close')">
-            
-            <div class="c-modal c-modal--design-guide w-[800px] h-[700px] bg-bg-dark border border-ui-border flex flex-col shadow-2xl" 
-                 @click.stop
-                 data-dev="Role: Modal | ID: design-guide-modal | Func: 디자인 가이드 모달 | Goal: 디자인 시스템 문서 표시 | State: None | Path: App/Modal/DesignGuide | Py: None | JS: @click.stop">
-                
-                <div class="c-modal__header h-12 border-b border-ui-border flex items-center justify-between px-6 bg-bg-panel shrink-0"
-                     data-dev="Role: Header | ID: design-guide-header | Func: 모달 헤더 | Goal: 제목 및 닫기 버튼 표시 | State: None | Path: App/Modal/DesignGuide/Header | Py: None | JS: None">
-                    
-                    <span class="c-modal__title text-lg font-bold text-ui-accent"
-                          data-dev="Role: Label | ID: design-guide-title | Func: 제목 텍스트 | Goal: 모달 제목 표시 | State: text='WAI Design System (Live View)' | Path: App/Modal/DesignGuide/Header/Title | Py: None | JS: None">
-                        WAI Design System (Live View)
-                    </span>
-                    
-                    <button @click="$emit('close')" 
-                            class="c-modal__close-btn win-btn close rounded"
-                            data-js-close="design-guide"
-                            data-dev="Role: Button | ID: design-guide-close-btn | Func: 닫기 버튼 | Goal: 모달 닫기 | State: None | Path: App/Modal/DesignGuide/Header/CloseBtn | Py: None | JS: emit('close')">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
-                </div>
+const DesignGuide = {
+  name: 'DesignGuide',
+  
+  props: {
+    // 모달 표시 여부
+    visible: {
+      type: Boolean,
+      default: false
+    }
+  },
+  
+  methods: {
+    /**
+     * 모달 닫기 핸들러
+     */
+    close() {
+      this.$emit('close');
+    },
+    
+    /**
+     * 오버레이 클릭 핸들러 (배경 클릭 시 닫기)
+     */
+    handleOverlayClick(event) {
+      if (event.target === event.currentTarget) {
+        this.close();
+      }
+    }
+  },
+  
+  template: `
+    <div 
+      v-if="visible"
+      id="design-guide-modal"
+      class="c-design-guide"
+      @click="handleOverlayClick"
+      :data-dev='{
+        "role": "디자인 가이드 모달",
+        "id": "design-guide-modal",
+        "func": "Zinc-Dark Edition 디자인 시스템 문서를 풀스크린 모달로 표시",
+        "goal": "개발자가 색상, Z-Index, 타이포그래피 등 디자인 규칙을 빠르게 참조",
+        "state": {
+          "visible": "모달 표시 여부 (Boolean)"
+        },
+        "path": "frontend/js/components/DesignGuide.js",
+        "py": "",
+        "js": "close(), handleOverlayClick(event)"
+      }'
+    >
+      <!-- 오버레이 배경 -->
+      <div 
+        id="design-guide-overlay"
+        class="c-design-guide__overlay"
+        :data-dev='{
+          "role": "모달 오버레이 배경",
+          "id": "design-guide-overlay",
+          "func": "모달 뒤 어두운 배경 레이어 (클릭 시 모달 닫기)",
+          "goal": "모달 포커스 강조 및 배경 클릭으로 닫기 기능 제공",
+          "state": {},
+          "path": "frontend/js/components/DesignGuide.js → overlay",
+          "py": "",
+          "js": "handleOverlayClick(event)"
+        }'
+      ></div>
 
-                <div class="c-modal__body flex-1 overflow-y-auto p-8 space-y-10"
-                     data-dev="Role: Container | ID: design-guide-body | Func: 콘텐츠 영역 | Goal: 디자인 시스템 섹션 표시 | State: sections=4 | Path: App/Modal/DesignGuide/Body | Py: None | JS: None">
-                    
-                    <section class="c-guide-section"
-                             data-dev="Role: Section | ID: design-guide-section-colors | Func: 색상 섹션 | Goal: 시맨틱 색상 표시 | State: None | Path: App/Modal/DesignGuide/Body/Colors | Py: None | JS: None">
-                        <h3 class="c-guide-section__title text-sm font-bold text-text-main mb-4 border-b border-ui-border pb-2"
-                            data-dev="Role: Heading | ID: design-guide-section-colors-title | Func: 섹션 제목 | Goal: 색상 섹션 제목 표시 | State: text='1. Semantic Colors' | Path: App/Modal/DesignGuide/Body/Colors/Title | Py: None | JS: None">
-                            1. Semantic Colors (의미론적 색상)
-                        </h3>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="c-guide-color-item flex items-center gap-4 bg-bg-panel p-2 rounded border border-ui-border"
-                                 data-dev="Role: Item | ID: design-guide-color-bg-dark | Func: 색상 샘플 | Goal: bg-bg-dark 색상 표시 | State: color='#09090b' | Path: App/Modal/DesignGuide/Body/Colors/Item | Py: None | JS: None">
-                                <div class="c-guide-color-item__swatch w-10 h-10 bg-bg-dark border border-ui-border rounded"></div>
-                                <div>
-                                    <div class="c-guide-color-item__name text-white text-xs font-bold">bg-bg-dark</div>
-                                    <div class="c-guide-color-item__desc text-[10px] text-text-sub">Base Background</div>
-                                </div>
-                            </div>
-                            <div class="c-guide-color-item flex items-center gap-4 bg-bg-panel p-2 rounded border border-ui-border"
-                                 data-dev="Role: Item | ID: design-guide-color-bg-panel | Func: 색상 샘플 | Goal: bg-bg-panel 색상 표시 | State: color='#18181b' | Path: App/Modal/DesignGuide/Body/Colors/Item | Py: None | JS: None">
-                                <div class="c-guide-color-item__swatch w-10 h-10 bg-bg-panel border border-ui-border rounded"></div>
-                                <div>
-                                    <div class="c-guide-color-item__name text-white text-xs font-bold">bg-bg-panel</div>
-                                    <div class="c-guide-color-item__desc text-[10px] text-text-sub">Panel/Header</div>
-                                </div>
-                            </div>
-                            <div class="c-guide-color-item flex items-center gap-4 bg-bg-panel p-2 rounded border border-ui-border"
-                                 data-dev="Role: Item | ID: design-guide-color-ui-selected | Func: 색상 샘플 | Goal: bg-ui-selected 색상 표시 | State: color='#3f3f46' | Path: App/Modal/DesignGuide/Body/Colors/Item | Py: None | JS: None">
-                                <div class="c-guide-color-item__swatch w-10 h-10 bg-ui-selected rounded"></div>
-                                <div>
-                                    <div class="c-guide-color-item__name text-white text-xs font-bold">bg-ui-selected</div>
-                                    <div class="c-guide-color-item__desc text-[10px] text-text-sub">Active State</div>
-                                </div>
-                            </div>
-                            <div class="c-guide-color-item flex items-center gap-4 bg-bg-panel p-2 rounded border border-ui-border"
-                                 data-dev="Role: Item | ID: design-guide-color-ui-border | Func: 색상 샘플 | Goal: border-ui-border 색상 표시 | State: color='#27272a' | Path: App/Modal/DesignGuide/Body/Colors/Item | Py: None | JS: None">
-                                <div class="c-guide-color-item__swatch w-10 h-10 border border-ui-border rounded"></div>
-                                <div>
-                                    <div class="c-guide-color-item__name text-white text-xs font-bold">border-ui-border</div>
-                                    <div class="c-guide-color-item__desc text-[10px] text-text-sub">Dividers</div>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-
-                    <section class="c-guide-section"
-                             data-dev="Role: Section | ID: design-guide-section-typography | Func: 타이포그래피 섹션 | Goal: 텍스트 및 액센트 색상 표시 | State: None | Path: App/Modal/DesignGuide/Body/Typography | Py: None | JS: None">
-                        <h3 class="c-guide-section__title text-sm font-bold text-text-main mb-4 border-b border-ui-border pb-2"
-                            data-dev="Role: Heading | ID: design-guide-section-typography-title | Func: 섹션 제목 | Goal: 타이포그래피 섹션 제목 표시 | State: text='2. Typography & Accent' | Path: App/Modal/DesignGuide/Body/Typography/Title | Py: None | JS: None">
-                            2. Typography & Accent
-                        </h3>
-                        <div class="grid grid-cols-3 gap-4 text-center">
-                            <div class="c-guide-accent-item p-4 bg-bg-input rounded border border-ui-border"
-                                 data-dev="Role: Item | ID: design-guide-accent-blue | Func: 액센트 색상 샘플 | Goal: Accent Blue 표시 | State: color='#3b82f6' | Path: App/Modal/DesignGuide/Body/Typography/Accent | Py: None | JS: None">
-                                <span class="text-ui-accent font-bold text-lg">Accent Blue</span>
-                                <div class="text-[10px] text-text-sub mt-1">text-ui-accent</div>
-                            </div>
-                            <div class="c-guide-accent-item p-4 bg-bg-input rounded border border-ui-border"
-                                 data-dev="Role: Item | ID: design-guide-accent-danger | Func: 액센트 색상 샘플 | Goal: Danger Red 표시 | State: color='#ef4444' | Path: App/Modal/DesignGuide/Body/Typography/Accent | Py: None | JS: None">
-                                <span class="text-ui-danger font-bold text-lg">Danger Red</span>
-                                <div class="text-[10px] text-text-sub mt-1">text-ui-danger</div>
-                            </div>
-                            <div class="c-guide-accent-item p-4 bg-bg-input rounded border border-ui-border"
-                                 data-dev="Role: Item | ID: design-guide-accent-success | Func: 액센트 색상 샘플 | Goal: Success Green 표시 | State: color='#22c55e' | Path: App/Modal/DesignGuide/Body/Typography/Accent | Py: None | JS: None">
-                                <span class="text-ui-success font-bold text-lg">Success Green</span>
-                                <div class="text-[10px] text-text-sub mt-1">text-ui-success</div>
-                            </div>
-                        </div>
-                        <div class="mt-4 space-y-2 p-4 bg-bg-panel rounded border border-ui-border"
-                             data-dev="Role: Container | ID: design-guide-text-samples | Func: 텍스트 샘플 | Goal: 텍스트 스타일 예시 표시 | State: None | Path: App/Modal/DesignGuide/Body/Typography/Samples | Py: None | JS: None">
-                            <div class="text-text-main text-sm">Main Text (text-text-main) - 본문 및 제목</div>
-                            <div class="text-text-sub text-xs">Sub Text (text-text-sub) - 설명 및 라벨</div>
-                            <div class="text-zinc-600 text-[10px]">Disabled Text (text-zinc-600) - 비활성</div>
-                        </div>
-                    </section>
-
-                    <section class="c-guide-section"
-                             data-dev="Role: Section | ID: design-guide-section-components | Func: 컴포넌트 섹션 | Goal: UI 컴포넌트 샘플 표시 | State: None | Path: App/Modal/DesignGuide/Body/Components | Py: None | JS: None">
-                        <h3 class="c-guide-section__title text-sm font-bold text-text-main mb-4 border-b border-ui-border pb-2"
-                            data-dev="Role: Heading | ID: design-guide-section-components-title | Func: 섹션 제목 | Goal: 컴포넌트 섹션 제목 표시 | State: text='3. Components' | Path: App/Modal/DesignGuide/Body/Components/Title | Py: None | JS: None">
-                            3. Components
-                        </h3>
-                        
-                        <div class="flex flex-wrap gap-4 items-center mb-6"
-                             data-dev="Role: Container | ID: design-guide-buttons-sample | Func: 버튼 샘플 | Goal: 버튼 스타일 예시 표시 | State: None | Path: App/Modal/DesignGuide/Body/Components/Buttons | Py: None | JS: None">
-                            <button class="nav-btn">Nav Button</button>
-                            <button class="nav-btn active">Active Nav</button>
-                            <button class="tool-btn"><i class="fa-solid fa-wrench"></i></button>
-                            <button class="tool-btn text-ui-accent"><i class="fa-solid fa-magnet"></i></button>
-                            <button class="win-btn">_</button>
-                            <button class="win-btn close">X</button>
-                        </div>
-
-                        <div class="flex gap-4 items-center"
-                             data-dev="Role: Container | ID: design-guide-inputs-sample | Func: 입력 샘플 | Goal: 입력 필드 스타일 예시 표시 | State: None | Path: App/Modal/DesignGuide/Body/Components/Inputs | Py: None | JS: None">
-                            <input type="text" value="Input Field" class="bg-bg-input border border-ui-border rounded px-2 py-1 text-xs text-text-main focus:border-ui-accent w-48 outline-none">
-                            <div class="px-2 py-1 bg-ui-selected text-xs text-white rounded">Selected Item</div>
-                        </div>
-                    </section>
-
-                    <section class="c-guide-section"
-                             data-dev="Role: Section | ID: design-guide-section-zindex | Func: Z-Index 섹션 | Goal: 레이어 계층 구조 시각화 | State: None | Path: App/Modal/DesignGuide/Body/ZIndex | Py: None | JS: None">
-                        <h3 class="c-guide-section__title text-sm font-bold text-text-main mb-4 border-b border-ui-border pb-2"
-                            data-dev="Role: Heading | ID: design-guide-section-zindex-title | Func: 섹션 제목 | Goal: Z-Index 섹션 제목 표시 | State: text='4. Z-Index Hierarchy' | Path: App/Modal/DesignGuide/Body/ZIndex/Title | Py: None | JS: None">
-                            4. Z-Index Hierarchy
-                        </h3>
-                        <div class="relative h-32 bg-bg-input rounded border border-ui-border overflow-hidden"
-                             data-dev="Role: Visualization | ID: design-guide-zindex-demo | Func: Z-Index 시각화 | Goal: 레이어 계층 구조 표시 | State: layers=4 | Path: App/Modal/DesignGuide/Body/ZIndex/Demo | Py: None | JS: None">
-                            <div class="absolute top-2 left-2 w-20 h-20 bg-gray-700 flex items-center justify-center text-[10px] text-white shadow-lg" style="z-index: 10;">Base (10)</div>
-                            <div class="absolute top-4 left-8 w-20 h-20 bg-blue-900 flex items-center justify-center text-[10px] text-white shadow-lg" style="z-index: 20;">Content (20)</div>
-                            <div class="absolute top-6 left-16 w-20 h-20 bg-green-900 flex items-center justify-center text-[10px] text-white shadow-lg" style="z-index: 40;">Sticky (40)</div>
-                            <div class="absolute top-8 left-24 w-20 h-20 bg-red-900 flex items-center justify-center text-[10px] text-white shadow-lg" style="z-index: 1000;">Float (1000)</div>
-                        </div>
-                    </section>
-
-                </div>
-            </div>
+      <!-- 모달 컨텐츠 -->
+      <div 
+        id="design-guide-content"
+        class="c-design-guide__content"
+        @click.stop
+        :data-dev='{
+          "role": "디자인 가이드 컨텐츠 컨테이너",
+          "id": "design-guide-content",
+          "func": "디자인 시스템 문서 내용을 스크롤 가능한 영역에 표시",
+          "goal": "사용자가 디자인 가이드 전체 내용을 읽을 수 있도록 함",
+          "state": {},
+          "path": "frontend/js/components/DesignGuide.js → content",
+          "py": "",
+          "js": ""
+        }'
+      >
+        <!-- 헤더 (제목 + 닫기 버튼) -->
+        <div 
+          id="design-guide-header"
+          class="c-design-guide__header"
+          :data-dev='{
+            "role": "모달 헤더 (제목 + 닫기 버튼)",
+            "id": "design-guide-header",
+            "func": "모달 상단에 제목과 닫기 버튼 표시",
+            "goal": "사용자가 현재 보고 있는 문서가 디자인 가이드임을 인지하고 닫기 가능",
+            "state": {},
+            "path": "frontend/js/components/DesignGuide.js → header",
+            "py": "",
+            "js": "close()"
+          }'
+        >
+          <h2 
+            id="design-guide-title"
+            class="c-design-guide__title"
+            :data-dev='{
+              "role": "모달 제목",
+              "id": "design-guide-title",
+              "func": "디자인 가이드 문서 제목 표시",
+              "goal": "사용자가 현재 문서명을 확인",
+              "state": {},
+              "path": "frontend/js/components/DesignGuide.js → title",
+              "py": "",
+              "js": ""
+            }'
+          >
+            WAI Studio Design Guide (Zinc-Dark Edition)
+          </h2>
+          
+          <button 
+            id="design-guide-close"
+            class="c-design-guide__close"
+            data-js-close
+            @click="close"
+            title="Close"
+            :data-dev='{
+              "role": "모달 닫기 버튼",
+              "id": "design-guide-close",
+              "func": "클릭 시 디자인 가이드 모달 닫기",
+              "goal": "사용자가 모달을 즉시 닫을 수 있도록 함",
+              "state": {},
+              "path": "frontend/js/components/DesignGuide.js → close button",
+              "py": "",
+              "js": "close()"
+            }'
+          >
+            ✕
+          </button>
         </div>
-    `,
-    data() { return { store } }
+
+        <!-- 본문 (디자인 시스템 문서) -->
+        <div 
+          id="design-guide-body"
+          class="c-design-guide__body"
+          :data-dev='{
+            "role": "디자인 가이드 본문",
+            "id": "design-guide-body",
+            "func": "색상, Z-Index, 타이포그래피 등 디자인 시스템 규칙 표시",
+            "goal": "개발자가 프로젝트 디자인 규칙을 참조하며 작업",
+            "state": {},
+            "path": "frontend/js/components/DesignGuide.js → body",
+            "py": "",
+            "js": ""
+          }'
+        >
+          <!-- 색상 시스템 -->
+          <section 
+            id="design-guide-section-colors"
+            class="c-design-guide__section"
+            :data-dev='{
+              "role": "색상 시스템 섹션",
+              "id": "design-guide-section-colors",
+              "func": "Zinc-Dark 테마의 배경, 텍스트, 액센트 색상 표시",
+              "goal": "개발자가 일관된 색상을 사용하도록 색상 팔레트 제공",
+              "state": {},
+              "path": "frontend/js/components/DesignGuide.js → colors section",
+              "py": "",
+              "js": ""
+            }'
+          >
+            <h3 class="c-design-guide__section-title">🎨 Color System (Zinc-Dark)</h3>
+            
+            <div class="c-design-guide__color-grid">
+              <!-- Background Colors -->
+              <div class="c-design-guide__color-group">
+                <h4>Background</h4>
+                <div class="c-design-guide__color-item">
+                  <div class="c-design-guide__color-sample" style="background: #09090b;"></div>
+                  <code>#09090b</code> <span>Base (zinc-950)</span>
+                </div>
+                <div class="c-design-guide__color-item">
+                  <div class="c-design-guide__color-sample" style="background: #18181b;"></div>
+                  <code>#18181b</code> <span>Panel (zinc-900)</span>
+                </div>
+                <div class="c-design-guide__color-item">
+                  <div class="c-design-guide__color-sample" style="background: #27272a;"></div>
+                  <code>#27272a</code> <span>Hover (zinc-800)</span>
+                </div>
+              </div>
+
+              <!-- Text Colors -->
+              <div class="c-design-guide__color-group">
+                <h4>Text</h4>
+                <div class="c-design-guide__color-item">
+                  <div class="c-design-guide__color-sample" style="background: #f4f4f5;"></div>
+                  <code>#f4f4f5</code> <span>Primary (zinc-100)</span>
+                </div>
+                <div class="c-design-guide__color-item">
+                  <div class="c-design-guide__color-sample" style="background: #a1a1aa;"></div>
+                  <code>#a1a1aa</code> <span>Secondary (zinc-400)</span>
+                </div>
+                <div class="c-design-guide__color-item">
+                  <div class="c-design-guide__color-sample" style="background: #71717a;"></div>
+                  <code>#71717a</code> <span>Disabled (zinc-500)</span>
+                </div>
+              </div>
+
+              <!-- Accent Colors -->
+              <div class="c-design-guide__color-group">
+                <h4>Accent</h4>
+                <div class="c-design-guide__color-item">
+                  <div class="c-design-guide__color-sample" style="background: #3b82f6;"></div>
+                  <code>#3b82f6</code> <span>Primary (blue-500)</span>
+                </div>
+                <div class="c-design-guide__color-item">
+                  <div class="c-design-guide__color-sample" style="background: #ef4444;"></div>
+                  <code>#ef4444</code> <span>Danger (red-500)</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Z-Index 시스템 -->
+          <section 
+            id="design-guide-section-zindex"
+            class="c-design-guide__section"
+            :data-dev='{
+              "role": "Z-Index 계층 시스템 섹션",
+              "id": "design-guide-section-zindex",
+              "func": "UI 요소별 Z-Index 값 표시 (Base → Content → Toolbar → Header → Menu → Inspector)",
+              "goal": "개발자가 레이어 겹침 순서를 일관되게 관리",
+              "state": {},
+              "path": "frontend/js/components/DesignGuide.js → zindex section",
+              "py": "",
+              "js": ""
+            }'
+          >
+            <h3 class="c-design-guide__section-title">📐 Z-Index System</h3>
+            
+            <table class="c-design-guide__table">
+              <thead>
+                <tr>
+                  <th>Layer</th>
+                  <th>Z-Index</th>
+                  <th>Usage</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>Base</code></td>
+                  <td><code>10</code></td>
+                  <td>Canvas, Timeline 등 기본 컨텐츠</td>
+                </tr>
+                <tr>
+                  <td><code>Content</code></td>
+                  <td><code>20</code></td>
+                  <td>레이어, 클립 등 상호작용 요소</td>
+                </tr>
+                <tr>
+                  <td><code>Sticky</code></td>
+                  <td><code>40</code></td>
+                  <td>Playhead, 스크롤 고정 요소</td>
+                </tr>
+                <tr>
+                  <td><code>Toolbar</code></td>
+                  <td><code>100</code></td>
+                  <td>PreviewToolbar, 도구 모음</td>
+                </tr>
+                <tr>
+                  <td><code>Header</code></td>
+                  <td><code>200000</code></td>
+                  <td>상단 헤더 (항상 최상단)</td>
+                </tr>
+                <tr>
+                  <td><code>Menu</code></td>
+                  <td><code>200001</code></td>
+                  <td>드롭다운 메뉴</td>
+                </tr>
+                <tr>
+                  <td><code>Inspector</code></td>
+                  <td><code>300000</code></td>
+                  <td>DATA DEV Inspector (최상위)</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <!-- Typography -->
+          <section 
+            id="design-guide-section-typography"
+            class="c-design-guide__section"
+            :data-dev='{
+              "role": "타이포그래피 시스템 섹션",
+              "id": "design-guide-section-typography",
+              "func": "폰트 패밀리, 크기, 두께 규칙 표시",
+              "goal": "개발자가 일관된 텍스트 스타일 적용",
+              "state": {},
+              "path": "frontend/js/components/DesignGuide.js → typography section",
+              "py": "",
+              "js": ""
+            }'
+          >
+            <h3 class="c-design-guide__section-title">✍️ Typography</h3>
+            
+            <ul class="c-design-guide__list">
+              <li><strong>Font Family:</strong> <code>Inter, system-ui, sans-serif</code></li>
+              <li><strong>Base Size:</strong> <code>14px</code></li>
+              <li><strong>Headings:</strong> <code>16px (semibold)</code></li>
+              <li><strong>Body:</strong> <code>14px (normal)</code></li>
+              <li><strong>Small:</strong> <code>12px (normal)</code></li>
+            </ul>
+          </section>
+
+          <!-- Spacing -->
+          <section 
+            id="design-guide-section-spacing"
+            class="c-design-guide__section"
+            :data-dev='{
+              "role": "간격(Spacing) 시스템 섹션",
+              "id": "design-guide-section-spacing",
+              "func": "여백 및 패딩 규칙 표시 (4px 단위)",
+              "goal": "개발자가 일관된 여백을 유지",
+              "state": {},
+              "path": "frontend/js/components/DesignGuide.js → spacing section",
+              "py": "",
+              "js": ""
+            }'
+          >
+            <h3 class="c-design-guide__section-title">📏 Spacing</h3>
+            
+            <ul class="c-design-guide__list">
+              <li><code>4px</code> - Tight (버튼 내부, 아이콘 간격)</li>
+              <li><code>8px</code> - Normal (컴포넌트 내부 여백)</li>
+              <li><code>16px</code> - Comfortable (섹션 간 여백)</li>
+              <li><code>24px</code> - Loose (패널 간 여백)</li>
+            </ul>
+          </section>
+        </div>
+      </div>
+    </div>
+  `
+};
+
+// CommonJS 모듈로 내보내기
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = DesignGuide;
 }
