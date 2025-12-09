@@ -1,86 +1,331 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WAI Studio</title>
-  
-  <!-- Vue 3 CDN -->
-  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-  
-  <!-- Tailwind CSS CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  
-  <!-- SweetAlert2 CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  
-  <!-- Font Awesome CDN -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  
-  <!-- Interact.js CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
-  
-  <!-- Tailwind Config -->
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            bg: { 
-              dark: '#09090b', 
-              panel: '#18181b', 
-              hover: '#27272a', 
-              input: '#202023' 
-            },
-            ui: { 
-              border: '#27272a', 
-              selected: '#3f3f46', 
-              accent: '#3b82f6', 
-              danger: '#ef4444',
-              success: '#22c55e'
-            },
-            text: { 
-              main: '#f4f4f5', 
-              sub: '#a1a1aa',
-              inv: '#18181b'
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WAI Studio - Professional Editor</title>
+    
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bg: { dark: '#09090b', panel: '#18181b', hover: '#27272a', input: '#202023' },
+                        ui: { border: '#27272a', selected: '#3f3f46', accent: '#3b82f6', danger: '#ef4444', success: '#22c55e' },
+                        text: { main: '#f4f4f5', sub: '#a1a1aa', inv: '#18181b' }
+                    },
+                    fontSize: { 'xxs': '10px' }
+                }
             }
-          },
-          fontSize: {
-            'xxs': '10px'
-          }
         }
-      }
-    }
-  </script>
-  
-  <!-- Custom CSS -->
-  <link rel="stylesheet" href="css/main.css">
+    </script>
+
+    <style>
+        body { background-color: #09090b; color: #f4f4f5; height: 100vh; overflow: hidden; user-select: none; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #18181b; }
+        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #52525b; }
+
+        .timeline-grid { display: grid; height: 100%; overflow: hidden; }
+        .sticky-corner { position: sticky; top: 0; left: 0; z-index: 50; background: #18181b; border-bottom: 1px solid #27272a; border-right: 1px solid #27272a; }
+        .sticky-ruler { position: sticky; top: 0; z-index: 40; background: #09090b; border-bottom: 1px solid #27272a; }
+        .sticky-col { position: sticky; left: 0; z-index: 30; background: #18181b; border-right: 1px solid #27272a; }
+
+        .clip { position: absolute; top: 4px; height: 32px; border-radius: 4px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); cursor: pointer; transition: box-shadow 0.1s, border-color 0.1s; touch-action: none; }
+        .clip:hover { filter: brightness(1.1); z-index: 10; border-color: rgba(255,255,255,0.5); }
+        .clip.selected { border: 2px solid #fff; z-index: 20; box-shadow: 0 0 10px rgba(59, 130, 246, 0.3); }
+        .clip.dragging { opacity: 0.8; z-index: 100 !important; cursor: grabbing; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+        .clip-label { pointer-events: none; text-shadow: 0 1px 2px black; font-size: 10px; padding: 2px 6px; font-weight: bold; color: white; position: relative; z-index: 2; }
+
+        .waveform { position: absolute; top: 50%; left: 0; width: 100%; height: 100%; transform: translateY(-50%); opacity: 0.6; pointer-events: none; }
+        .volume-line { position: absolute; top: 30%; left: 0; width: 100%; height: 2px; background: rgba(255,255,255,0.8); cursor: ns-resize; z-index: 5; box-shadow: 0 1px 2px rgba(0,0,0,0.5); }
+        .volume-line:hover { background: #3b82f6; height: 3px; }
+
+        .canvas-scaler { transform-origin: top left; background-color: #000; box-shadow: 0 0 50px rgba(0,0,0,0.5); position: relative; }
+        .canvas-box { position: absolute; border: 2px dashed rgba(255,255,255,0.3); background: rgba(255,255,255,0.05); display: flex; align-items: flex-start; justify-content: flex-end; touch-action: none; box-sizing: border-box; }
+        .canvas-box.selected { border-style: solid; box-shadow: 0 0 0 1px #fff, 0 0 10px rgba(0,0,0,0.5); z-index: 1000 !important; border-color: #3b82f6; }
+        .canvas-label { position: absolute; right: 0; bottom: -16px; background: #3b82f6; color: #fff; padding: 0 4px; font-size: 9px; font-weight: bold; border-radius: 2px; font-family: monospace; white-space: nowrap; pointer-events: none; text-shadow: 0 1px 2px black; opacity: 0.8; }
+        
+        .box-handle { position: absolute; width: 8px; height: 8px; background: #fff; border: 1px solid #000; z-index: 20; display: none; }
+        .canvas-box.selected .box-handle { display: block; }
+        .bh-tl { top: -4px; left: -4px; cursor: nwse-resize; }
+        .bh-tr { top: -4px; right: -4px; cursor: nesw-resize; }
+        .bh-bl { bottom: -4px; left: -4px; cursor: nesw-resize; }
+        .bh-br { bottom: -4px; right: -4px; cursor: nwse-resize; }
+
+        @keyframes flash { 0% { background-color: rgba(255,255,255,0.8); } 100% { background-color: rgba(255,255,255,0.05); } }
+        .snap-flash { animation: flash 0.3s ease-out; border-color: #fff !important; }
+
+        .guide-line-h { position: absolute; left: 0; right: 0; height: 1px; background-color: #3b82f6; border-top: 1px dashed #3b82f6; display: none; pointer-events: none; z-index: 9999; opacity: 0.8; }
+        .guide-line-v { position: absolute; top: 0; bottom: 0; width: 1px; background-color: #3b82f6; border-left: 1px dashed #3b82f6; display: none; pointer-events: none; z-index: 9999; opacity: 0.8; }
+
+        .panel-resizer-v { position: absolute; top: 0; bottom: 0; width: 4px; cursor: col-resize; z-index: 100; transition: background 0.2s; }
+        .panel-resizer-v:hover { background: #3b82f6; }
+        .panel-resizer-h { width: 100%; height: 4px; background: #18181b; cursor: row-resize; z-index: 100; transition: background 0.2s; border-top: 1px solid #27272a; border-bottom: 1px solid #27272a; }
+        .panel-resizer-h:hover { background: #3b82f6; }
+
+        .resizer-w { position: absolute; top: 0; right: 0; width: 5px; height: 100%; cursor: col-resize; z-index: 60; }
+        .resizer-h { position: absolute; bottom: 0; left: 0; width: 100%; height: 5px; cursor: row-resize; z-index: 60; }
+        .resizer-h:hover, .resizer-w:hover { background-color: #3b82f6; }
+
+        .tool-btn { @apply p-1 rounded text-text-sub hover:text-text-main hover:bg-bg-hover transition-colors text-xs flex items-center justify-center w-6 h-6; }
+        .tool-btn.active { @apply text-ui-accent bg-bg-hover; }
+        .nav-btn { @apply px-3 py-1 text-xs text-text-sub hover:text-text-main hover:bg-ui-selected rounded transition-colors cursor-pointer h-full flex items-center; }
+        .nav-btn.active { @apply text-text-main font-bold bg-bg-hover; }
+        .win-btn { @apply w-10 h-full flex items-center justify-center text-text-sub hover:bg-bg-hover hover:text-text-main transition-colors text-xs; }
+        .win-btn.close:hover { @apply bg-ui-danger text-white; }
+
+        .c-dropdown { @apply relative inline-flex items-center px-2 h-full bg-bg-input rounded text-[10px] text-text-sub cursor-pointer hover:bg-bg-hover hover:text-text-main border border-ui-border select-none; }
+        .c-dropdown-menu { display: none; position: absolute; top: 105%; left: 0; width: 100%; background-color: #18181b; border: 1px solid #27272a; border-radius: 4px; flex-direction: column; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+        .c-dropdown.open .c-dropdown-menu { display: flex; }
+        .c-dropdown-item { @apply p-2 text-center hover:bg-ui-accent hover:text-white transition-colors; }
+
+        .dev-overlay { pointer-events: none; position: fixed; inset: 0; z-index: 9999; display: none; }
+        body.dev-mode-active .dev-overlay { display: block; }
+        .dev-highlight { position: absolute; border: 1px solid #ef4444; background: rgba(239, 68, 68, 0.1); transition: all 0.05s ease-out; pointer-events: none; }
+        .dev-tooltip { position: absolute; background: #ef4444; color: white; padding: 4px 8px; font-size: 10px; border-radius: 2px; font-family: monospace; white-space: pre; z-index: 10000; box-shadow: 0 2px 8px rgba(0,0,0,0.5); pointer-events: none; }
+
+        .context-menu { position: fixed; background: #1e1e1e; border: 1px solid #333; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 5000; border-radius: 4px; padding: 4px 0; min-width: 120px; }
+        .ctx-item { padding: 4px 12px; font-size: 11px; color: #eee; cursor: pointer; display: flex; justify-content: space-between; gap: 10px; }
+        .ctx-item:hover { background: #3b82f6; color: white; }
+        
+        .color-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding: 4px; }
+        .color-swatch { width: 16px; height: 16px; border-radius: 2px; cursor: pointer; border: 1px solid #333; }
+        .color-swatch:hover { border-color: white; transform: scale(1.1); }
+
+        .timeline-drag-over { box-shadow: inset 0 0 0 2px #3b82f6; background-color: rgba(59, 130, 246, 0.1); }
+
+        .playhead-line { position: absolute; top: 0; bottom: 0; width: 1px; background: #ef4444; z-index: 40; pointer-events: none; }
+        .playhead-handle { position: absolute; top: 0; width: 11px; height: 12px; background: #ef4444; transform: translateX(-50%); clip-path: polygon(0 0, 100% 0, 50% 100%); cursor: ew-resize; pointer-events: auto; z-index: 50; }
+        
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); display: flex; justify-content: center; align-items: center; z-index: 5000; }
+        .modal-window { background: #18181b; border: 1px solid #27272a; border-radius: 8px; width: 80%; height: 80%; max-width: 1000px; max-height: 700px; display: flex; flex-direction: column; overflow: hidden; }
+
+        .animate-fade-in { animation: fadeIn 0.2s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
 </head>
-<body
-  data-dev="
-요소의 역할: 애플리케이션 최상위 HTML Body 요소
+<body class="flex flex-col text-xs" 
+      data-dev="요소의 역할: 애플리케이션 최상위 HTML Body 요소
 요소의 고유ID: app-body
 요소의 기능 목적 정의: WAI Studio 애플리케이션의 전체 레이아웃 컨테이너로, Vue 3 앱이 마운트되는 기본 HTML 구조를 제공
 요소의 동작 로직 설명: 페이지 로드 시 Vue 3 앱이 #vue-app 요소에 마운트되며, CDN을 통해 로드된 라이브러리들이 전역으로 사용 가능하게 됨
 요소의 입출력 데이터 구조: 입력: 없음(정적 HTML). 출력: Vue 앱 마운트 포인트 제공, CDN 라이브러리 로드 완료
 요소의 경로정보: frontend/index.html#body
-요소의 수행해야 할 백엔드/JS 명령: JS: createApp().mount('#vue-app'), tailwind.config 초기화
-  "
->
-  <div 
-    id="vue-app"
-    data-dev="
-요소의 역할: Vue 3 애플리케이션 마운트 포인트
-요소의 고유ID: vue-app
-요소의 기능 목적 정의: Vue 3 createApp()으로 생성된 루트 애플리케이션이 마운트되는 DOM 요소
-요소의 동작 로직 설명: js/app.js에서 createApp(App).mount('#vue-app')이 실행되면, 이 요소 내부에 Vue 컴포넌트 트리가 렌더링됨
-요소의 입출력 데이터 구조: 입력: 없음(Vue 마운트 대상). 출력: 렌더링된 Vue 컴포넌트 트리 (Header, LeftPanel, Canvas, RightPanel, Timeline)
-요소의 경로정보: frontend/index.html#vue-app
-요소의 수행해야 할 백엔드/JS 명령: JS: createApp(App).mount('#vue-app')
-    "
-  ></div>
-  
-  <!-- Vue 3 App 초기화 (ES6 Module) -->
-  <script type="module" src="js/app.js"></script>
+요소의 수행해야 할 백엔드/JS 명령: JS: createApp().mount('#vue-app'), tailwind.config 초기화">
+
+    <div id="vue-app" class="flex flex-col h-screen"></div>
+
+    <script>
+        const { createApp } = Vue;
+        const Z_INDEX_OFFSETS = { 'BG': 20, 'TXT': 40, 'VID': 60, 'AUD': 80 };
+        const COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#10b981', '#06b6d4', '#0ea5e9', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#ffffff', '#9ca3af', '#4b5563', '#000000'];
+        
+        const DropdownMenu = {
+            props: ['currentValue', 'items', 'id'],
+            template: `
+                <div :id="id" class="c-dropdown w-20 h-6 border-none bg-transparent px-0" :class="{ 'open': isOpen }" @click="toggleDropdown" @click.stop
+                     data-dev="요소의 역할: 재사용 가능한 드롭다운 메뉴 컴포넌트
+요소의 고유ID: dropdown-menu-component
+요소의 기능 목적 정의: 선택 가능한 항목 목록을 표시하는 범용 드롭다운 UI
+요소의 동작 로직 설명: 클릭 시 isOpen 상태 토글, 항목 선택 시 @select 이벤트 발생 후 메뉴 닫힘
+요소의 입출력 데이터 구조: 입력: currentValue(현재 선택값), items(선택 목록 배열). 출력: @select(선택된 항목)
+요소의 경로정보: frontend/index.html#DropdownMenu
+요소의 수행해야 할 백엔드/JS 명령: JS: toggleDropdown(), $emit('select', item)">
+                    <span :id="'val-' + id" class="truncate max-w-[80%]">{{ currentValue }}</span>
+                    <i class="fa-solid fa-caret-down ml-auto text-[8px]"></i>
+                    <div class="c-dropdown-menu">
+                        <div class="c-dropdown-item" v-for="item in items" :key="item" @click="$emit('select', item); isOpen = false">{{ item }}</div>
+                    </div>
+                </div>
+            `,
+            data() { return { isOpen: false } },
+            methods: {
+                toggleDropdown() { this.isOpen = !this.isOpen; },
+                closeOnOutsideClick(e) { if (!this.$el.contains(e.target)) this.isOpen = false; }
+            },
+            mounted() { document.addEventListener('click', this.closeOnOutsideClick); },
+            beforeUnmount() { document.removeEventListener('click', this.closeOnOutsideClick); }
+        };
+
+        const App = {
+            components: { 'dropdown-menu': DropdownMenu },
+            data() {
+                return {
+                    leftPanelWidth: 240,
+                    rightPanelWidth: 320,
+                    previewContainerHeight: '50%',
+                    isProjectModalOpen: false,
+                    isDevModeActive: false,
+                    isDevModeFull: false,
+                    tracks: [
+                        { id: 't1', name: 'Global', type: 'video', color: '#64748b' },
+                        { id: 't2', name: 'Top', type: 'text', color: '#eab308' },
+                        { id: 't3', name: 'Middle', type: 'video', color: '#22c55e' },
+                        { id: 't4', name: 'Bottom', type: 'text', color: '#3b82f6' },
+                        { id: 't5', name: 'BGM', type: 'audio', color: '#a855f7' }
+                    ],
+                    clips: [
+                        { id: 'c1', trackId: 't1', name: 'Intro_BG.mp4', start: 0, duration: 10, type: 'video' },
+                        { id: 'c3', trackId: 't5', name: 'BGM_Main.mp3', start: 0, duration: 30, type: 'audio' }
+                    ],
+                    canvasBoxes: [
+                        { id: 'box_init', colIdx: 1, type: 'TXT', zIndex: 240, color: '#eab308', x: 1720, y: 980, w: 400, h: 200 }
+                    ],
+                    zoom: 20,
+                    selectedClip: null,
+                    selectedBoxId: null,
+                    aspectRatio: '16:9',
+                    resolution: '4K',
+                    canvasSize: { w: 3840, h: 2160 },
+                    mouseCoord: { x: 0, y: 0 },
+                    isMagnet: true,
+                    isTimelineCollapsed: false,
+                    currentTime: 0,
+                    inspector: { tag: '', id: '', className: '', x: 0, y: 0, w: 0, h: 0, dataDev: '' },
+                    layerCols: [
+                        { id: 'c1', name: '전체', color: '#64748b' },
+                        { id: 'c2', name: '상단', color: '#eab308' },
+                        { id: 'c3', name: '중단', color: '#22c55e' },
+                        { id: 'c4', name: '하단', color: '#3b82f6' }
+                    ]
+                }
+            },
+            template: `
+                <header class="h-12 bg-bg-panel border-b border-ui-border flex items-center justify-between px-4"
+                        data-dev="요소의 역할: 애플리케이션 상단 헤더
+요소의 고유ID: app-header
+요소의 기능 목적 정의: 네비게이션, 개발자 모드 토글, 윈도우 컨트롤 제공
+요소의 동작 로직 설명: 네비게이션 버튼 클릭 시 페이지 전환, Dev 버튼 클릭 시 Inspector 모드 활성화
+요소의 입출력 데이터 구조: 입력: 클릭 이벤트. 출력: isDevModeActive, isDevModeFull 상태 변경
+요소의 경로정보: frontend/index.html#app-header
+요소의 수행해야 할 백엔드/JS 명령: JS: toggleDevMode(), firePython('nav_*'). Py: nav(), win_minimize(), win_maximize(), win_close()">
+                    <div class="flex items-center gap-4">
+                        <div class="font-bold text-lg text-text-main">WAI</div>
+                        <nav class="flex gap-3">
+                            <button class="nav-btn" @click="firePython('nav_explore')"
+                                    data-dev="요소의 역할: 탐색 페이지 네비게이션 버튼
+요소의 고유ID: nav-explore-btn
+요소의 기능 목적 정의: 탐색 페이지로 전환
+요소의 동작 로직 설명: 클릭 시 Python 함수 nav('explore') 호출
+요소의 입출력 데이터 구조: 입력: 클릭 이벤트. 출력: Py:nav('explore')
+요소의 경로정보: frontend/index.html#nav-explore-btn
+요소의 수행해야 할 백엔드/JS 명령: Py: nav('explore')">탐색</button>
+                            <button class="nav-btn active" @click="isProjectModalOpen = true">제작</button>
+                            <button class="nav-btn" @click="firePython('nav_settings')">설정</button>
+                        </nav>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button class="h-6 px-3 border border-ui-border rounded-l" :class="{'bg-ui-selected': isDevModeActive}" @click="toggleDevMode('active')">
+                            <i class="fa-solid fa-magnifying-glass"></i> Inspect
+                        </button>
+                        <button class="h-6 px-3 border border-ui-border border-l-0 rounded-r" :class="{'bg-ui-selected': isDevModeFull}" @click="toggleDevMode('full')">
+                            <i class="fa-solid fa-code"></i> Dev
+                        </button>
+                        <div class="flex gap-0 border-l border-ui-border pl-2">
+                            <button class="win-btn" @click="firePython('win_min')"><i class="fa-solid fa-minus text-[10px]"></i></button>
+                            <button class="win-btn" @click="firePython('win_max')"><i class="fa-regular fa-square text-[10px]"></i></button>
+                            <button class="win-btn close" @click="firePython('win_close')"><i class="fa-solid fa-xmark text-[10px]"></i></button>
+                        </div>
+                    </div>
+                </header>
+
+                <main class="flex-1 flex overflow-hidden">
+                    <aside class="bg-bg-panel border-r border-ui-border" :style="{ width: leftPanelWidth + 'px' }">
+                        <div class="p-2 border-b border-ui-border font-bold">자산 (Assets)</div>
+                        <div class="p-4 text-center text-text-sub opacity-30">
+                            <i class="fa-solid fa-folder-open text-2xl"></i>
+                            <p class="text-[10px] mt-2">자산 목록이 비어있습니다.</p>
+                        </div>
+                    </aside>
+
+                    <section class="flex-1 flex flex-col bg-bg-dark">
+                        <div class="h-8 bg-bg-panel border-b border-ui-border flex items-center justify-center gap-3 px-2">
+                            <dropdown-menu :current-value="aspectRatio" :items="['16:9', '9:16', '1:1']" @select="aspectRatio = $event" id="dd-ratio"></dropdown-menu>
+                            <div class="px-2 text-xxs font-mono text-ui-accent">{{ Math.round(mouseCoord.x) }}, {{ Math.round(mouseCoord.y) }}</div>
+                            <dropdown-menu :current-value="resolution" :items="['8K', '6K', '4K', '3K', '2K']" @select="resolution = $event" id="dd-resolution"></dropdown-menu>
+                        </div>
+                        <div class="flex-1 bg-black flex items-center justify-center">
+                            <div class="text-text-sub">Preview Canvas</div>
+                        </div>
+                        <div class="h-48 bg-bg-panel border-t border-ui-border">
+                            <div class="text-center text-text-sub py-4">Timeline Area</div>
+                        </div>
+                    </section>
+
+                    <aside class="bg-bg-panel border-l border-ui-border" :style="{ width: rightPanelWidth + 'px' }">
+                        <div class="p-2 border-b border-ui-border font-bold">레이어 / 속성</div>
+                        <div class="p-4 text-text-sub text-center text-[10px]">Layer Matrix</div>
+                    </aside>
+                </main>
+
+                <div v-if="isDevModeActive" class="dev-overlay">
+                    <div class="dev-highlight" :style="{ width: '100px', height: '50px', top: '10px', left: '10px' }"></div>
+                    <div class="dev-tooltip" :style="{ top: '70px', left: '10px' }">Inspector Active</div>
+                </div>
+            `,
+            mounted() {
+                this.$nextTick(() => {
+                    this.setupInspectorMode();
+                });
+            },
+            methods: {
+                firePython(fn) {
+                    console.log('[Py Call]', fn);
+                    if (window.backend && window.backend[fn]) {
+                        window.backend[fn]();
+                    }
+                },
+                toggleDevMode(mode) {
+                    if (mode === 'active') {
+                        this.isDevModeActive = !this.isDevModeActive;
+                        document.body.classList.toggle('dev-mode-active', this.isDevModeActive);
+                        if (this.isDevModeActive) {
+                            this.isDevModeFull = false;
+                            document.body.classList.remove('dev-mode-full');
+                        }
+                    } else if (mode === 'full') {
+                        this.isDevModeFull = !this.isDevModeFull;
+                        document.body.classList.toggle('dev-mode-full', this.isDevModeFull);
+                        if (this.isDevModeFull) {
+                            this.isDevModeActive = false;
+                            document.body.classList.remove('dev-mode-active');
+                        }
+                    }
+                },
+                setupInspectorMode() {
+                    const self = this;
+                    document.addEventListener('mousemove', (e) => {
+                        if (!self.isDevModeActive) return;
+                        let target = e.target;
+                        if (target && target.tagName !== 'HTML' && target.tagName !== 'BODY') {
+                            const rect = target.getBoundingClientRect();
+                            let dataDevContent = target.getAttribute('data-dev') || '';
+                            self.inspector = {
+                                tag: target.tagName,
+                                id: target.id,
+                                className: target.className,
+                                x: Math.round(rect.left),
+                                y: Math.round(rect.top),
+                                w: Math.round(rect.width),
+                                h: Math.round(rect.height),
+                                dataDev: dataDevContent
+                            };
+                        }
+                    });
+                }
+            }
+        };
+
+        createApp(App).mount('#vue-app');
+        console.log('✅ WAI Studio v3.0 (Single HTML + Vue CDN) 시작 완료!');
+    </script>
 </body>
 </html>
