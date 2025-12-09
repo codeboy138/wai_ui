@@ -367,5 +367,210 @@ export default {
                     </button>
                 </div>
             </div>
-\`
-};
+            
+            <div v-show="!vm.isTimelineCollapsed" 
+                 class="c-timeline__content" 
+                 id="timeline-scroll-area" 
+                 data-js="timeline-scroll-area"
+                 title="타임라인 콘텐츠"
+                 @dragover="handleDragOver" 
+                 @drop="handleDrop"
+                 data-dev="요소의 역할: 타임라인 스크롤 영역
+요소의 고유ID: component-timeline-scroll-area
+요소의 기능 목적 정의: 트랙/클립 표시 및 드래그 앤 드롭 처리
+요소의 동작 로직 설명: 자산 드래그 앤 드롭 시 클립 생성, 가로 스크롤 지원
+요소의 입출력 데이터 구조: 입력: 드래그 이벤트. 출력: addClipFromDrop()
+요소의 경로정보: frontend/js/components/TimelinePanel.js#scroll-area
+요소의 수행해야 할 백엔드/JS 명령: JS: handleDrop()">
+                
+                <div class="c-timeline__tracks-sidebar"
+                     data-js="timeline-sidebar"
+                     title="트랙 목록"
+                     data-dev="요소의 역할: 트랙 사이드바
+요소의 고유ID: component-timeline-tracks-sidebar
+요소의 기능 목적 정의: 트랙 이름 및 컨트롤 표시
+요소의 동작 로직 설명: 트랙 헤더 렌더링, 드래그로 순서 변경
+요소의 입출력 데이터 구조: 입력: tracks 배열. 출력: 트랙 UI
+요소의 경로정보: frontend/js/components/TimelinePanel.js#sidebar
+요소의 수행해야 할 백엔드/JS 명령: JS: moveTrack()">
+                    <div class="c-timeline__tracks-header"
+                         data-js="timeline-tracks-header"
+                         title="트랙 헤더">
+                        <span>TRACKS</span>
+                    </div>
+                    <div v-for="(track, index) in vm.tracks" 
+                         :key="track.id" 
+                         class="c-timeline__track-item" 
+                         :class="{
+                             'c-timeline__track-item--hidden': !track.visible,
+                             'c-timeline__track-item--locked': track.locked
+                         }"
+                         :id="'timeline-track-item-' + track.id"
+                         :data-js="'timeline-track-item-' + index"
+                         :title="'트랙: ' + track.name"
+                         draggable 
+                         @dragstart="onTrackDragStart($event, index)" 
+                         @dragenter="onTrackDragEnter($event, index)" 
+                         @dragend="onTrackDragEnd" 
+                         @dragover.prevent 
+                         :data-dev="'요소의 역할: 타임라인 트랙 헤더\\n요소의 고유ID: component-timeline-track-' + track.id + '\\n요소의 기능 목적 정의: 개별 트랙 표시 및 순서 변경, 가시성/잠금 토글\\n요소의 동작 로직 설명: 드래그로 트랙 순서 변경, 눈 아이콘으로 가시성 토글, 자물쇠 아이콘으로 잠금 토글\\n요소의 입출력 데이터 구조: 입력: track (객체). 출력: vm.moveTrack(), vm.toggleTrackVisibility(), vm.toggleTrackLock()\\n요소의 경로정보: frontend/js/components/TimelinePanel.js#track\\n요소의 수행해야 할 백엔드/JS 명령: JS: onTrackDragStart(), vm.moveTrack(), vm.toggleTrackVisibility(), vm.toggleTrackLock()'">
+                        <div class="c-timeline__track-color" 
+                             :style="{ backgroundColor: track.color || '#666' }"
+                             :title="'트랙 색상: ' + track.color"></div>
+                        <span class="c-timeline__track-name" 
+                              contenteditable 
+                              suppressContentEditableWarning
+                              :data-js="'timeline-track-name-' + track.id"
+                              :title="'트랙 이름 편집'">
+                            {{ track.name }}
+                        </span>
+                        
+                        <div class="c-timeline__track-controls">
+                            <button class="c-timeline__track-btn" 
+                                    :class="{ 
+                                        'c-timeline__track-btn--danger': !track.visible,
+                                        'c-timeline__track-btn--active': track.visible
+                                    }"
+                                    :id="'timeline-track-visibility-' + track.id"
+                                    :data-js="'track-visibility-' + track.id"
+                                    @click.stop="vm.toggleTrackVisibility(track.id)"
+                                    :title="track.visible ? '트랙 숨기기' : '트랙 표시'"
+                                    data-dev="요소의 역할: 트랙 가시성 토글 버튼
+요소의 고유ID: component-track-visibility-btn
+요소의 기능 목적 정의: 트랙의 표시/숨김 상태 전환
+요소의 동작 로직 설명: 클릭 시 track.visible 상태 토글, 아이콘 변경 (눈/눈감음), 트랙 투명도 변경
+요소의 입출력 데이터 구조: 입력: 클릭. 출력: track.visible 상태 변경
+요소의 경로정보: frontend/js/components/TimelinePanel.js#btn-visibility
+요소의 수행해야 할 백엔드/JS 명령: JS: vm.toggleTrackVisibility(trackId)">
+                                <i :class="track.visible ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash'" 
+                                   class="c-timeline__track-icon"></i>
+                            </button>
+                            
+                            <button class="c-timeline__track-btn" 
+                                    :class="{ 
+                                        'c-timeline__track-btn--danger': track.locked
+                                    }"
+                                    :id="'timeline-track-lock-' + track.id"
+                                    :data-js="'track-lock-' + track.id"
+                                    @click.stop="vm.toggleTrackLock(track.id)"
+                                    :title="track.locked ? '트랙 잠금 해제' : '트랙 잠금'"
+                                    data-dev="요소의 역할: 트랙 잠금 토글 버튼
+요소의 고유ID: component-track-lock-btn
+요소의 기능 목적 정의: 트랙의 잠금/해제 상태 전환
+요소의 동작 로직 설명: 클릭 시 track.locked 상태 토글, 아이콘 변경 (자물쇠 열림/닫힘), 클립 편집 비활성화
+요소의 입출력 데이터 구조: 입력: 클릭. 출력: track.locked 상태 변경
+요소의 경로정보: frontend/js/components/TimelinePanel.js#btn-lock
+요소의 수행해야 할 백엔드/JS 명령: JS: vm.toggleTrackLock(trackId)">
+                                <i :class="track.locked ? 'fa-solid fa-lock' : 'fa-solid fa-lock-open'" 
+                                   class="c-timeline__track-icon"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="c-timeline__canvas" 
+                     data-js="timeline-canvas"
+                     title="타임라인 캔버스"
+                     @mousedown="handlePlayheadDrag($event)"
+                     data-dev="요소의 역할: 타임라인 캔버스
+요소의 고유ID: component-timeline-canvas
+요소의 기능 목적 정의: 눈금자, 트랙 행, 클립, 플레이헤드 렌더링
+요소의 동작 로직 설명: 눈금자 클릭으로 플레이헤드 이동, 클립 드래그/리사이즈
+요소의 입출력 데이터 구조: 입력: tracks, clips. 출력: 타임라인 UI
+요소의 경로정보: frontend/js/components/TimelinePanel.js#canvas
+요소의 수행해야 할 백엔드/JS 명령: JS: handlePlayheadDrag()">
+                    <div class="c-timeline__ruler c-timeline__ruler--sticky"
+                         data-js="timeline-ruler"
+                         title="타임라인 눈금자"
+                         data-dev="요소의 역할: 타임라인 눈금자
+요소의 고유ID: component-timeline-ruler
+요소의 기능 목적 정의: 시간 눈금 표시, 클릭 시 플레이헤드 이동
+요소의 동작 로직 설명: 5초 간격으로 눈금 표시, 클릭 시 해당 시간으로 플레이헤드 이동
+요소의 입출력 데이터 구조: 입력: zoom. 출력: 눈금 틱 렌더링
+요소의 경로정보: frontend/js/components/TimelinePanel.js#ruler
+요소의 수행해야 할 백엔드/JS 명령: JS: handlePlayheadDrag()">
+                        <div v-for="i in 50" 
+                             :key="'ruler-tick-' + i" 
+                             class="c-timeline__ruler-tick" 
+                             :style="{ width: vm.zoom * 5 + 'px' }"
+                             :data-js="'ruler-tick-' + i"
+                             :title="((i - 1) * 5) + '초'">
+                            {{ (i - 1) * 5 }}s
+                        </div>
+                    </div>
+                    
+                    <div v-for="track in vm.tracks" 
+                         :key="'track-row-' + track.id" 
+                         class="c-timeline__track-row"
+                         :class="{ 
+                             'c-timeline__track-row--hidden': !track.visible,
+                             'c-timeline__track-row--locked': track.locked
+                         }"
+                         :id="'timeline-track-row-' + track.id"
+                         :data-js="'track-row-' + track.id"
+                         :title="'트랙 행: ' + track.name"
+                         data-dev="요소의 역할: 트랙 행
+요소의 고유ID: component-timeline-track-row
+요소의 기능 목적 정의: 개별 트랙의 클립 표시 영역
+요소의 동작 로직 설명: 해당 트랙에 속한 클립들을 렌더링
+요소의 입출력 데이터 구조: 입력: track, clips. 출력: 클립 UI
+요소의 경로정보: frontend/js/components/TimelinePanel.js#track-row
+요소의 수행해야 할 백엔드/JS 명령: 없음">
+                        <div v-for="clip in vm.clips.filter(c => c.trackId === track.id)" 
+                             :key="clip.id"
+                             :id="'timeline-clip-' + clip.id"
+                             class="c-timeline__clip" 
+                             :class="{ 
+                                 'c-timeline__clip--selected': vm.selectedClip && vm.selectedClip.id === clip.id,
+                                 'c-timeline__clip--locked': track.locked
+                             }"
+                             :data-js="'clip-' + clip.id"
+                             :style="{ 
+                                 left: clip.start * vm.zoom + 'px', 
+                                 width: clip.duration * vm.zoom + 'px', 
+                                 backgroundColor: 'transparent',
+                                 pointerEvents: track.locked ? 'none' : 'auto'
+                             }"
+                             @click.stop="!track.locked && vm.setSelectedClip(clip)" 
+                             :title="'클립: ' + clip.name"
+                             :data-dev="'요소의 역할: 타임라인 클립\\n요소의 고유ID: component-timeline-clip-' + clip.id + '\\n요소의 기능 목적 정의: 개별 클립 표시 및 편집\\n요소의 동작 로직 설명: 드래그로 이동, 리사이즈로 길이 조절 (트랙 잠금 시 비활성화)\\n요소의 입출력 데이터 구조: 입력: clip (객체). 출력: vm.updateClip(), vm.moveClip()\\n요소의 경로정보: frontend/js/components/TimelinePanel.js#clip\\n요소의 수행해야 할 백엔드/JS 명령: JS: Interact.js 드래그/리사이즈, vm.setSelectedClip()'"
+                             data-x="0" 
+                             data-y="0">
+                            <div class="c-timeline__clip-bg" 
+                                 :style="{backgroundColor: track.type === 'audio' ? '#3b82f6' : track.color}"></div>
+                            
+                            <template v-if="track.type === 'audio'">
+                                <svg class="c-timeline__clip-waveform" 
+                                     viewBox="0 0 100 100" 
+                                     preserveAspectRatio="none"
+                                     title="오디오 파형">
+                                    <path d="M0 50 Q 10 20, 20 50 T 40 50 T 60 50 T 80 50 T 100 50" 
+                                          stroke="white" 
+                                          fill="transparent" 
+                                          stroke-width="2" 
+                                          vector-effect="non-scaling-stroke"/>
+                                </svg>
+                                <div class="c-timeline__clip-volume" 
+                                     title="볼륨 조절"></div>
+                            </template>
+                            
+                            <div class="c-timeline__clip-label"
+                                 :title="clip.name">
+                                {{ clip.name }}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="c-timeline__playhead-line" 
+                         :style="{ left: vm.currentTime * vm.zoom + 'px' }"
+                         data-js="timeline-playhead-line"
+                         title="플레이헤드"></div>
+                    <div class="c-timeline__playhead-handle" 
+                         :style="{ left: vm.currentTime * vm.zoom + 'px' }"
+                         data-js="timeline-playhead-handle"
+                         title="플레이헤드 드래그"></div>
+                </div>
+            </div>
+        </div>
+    \`
+};
