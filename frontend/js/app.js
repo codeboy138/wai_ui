@@ -595,4 +595,108 @@ const App = {
                         
                         <div class="c-layout__crosshair" 
                              :style="{paddingLeft: '20px', paddingTop: '20px'}">
-                            <div class="c-layout__crosshair-line c-layout__crosshair-line--vertical"<span class="cursor">█</span>
+                            <div class="c-layout__crosshair-line c-layout__crosshair-line--vertical" 
+                                 :style="{left: mouseMarkerPos.x + 'px'}" 
+                                 v-show="isMouseOverCanvas"></div>
+                            <div class="c-layout__crosshair-line c-layout__crosshair-line--horizontal" 
+                                 :style="{top: mouseMarkerPos.y + 'px'}" 
+                                 v-show="isMouseOverCanvas"></div>
+                        </div>
+                        
+                        <div class="c-layout__canvas-viewport" 
+                             id="canvas-viewport-main"
+                             data-js="canvas-viewport"
+                             title="캔버스 뷰포트">
+                            <div id="canvas-scaler-transform" 
+                                 class="c-layout__canvas-scaler" 
+                                 :style="canvasScalerStyle"
+                                 data-js="canvas-scaler"
+                                 title="캔버스 스케일러">
+                                <div id="canvas-guide-horizontal" 
+                                     class="c-layout__guide c-layout__guide--horizontal"></div>
+                                <div id="canvas-guide-vertical" 
+                                     class="c-layout__guide c-layout__guide--vertical"></div>
+                                
+                                <preview-canvas :canvas-boxes="canvasBoxes" 
+                                              :selected-box-id="selectedBoxId" 
+                                              @select-box="setSelectedBoxId" 
+                                              @remove-box="removeBox"></preview-canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="c-layout__resizer c-layout__resizer--horizontal" 
+                     id="layout-resizer-timeline"
+                     data-js="resizer-timeline"
+                     title="타임라인 크기 조절"></div>
+                
+                <timeline-panel :vm="$data" :style="{ height: timelineContainerHeight }"></timeline-panel>
+            </section>
+            
+            <aside id="layout-panel-right" 
+                   class="c-layout__panel c-layout__panel--right" 
+                   :style="{ width: rightPanelWidth + 'px', minWidth: '250px' }"
+                   data-js="panel-right"
+                   title="속성 패널">
+                <div class="c-layout__resizer c-layout__resizer--vertical c-layout__resizer--left" 
+                     id="layout-resizer-right"
+                     data-js="resizer-right"
+                     title="패널 크기 조절"></div>
+                <div class="c-layout__panel-content" 
+                     id="layout-panel-right-content">
+                    <layer-panel :vm="$data"></layer-panel>
+                    <properties-panel :vm="$data"></properties-panel>
+                    <div class="c-layout__panel-footer">
+                        <div>Effects Library</div>
+                    </div>
+                </div>
+            </aside>
+        </main>
+        
+        <project-modal v-if="isProjectModalOpen" @close="isProjectModalOpen = false"></project-modal>
+        
+        <div class="c-devmode-overlay" 
+             id="devmode-overlay-inspector" 
+             v-if="isDevModeActive || isDevModeFull"
+             data-js="devmode-overlay"
+             title="개발자 모드 오버레이">
+            <div class="c-devmode-overlay__highlight" 
+                 :style="highlightStyle"
+                 data-js="devmode-highlight"
+                 title="요소 하이라이트"></div>
+            <div class="c-devmode-overlay__tooltip" 
+                 :style="tooltipStyle"
+                 data-js="devmode-tooltip"
+                 title="요소 정보 툴팁">
+                <div v-if="isDevModeActive">
+                    <span class="c-devmode-overlay__tooltip-tag">{{ inspector.tag }}</span> 
+                    <span class="c-devmode-overlay__tooltip-id">{{ inspector.id ? '#' + inspector.id : '' }}</span> 
+                    <span class="c-devmode-overlay__tooltip-class">{{ inspector.className ? '.' + inspector.className.split(' ')[0] : '' }}</span><br>
+                    <strong>Name:</strong> {{ inspector.displayName }}<br>
+                    <strong>Size:</strong> {{ inspector.w }} × {{ inspector.h }}<br>
+                    <span class="c-devmode-overlay__tooltip-hint">클릭하여 이름 복사</span>
+                </div>
+                <div v-if="isDevModeFull && inspector.dataDev">
+                    <span class="c-devmode-overlay__tooltip-tag">{{ inspector.tag }}</span> 
+                    <span class="c-devmode-overlay__tooltip-id">{{ inspector.id ? '#' + inspector.id : '' }}</span><br>
+                    <div class="c-devmode-overlay__tooltip-datadev">
+                        {{ inspector.dataDev }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `
+};
+
+const app = createApp(App);
+
+app.component('dropdown-menu', DropdownMenu);
+app.component('project-modal', ProjectModal);
+app.component('ruler-line', RulerLine);
+app.component('layer-panel', LayerPanel);
+app.component('properties-panel', PropertiesPanel);
+app.component('preview-canvas', PreviewCanvas);
+app.component('timeline-panel', TimelinePanel);
+
+app.mount('#vue-app');
