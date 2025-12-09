@@ -3,12 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WAI Studio - Professional Editor</title>
+    <title>WAI Studio - Professional Editor (Full Version)</title>
     
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    
     <script src="https://cdn.tailwindcss.com"></script>
+    
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
 
     <script>
@@ -16,26 +20,458 @@
             theme: {
                 extend: {
                     colors: {
-                        bg: { dark: '#09090b', panel: '#18181b', hover: '#27272a', input: '#202023' },
-                        ui: { border: '#27272a', selected: '#3f3f46', accent: '#3b82f6', danger: '#ef4444', success: '#22c55e' },
-                        text: { main: '#f4f4f5', sub: '#a1a1aa', inv: '#18181b' }
+                        bg: { 
+                            dark: '#09090b',    /* 앱 전체 배경 (Zinc-950) */
+                            panel: '#18181b',   /* 패널 배경 (Zinc-900) */
+                            hover: '#27272a',   /* 호버 상태 배경 (Zinc-800) */
+                            input: '#202023'    /* 입력창 배경 */
+                        },
+                        ui: { 
+                            border: '#27272a',  /* 테두리 색상 */
+                            selected: '#3f3f46',/* 선택됨 (Zinc-700) */
+                            accent: '#3b82f6',  /* 강조 (Blue-500) */
+                            danger: '#ef4444',  /* 위험/삭제 (Red-500) */
+                            success: '#22c55e'  /* 성공 (Green-500) */
+                        },
+                        text: { 
+                            main: '#f4f4f5',    /* 메인 텍스트 (Zinc-100) */
+                            sub: '#a1a1aa',     /* 서브 텍스트 (Zinc-400) */
+                            inv: '#18181b'      /* 반전 텍스트 (검정) */
+                        }
                     },
-                    fontSize: { 'xxs': '10px' },
-                    spacing: { '15px': '15px' }
+                    fontSize: { 
+                        'xxs': '10px' 
+                    },
+                    spacing: { 
+                        '15px': '15px' 
+                    },
+                    cursor: { 
+                        'ew-resize': 'ew-resize', 
+                        'ns-resize': 'ns-resize',
+                        'row-resize': 'row-resize',
+                        'col-resize': 'col-resize'
+                    }
                 }
             }
         }
     </script>
 
-    <link rel="stylesheet" href="css/main.css">
-    <link rel="stylesheet" href="css/layout.css">
-    <link rel="stylesheet" href="css/components.css">
-    <link rel="stylesheet" href="css/timeline.css">
-    <link rel="stylesheet" href="css/canvas.css">
-    <link rel="stylesheet" href="css/dev-mode.css">
+    <style>
+        /* [전역 설정] */
+        body { 
+            background-color: #09090b; 
+            color: #f4f4f5; 
+            height: 100vh; 
+            overflow: hidden; 
+            user-select: none; 
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif; 
+        }
+        
+        /* 스크롤바 커스터마이징 */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #18181b; }
+        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #52525b; }
+
+        /* 타임라인 그리드 레이아웃 */
+        .timeline-grid { 
+            display: grid; 
+            height: 100%; 
+            overflow: hidden; /* 내부 컨테이너 스크롤 사용 */
+        }
+        
+        /* 고정 요소 (Sticky Headers & Rulers) */
+        .sticky-corner { position: sticky; top: 0; left: 0; z-index: 50; background: #18181b; border-bottom: 1px solid #27272a; border-right: 1px solid #27272a; }
+        .sticky-ruler { position: sticky; top: 0; z-index: 40; background: #09090b; border-bottom: 1px solid #27272a; }
+        .sticky-col { position: sticky; left: 0; z-index: 30; background: #18181b; border-right: 1px solid #27272a; }
+
+        /* 클립(Clip) 스타일 */
+        .clip { 
+            position: absolute; 
+            top: 4px; 
+            height: 32px; 
+            border-radius: 4px; 
+            overflow: hidden; 
+            border: 1px solid rgba(255,255,255,0.1); 
+            cursor: pointer; 
+            transition: box-shadow 0.1s, border-color 0.1s; 
+            touch-action: none;
+        }
+        .clip:hover { 
+            filter: brightness(1.1); 
+            z-index: 10; 
+            border-color: rgba(255,255,255,0.5); 
+        }
+        .clip.selected { 
+            border: 2px solid #fff; 
+            z-index: 20; 
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.3); 
+        }
+        .clip.dragging { 
+            opacity: 0.8; 
+            z-index: 100 !important; 
+            cursor: grabbing; 
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5); 
+        }
+        .clip-label { 
+            pointer-events: none; 
+            text-shadow: 0 1px 2px black; 
+            font-size: 10px;
+            padding: 2px 6px;
+            font-weight: bold;
+            color: white;
+            position: relative;
+            z-index: 2;
+        }
+
+        /* 오디오 파형 및 볼륨 라인 */
+        .waveform { 
+            position: absolute; top: 50%; left: 0; width: 100%; height: 100%; 
+            transform: translateY(-50%); opacity: 0.6; pointer-events: none; 
+        }
+        .volume-line { 
+            position: absolute; top: 30%; left: 0; width: 100%; height: 2px; 
+            background: rgba(255,255,255,0.8); cursor: ns-resize; z-index: 5; 
+            box-shadow: 0 1px 2px rgba(0,0,0,0.5); 
+        }
+        .volume-line:hover { background: #3b82f6; height: 3px; }
+
+        /* 프리뷰 캔버스 박스 (점선 자석 박스) */
+        .canvas-scaler { 
+            transform-origin: top left; 
+            background-color: #000; 
+            box-shadow: 0 0 50px rgba(0,0,0,0.5); 
+            position: relative; 
+        }
+        .canvas-box { 
+            position: absolute; 
+            border: 2px dashed rgba(255,255,255,0.3); 
+            background: rgba(255,255,255,0.05);
+            display: flex; align-items: flex-start; justify-content: flex-end; 
+            touch-action: none; box-sizing: border-box; 
+        }
+        .canvas-box.selected { 
+            border-style: solid; 
+            box-shadow: 0 0 0 1px #fff, 0 0 10px rgba(0,0,0,0.5); 
+            z-index: 1000 !important; 
+            border-color: #3b82f6;
+        }
+        .canvas-label { 
+            position: absolute; right: 0; bottom: -16px; 
+            background: #3b82f6; color: #fff; 
+            padding: 0 4px; font-size: 9px; font-weight: bold; 
+            border-radius: 2px; font-family: monospace; 
+            white-space: nowrap; pointer-events: none; 
+            text-shadow: 0 1px 2px black; opacity: 0.8; 
+        }
+        
+        /* 박스 리사이즈 핸들러 */
+        .box-handle { 
+            position: absolute; width: 8px; height: 8px; 
+            background: #fff; border: 1px solid #000; 
+            z-index: 20; display: none; 
+        }
+        .canvas-box.selected .box-handle { display: block; }
+        .bh-tl { top: -4px; left: -4px; cursor: nwse-resize; }
+        .bh-tr { top: -4px; right: -4px; cursor: nesw-resize; }
+        .bh-bl { bottom: -4px; left: -4px; cursor: nesw-resize; }
+        .bh-br { bottom: -4px; right: -4px; cursor: nwse-resize; }
+        
+        /* 스냅 플래시 효과 */
+        @keyframes flash { 
+            0% { background-color: rgba(255,255,255,0.8); } 
+            100% { background-color: rgba(255,255,255,0.05); } 
+        }
+        .snap-flash { animation: flash 0.3s ease-out; border-color: #fff !important; }
+
+        /* 가이드라인 (십자선) */
+        .guide-line-h { 
+            position: absolute; left: 0; right: 0; height: 1px; 
+            background-color: #3b82f6; border-top: 1px dashed #3b82f6; 
+            display: none; pointer-events: none; z-index: 9999; opacity: 0.8; 
+        }
+        .guide-line-v { 
+            position: absolute; top: 0; bottom: 0; width: 1px; 
+            background-color: #3b82f6; border-left: 1px dashed #3b82f6; 
+            display: none; pointer-events: none; z-index: 9999; opacity: 0.8; 
+        }
+
+        /* 패널 리사이저 (Panel Resizers) */
+        .panel-resizer-v { 
+            position: absolute; top: 0; bottom: 0; width: 4px; 
+            cursor: col-resize; z-index: 100; transition: background 0.2s; 
+        }
+        .panel-resizer-v:hover { background: #3b82f6; }
+        
+        .panel-resizer-h { 
+            width: 100%; height: 4px; background: #18181b; 
+            cursor: row-resize; z-index: 100; transition: background 0.2s; 
+            border-top: 1px solid #27272a; border-bottom: 1px solid #27272a; 
+        }
+        .panel-resizer-h:hover { background: #3b82f6; }
+
+        /* 트랙 리사이저 */
+        .resizer-w { 
+            position: absolute; top: 0; right: 0; width: 5px; height: 100%; 
+            cursor: col-resize; z-index: 60; 
+        }
+        .resizer-h { 
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 5px; 
+            cursor: row-resize; z-index: 60; 
+        }
+        .resizer-h:hover, .resizer-w:hover { background-color: #3b82f6; }
+
+        /* 공통 UI 유틸리티 */
+        .tool-btn { 
+            @apply p-1 rounded text-text-sub hover:text-text-main hover:bg-bg-hover transition-colors text-xs flex items-center justify-center w-6 h-6; 
+        }
+        .tool-btn.active { @apply text-ui-accent bg-bg-hover; }
+        
+        .nav-btn { 
+            @apply px-3 py-1 text-xs text-text-sub hover:text-text-main hover:bg-ui-selected rounded transition-colors cursor-pointer h-full flex items-center; 
+        }
+        .nav-btn.active { @apply text-text-main font-bold bg-bg-hover; }
+        
+        .win-btn { 
+            @apply w-10 h-full flex items-center justify-center text-text-sub hover:bg-bg-hover hover:text-text-main transition-colors text-xs; 
+        }
+        .win-btn.close:hover { @apply bg-ui-danger text-white; }
+
+        /* 커스텀 드롭다운 (FIXED) */
+        .c-dropdown { 
+            @apply relative inline-flex items-center px-2 h-full bg-bg-input rounded text-[10px] text-text-sub cursor-pointer hover:bg-bg-hover hover:text-text-main border border-ui-border select-none; 
+        }
+        .c-dropdown-menu { 
+            display: none; /* 기본 숨김 */
+            position: absolute; top: 105%; left: 0; width: 100%; 
+            background-color: #18181b; border: 1px solid #27272a; border-radius: 4px; 
+            flex-direction: column; z-index: 1000; shadow-xl; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+        .c-dropdown.open .c-dropdown-menu { display: flex; } /* .open 클래스가 있을 때만 표시 */
+        
+        .c-dropdown-item { @apply p-2 text-center hover:bg-ui-accent hover:text-white transition-colors; }
+        .c-dropdown.locked { cursor: not-allowed; opacity: 0.7; border-color: #333; background: #1a1a1a; }
+        .c-dropdown.locked:hover { background: #1a1a1a; color: #a1a1aa; }
+        .c-dropdown.locked:hover .c-dropdown-menu { display: none; }
+
+        /* 개발자 모드 (Dev Mode Overlay) */
+        .dev-overlay { 
+            pointer-events: none; position: fixed; inset: 0; z-index: 9999; display: none; 
+        }
+        body.dev-mode-active .dev-overlay { display: block; }
+        
+        .dev-highlight { 
+            position: absolute; border: 1px solid #ef4444; background: rgba(239, 68, 68, 0.1); 
+            transition: all 0.05s ease-out; pointer-events: none;
+        }
+        
+        .dev-tooltip { 
+            position: absolute; background: #ef4444; color: white; padding: 4px 8px; 
+            font-size: 10px; border-radius: 2px; font-family: monospace; white-space: pre; 
+            z-index: 10000; box-shadow: 0 2px 8px rgba(0,0,0,0.5); pointer-events: none;
+        }
+        
+        body.dev-mode-full [data-dev]:hover::after {
+            content: attr(data-dev); position: absolute; z-index: 99999;
+            background: rgba(0,0,0,0.95); color: #00ff00; padding: 6px; border: 1px solid #ef4444;
+            font-size: 10px; font-family: monospace; white-space: pre; border-radius: 2px;
+            bottom: 100%; left: 0; min-width: 200px; pointer-events: none; text-align: left;
+        }
+
+        /* 컨텍스트 메뉴 (Context Menu) */
+        .context-menu { 
+            position: fixed; background: #1e1e1e; border: 1px solid #333; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 5000; border-radius: 4px; 
+            padding: 4px 0; min-width: 120px; 
+        }
+        .ctx-item { padding: 4px 12px; font-size: 11px; color: #eee; cursor: pointer; display: flex; justify-content: space-between; gap: 10px; }
+        .ctx-item:hover { background: #3b82f6; color: white; }
+        
+        /* 색상 선택 그리드 */
+        .color-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding: 4px; }
+        .color-swatch { width: 16px; height: 16px; border-radius: 2px; cursor: pointer; border: 1px solid #333; }
+        .color-swatch:hover { border-color: white; transform: scale(1.1); }
+
+        /* Drag Overlay Highlight */
+        .timeline-drag-over { box-shadow: inset 0 0 0 2px #3b82f6; background-color: rgba(59, 130, 246, 0.1); }
+
+        /* 플레이헤드 (Playhead) */
+        .playhead-line { position: absolute; top: 0; bottom: 0; width: 1px; background: #ef4444; z-index: 40; pointer-events: none; }
+        .playhead-handle { position: absolute; top: 0; width: 11px; height: 12px; background: #ef4444; transform: translateX(-50%); clip-path: polygon(0 0, 100% 0, 50% 100%); cursor: ew-resize; pointer-events: auto; z-index: 50; }
+        
+        /* Modal Style */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); display: flex; justify-content: center; align-items: center; z-index: 5000; }
+        .modal-window { background: #18181b; border: 1px solid #27272a; border-radius: 8px; width: 80%; height: 80%; max-width: 1000px; max-height: 700px; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* Animation */
+        .animate-fade-in { animation: fadeIn 0.2s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
 </head>
-<body class="flex flex-col text-xs">
-    <div id="vue-app" class="flex flex-col h-screen"></div>
-    <script type="module" src="js/app.js"></script>
+<body class="flex flex-col text-xs" data-dev="ID: app-root\nComp: AppCore\nNote: 애플리케이션 최상위 컨테이너">
+
+    <div id="vue-app" class="flex flex-col h-screen">
+        
+        <header id="app-header" class="h-12 bg-bg-panel border-b border-ui-border flex items-center justify-between shrink-0 select-none px-[15px]" data-dev="ID: header\nComp: Header\nNote: 상단 헤더 영역">
+            <div class="flex items-center h-full gap-[15px]">
+                <div class="font-bold text-lg tracking-tighter text-text-main" data-dev="ID: app-logo">WAI</div>
+                
+                <div class="relative group h-full flex items-center" data-dev="ID: menu-main\nComp: Header\nNote: 메인 메뉴 (비활성)">
+                    <button class="text-lg text-text-sub hover:text-text-main"><i class="fa-solid fa-bars"></i></button>
+                </div>
+
+                <nav class="flex items-center gap-[15px] h-full" data-dev="ID: nav-container\nComp: Header/Navigation\nNote: 메인 네비게이션 컨테이너">
+                    <button class="nav-btn hover:text-white text-text-sub" @click="firePython('nav_explore')" data-dev="ID: nav-explore\nEvent: Click -> Py:nav('explore')">탐색</button>
+                    <button class="nav-btn active" @click="isProjectModalOpen = true" data-dev="ID: nav-create\nEvent: Click -> Vue:isProjectModalOpen=true">제작</button>
+                    
+                    <div class="relative group h-full flex items-center" data-dev="ID: nav-assets-group">
+                        <button class="nav-btn hover:text-white text-text-sub" data-dev="ID: nav-assets">자산</button>
+                        <div class="absolute top-full left-0 w-32 bg-bg-panel border border-ui-border shadow-xl rounded-b hidden group-hover:block z-50">
+                            <button class="w-full text-left px-4 py-2 hover:bg-bg-hover text-xs text-text-main" @click="firePython('open_asset_manager')" data-dev="ID: menu-asset-manage\nEvent: Click -> Py:open_asset_manager()">자산 관리</button>
+                        </div>
+                    </div>
+
+                    <button class="nav-btn hover:text-white text-text-sub" @click="firePython('nav_settings')" data-dev="ID: nav-settings\nEvent: Click -> Py:nav('settings')">설정</button>
+                    <button class="nav-btn hover:text-white text-text-sub" @click="firePython('nav_research')" data-dev="ID: nav-research\nEvent: Click -> Py:nav('research')">연구</button>
+                </nav>
+            </div>
+            
+            <div class="flex items-center h-full gap-0">
+                <button id="inspector-toggle" 
+                        class="h-6 px-3 border border-ui-border rounded-l text-text-sub hover:text-white hover:bg-bg-hover flex items-center gap-1 transition-colors" 
+                        :class="{'bg-ui-selected text-text-main': isDevModeActive}"
+                        @click="toggleDevMode('active')"
+                        data-dev="ID: btn-inspector-mode\nEvent: Click -> Vue:toggleDevMode('active')\nState: Read: isDevModeActive">
+                    <i class="fa-solid fa-magnifying-glass"></i> Inspect
+                </button>
+
+                <button id="dev-toggle" 
+                        class="h-6 px-3 border border-ui-border border-l-0 rounded-r text-text-sub hover:text-white hover:bg-bg-hover flex items-center gap-1 mr-4 transition-colors" 
+                        :class="{'bg-ui-selected text-text-main': isDevModeFull}"
+                        @click="toggleDevMode('full')"
+                        data-dev="ID: btn-dev-mode-full\nEvent: Click -> Vue:toggleDevMode('full')\nState: Read: isDevModeFull">
+                    <i class="fa-solid fa-code"></i> Dev
+                </button>
+
+                <div class="flex items-center h-full ml-[15px] gap-0 border-l border-ui-border pl-2" data-dev="ID: win-controls\nComp: System\nNote: 윈도우 창 제어 그룹">
+                    <button class="win-btn" @click="firePython('win_min')" data-dev="ID: win-min\nEvent: Click -> Py:win_minimize()">
+                        <i class="fa-solid fa-minus text-[10px]"></i>
+                    </button>
+                    <button class="win-btn" @click="firePython('win_max')" data-dev="ID: win-max\nEvent: Click -> Py:win_maximize()">
+                        <i class="fa-regular fa-square text-[10px]"></i>
+                    </button>
+                    <button class="win-btn close" @click="firePython('win_close')" data-dev="ID: win-close\nEvent: Click -> Py:win_close()">
+                        <i class="fa-solid fa-xmark text-[10px]"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="flex-1 flex overflow-hidden relative" id="main-layout" data-dev="ID: main-content">
+            
+            <aside id="panel-left" class="bg-bg-panel flex flex-col relative border-r border-ui-border" :style="{ width: leftPanelWidth + 'px', minWidth: '180px' }" data-dev="ID: panel-left\nComp: LeftPanel\nState: Read: leftPanelWidth\nNote: 좌측 패널 (자산 라이브러리)">
+                <div class="p-2 border-b border-ui-border font-bold text-text-sub flex justify-between" data-dev="ID: panel-left-header">
+                    <span>자산 (Assets)</span>
+                    <button class="text-xs hover:text-white" @click="firePython('import_asset')" data-dev="ID: btn-add-asset\nEvent: Click -> Py:import_asset()">+</button>
+                </div>
+                <div class="flex-1 overflow-y-auto p-2 flex flex-col items-center justify-center text-text-sub opacity-30 gap-2" id="react-asset-list">
+                    <i class="fa-solid fa-folder-open text-2xl"></i>
+                    <div class="text-[10px]">자산 목록이 비어있습니다.</div>
+                </div>
+                
+                <div class="panel-resizer-v right-0" id="resizer-left" data-dev="ID: resizer-left\nEvent: Drag -> Vue:resizePanel('left')\nNote: 좌측 패널 너비 조절 핸들"></div>
+            </aside>
+
+            <section class="flex-1 flex flex-col bg-bg-dark min-w-[400px] relative overflow-hidden" data-dev="ID: panel-center\nComp: CenterPanel\nNote: 중앙 패널 (프리뷰+타임라인)">
+                
+                <div id="preview-container" class="relative flex flex-col" :style="{ height: previewContainerHeight }" data-dev="ID: container-preview\nState: Read: previewContainerHeight\nNote: 프리뷰 컨테이너">
+                    
+                    <div class="h-8 bg-bg-panel border-b border-ui-border flex items-center justify-center px-2 gap-3 shrink-0 z-20" data-dev="ID: preview-toolbar">
+                        <div class="flex items-center gap-2 bg-bg-input rounded px-3 h-6 border border-ui-border">
+                            
+                            <dropdown-menu :current-value="aspectRatio" :items="['16:9', '9:16', '1:1']" @select="setAspect" id="dd-ratio" data-dev="ID: dd-ratio"></dropdown-menu>
+
+                            <div class="w-px h-3 bg-ui-border"></div>
+                            
+                            <div class="c-info-box px-2 flex items-center bg-bg-input rounded h-6 border border-ui-border w-24 justify-center" data-dev="ID: box-coords">
+                                <span id="coord-display" class="text-xxs font-mono text-ui-accent" data-dev="ID: txt-coord">{{ Math.round(mouseCoord.x) }}, {{ Math.round(mouseCoord.y) }}</span>
+                            </div>
+
+                            <div class="w-px h-3 bg-ui-border"></div>
+
+                            <dropdown-menu :current-value="resolution" :items="['8K', '6K', '4K', '3K', '2K']" @select="setResolution" id="dd-resolution" data-dev="ID: dd-resolution"></dropdown-menu>
+                            
+                            <div class="w-px h-3 bg-ui-border"></div>
+
+                            <div class="cursor-pointer flex items-center gap-1 hover:text-white text-[10px] font-bold" @click="isMagnet = !isMagnet" :class="{'text-ui-accent': isMagnet, 'text-text-sub': !isMagnet}" data-dev="ID: btn-magnet">
+                                <i class="fa-solid fa-magnet mr-1"></i> SNAP {{ isMagnet ? 'ON' : 'OFF' }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex-1 relative overflow-hidden bg-black flex items-center justify-center" id="canvas-wrapper" 
+                         @mousemove="updateCanvasMouseCoord" @mouseleave="mouseCoord = {x: 0, y: 0}; isMouseOverCanvas = false"
+                         data-dev="ID: canvas-wrapper">
+                        
+                        <div class="absolute top-0 left-0 w-full h-5 bg-[#121212] border-b border-[#333] z-20 pl-5 flex overflow-hidden" id="ruler-h">
+                            <ruler-line :orientation="'h'" :max-size="canvasSize.w" :scale="canvasScale"></ruler-line>
+                        </div>
+                        <div class="absolute top-0 left-0 w-5 h-full bg-[#121212] border-r border-[#333] z-20 pt-5 flex flex-col overflow-hidden" id="ruler-v">
+                            <ruler-line :orientation="'v'" :max-size="canvasSize.h" :scale="canvasScale"></ruler-line>
+                        </div>
+
+                        <div class="absolute top-0 left-0 w-full h-full z-30 pointer-events-none" :style="{paddingLeft: '20px', paddingTop: '20px'}">
+                            <div class="absolute w-px h-full bg-ui-accent opacity-30" :style="{left: mouseMarkerPos.x + 'px'}" v-show="isMouseOverCanvas"></div>
+                            <div class="absolute h-px w-full bg-ui-accent opacity-30" :style="{top: mouseMarkerPos.y + 'px'}" v-show="isMouseOverCanvas"></div>
+                        </div>
+
+                        <div class="relative overflow-hidden" id="canvas-viewport" style="width:100%; height:100%;">
+                            <div id="canvas-scaler" class="canvas-scaler" :style="canvasScalerStyle">
+                                <div id="guide-h" class="guide-line-h" style="top: 50%;"></div>
+                                <div id="guide-v" class="guide-line-v" style="left: 50%;"></div>
+                                
+                                <preview-canvas :canvas-boxes="canvasBoxes" :selected-box-id="selectedBoxId" @select-box="setSelectedBoxId" @remove-box="removeBox"></preview-canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-resizer-h" id="resizer-timeline" data-dev="ID: resizer-center\nEvent: Drag -> Vue:resizePanel('center')"></div>
+
+                <timeline-panel :vm="$data" :style="{ height: timelineContainerHeight }"></timeline-panel>
+            </section>
+
+            <aside id="panel-right" class="bg-bg-panel flex flex-col relative border-l border-ui-border" :style="{ width: rightPanelWidth + 'px', minWidth: '250px' }" data-dev="ID: panel-right\nComp: RightPanel\nState: Read: rightPanelWidth\nNote: 우측 패널 (속성+레이어)">
+                <div class="panel-resizer-v left-0" id="resizer-right" data-dev="ID: resizer-right\nEvent: Drag -> Vue:resizePanel('right')\nNote: 우측 패널 너비 조절 핸들"></div>
+                <div class="flex-1 overflow-y-auto flex flex-col" id="vue-right-panel-root">
+                    <layer-panel :vm="$data"></layer-panel>
+                    <properties-panel :vm="$data"></properties-panel>
+                    <div class="flex-1 bg-bg-dark border-t border-ui-border p-2"><div class="text-[10px] text-text-sub text-center opacity-30 mt-4">Effects Library</div></div>
+                </div>
+            </aside>
+
+        </main>
+
+        <project-modal v-if="isProjectModalOpen" @close="isProjectModalOpen = false"></project-modal>
+
+        <div class="dev-overlay" id="dev-overlay" v-if="inspector.tag">
+            <div class="dev-highlight" :style="highlightStyle"></div>
+            <div class="dev-tooltip" :style="tooltipStyle">
+                <span class="text-yellow-400 font-bold">{{ inspector.tag }}</span> 
+                <span class="text-blue-300">{{ inspector.id ? '#' + inspector.id : '' }}</span> 
+                <span class="text-green-300">{{ inspector.className ? '.' + inspector.className.split(' ')[0] : '' }}</span><br>
+                Size: {{ inspector.w }} x {{ inspector.h }}<br>
+                <div v-if="inspector.dataDev" class="mt-1 pt-1 border-t border-gray-500 text-[9px] text-gray-300">
+                    {{ inspector.dataDev }}
+                </div>
+            </div>
+        </div>
+        
+    </div>
+
+    <!-- JS 분리: 유틸, 컴포넌트, 앱 코어 -->
+    <script src="js/app-utils.js"></script>
+    <script src="js/app-components.js"></script>
+    <script src="js/app-core.js"></script>
 </body>
 </html>
