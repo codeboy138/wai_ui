@@ -74,16 +74,14 @@ export default {
     
     // ===== PREVIEW TOOLBAR =====
     "preview-toolbar-ratio-dropdown": {
-        "io": "입력:항목 선택 → @select 이벤트 → setAspect(ratio) → aspectRatio 상태 변경 → 출력:캔버스 비율 변경",
-        "logic": "DropdownMenu 컴포넌트 → $emit('select', ratio) → setAspect(ratio) → store.aspectRatio 업데이트",
-        "js_methods": ["setAspect"],
+        "io": "입력:항목 선택 → @select 이벤트 → aspectRatio 상태 변경 → 출력:캔버스 비율 변경",
+        "logic": "DropdownMenu 컴포넌트 → $emit('select', ratio) → vm.aspectRatio = ratio → store.aspectRatio 업데이트",
         "js_state": "store.aspectRatio"
     },
     
     "preview-toolbar-resolution-dropdown": {
-        "io": "입력:항목 선택 → @select 이벤트 → setResolution(res) → canvasSize 상태 변경 → 출력:캔버스 해상도 변경",
-        "logic": "DropdownMenu 컴포넌트 → $emit('select', res) → setResolution(res) → store.canvasSize 업데이트 (예: 4K → {w:3840, h:2160})",
-        "js_methods": ["setResolution"],
+        "io": "입력:항목 선택 → @select 이벤트 → canvasSize 상태 변경 → 출력:캔버스 해상도 변경",
+        "logic": "DropdownMenu 컴포넌트 → $emit('select', res) → vm.resolution = res → store.canvasSize 업데이트 (예: 4K → {w:3840, h:2160})",
         "js_state": "store.canvasSize"
     },
     
@@ -107,18 +105,6 @@ export default {
         "js_state": "store.zoom"
     },
     
-    "timeline-tool-cut-btn": {
-        "io": "입력:클릭 → 선택된 클립을 플레이헤드 위치에서 분할 → 출력:clips 배열에 2개 클립 생성",
-        "logic": "@click → cutClip(selectedClip.id, currentTime) → clips.splice() + clips.push()",
-        "js_methods": ["cutClip"]
-    },
-    
-    "timeline-tool-delete-btn": {
-        "io": "입력:클릭 → 선택된 클립 삭제 → 출력:clips 배열에서 제거",
-        "logic": "@click → removeClip(selectedClip.id) → clips = clips.filter(c => c.id !== id)",
-        "js_methods": ["removeClip"]
-    },
-    
     "timeline-tool-magnet-btn": {
         "io": "입력:클릭 → isMagnet 토글 → 출력:클립 스냅 기능 활성화/비활성화",
         "logic": "@click → vm.isMagnet = !vm.isMagnet → Interact.js snap modifier 재설정 → 클립 드래그 시 다른 클립/플레이헤드에 자동 정렬",
@@ -133,44 +119,23 @@ export default {
     },
     
     "timeline-clip-{id}": {
-        "io": "입력:드래그/리사이즈 → Interact.js 이벤트 → updateClip() 또는 moveClip() 호출 → 출력:clips[].start/duration 업데이트 → DOM 리렌더",
-        "logic": "Interact.draggable → move 이벤트 → data-x 누적 → end 이벤트 → moveClip(id, timeChange) → clips[index].start += timeChange | Interact.resizable → move 이벤트 → width 변경 → end 이벤트 → updateClip(id, startChange, durationChange) → clips[index].start/duration 업데이트",
+        "io": "입력:드래그/리사이즈 → Interact.js 이벤트 → updateClip()/moveClip() 호출 → 출력:clips[].start/duration 업데이트",
+        "logic": "Interact.draggable → move → data-x 누적 → end → moveClip(id, timeChange) | Interact.resizable → move → width 변경 → end → updateClip(id, startChange, durationChange)",
         "js_methods": ["updateClip", "moveClip"],
         "js_state": "store.clips"
     },
     
-    "timeline-track-item-{id}": {
-        "io": "입력:드래그 → onTrackDragStart/Enter/End → 출력:tracks 배열 순서 변경 → 트랙 재정렬",
-        "logic": "draggable → dragstart → dragItemIndex 저장 → dragenter → dragOverItemIndex 저장 → dragend → moveTrack(from, to) → tracks.splice() + tracks.splice()",
-        "js_methods": ["moveTrack"],
-        "js_state": "store.tracks"
-    },
-    
-    "timeline-track-visibility-{id}": {
-        "io": "입력:클릭 → toggleTrackVisibility(trackId) → track.visible 토글 → 출력:트랙 투명도 변경 + 클립 표시/숨김",
-        "logic": "@click.stop → toggleTrackVisibility(id) → tracks.find(t => t.id).visible = !visible → :class 바인딩으로 스타일 변경",
-        "js_methods": ["toggleTrackVisibility"],
-        "js_state": "store.tracks[].visible"
-    },
-    
-    "timeline-track-lock-{id}": {
-        "io": "입력:클릭 → toggleTrackLock(trackId) → track.locked 토글 → 출력:클립 편집 비활성화",
-        "logic": "@click.stop → toggleTrackLock(id) → tracks.find(t => t.id).locked = !locked → pointerEvents: 'none' 적용",
-        "js_methods": ["toggleTrackLock"],
-        "js_state": "store.tracks[].locked"
-    },
-    
     "timeline-playhead-handle": {
         "io": "입력:드래그 → handlePlayheadDrag() → currentTime 업데이트 → 출력:플레이헤드 위치 이동",
-        "logic": "mousedown → 마우스 이동 추적 → newX 계산 → isMagnet 체크 → 스냅 대상 검색 (클립 시작/끝) → currentTime = newX / zoom",
+        "logic": "mousedown → 마우스 이동 추적 → newX 계산 → isMagnet 체크 → 스냅 대상 검색 → currentTime = newX / zoom",
         "js_methods": ["handlePlayheadDrag"],
         "js_state": "store.currentTime"
     },
     
     // ===== CANVAS =====
     "canvas-box-{id}": {
-        "io": "입력:드래그/리사이즈 → Interact.js 이벤트 → updateBoxPosition() 호출 → 출력:canvasBoxes[].x/y/w/h 업데이트 → DOM 리렌더",
-        "logic": "Interact.draggable → move 이벤트 → data-x/y 누적 → end 이벤트 → updateBoxPosition(id, dx, dy, w, h) → canvasBoxes[index] 업데이트 | Interact.resizable → move 이벤트 → width/height 변경 → end 이벤트 → updateBoxPosition(id, dx, dy, newW, newH, true)",
+        "io": "입력:드래그/리사이즈 → Interact.js 이벤트 → updateBoxPosition() 호출 → 출력:canvasBoxes[].x/y/w/h 업데이트",
+        "logic": "Interact.draggable → move → data-x/y 누적 → end → updateBoxPosition(id, dx, dy, w, h) | Interact.resizable → move → width/height 변경 → end → updateBoxPosition(id, dx, dy, newW, newH, true)",
         "js_methods": ["updateBoxPosition", "removeBox", "setSelectedBoxId"],
         "js_state": "store.canvasBoxes"
     },
@@ -183,39 +148,32 @@ export default {
         "js_state": "store.layerCols"
     },
     
-    "layer-matrix-cell-{col}-{type}": {
+    "layer-matrix-cell": {
         "io": "입력:클릭 → addLayerBox(colIdx, type, color) → canvasBoxes 배열에 새 박스 추가 → 출력:캔버스에 박스 렌더링",
         "logic": "@click → addLayerBox(colIdx, type, color) → zIndex = getZIndex(colIdx, type) → canvasBoxes.push({id, colIdx, type, zIndex, color, x, y, w, h})",
         "js_methods": ["addLayerBox", "getZIndex"],
         "js_state": "store.canvasBoxes"
     },
     
-    "layer-col-{id}": {
-        "io": "입력:우클릭 → openContextMenu() → 컨텍스트 메뉴 표시 → 색상 선택 → handleColColor() → 출력:layerCols[].color 업데이트",
-        "logic": "@contextmenu.prevent → openContextMenu(e, id, index) → contextMenu = {x, y, colId} → 색상 클릭 → handleColColor(color) → layerCols.map() → col.color 업데이트",
-        "js_methods": ["openContextMenu", "handleColColor"],
-        "js_state": "store.layerCols[].color"
-    },
-    
     "layer-save-template-btn": {
-        "io": "입력:클릭 → SweetAlert2 입력 모달 → 이름 입력 → saveLayerTemplate() → 출력:layerTemplates 배열에 추가 + layerMainName 설정",
-        "logic": "@click → Swal.fire({input:'text'}) → 이름 입력 → saveLayerTemplate(name) → layerTemplates.push({id, name, cols}) → layerMainName = name",
+        "io": "입력:클릭 → SweetAlert2 입력 모달 → 이름 입력 → saveLayerTemplate() → 출력:layerTemplates 배열에 추가",
+        "logic": "@click → Swal.fire({input:'text'}) → 이름 입력 → saveLayerTemplate(name) → layerTemplates.push({id, name, cols})",
         "js_methods": ["saveLayerTemplate"],
-        "js_state": "store.layerTemplates, store.layerMainName"
+        "js_state": "store.layerTemplates"
     },
     
     // ===== PROPERTIES PANEL =====
     "properties-clip-delete-btn": {
-        "io": "입력:클릭 → deleteClip(id) → clips 배열에서 제거 → 출력:타임라인에서 클립 사라짐 + selectedClip = null",
-        "logic": "@click → deleteClip(selectedClip.id) → removeClip(id) → clips = clips.filter(c => c.id !== id) → selectedClip = null",
+        "io": "입력:클릭 → deleteClip(id) → clips 배열에서 제거 → 출력:타임라인에서 클립 제거 + selectedClip = null",
+        "logic": "@click → deleteClip(selectedClip.id) → removeClip(id) → clips.filter(c => c.id !== id) → selectedClip = null",
         "js_methods": ["deleteClip", "removeClip"],
-        "js_state": "store.clips, store.selectedClip"
+        "js_state": "store.clips"
     },
     
     "properties-box-delete-btn": {
-        "io": "입력:클릭 → removeBox(id) → canvasBoxes 배열에서 제거 → 출력:캔버스에서 박스 사라짐 + selectedBoxId = null",
-        "logic": "@click → vm.removeBox(selectedBoxId) → canvasBoxes = canvasBoxes.filter(b => b.id !== id) → selectedBoxId = null",
+        "io": "입력:클릭 → removeBox(id) → canvasBoxes 배열에서 제거 → 출력:캔버스에서 박스 제거 + selectedBoxId = null",
+        "logic": "@click → vm.removeBox(selectedBoxId) → canvasBoxes.filter(b => b.id !== id) → selectedBoxId = null",
         "js_methods": ["removeBox"],
-        "js_state": "store.canvasBoxes, store.selectedBoxId"
+        "js_state": "store.canvasBoxes"
     }
 };
