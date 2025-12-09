@@ -121,132 +121,36 @@ const app = createApp({
       }'
     >
       <!-- 헤더 -->
-      <Header 
-        :data-dev='{
-          "role": "애플리케이션 헤더 컴포넌트",
-          "id": "app-header-component",
-          "func": "프로젝트 관리 메뉴 제공 (New, Open, Save, Export)",
-          "goal": "사용자가 프로젝트를 관리하고 주요 기능에 접근",
-          "state": {},
-          "path": "frontend/js/app.js → Header component",
-          "py": "",
-          "js": ""
-        }'
-      />
+      <Header />
 
       <!-- 메인 레이아웃 -->
       <main 
         id="app-main"
         class="c-app__main"
-        :data-dev='{
-          "role": "메인 작업 영역 (3컬럼 레이아웃)",
-          "id": "app-main",
-          "func": "LeftPanel, PreviewCanvas, RightPanel을 수평 배치",
-          "goal": "사용자가 자산 선택, 캔버스 편집, 레이어 관리를 동시에 수행",
-          "state": {},
-          "path": "frontend/js/app.js → main layout",
-          "py": "",
-          "js": ""
-        }'
       >
         <!-- 좌측 패널 (자산 라이브러리) -->
         <aside 
           id="app-left-panel"
           class="c-app__panel c-app__panel--left"
-          :data-dev='{
-            "role": "좌측 패널 컨테이너",
-            "id": "app-left-panel",
-            "func": "LeftPanel 컴포넌트를 포함하는 사이드바",
-            "goal": "사용자가 자산을 선택하여 캔버스에 추가",
-            "state": {},
-            "path": "frontend/js/app.js → left panel",
-            "py": "",
-            "js": ""
-          }'
         >
-          <LeftPanel 
-            :data-dev='{
-              "role": "자산 라이브러리 컴포넌트",
-              "id": "app-left-panel-component",
-              "func": "이미지, 비디오, 오디오, 텍스트 자산 관리",
-              "goal": "사용자가 자산을 카테고리별로 관리하고 캔버스에 추가",
-              "state": {},
-              "path": "frontend/js/app.js → LeftPanel component",
-              "py": "",
-              "js": ""
-            }'
-          />
+          <LeftPanel />
         </aside>
 
         <!-- 중앙 패널 (프리뷰 캔버스) -->
         <section 
           id="app-center-panel"
           class="c-app__panel c-app__panel--center"
-          :data-dev='{
-            "role": "중앙 패널 컨테이너",
-            "id": "app-center-panel",
-            "func": "PreviewToolbar와 PreviewCanvas를 포함하는 메인 작업 영역",
-            "goal": "사용자가 캔버스에서 레이어를 시각적으로 편집",
-            "state": {},
-            "path": "frontend/js/app.js → center panel",
-            "py": "",
-            "js": ""
-          }'
         >
-          <PreviewToolbar 
-            :data-dev='{
-              "role": "프리뷰 도구 모음 컴포넌트",
-              "id": "app-preview-toolbar-component",
-              "func": "Ratio, Quality, Resolution 선택 UI",
-              "goal": "사용자가 캔버스 해상도 설정",
-              "state": {},
-              "path": "frontend/js/app.js → PreviewToolbar component",
-              "py": "",
-              "js": ""
-            }'
-          />
-          
-          <PreviewCanvas 
-            :data-dev='{
-              "role": "프리뷰 캔버스 컴포넌트",
-              "id": "app-preview-canvas-component",
-              "func": "레이어 객체를 시각적으로 배치 및 편집",
-              "goal": "사용자가 레이어를 드래그, 리사이즈하며 실시간 피드백 제공",
-              "state": {},
-              "path": "frontend/js/app.js → PreviewCanvas component",
-              "py": "",
-              "js": ""
-            }'
-          />
+          <PreviewToolbar />
+          <PreviewCanvas />
         </section>
 
         <!-- 우측 패널 (레이어 매트릭스 + 속성) -->
         <aside 
           id="app-right-panel"
           class="c-app__panel c-app__panel--right"
-          :data-dev='{
-            "role": "우측 패널 컨테이너",
-            "id": "app-right-panel",
-            "func": "RightPanel 컴포넌트를 포함하는 사이드바",
-            "goal": "사용자가 레이어를 매트릭스로 관리하고 속성 편집",
-            "state": {},
-            "path": "frontend/js/app.js → right panel",
-            "py": "",
-            "js": ""
-          }'
         >
-          <RightPanel 
-            :data-dev='{
-              "role": "레이어 매트릭스 및 속성 패널 컴포넌트",
-              "id": "app-right-panel-component",
-              "func": "레이어 매트릭스 그리드와 선택된 레이어의 속성 편집 UI",
-              "goal": "사용자가 레이어를 시각적으로 관리하고 속성 수정",
-              "state": {},
-              "path": "frontend/js/app.js → RightPanel component",
-              "py": "",
-              "js": ""
-            }'
-          />
+          <RightPanel />
         </aside>
       </main>
 
@@ -254,29 +158,8 @@ const app = createApp({
       <footer 
         id="app-timeline-panel"
         class="c-app__panel c-app__panel--bottom"
-        :data-dev='{
-          "role": "타임라인 패널 컨테이너",
-          "id": "app-timeline-panel",
-          "func": "TimelinePanel 컴포넌트를 포함하는 하단 영역",
-          "goal": "사용자가 클립을 시간축에 배치하고 재생 제어",
-          "state": {},
-          "path": "frontend/js/app.js → timeline panel",
-          "py": "",
-          "js": ""
-        }'
       >
-        <TimelinePanel 
-          :data-dev='{
-            "role": "타임라인 컴포넌트",
-            "id": "app-timeline-component",
-            "func": "트랙, 클립, Playhead, 재생 제어 UI",
-            "goal": "사용자가 클립을 시간축에서 편집하고 프로젝트 재생",
-            "state": {},
-            "path": "frontend/js/app.js → TimelinePanel component",
-            "py": "",
-            "js": ""
-          }'
-        />
+        <TimelinePanel />
       </footer>
 
       <!-- DATA DEV Inspector (devMode 활성화 시) -->
@@ -284,20 +167,6 @@ const app = createApp({
         v-if="devMode && inspector.visible"
         id="data-dev-inspector"
         class="c-inspector"
-        :data-dev='{
-          "role": "DATA DEV Inspector (개발자 도구)",
-          "id": "data-dev-inspector",
-          "func": "마우스 오버 시 data-dev 속성 정보를 실시간 표시",
-          "goal": "개발자가 컴포넌트 구조, 역할, 상태, 명령을 빠르게 파악",
-          "state": {
-            "visible": inspector.visible,
-            "target": "현재 마우스 오버 중인 요소",
-            "data": "data-dev 파싱 데이터"
-          },
-          "path": "frontend/js/app.js → DATA DEV Inspector",
-          "py": "",
-          "js": "initInspector()"
-        }'
       >
         <div class="c-inspector__header">
           <strong>DATA DEV Inspector</strong>
@@ -344,11 +213,15 @@ app.component('RightPanel', RightPanel);
 app.component('TimelinePanel', TimelinePanel);
 app.component('ProjectModal', ProjectModal);
 app.component('DesignGuide', DesignGuide);
-app.component('DropdownMenu', DropdownMenu);
+
+// DropdownMenu 전역 변수 확인 후 등록
+if (typeof DropdownMenu !== 'undefined') {
+  app.component('DropdownMenu', DropdownMenu);
+}
 
 // ==========================================
-// Vue 앱 마운트
+// Vue 앱 마운트 (중요! #app-root로 수정)
 // ==========================================
-app.mount('#app');
+app.mount('#app-root');
 
 console.log('[WAI Studio] Application Initialized');
