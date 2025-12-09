@@ -1,0 +1,17 @@
+/**
+ * ==========================================
+ * main.css - CSS 진입점
+ * 
+ * 역할: 모든 CSS 파일을 @import로 통합
+ * 경로: frontend/css/main.css
+ * ==========================================
+ */
+
+/* 전역 스타일 */
+@import url('global.css');
+
+/* 기능별 스타일 */
+@import url('timeline.css');
+@import url('canvas.css');
+@import url('panels.css');
+@import url('components.css');
