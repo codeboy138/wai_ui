@@ -7,8 +7,6 @@
  * ==========================================
  */
 
-import elementSpecs from '../docs/element-specs.js';
-
 export const devModeMixin = {
     methods: {
         toggleDevMode(mode) {
@@ -32,7 +30,7 @@ export const devModeMixin = {
         setupInspectorMode() {
             const self = this;
             
-            document.addEventListener('mousemove', (e) => {
+            document.addEventListener('mousemove', async (e) => {
                 if (!self.isDevModeActive && !self.isDevModeFull) return;
                 
                 let target = e.target;
@@ -52,7 +50,6 @@ export const devModeMixin = {
                     };
                     
                     const elementId = target.id || target.className.split(' ')[0] || target.tagName;
-                    const spec = self.getElementSpec(target.id);
                     
                     if (self.isDevModeActive) {
                         self.inspector = {
@@ -62,12 +59,13 @@ export const devModeMixin = {
                         };
                     }
                     
-                    if (self.isDevModeFull && spec) {
+                    if (self.isDevModeFull && target.id) {
+                        const spec = await self.getElementSpec(target.id);
                         self.inspector = {
                             id: target.id,
                             action: target.dataset.action || 'N/A',
-                            io: spec.io || 'N/A',
-                            logic: spec.logic || 'N/A'
+                            io: spec?.io || 'N/A',
+                            logic: spec?.logic || 'N/A'
                         };
                     }
                     
@@ -102,23 +100,29 @@ export const devModeMixin = {
             }, true);
         },
         
-        getElementSpec(id) {
-            if (!id) return null;
-            
-            if (elementSpecs[id]) {
-                return elementSpecs[id];
-            }
-            
-            for (let pattern in elementSpecs) {
-                if (pattern.includes('{id}')) {
-                    const regex = new RegExp('^' + pattern.replace('{id}', '.*') + '$');
-                    if (regex.test(id)) {
-                        return elementSpecs[pattern];
+        async getElementSpec(id) {
+            try {
+                const module = await import('../docs/element-specs.js');
+                const elementSpecs = module.default;
+                
+                if (elementSpecs[id]) {
+                    return elementSpecs[id];
+                }
+                
+                for (let pattern in elementSpecs) {
+                    if (pattern.includes('{id}')) {
+                        const regex = new RegExp('^' + pattern.replace('{id}', '.*') + '$');
+                        if (regex.test(id)) {
+                            return elementSpecs[pattern];
+                        }
                     }
                 }
+                
+                return null;
+            } catch (err) {
+                console.error('element-specs.js 로드 실패:', err);
+                return null;
             }
-            
-            return null;
         },
         
         copyToClipboard(text) {
