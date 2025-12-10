@@ -269,6 +269,7 @@
             position: absolute; background: #ef4444; color: white; padding: 4px 8px; 
             font-size: 10px; border-radius: 2px; font-family: monospace; white-space: pre; 
             z-index: 10000; box-shadow: 0 2px 8px rgba(0,0,0,0.5); pointer-events: none;
+            max-width: 280px;
         }
         
         body.dev-mode-full [data-dev]:hover::after {
@@ -592,8 +593,8 @@
         <div class="dev-overlay" id="dev-overlay" v-if="inspector.tag">
             <div class="dev-highlight" :style="highlightStyle"></div>
             <div class="dev-tooltip" :style="tooltipStyle">
-                <span class="text-yellow-400 font-bold">{{ inspector.tag }}</span> 
-                <span class="text-blue-300">{{ inspector.id ? '#' + inspector.id : '' }}</span> 
+                <span class="text-yellow-400 font-bold">#{{ inspector.id || '(no-id)' }}</span> 
+                <span class="text-blue-300"> {{ inspector.tag }}</span> 
                 <span class="text-green-300">{{ inspector.className ? '.' + inspector.className.split(' ')[0] : '' }}</span><br>
                 Size: {{ inspector.w }} x {{ inspector.h }}<br>
                 <div v-if="inspector.dataDev" class="mt-1 pt-1 border-t border-gray-500 text-[9px] text-gray-300">
@@ -604,8 +605,9 @@
         
     </div>
 
-    <!-- JS 모듈: 상수, 컴포넌트, 앱 루트/부트스트랩 -->
+    <!-- JS 모듈: 상수, 명세, 컴포넌트, 앱 루트/부트스트랩 -->
     <script src="js/utils/constants.js"></script>
+    <script src="docs/element-specs.js"></script>
 
     <script src="js/components/DropdownMenu.js"></script>
     <script src="js/components/RulerLine.js"></script>
