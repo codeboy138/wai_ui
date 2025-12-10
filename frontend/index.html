@@ -292,11 +292,10 @@
             font-size: 10px;
         }
 
+        /* (구) data-dev 호버 툴팁 비활성화 – 이전 버전 표시창 중복 방지 */
         body.dev-mode-full [data-dev]:hover::after {
-            content: attr(data-dev); position: absolute; z-index: 99999;
-            background: rgba(0,0,0,0.95); color: #00ff00; padding: 6px; border: 1px solid #ef4444;
-            font-size: 10px; font-family: monospace; white-space: pre; border-radius: 2px;
-            bottom: 100%; left: 0; min-width: 200px; pointer-events: none; text-align: left;
+            content: none !important;
+            display: none !important;
         }
 
         /* 컨텍스트 메뉴 */
