@@ -308,110 +308,229 @@
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
-<body class="flex flex-col text-xs" data-dev="ID: app-root\nComp: AppCore\nNote: 애플리케이션 최상위 컨테이너">
+<body id="app-root" class="flex flex-col text-xs">
 
     <div id="vue-app" class="flex flex-col h-screen">
         
-        <header id="app-header" class="h-12 bg-bg-panel border-b border-ui-border flex items-center justify-between shrink-0 select-none px-[15px]" data-dev="ID: header\nComp: Header\nNote: 상단 헤더 영역">
+        <header id="app-header" class="h-12 bg-bg-panel border-b border-ui-border flex items-center justify-between shrink-0 select-none px-[15px]">
             <div class="flex items-center h-full gap-[15px]">
-                <div class="font-bold text-lg tracking-tighter text-text-main" data-dev="ID: app-logo">WAI</div>
+                <div id="app-logo" class="font-bold text-lg tracking-tighter text-text-main" title="WAI Studio 홈">WAI</div>
                 
-                <div class="relative group h-full flex items-center" data-dev="ID: menu-main\nComp: Header\nNote: 메인 메뉴 (비활성)">
-                    <button class="text-lg text-text-sub hover:text-text-main"><i class="fa-solid fa-bars"></i></button>
+                <div id="menu-main" class="relative group h-full flex items-center">
+                    <button class="text-lg text-text-sub hover:text-text-main" title="메인 메뉴 (준비 중)"><i class="fa-solid fa-bars"></i></button>
                 </div>
 
-                <nav class="flex items-center gap-[15px] h-full" data-dev="ID: nav-container\nComp: Header/Navigation\nNote: 메인 네비게이션 컨테이너">
-                    <button class="nav-btn hover:text-white text-text-sub" @click="firePython('nav_explore')" data-dev="ID: nav-explore\nEvent: Click -> Py:nav('explore')">탐색</button>
-                    <button class="nav-btn active" @click="isProjectModalOpen = true" data-dev="ID: nav-create\nEvent: Click -> Vue:isProjectModalOpen=true">제작</button>
+                <nav id="nav-container" class="flex items-center gap-[15px] h-full">
+                    <button
+                        id="nav-explore"
+                        class="nav-btn hover:text-white text-text-sub"
+                        @click="firePython('nav_explore')"
+                        data-action="py:nav_explore"
+                        title="프로젝트 탐색 열기"
+                    >
+                        탐색
+                    </button>
+                    <button
+                        id="nav-create"
+                        class="nav-btn active hover:text-white text-text-sub"
+                        @click="isProjectModalOpen = true"
+                        data-action="js:openProjectModal"
+                        title="새 프로젝트 생성"
+                    >
+                        제작
+                    </button>
                     
-                    <div class="relative group h-full flex items-center" data-dev="ID: nav-assets-group">
-                        <button class="nav-btn hover:text-white text-text-sub" data-dev="ID: nav-assets">자산</button>
+                    <div id="nav-assets-group" class="relative group h-full flex items-center">
+                        <button
+                            id="nav-assets"
+                            class="nav-btn hover:text-white text-text-sub"
+                            title="자산 패널 열기"
+                        >
+                            자산
+                        </button>
                         <div class="absolute top-full left-0 w-32 bg-bg-panel border border-ui-border shadow-xl rounded-b hidden group-hover:block z-50">
-                            <button class="w-full text-left px-4 py-2 hover:bg-bg-hover text-xs text-text-main" @click="firePython('open_asset_manager')" data-dev="ID: menu-asset-manage\nEvent: Click -> Py:open_asset_manager()">자산 관리</button>
+                            <button
+                                id="menu-asset-manage"
+                                class="w-full text-left px-4 py-2 hover:bg-bg-hover text-xs text-text-main"
+                                @click="firePython('open_asset_manager')"
+                                data-action="py:open_asset_manager"
+                                title="자산 관리 창 열기"
+                            >
+                                자산 관리
+                            </button>
                         </div>
                     </div>
 
-                    <button class="nav-btn hover:text-white text-text-sub" @click="firePython('nav_settings')" data-dev="ID: nav-settings\nEvent: Click -> Py:nav('settings')">설정</button>
-                    <button class="nav-btn hover:text-white text-text-sub" @click="firePython('nav_research')" data-dev="ID: nav-research\nEvent: Click -> Py:nav('research')">연구</button>
+                    <button
+                        id="nav-settings"
+                        class="nav-btn hover:text-white text-text-sub"
+                        @click="firePython('nav_settings')"
+                        data-action="py:nav_settings"
+                        title="설정 패널 열기"
+                    >
+                        설정
+                    </button>
+                    <button
+                        id="nav-research"
+                        class="nav-btn hover:text-white text-text-sub"
+                        @click="firePython('nav_research')"
+                        data-action="py:nav_research"
+                        title="연구 패널 열기"
+                    >
+                        연구
+                    </button>
                 </nav>
             </div>
             
             <div class="flex items-center h-full gap-0">
-                <button id="inspector-toggle" 
-                        class="h-6 px-3 border border-ui-border rounded-l text-text-sub hover:text-white hover:bg-bg-hover flex items-center gap-1 transition-colors" 
-                        :class="{'bg-ui-selected text-text-main': isDevModeActive}"
-                        @click="toggleDevMode('active')"
-                        data-dev="ID: btn-inspector-mode\nEvent: Click -> Vue:toggleDevMode('active')\nState: Read: isDevModeActive">
+                <button
+                    id="inspector-toggle"
+                    class="h-6 px-3 border border-ui-border rounded-l text-text-sub hover:text-white hover:bg-bg-hover flex items-center gap-1 transition-colors"
+                    :class="{'bg-ui-selected text-text-main': isDevModeActive}"
+                    @click="toggleDevMode('active')"
+                    data-action="js:toggleDevModeActive"
+                    title="Inspect 모드 토글"
+                >
                     <i class="fa-solid fa-magnifying-glass"></i> Inspect
                 </button>
 
-                <button id="dev-toggle" 
-                        class="h-6 px-3 border border-ui-border border-l-0 rounded-r text-text-sub hover:text-white hover:bg-bg-hover flex items-center gap-1 mr-4 transition-colors" 
-                        :class="{'bg-ui-selected text-text-main': isDevModeFull}"
-                        @click="toggleDevMode('full')"
-                        data-dev="ID: btn-dev-mode-full\nEvent: Click -> Vue:toggleDevMode('full')\nState: Read: isDevModeFull">
+                <button
+                    id="dev-toggle"
+                    class="h-6 px-3 border border-ui-border border-l-0 rounded-r text-text-sub hover:text-white hover:bg-bg-hover flex items-center gap-1 mr-4 transition-colors"
+                    :class="{'bg-ui-selected text-text-main': isDevModeFull}"
+                    @click="toggleDevMode('full')"
+                    data-action="js:toggleDevModeFull"
+                    title="개발자 모드 토글"
+                >
                     <i class="fa-solid fa-code"></i> Dev
                 </button>
 
-                <div class="flex items-center h-full ml-[15px] gap-0 border-l border-ui-border pl-2" data-dev="ID: win-controls\nComp: System\nNote: 윈도우 창 제어 그룹">
-                    <button class="win-btn" @click="firePython('win_min')" data-dev="ID: win-min\nEvent: Click -> Py:win_minimize()">
+                <div id="win-controls" class="flex items-center h-full ml-[15px] gap-0 border-l border-ui-border pl-2">
+                    <button
+                        id="win-min"
+                        class="win-btn"
+                        @click="firePython('win_min')"
+                        data-action="py:win_min"
+                        title="창 최소화"
+                    >
                         <i class="fa-solid fa-minus text-[10px]"></i>
                     </button>
-                    <button class="win-btn" @click="firePython('win_max')" data-dev="ID: win-max\nEvent: Click -> Py:win_maximize()">
+                    <button
+                        id="win-max"
+                        class="win-btn"
+                        @click="firePython('win_max')"
+                        data-action="py:win_max"
+                        title="창 최대화/복원"
+                    >
                         <i class="fa-regular fa-square text-[10px]"></i>
                     </button>
-                    <button class="win-btn close" @click="firePython('win_close')" data-dev="ID: win-close\nEvent: Click -> Py:win_close()">
+                    <button
+                        id="win-close"
+                        class="win-btn close"
+                        @click="firePython('win_close')"
+                        data-action="py:win_close"
+                        title="앱 종료"
+                    >
                         <i class="fa-solid fa-xmark text-[10px]"></i>
                     </button>
                 </div>
             </div>
         </header>
 
-        <main class="flex-1 flex overflow-hidden relative" id="main-layout" data-dev="ID: main-content">
+        <main id="main-layout" class="flex-1 flex overflow-hidden relative">
             
-            <aside id="panel-left" class="bg-bg-panel flex flex-col relative border-r border-ui-border" :style="{ width: leftPanelWidth + 'px', minWidth: '180px' }" data-dev="ID: panel-left\nComp: LeftPanel\nState: Read: leftPanelWidth\nNote: 좌측 패널 (자산 라이브러리)">
-                <div class="p-2 border-b border-ui-border font-bold text-text-sub flex justify-between" data-dev="ID: panel-left-header">
+            <aside
+                id="panel-left"
+                class="bg-bg-panel flex flex-col relative border-r border-ui-border"
+                :style="{ width: leftPanelWidth + 'px', minWidth: '180px' }"
+            >
+                <div id="panel-left-header" class="p-2 border-b border-ui-border font-bold text-text-sub flex justify-between">
                     <span>자산 (Assets)</span>
-                    <button class="text-xs hover:text-white" @click="firePython('import_asset')" data-dev="ID: btn-add-asset\nEvent: Click -> Py:import_asset()">+</button>
+                    <button
+                        id="btn-add-asset"
+                        class="text-xs hover:text-white"
+                        @click="firePython('import_asset')"
+                        data-action="py:import_asset"
+                        title="새 자산 가져오기"
+                    >
+                        +
+                    </button>
                 </div>
                 <div class="flex-1 overflow-y-auto p-2 flex flex-col items-center justify-center text-text-sub opacity-30 gap-2" id="react-asset-list">
                     <i class="fa-solid fa-folder-open text-2xl"></i>
                     <div class="text-[10px]">자산 목록이 비어있습니다.</div>
                 </div>
                 
-                <div class="panel-resizer-v right-0" id="resizer-left" data-dev="ID: resizer-left\nEvent: Drag -> Vue:resizePanel('left')\nNote: 좌측 패널 너비 조절 핸들"></div>
+                <div
+                    id="resizer-left"
+                    class="panel-resizer-v right-0"
+                    title="좌측 패널 너비 조절"
+                    data-action="js:resizePanelLeft"
+                ></div>
             </aside>
 
-            <section class="flex-1 flex flex-col bg-bg-dark min-w-[400px] relative overflow-hidden" data-dev="ID: panel-center\nComp: CenterPanel\nNote: 중앙 패널 (프리뷰+타임라인)">
+            <section id="panel-center" class="flex-1 flex flex-col bg-bg-dark min-w-[400px] relative overflow-hidden">
                 
-                <div id="preview-container" class="relative flex flex-col" :style="{ height: previewContainerHeight }" data-dev="ID: container-preview\nState: Read: previewContainerHeight\nNote: 프리뷰 컨테이너">
+                <div
+                    id="preview-container"
+                    class="relative flex flex-col"
+                    :style="{ height: previewContainerHeight }"
+                >
                     
-                    <div class="h-8 bg-bg-panel border-b border-ui-border flex items-center justify-center px-2 gap-3 shrink-0 z-20" data-dev="ID: preview-toolbar">
+                    <div id="preview-toolbar" class="h-8 bg-bg-panel border-b border-ui-border flex items-center justify-center px-2 gap-3 shrink-0 z-20">
                         <div class="flex items-center gap-2 bg-bg-input rounded px-3 h-6 border border-ui-border">
                             
-                            <dropdown-menu :current-value="aspectRatio" :items="['16:9', '9:16', '1:1']" @select="setAspect" id="dd-ratio" data-dev="ID: dd-ratio"></dropdown-menu>
+                            <dropdown-menu
+                                id="dd-ratio"
+                                :current-value="aspectRatio"
+                                :items="['16:9', '9:16', '1:1']"
+                                @select="setAspect"
+                                title="캔버스 비율 선택"
+                            ></dropdown-menu>
 
                             <div class="w-px h-3 bg-ui-border"></div>
                             
-                            <div class="c-info-box px-2 flex items-center bg-bg-input rounded h-6 border border-ui-border w-24 justify-center" data-dev="ID: box-coords">
-                                <span id="coord-display" class="text-xxs font-mono text-ui-accent" data-dev="ID: txt-coord">{{ Math.round(mouseCoord.x) }}, {{ Math.round(mouseCoord.y) }}</span>
+                            <div
+                                id="box-coords"
+                                class="c-info-box px-2 flex items-center bg-bg-input rounded h-6 border border-ui-border w-24 justify-center"
+                                title="마우스 좌표"
+                            >
+                                <span id="coord-display" class="text-xxs font-mono text-ui-accent">
+                                    {{ Math.round(mouseCoord.x) }}, {{ Math.round(mouseCoord.y) }}
+                                </span>
                             </div>
 
                             <div class="w-px h-3 bg-ui-border"></div>
 
-                            <dropdown-menu :current-value="resolution" :items="['8K', '6K', '4K', '3K', '2K']" @select="setResolution" id="dd-resolution" data-dev="ID: dd-resolution"></dropdown-menu>
+                            <dropdown-menu
+                                id="dd-resolution"
+                                :current-value="resolution"
+                                :items="['8K', '6K', '4K', '3K', '2K']"
+                                @select="setResolution"
+                                title="캔버스 해상도 선택"
+                            ></dropdown-menu>
                             
                             <div class="w-px h-3 bg-ui-border"></div>
 
-                            <div class="cursor-pointer flex items-center gap-1 hover:text-white text-[10px] font-bold" @click="isMagnet = !isMagnet" :class="{'text-ui-accent': isMagnet, 'text-text-sub': !isMagnet}" data-dev="ID: btn-magnet">
+                            <div
+                                id="btn-magnet"
+                                class="cursor-pointer flex items-center gap-1 hover:text-white text-[10px] font-bold"
+                                @click="isMagnet = !isMagnet"
+                                :class="{'text-ui-accent': isMagnet, 'text-text-sub': !isMagnet}"
+                                data-action="js:toggleSnapMagnet"
+                                title="프리뷰 캔버스 스냅 온/오프"
+                            >
                                 <i class="fa-solid fa-magnet mr-1"></i> SNAP {{ isMagnet ? 'ON' : 'OFF' }}
                             </div>
                         </div>
                     </div>
 
-                    <div class="flex-1 relative overflow-hidden bg-black flex items-center justify-center" id="canvas-wrapper" 
-                         @mousemove="updateCanvasMouseCoord" @mouseleave="mouseCoord = {x: 0, y: 0}; isMouseOverCanvas = false"
-                         data-dev="ID: canvas-wrapper">
+                    <div
+                        id="canvas-wrapper"
+                        class="flex-1 relative overflow-hidden bg-black flex items-center justify-center"
+                        @mousemove="updateCanvasMouseCoord"
+                        @mouseleave="mouseCoord = {x: 0, y: 0}; isMouseOverCanvas = false"
+                    >
                         
                         <div class="absolute top-0 left-0 w-full h-5 bg-[#121212] border-b border-[#333] z-20 pl-5 flex overflow-hidden" id="ruler-h">
                             <ruler-line :orientation="'h'" :max-size="canvasSize.w" :scale="canvasScale"></ruler-line>
@@ -436,17 +555,33 @@
                     </div>
                 </div>
 
-                <div class="panel-resizer-h" id="resizer-timeline" data-dev="ID: resizer-center\nEvent: Drag -> Vue:resizePanel('center')"></div>
+                <div
+                    id="resizer-timeline"
+                    class="panel-resizer-h"
+                    title="타임라인 높이 조절"
+                    data-action="js:resizePanelCenter"
+                ></div>
 
                 <timeline-panel :vm="$data" :style="{ height: timelineContainerHeight }"></timeline-panel>
             </section>
 
-            <aside id="panel-right" class="bg-bg-panel flex flex-col relative border-l border-ui-border" :style="{ width: rightPanelWidth + 'px', minWidth: '250px' }" data-dev="ID: panel-right\nComp: RightPanel\nState: Read: rightPanelWidth\nNote: 우측 패널 (속성+레이어)">
-                <div class="panel-resizer-v left-0" id="resizer-right" data-dev="ID: resizer-right\nEvent: Drag -> Vue:resizePanel('right')\nNote: 우측 패널 너비 조절 핸들"></div>
+            <aside
+                id="panel-right"
+                class="bg-bg-panel flex flex-col relative border-l border-ui-border"
+                :style="{ width: rightPanelWidth + 'px', minWidth: '250px' }"
+            >
+                <div
+                    id="resizer-right"
+                    class="panel-resizer-v left-0"
+                    title="우측 패널 너비 조절"
+                    data-action="js:resizePanelRight"
+                ></div>
                 <div class="flex-1 overflow-y-auto flex flex-col" id="vue-right-panel-root">
                     <layer-panel :vm="$data"></layer-panel>
                     <properties-panel :vm="$data"></properties-panel>
-                    <div class="flex-1 bg-bg-dark border-t border-ui-border p-2"><div class="text-[10px] text-text-sub text-center opacity-30 mt-4">Effects Library</div></div>
+                    <div class="flex-1 bg-bg-dark border-t border-ui-border p-2">
+                        <div class="text-[10px] text-text-sub text-center opacity-30 mt-4">Effects Library</div>
+                    </div>
                 </div>
             </aside>
 
