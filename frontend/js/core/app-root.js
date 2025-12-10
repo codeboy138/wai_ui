@@ -57,17 +57,24 @@ const AppRoot = {
             isMouseOverCanvas: false,
             canvasScale: 1.0, 
             
-            // Inspector State
+            // Inspector / Dev Overlay State
+            // Inspector: 사용자가 "챗봇에 말할 ID"를 확인하는 용도
+            // Dev: Python/JS 연동 정보 확인 용도
             inspector: { tag: '', id: '', className: '', x: 0, y: 0, w: 0, h: 0, dataDev: '' },
             highlightStyle: { width: '0', height: '0', top: '0', left: '0' },
             tooltipStyle: { top: '0', left: '0' },
             mouseMarkerPos: { x: 0, y: 0 },
+
             layerCols: [
                 { id: 'c1', name: '전체', color: '#64748b' },
                 { id: 'c2', name: '상단', color: '#eab308' },
                 { id: 'c3', name: '중단', color: '#22c55e' },
                 { id: 'c4', name: '하단', color: '#3b82f6' }
             ],
+
+            // 컨텍스트 메뉴 상태 (색상 변경 등)
+            ctxMenu: null,
+
             COLORS
         }
     },
@@ -85,7 +92,11 @@ const AppRoot = {
         }
     },
     mounted() {
-        this.$nextTick(() => { this.setupPanelResizers(); this.setupCanvasScaler(); this.setupInspectorMode(); });
+        this.$nextTick(() => { 
+            this.setupPanelResizers(); 
+            this.setupCanvasScaler(); 
+            this.setupInspectorMode(); 
+        });
         window.vm = this; 
     },
     methods: {
@@ -115,21 +126,36 @@ const AppRoot = {
                 }
             }
         },
-        addCol() { this.layerCols.push({ id: `lc_${Date.now()}`, name: 'New', color: '#333' }); },
-        openCtx(e, id) { this.ctxMenu = { x: e.clientX, y: e.clientY, id }; },
+        addCol() { 
+            this.layerCols.push({ id: `lc_${Date.now()}`, name: 'New', color: '#333' }); 
+        },
+        openCtx(e, id) { 
+            this.ctxMenu = { x: e.clientX, y: e.clientY, id }; 
+        },
         setColColor(c) { 
-            const col = this.layerCols.find(x => x.id === this.ctxMenu.id);
-            if(col) col.color = c;
+            const col = this.layerCols.find(x => x.id === this.ctxMenu?.id);
+            if (col) col.color = c;
             this.ctxMenu = null;
         },
+
+        /**
+         * Inspector / Dev 모드 공통 마우스 무브 핸들러 설정
+         * - Inspect 모드: ID/태그/클래스 + 크기만 표시
+         * - Dev 모드: element-specs.js + data-action 기반 Dev 정보 표시
+         */
         setupInspectorMode() {
             const self = this;
+
             document.addEventListener('mousemove', (e) => {
-                if (!self.isDevModeActive) return;
+                // 두 모드 모두에서 인스펙터 동작 (둘 다 꺼져 있으면 동작 안 함)
+                if (!self.isDevModeActive && !self.isDevModeFull) return;
 
                 let target = e.target;
+
+                // 오버레이 자체 위에 마우스가 있을 때는 실제 아래 요소를 다시 계산
                 if (target.classList.contains('dev-highlight') || target.classList.contains('dev-tooltip')) {
-                     target = document.elementFromPoint(e.clientX, e.clientY);
+                    const realTarget = document.elementFromPoint(e.clientX, e.clientY);
+                    if (realTarget) target = realTarget;
                 }
 
                 if (target && target.tagName !== 'HTML' && target.tagName !== 'BODY') {
@@ -142,8 +168,9 @@ const AppRoot = {
                         left: `${rect.left}px`,
                     };
 
-                    let dataDevContent = target.getAttribute('data-dev') || '';
-                    dataDevContent = dataDevContent.replace(/\\n/g, '\n');
+                    // Inspect 모드: dataDev는 비움 (ID만 보여주기 위함)
+                    // Dev 모드: element-specs + data-action 기반 정보 표시
+                    const devInfo = self.isDevModeFull ? self.buildDevInfo(target) : '';
 
                     self.inspector = {
                         tag: target.tagName,
@@ -153,7 +180,7 @@ const AppRoot = {
                         y: Math.round(rect.top),
                         w: Math.round(rect.width),
                         h: Math.round(rect.height),
-                        dataDev: dataDevContent
+                        dataDev: devInfo
                     };
 
                     self.tooltipStyle = {
@@ -162,13 +189,64 @@ const AppRoot = {
                         transform: 'translateY(0)'
                     };
 
+                    // 화면 위쪽에 걸치면 아래로 내림
                     if (rect.top - 50 < 0) {
                         self.tooltipStyle.top = `${rect.bottom + 10}px`;
                     }
                 } else {
-                    self.inspector = { tag: '', id: '', className: '', x: 0, y: 0, w: 0, h: 0, dataDev: '' };
+                    self.inspector = { 
+                        tag: '', 
+                        id: '', 
+                        className: '', 
+                        x: 0, 
+                        y: 0, 
+                        w: 0, 
+                        h: 0, 
+                        dataDev: '' 
+                    };
                 }
             });
+        },
+
+        /**
+         * Dev 모드용 정보 문자열 생성
+         * - 코드/브리지 중심 정보만 표시
+         * - "읽기 쉬운 짧은 설명(desc)"는 의도적으로 표시하지 않음
+         */
+        buildDevInfo(targetEl) {
+            const id = targetEl.id || '';
+            const dataAction = targetEl.getAttribute('data-action') || '';
+
+            let spec = null;
+            try {
+                if (typeof window !== 'undefined' && typeof window.WAI_getElementSpec === 'function' && id) {
+                    spec = window.WAI_getElementSpec(id);
+                }
+            } catch (err) {
+                console.warn('[DEV] element spec lookup error for id=', id, err);
+            }
+
+            const lines = [];
+
+            if (spec) {
+                if (spec.module) {
+                    lines.push(`module: ${spec.module}`);
+                }
+                if (spec.py_func) {
+                    lines.push(`py: ${spec.py_func}`);
+                }
+                if (spec.js_action) {
+                    lines.push(`js: ${spec.js_action}`);
+                }
+            } else {
+                lines.push('Spec: NOT FOUND');
+            }
+
+            if (dataAction) {
+                lines.push(`data-action: ${dataAction}`);
+            }
+
+            return lines.join('\n');
         },
 
         // --- Preview/Canvas Logic ---
@@ -264,10 +342,14 @@ const AppRoot = {
         
         setupCanvasScaler() {
             const wrapper = document.getElementById('canvas-wrapper');
+            if (!wrapper) return;
             
             const updateScale = () => {
                 const padding = 20; 
-                const scale = Math.min((wrapper.clientWidth - padding)/this.canvasSize.w, (wrapper.clientHeight - padding)/this.canvasSize.h); 
+                const scale = Math.min(
+                    (wrapper.clientWidth - padding) / this.canvasSize.w, 
+                    (wrapper.clientHeight - padding) / this.canvasSize.h
+                ); 
                 this.canvasScale = scale;
             };
 
@@ -285,7 +367,10 @@ const AppRoot = {
             const zIndex = this.getZIndex(colIdx, type);
             const newBox = {
                 id: `box_${Date.now()}`, colIdx, type, zIndex, color,
-                x: 1920 - 200 + (colIdx*50), y: 1080 - 150 + (colIdx*50), w: 400, h: 300
+                x: 1920 - 200 + (colIdx * 50), 
+                y: 1080 - 150 + (colIdx * 50), 
+                w: 400, 
+                h: 300
             };
             this.canvasBoxes.push(newBox);
         },
@@ -297,7 +382,7 @@ const AppRoot = {
             this.selectedBoxId = (this.selectedBoxId === id) ? null : id;
             this.selectedClip = null;
         },
-        updateBoxPosition(id, dx, dy, dw, dh, isResizeEnd=false) {
+        updateBoxPosition(id, dx, dy, dw, dh, isResizeEnd = false) {
             const index = this.canvasBoxes.findIndex(b => b.id === id);
             if (index === -1) return;
 
@@ -335,8 +420,12 @@ const AppRoot = {
             const trackId = this.tracks[trackIndex] ? this.tracks[trackIndex].id : null;
             if (!trackId) return;
             const newClip = {
-                id: `c_${Date.now()}`, trackId, name: assetName, 
-                start: time, duration: 10, type: fileType
+                id: `c_${Date.now()}`, 
+                trackId, 
+                name: assetName, 
+                start: time, 
+                duration: 10, 
+                type: fileType
             };
             this.clips.push(newClip);
         },
