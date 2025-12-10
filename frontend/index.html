@@ -261,21 +261,21 @@
         
         .dev-highlight { 
             position: absolute; 
-            border: 1px solid rgba(0,0,0,0.9); 
-            background: rgba(255,255,255,0.9);   /* 인스펙트/Dev 공용: 흰 배경, 투명도 90% */
+            border: 1px solid rgba(0,0,0,0.8); 
+            background: rgba(255,255,255,0.8);   /* 영역 표시: 흰색, 투명도 80% */
             transition: all 0.05s ease-out; 
             pointer-events: none;
         }
         
         .dev-tooltip { 
             position: absolute; 
-            background: rgba(255,255,255,0.9);   /* 툴팁 공용: 흰 배경, 투명도 90% */
+            background: rgba(255,255,255,0.9);   /* 정보 창: 흰색, 투명도 90% */
             color: #000000;                       /* 글씨: 검정 */
             padding: 4px 8px; 
             font-size: 10px;                      /* 요청: 글자크기 10px */
             border-radius: 2px; 
             font-family: monospace; 
-            white-space: pre-wrap;                /* 줄바꿈 허용 */
+            white-space: pre-wrap;
             word-break: break-word;
             z-index: 10000; 
             box-shadow: 0 2px 8px rgba(0,0,0,0.5); 
@@ -283,17 +283,15 @@
             max-width: 340px;
         }
 
-        /* Dev 정보 박스 (Dev 모드에서만 데이터 표시) */
         .dev-tooltip-devinfo {
             background: rgba(255,255,255,0.9);
             color: #000000;
             border-radius: 2px;
             white-space: pre-wrap;
             word-break: break-word;
-            font-size: 10px;                     /* Dev 정보 글자크기 10px */
+            font-size: 10px;
         }
 
-        /* (구) data-dev 호버 스타일 – 현재는 사용하지 않지만 남겨둠 */
         body.dev-mode-full [data-dev]:hover::after {
             content: attr(data-dev); position: absolute; z-index: 99999;
             background: rgba(0,0,0,0.95); color: #00ff00; padding: 6px; border: 1px solid #ef4444;
@@ -607,19 +605,26 @@
 
         <project-modal v-if="isProjectModalOpen" @close="isProjectModalOpen = false"></project-modal>
 
+        <!-- Inspect / Dev 공용 오버레이 -->
         <div class="dev-overlay" id="dev-overlay" v-if="inspector.tag">
             <div class="dev-highlight" :style="highlightStyle"></div>
             <div class="dev-tooltip" :style="tooltipStyle">
-                <!-- Inspect 공통 정보 (모든 요소 공통) -->
-                <span class="font-bold">#{{ inspector.id || '(no-id)' }}</span> 
-                <span> {{ inspector.tag }}</span> 
-                <span>{{ inspector.className ? ' .' + inspector.className.split(' ')[0] : '' }}</span><br>
-                Size: {{ inspector.w }} x {{ inspector.h }}<br>
+                <!-- Inspect 모드 전용 표시 -->
+                <template v-if="!isDevModeFull">
+                    <span class="font-bold">INSPECT</span><br>
+                    ID: {{ inspector.id || '(no-id)' }}<br>
+                    Tag: {{ inspector.tag }}<span v-if="inspector.className"> .{{ inspector.className.split(' ')[0] }}</span><br>
+                    Size: {{ inspector.w }} x {{ inspector.h }}
+                </template>
 
-                <!-- Dev 모드에서만 코드/브리지 정보 표시 (isDevModeFull일 때 inspector.dataDev에 채워짐) -->
-                <div v-if="inspector.dataDev" class="mt-1 pt-1 border-t border-gray-400 dev-tooltip-devinfo">
-                    {{ inspector.dataDev }}
-                </div>
+                <!-- Dev 모드 전용 표시 -->
+                <template v-else>
+                    <span class="font-bold">DEV</span><br>
+                    ID: {{ inspector.id || '(no-id)' }}<br>
+                    <div class="mt-1 pt-1 border-t border-gray-400 dev-tooltip-devinfo">
+                        {{ inspector.dataDev }}
+                    </div>
+                </template>
             </div>
         </div>
         
