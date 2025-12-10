@@ -182,6 +182,23 @@
             deprecated: false
         },
 
+        'nav-assets-group': {
+            module: 'header-nav',
+            desc: '상단 네비게이션 - 자산 탭 및 드롭다운 래퍼',
+            io: {
+                input: 'hover, click',
+                output: '자산 드롭다운 메뉴 표시/숨김'
+            },
+            logic: '자산 탭과 “자산 관리” 하위 메뉴를 그룹화하여 hover 시 드롭다운을 노출한다.',
+            py_func: null,
+            py_params: {},
+            js_action: null,
+            events: ['mouseover', 'mouseout', 'click'],
+            affects: ['nav-assets', 'menu-asset-manage'],
+            examples: ['nav-assets-group'],
+            deprecated: false
+        },
+
         'nav-assets': {
             module: 'header-nav',
             desc: '상단 네비게이션 - 자산 탭 (드롭다운 트리거)',
@@ -307,6 +324,23 @@
         // =========================================
         // 창 제어 (윈도우 버튼)
         // =========================================
+        'win-controls': {
+            module: 'window-controls',
+            desc: '윈도우 제어 버튼 그룹 컨테이너',
+            io: {
+                input: '내부 버튼 클릭',
+                output: '윈도우 최소화/최대화/닫기 동작'
+            },
+            logic: '최소화/최대화/닫기 버튼(win-min, win-max, win-close)을 수평으로 배치하는 래퍼.',
+            py_func: null,
+            py_params: {},
+            js_action: null,
+            events: [],
+            affects: ['win-min', 'win-max', 'win-close'],
+            examples: ['win-controls'],
+            deprecated: false
+        },
+
         'win-min': {
             module: 'window-controls',
             desc: '윈도우 최소화 버튼',
@@ -599,6 +633,40 @@
             events: ['mousemove', 'mouseleave'],
             affects: ['box-coords', 'mouseMarkerPos'],
             examples: ['canvas-wrapper'],
+            deprecated: false
+        },
+
+        'ruler-h': {
+            module: 'panel-center',
+            desc: '프리뷰 상단 수평 눈금자 컨테이너',
+            io: {
+                input: '캔버스 크기/스케일 변경',
+                output: '시간/좌표 눈금 갱신'
+            },
+            logic: 'preview-canvas 의 가로 방향 스케일에 맞춰 눈금을 표시하는 RulerLine 컴포넌트를 포함.',
+            py_func: null,
+            py_params: {},
+            js_action: null,
+            events: [],
+            affects: [],
+            examples: ['ruler-h'],
+            deprecated: false
+        },
+
+        'ruler-v': {
+            module: 'panel-center',
+            desc: '프리뷰 좌측 수직 눈금자 컨테이너',
+            io: {
+                input: '캔버스 크기/스케일 변경',
+                output: '세로 좌표 눈금 갱신'
+            },
+            logic: 'preview-canvas 의 세로 방향 스케일에 맞춰 눈금을 표시하는 RulerLine 컴포넌트를 포함.',
+            py_func: null,
+            py_params: {},
+            js_action: null,
+            events: [],
+            affects: [],
+            examples: ['ruler-v'],
             deprecated: false
         },
 
