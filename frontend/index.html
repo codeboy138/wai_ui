@@ -5,10 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WAI Studio - Professional Editor (Full Version)</title>
     
+    <!-- Vue 3 -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- SweetAlert2 -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- interact.js -->
     <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
 
     <script>
@@ -17,22 +26,22 @@
                 extend: {
                     colors: {
                         bg: { 
-                            dark: '#09090b',
-                            panel: '#18181b',
-                            hover: '#27272a',
-                            input: '#202023'
+                            dark: '#09090b',    /* 앱 전체 배경 (Zinc-950) */
+                            panel: '#18181b',   /* 패널 배경 (Zinc-900) */
+                            hover: '#27272a',   /* 호버 상태 배경 (Zinc-800) */
+                            input: '#202023'    /* 입력창 배경 */
                         },
                         ui: { 
-                            border: '#27272a',
-                            selected: '#3f3f46',
-                            accent: '#3b82f6',
-                            danger: '#ef4444',
-                            success: '#22c55e'
+                            border: '#27272a',  /* 테두리 색상 */
+                            selected: '#3f3f46',/* 선택됨 (Zinc-700) */
+                            accent: '#3b82f6',  /* 강조 (Blue-500) */
+                            danger: '#ef4444',  /* 위험/삭제 (Red-500) */
+                            success: '#22c55e'  /* 성공 (Green-500) */
                         },
                         text: { 
-                            main: '#f4f4f5',
-                            sub: '#a1a1aa',
-                            inv: '#18181b'
+                            main: '#f4f4f5',    /* 메인 텍스트 (Zinc-100) */
+                            sub: '#a1a1aa',     /* 서브 텍스트 (Zinc-400) */
+                            inv: '#18181b'      /* 반전 텍스트 (검정) */
                         }
                     },
                     fontSize: { 
@@ -73,7 +82,7 @@
         .timeline-grid { 
             display: grid; 
             height: 100%; 
-            overflow: hidden;
+            overflow: hidden; /* 내부 컨테이너 스크롤 사용 */
         }
         
         /* 고정 요소 (Sticky Headers & Rulers) */
@@ -233,24 +242,24 @@
         }
         .win-btn.close:hover { @apply bg-ui-danger text-white; }
 
-        /* 커스텀 드롭다운 */
+        /* 커스텀 드롭다운 (FIXED) */
         .c-dropdown { 
             @apply relative inline-flex items-center px-2 h-full bg-bg-input rounded text-[10px] text-text-sub cursor-pointer hover:bg-bg-hover hover:text-text-main border border-ui-border select-none; 
         }
         .c-dropdown-menu { 
-            display: none;
+            display: none; /* 기본 숨김 */
             position: absolute; top: 105%; left: 0; width: 100%; 
             background-color: #18181b; border: 1px solid #27272a; border-radius: 4px; 
-            flex-direction: column; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            flex-direction: column; z-index: 1000; shadow-xl; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
         }
-        .c-dropdown.open .c-dropdown-menu { display: flex; }
+        .c-dropdown.open .c-dropdown-menu { display: flex; } /* .open 클래스가 있을 때만 표시 */
         
         .c-dropdown-item { @apply p-2 text-center hover:bg-ui-accent hover:text-white transition-colors; }
         .c-dropdown.locked { cursor: not-allowed; opacity: 0.7; border-color: #333; background: #1a1a1a; }
         .c-dropdown.locked:hover { background: #1a1a1a; color: #a1a1aa; }
         .c-dropdown.locked:hover .c-dropdown-menu { display: none; }
 
-        /* 개발자 모드 (Inspect / Dev 공용 오버레이) */
+        /* 개발자 모드 (Dev / Inspect Overlay) */
         .dev-overlay { 
             pointer-events: none; position: fixed; inset: 0; z-index: 9999; display: none; 
         }
@@ -261,45 +270,56 @@
         
         .dev-highlight { 
             position: absolute; 
-            border: 1px solid rgba(0,0,0,0.8); 
-            background: rgba(255,255,255,0.1);   /* 영역 표시: 흰색, 투명도 10% */
+            border: 1px solid #3b82f6; 
+            background: rgba(255, 255, 255, 0.1); /* 10% 투명도 영역 표시 */
             transition: all 0.05s ease-out; 
             pointer-events: none;
         }
         
         .dev-tooltip { 
             position: absolute; 
-            background: rgba(255,255,255,0.9);   /* 정보 창: 흰색, 투명도 90% */
-            color: #000000;                       /* 글씨: 검정 */
+            background: rgba(255, 255, 255, 0.9); /* 흰 배경 90% */
+            color: #000000; 
             padding: 4px 8px; 
-            font-size: 10px;                      /* 글자크기 10px */
+            font-size: 10px; 
             border-radius: 2px; 
             font-family: monospace; 
-            white-space: pre-wrap;
-            word-break: break-word;
+            white-space: pre-wrap; 
             z-index: 10000; 
             box-shadow: 0 2px 8px rgba(0,0,0,0.5); 
-            pointer-events: auto;                 /* 클릭 이벤트 허용 (ID 복사용) */
-            max-width: 340px;
-            cursor: pointer;
+            pointer-events: auto;     /* 클릭 가능 (ID 복사) */
+            max-width: 280px;
+        }
+
+        .dev-tooltip-header {
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+
+        .dev-tooltip-meta {
+            font-size: 9px;
+            color: #333;
+        }
+
+        .dev-tooltip-hint {
+            margin-top: 2px;
+            font-size: 9px;
+            color: #555;
         }
 
         .dev-tooltip-devinfo {
-            background: rgba(255,255,255,0.9);
-            color: #000000;
-            border-radius: 2px;
+            margin-top: 4px;
+            padding-top: 4px;
+            border-top: 1px solid #999;
+            background: rgba(255, 255, 255, 0.9); /* Dev 정보 영역도 흰 배경 */
+            font-size: 9px;
+            color: #111;
             white-space: pre-wrap;
-            word-break: break-word;
-            font-size: 10px;
         }
 
-        /* (구) data-dev 호버 툴팁 비활성화 – 이전 버전 표시창 중복 방지 */
-        body.dev-mode-full [data-dev]:hover::after {
-            content: none !important;
-            display: none !important;
-        }
+        /* (중복/구버전) data-dev 기반 툴팁 제거됨 */
 
-        /* 컨텍스트 메뉴 */
+        /* 컨텍스트 메뉴 (Context Menu) */
         .context-menu { 
             position: fixed; background: #1e1e1e; border: 1px solid #333; 
             box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 5000; border-radius: 4px; 
@@ -308,37 +328,43 @@
         .ctx-item { padding: 4px 12px; font-size: 11px; color: #eee; cursor: pointer; display: flex; justify-content: space-between; gap: 10px; }
         .ctx-item:hover { background: #3b82f6; color: white; }
         
+        /* 색상 선택 그리드 */
         .color-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding: 4px; }
         .color-swatch { width: 16px; height: 16px; border-radius: 2px; cursor: pointer; border: 1px solid #333; }
         .color-swatch:hover { border-color: white; transform: scale(1.1); }
 
+        /* Drag Overlay Highlight */
         .timeline-drag-over { box-shadow: inset 0 0 0 2px #3b82f6; background-color: rgba(59, 130, 246, 0.1); }
 
+        /* 플레이헤드 (Playhead) */
         .playhead-line { position: absolute; top: 0; bottom: 0; width: 1px; background: #ef4444; z-index: 40; pointer-events: none; }
         .playhead-handle { position: absolute; top: 0; width: 11px; height: 12px; background: #ef4444; transform: translateX(-50%); clip-path: polygon(0 0, 100% 0, 50% 100%); cursor: ew-resize; pointer-events: auto; z-index: 50; }
         
+        /* Modal Style */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); display: flex; justify-content: center; align-items: center; z-index: 5000; }
         .modal-window { background: #18181b; border: 1px solid #27272a; border-radius: 8px; width: 80%; height: 80%; max-width: 1000px; max-height: 700px; display: flex; flex-direction: column; overflow: hidden; }
 
+        /* Animation */
         .animate-fade-in { animation: fadeIn 0.2s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
-<body id="app-root" class="flex flex-col text-xs">
+<body id="app-root-container" class="flex flex-col text-xs">
 
-    <div id="vue-app" class="flex flex-col h-screen">
+    <div id="app-vue-root" class="flex flex-col h-screen">
         
-        <header id="app-header" class="h-12 bg-bg-panel border-b border-ui-border flex items-center justify-between shrink-0 select-none px-[15px]">
+        <!-- 헤더 -->
+        <header id="header-main-panel" class="h-12 bg-bg-panel border-b border-ui-border flex items-center justify-between shrink-0 select-none px-[15px]">
             <div class="flex items-center h-full gap-[15px]">
-                <div id="app-logo" class="font-bold text-lg tracking-tighter text-text-main" title="WAI Studio 홈">WAI</div>
+                <div id="header-main-logo-label" class="font-bold text-lg tracking-tighter text-text-main" title="WAI Studio 홈">WAI</div>
                 
-                <div id="menu-main" class="relative group h-full flex items-center">
+                <div id="header-main-menu-container" class="relative group h-full flex items-center">
                     <button class="text-lg text-text-sub hover:text-text-main" title="메인 메뉴 (준비 중)"><i class="fa-solid fa-bars"></i></button>
                 </div>
 
-                <nav id="nav-container" class="flex items-center gap-[15px] h-full">
+                <nav id="header-nav-container" class="flex items-center gap-[15px] h-full">
                     <button
-                        id="nav-explore"
+                        id="header-nav-explore-btn"
                         class="nav-btn hover:text-white text-text-sub"
                         @click="firePython('nav_explore')"
                         data-action="py:nav_explore"
@@ -347,7 +373,7 @@
                         탐색
                     </button>
                     <button
-                        id="nav-create"
+                        id="header-nav-create-btn"
                         class="nav-btn active hover:text-white text-text-sub"
                         @click="isProjectModalOpen = true"
                         data-action="js:openProjectModal"
@@ -356,9 +382,9 @@
                         제작
                     </button>
                     
-                    <div id="nav-assets-group" class="relative group h-full flex items-center">
+                    <div id="header-nav-assets-group" class="relative group h-full flex items-center">
                         <button
-                            id="nav-assets"
+                            id="header-nav-assets-btn"
                             class="nav-btn hover:text-white text-text-sub"
                             title="자산 패널 열기"
                         >
@@ -366,7 +392,7 @@
                         </button>
                         <div class="absolute top-full left-0 w-32 bg-bg-panel border border-ui-border shadow-xl rounded-b hidden group-hover:block z-50">
                             <button
-                                id="menu-asset-manage"
+                                id="header-menu-assets-manage-item"
                                 class="w-full text-left px-4 py-2 hover:bg-bg-hover text-xs text-text-main"
                                 @click="firePython('open_asset_manager')"
                                 data-action="py:open_asset_manager"
@@ -378,7 +404,7 @@
                     </div>
 
                     <button
-                        id="nav-settings"
+                        id="header-nav-settings-btn"
                         class="nav-btn hover:text-white text-text-sub"
                         @click="firePython('nav_settings')"
                         data-action="py:nav_settings"
@@ -387,7 +413,7 @@
                         설정
                     </button>
                     <button
-                        id="nav-research"
+                        id="header-nav-research-btn"
                         class="nav-btn hover:text-white text-text-sub"
                         @click="firePython('nav_research')"
                         data-action="py:nav_research"
@@ -400,7 +426,7 @@
             
             <div class="flex items-center h-full gap-0">
                 <button
-                    id="inspector-toggle"
+                    id="header-dev-inspect-btn"
                     class="h-6 px-3 border border-ui-border rounded-l text-text-sub hover:text-white hover:bg-bg-hover flex items-center gap-1 transition-colors"
                     :class="{'bg-ui-selected text-text-main': isDevModeActive}"
                     @click="toggleDevMode('active')"
@@ -411,7 +437,7 @@
                 </button>
 
                 <button
-                    id="dev-toggle"
+                    id="header-dev-mode-btn"
                     class="h-6 px-3 border border-ui-border border-l-0 rounded-r text-text-sub hover:text-white hover:bg-bg-hover flex items-center gap-1 mr-4 transition-colors"
                     :class="{'bg-ui-selected text-text-main': isDevModeFull}"
                     @click="toggleDevMode('full')"
@@ -421,9 +447,9 @@
                     <i class="fa-solid fa-code"></i> Dev
                 </button>
 
-                <div id="win-controls" class="flex items-center h-full ml-[15px] gap-0 border-l border-ui-border pl-2">
+                <div id="header-window-controls-container" class="flex items-center h-full ml-[15px] gap-0 border-l border-ui-border pl-2">
                     <button
-                        id="win-min"
+                        id="header-window-min-btn"
                         class="win-btn"
                         @click="firePython('win_min')"
                         data-action="py:win_min"
@@ -432,7 +458,7 @@
                         <i class="fa-solid fa-minus text-[10px]"></i>
                     </button>
                     <button
-                        id="win-max"
+                        id="header-window-max-btn"
                         class="win-btn"
                         @click="firePython('win_max')"
                         data-action="py:win_max"
@@ -441,7 +467,7 @@
                         <i class="fa-regular fa-square text-[10px]"></i>
                     </button>
                     <button
-                        id="win-close"
+                        id="header-window-close-btn"
                         class="win-btn close"
                         @click="firePython('win_close')"
                         data-action="py:win_close"
@@ -453,17 +479,19 @@
             </div>
         </header>
 
-        <main id="main-layout" class="flex-1 flex overflow-hidden relative">
+        <!-- 메인 레이아웃 -->
+        <main id="main-layout-root" class="flex-1 flex overflow-hidden relative">
             
+            <!-- 좌측 패널 -->
             <aside
-                id="panel-left"
+                id="main-left-panel"
                 class="bg-bg-panel flex flex-col relative border-r border-ui-border"
                 :style="{ width: leftPanelWidth + 'px', minWidth: '180px' }"
             >
-                <div id="panel-left-header" class="p-2 border-b border-ui-border font-bold text-text-sub flex justify-between">
+                <div id="main-left-header-bar" class="p-2 border-b border-ui-border font-bold text-text-sub flex justify-between">
                     <span>자산 (Assets)</span>
                     <button
-                        id="btn-add-asset"
+                        id="main-left-assets-add-btn"
                         class="text-xs hover:text-white"
                         @click="firePython('import_asset')"
                         data-action="py:import_asset"
@@ -472,32 +500,34 @@
                         +
                     </button>
                 </div>
-                <div class="flex-1 overflow-y-auto p-2 flex flex-col items-center justify-center text-text-sub opacity-30 gap-2" id="react-asset-list">
+                <div class="flex-1 overflow-y-auto p-2 flex flex-col items-center justify-center text-text-sub opacity-30 gap-2" id="main-left-assets-list">
                     <i class="fa-solid fa-folder-open text-2xl"></i>
                     <div class="text-[10px]">자산 목록이 비어있습니다.</div>
                 </div>
                 
                 <div
-                    id="resizer-left"
+                    id="main-left-resizer-v"
                     class="panel-resizer-v right-0"
                     title="좌측 패널 너비 조절"
                     data-action="js:resizePanelLeft"
                 ></div>
             </aside>
 
-            <section id="panel-center" class="flex-1 flex flex-col bg-bg-dark min-w-[400px] relative overflow-hidden">
+            <!-- 중앙 패널 -->
+            <section id="main-center-panel" class="flex-1 flex flex-col bg-bg-dark min-w-[400px] relative overflow-hidden">
                 
+                <!-- 프리뷰 컨테이너 -->
                 <div
-                    id="preview-container"
+                    id="preview-main-container"
                     class="relative flex flex-col"
                     :style="{ height: previewContainerHeight }"
                 >
-                    
-                    <div id="preview-toolbar" class="h-8 bg-bg-panel border-b border-ui-border flex items-center justify-center px-2 gap-3 shrink-0 z-20">
+                    <!-- 프리뷰 툴바 -->
+                    <div id="preview-toolbar-panel" class="h-8 bg-bg-panel border-b border-ui-border flex items-center justify-center px-2 gap-3 shrink-0 z-20">
                         <div class="flex items-center gap-2 bg-bg-input rounded px-3 h-6 border border-ui-border">
                             
                             <dropdown-menu
-                                id="dd-ratio"
+                                id="preview-toolbar-ratio-dropdown"
                                 :current-value="aspectRatio"
                                 :items="['16:9', '9:16', '1:1']"
                                 @select="setAspect"
@@ -507,11 +537,11 @@
                             <div class="w-px h-3 bg-ui-border"></div>
                             
                             <div
-                                id="box-coords"
+                                id="preview-toolbar-coord-box"
                                 class="c-info-box px-2 flex items-center bg-bg-input rounded h-6 border border-ui-border w-24 justify-center"
                                 title="마우스 좌표"
                             >
-                                <span id="coord-display" class="text-xxs font-mono text-ui-accent">
+                                <span id="preview-toolbar-coord-label" class="text-xxs font-mono text-ui-accent">
                                     {{ Math.round(mouseCoord.x) }}, {{ Math.round(mouseCoord.y) }}
                                 </span>
                             </div>
@@ -519,7 +549,7 @@
                             <div class="w-px h-3 bg-ui-border"></div>
 
                             <dropdown-menu
-                                id="dd-resolution"
+                                id="preview-toolbar-resolution-dropdown"
                                 :current-value="resolution"
                                 :items="['8K', '6K', '4K', '3K', '2K']"
                                 @select="setResolution"
@@ -529,7 +559,7 @@
                             <div class="w-px h-3 bg-ui-border"></div>
 
                             <div
-                                id="btn-magnet"
+                                id="preview-toolbar-snap-toggle"
                                 class="cursor-pointer flex items-center gap-1 hover:text-white text-[10px] font-bold"
                                 @click="isMagnet = !isMagnet"
                                 :class="{'text-ui-accent': isMagnet, 'text-text-sub': !isMagnet}"
@@ -541,29 +571,32 @@
                         </div>
                     </div>
 
+                    <!-- 프리뷰 캔버스 -->
                     <div
-                        id="canvas-wrapper"
+                        id="preview-canvas-wrapper"
                         class="flex-1 relative overflow-hidden bg-black flex items-center justify-center"
                         @mousemove="updateCanvasMouseCoord"
                         @mouseleave="mouseCoord = {x: 0, y: 0}; isMouseOverCanvas = false"
                     >
-                        
-                        <div class="absolute top-0 left-0 w-full h-5 bg-[#121212] border-b border-[#333] z-20 pl-5 flex overflow-hidden" id="ruler-h">
+                        <!-- 룰러 -->
+                        <div class="absolute top-0 left-0 w-full h-5 bg-[#121212] border-b border-[#333] z-20 pl-5 flex overflow-hidden" id="preview-ruler-h">
                             <ruler-line :orientation="'h'" :max-size="canvasSize.w" :scale="canvasScale"></ruler-line>
                         </div>
-                        <div class="absolute top-0 left-0 w-5 h-full bg-[#121212] border-r border-[#333] z-20 pt-5 flex flex-col overflow-hidden" id="ruler-v">
+                        <div class="absolute top-0 left-0 w-5 h-full bg-[#121212] border-r border-[#333] z-20 pt-5 flex flex-col overflow-hidden" id="preview-ruler-v">
                             <ruler-line :orientation="'v'" :max-size="canvasSize.h" :scale="canvasScale"></ruler-line>
                         </div>
 
+                        <!-- 마우스 가이드 라인 -->
                         <div class="absolute top-0 left-0 w-full h-full z-30 pointer-events-none" :style="{paddingLeft: '20px', paddingTop: '20px'}">
                             <div class="absolute w-px h-full bg-ui-accent opacity-30" :style="{left: mouseMarkerPos.x + 'px'}" v-show="isMouseOverCanvas"></div>
                             <div class="absolute h-px w-full bg-ui-accent opacity-30" :style="{top: mouseMarkerPos.y + 'px'}" v-show="isMouseOverCanvas"></div>
                         </div>
 
-                        <div class="relative overflow-hidden" id="canvas-viewport" style="width:100%; height:100%;">
-                            <div id="canvas-scaler" class="canvas-scaler" :style="canvasScalerStyle">
-                                <div id="guide-h" class="guide-line-h" style="top: 50%;"></div>
-                                <div id="guide-v" class="guide-line-v" style="left: 50%;"></div>
+                        <!-- 실제 캔버스 뷰포트 -->
+                        <div class="relative overflow-hidden" id="preview-canvas-viewport" style="width:100%; height:100%;">
+                            <div id="preview-canvas-scaler" class="canvas-scaler" :style="canvasScalerStyle">
+                                <div id="preview-guide-h" class="guide-line-h" style="top: 50%;"></div>
+                                <div id="preview-guide-v" class="guide-line-v" style="left: 50%;"></div>
                                 
                                 <preview-canvas :canvas-boxes="canvasBoxes" :selected-box-id="selectedBoxId" @select-box="setSelectedBoxId" @remove-box="removeBox"></preview-canvas>
                             </div>
@@ -571,28 +604,31 @@
                     </div>
                 </div>
 
+                <!-- 타임라인 리사이저 -->
                 <div
-                    id="resizer-timeline"
+                    id="main-center-timeline-resizer-h"
                     class="panel-resizer-h"
                     title="타임라인 높이 조절"
                     data-action="js:resizePanelCenter"
                 ></div>
 
+                <!-- 타임라인 패널 (Vue 컴포넌트) -->
                 <timeline-panel :vm="$data" :style="{ height: timelineContainerHeight }"></timeline-panel>
             </section>
 
+            <!-- 우측 패널 -->
             <aside
-                id="panel-right"
+                id="main-right-panel"
                 class="bg-bg-panel flex flex-col relative border-l border-ui-border"
                 :style="{ width: rightPanelWidth + 'px', minWidth: '250px' }"
             >
                 <div
-                    id="resizer-right"
+                    id="main-right-resizer-v"
                     class="panel-resizer-v left-0"
                     title="우측 패널 너비 조절"
                     data-action="js:resizePanelRight"
                 ></div>
-                <div class="flex-1 overflow-y-auto flex flex-col" id="vue-right-panel-root">
+                <div class="flex-1 overflow-y-auto flex flex-col" id="main-right-vue-root">
                     <layer-panel :vm="$data"></layer-panel>
                     <properties-panel :vm="$data"></properties-panel>
                     <div class="flex-1 bg-bg-dark border-t border-ui-border p-2">
@@ -603,26 +639,41 @@
 
         </main>
 
+        <!-- 프로젝트 모달 -->
         <project-modal v-if="isProjectModalOpen" @close="isProjectModalOpen = false"></project-modal>
 
-        <!-- Inspect / Dev 공용 오버레이 -->
-        <div class="dev-overlay" id="dev-overlay" v-if="inspector.tag">
-            <div class="dev-highlight" :style="highlightStyle"></div>
-            <div class="dev-tooltip" :style="tooltipStyle" @click="copyInspectorId">
-                <!-- Inspect 모드 전용 표시 -->
-                <template v-if="!isDevModeFull">
-                    <span class="font-bold">INSPECT</span><br>
-                    ID: {{ inspector.id || '(no-id)' }}<br>
-                    Tag: {{ inspector.tag }}<span v-if="inspector.className"> .{{ inspector.className.split(' ')[0] }}</span><br>
+        <!-- Inspector / Dev Overlay -->
+        <div class="dev-overlay" id="dev-overlay-root" v-if="inspector.tag">
+            <div id="dev-overlay-highlight" class="dev-highlight" :style="highlightStyle"></div>
+            <div
+                id="dev-overlay-tooltip"
+                class="dev-tooltip"
+                :style="tooltipStyle"
+                @click="copyInspectorId"
+            >
+                <div class="dev-tooltip-header">
+                    <span style="color:#d97706;">#{{ inspector.id || '(no-id)' }}</span>
+                    <span style="color:#1d4ed8;"> {{ inspector.tag }}</span>
+                    <span v-if="inspector.className" style="color:#16a34a;"> .{{ inspector.className.split(' ')[0] }}</span>
+                </div>
+                <div class="dev-tooltip-meta">
                     Size: {{ inspector.w }} x {{ inspector.h }}
+                </div>
+
+                <!-- Inspect 모드: 기본 정보 + 힌트 -->
+                <template v-if="isDevModeActive && !isDevModeFull">
+                    <div class="dev-tooltip-hint">
+                        클릭하면 현재 요소의 ID가 클립보드에 복사됩니다.
+                    </div>
                 </template>
 
-                <!-- Dev 모드 전용 표시 -->
-                <template v-else>
-                    <span class="font-bold">DEV</span><br>
-                    ID: {{ inspector.id || '(no-id)' }}<br>
-                    <div class="mt-1 pt-1 border-t border-gray-400 dev-tooltip-devinfo">
+                <!-- Dev 모드: element-specs.js / data-action 정보 -->
+                <template v-if="isDevModeFull">
+                    <div class="dev-tooltip-devinfo" v-if="inspector.dataDev">
                         {{ inspector.dataDev }}
+                    </div>
+                    <div class="dev-tooltip-devinfo" v-else>
+                        Spec: NOT FOUND
                     </div>
                 </template>
             </div>
