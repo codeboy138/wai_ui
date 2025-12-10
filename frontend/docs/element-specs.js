@@ -571,6 +571,86 @@
             affects: [],
             examples: []
         },
+        'preview-canvas-overlay-root': {
+            module: 'preview.canvas.overlay',
+            desc: '프리뷰 캔버스 상의 선택 가능한 박스들을 감싸는 오버레이 루트',
+            io: {
+                input: ['click'],
+                output: ['select-box(null) emit (선택 해제)', 'contextMenu 닫힘']
+            },
+            logic: '오버레이 빈 공간 클릭 시 컨텍스트 메뉴를 닫고 선택을 해제.',
+            py_func: null,
+            js_action: null,
+            events: ['click'],
+            affects: ['preview-canvas-box-{id}', 'panel-right-props-root'],
+            examples: []
+        },
+        'preview-canvas-box-{id}': {
+            module: 'preview.canvas.box',
+            desc: '프리뷰 캔버스 상의 개별 레이어 박스 (드래그/리사이즈/컨텍스트 메뉴)',
+            io: {
+                input: ['mousedown', 'drag', 'resize', 'contextmenu'],
+                output: [
+                    'select-box(boxId) emit',
+                    'updateBoxPosition(boxId, dx, dy, w, h) 호출(부모)',
+                    'remove-box emit(삭제 시)'
+                ]
+            },
+            logic: 'interact.js를 사용해 위치/크기를 조정하고, 선택/삭제/컨텍스트 메뉴를 통해 상호작용.',
+            py_func: null,
+            js_action: 'selectCanvasBox',
+            events: ['mousedown', 'drag', 'resize', 'contextmenu'],
+            affects: ['preview-canvas-scaler', 'panel-right-props-root'],
+            examples: [
+                'data-action="js:selectCanvasBox"'
+            ]
+        },
+        'preview-canvas-context-menu': {
+            module: 'preview.canvas.context',
+            desc: '프리뷰 캔버스 박스용 컨텍스트 메뉴 루트',
+            io: {
+                input: ['click(메뉴 항목)'],
+                output: ['remove-box emit', '추후: zIndex 조정']
+            },
+            logic: '박스 우클릭 시 표시되며, 맨 위로/삭제 등 액션을 제공.',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: ['preview-canvas-box-{id}'],
+            examples: []
+        },
+        'preview-canvas-context-top-btn': {
+            module: 'preview.canvas.context',
+            desc: '선택 박스를 맨 위로 올리는 컨텍스트 메뉴 항목 (예약/미구현)',
+            io: {
+                input: ['click'],
+                output: []
+            },
+            logic: '향후 선택된 박스의 zIndex를 최상단으로 올리는 기능에 연결 예정.',
+            py_func: null,
+            js_action: 'canvasContextBringToFront',
+            events: ['click'],
+            affects: ['preview-canvas-box-{id}'],
+            examples: [
+                'data-action="js:canvasContextBringToFront"'
+            ]
+        },
+        'preview-canvas-context-delete-btn': {
+            module: 'preview.canvas.context',
+            desc: '선택 박스를 삭제하는 컨텍스트 메뉴 항목',
+            io: {
+                input: ['click'],
+                output: ['remove-box emit → vm.removeBox 호출']
+            },
+            logic: '선택된 박스를 프리뷰 캔버스에서 제거.',
+            py_func: null,
+            js_action: 'canvasContextDelete',
+            events: ['click'],
+            affects: ['preview-canvas-box-{id}', 'panel-right-props-root'],
+            examples: [
+                'data-action="js:canvasContextDelete"'
+            ]
+        },
 
         /* -----------------------------------------------------
          * Center Panel - Timeline Resizer
@@ -1419,6 +1499,10 @@
      * - 1) 정확히 일치하는 ID 우선
      * - 2) 없으면 {id} 패턴 키를 이용해 prefix/suffix 매칭
      *    예) timeline-clip-{id}  →  timeline-clip-123 과 매칭
+     *
+     * ※ 중요: ID 문자열은 순서/구조를 파싱하지 않고,
+     *          단순히 "앞부분(prefix)이 같은지" 정도만 본다.
+     *          실제 의미 정보는 모두 SPECS 안에 수동으로 기록.
      */
     function WAI_getElementSpec(id) {
         if (!id) return null;
