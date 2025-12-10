@@ -143,7 +143,7 @@ const AppRoot = {
         setupInspectorMode() {
             const self = this;
             const TOOLTIP_MARGIN = 10;
-            const TOOLTIP_WIDTH = 320;
+            const TOOLTIP_WIDTH = 340;
             const TOOLTIP_HEIGHT_INSPECT = 70;
             const TOOLTIP_HEIGHT_DEV = 140;
 
@@ -228,10 +228,7 @@ const AppRoot = {
 
         /**
          * Dev 모드용 정보 문자열 생성
-         * - 모든 요소에 대해:
-         *   1) element-specs.js 에 spec 있으면 module / py_func / js_action
-         *   2) data-action 이 있으면 항상 표시
-         *   3) 둘 다 없으면 Spec: NOT FOUND 만 표시
+         * - element-specs.js + data-action 기반
          */
         buildDevInfo(targetEl) {
             const id = targetEl.id || '';
@@ -266,8 +263,53 @@ const AppRoot = {
                 lines.push(`data-action: ${dataAction}`);
             }
 
-            // 항상 최소 한 줄 이상 존재하도록 보장
             return lines.join('\n');
+        },
+
+        /**
+         * Inspect / Dev 공용: 정보창 클릭 시 ID를 클립보드에 복사
+         * - inspector.id 가 비어있으면 아무 것도 하지 않음
+         */
+        copyInspectorId() {
+            const id = this.inspector.id;
+            if (!id) return;
+
+            const text = id;
+            const doLog = () => {
+                console.log(`[INSPECT] copied id="${text}" to clipboard`);
+            };
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(doLog).catch(err => {
+                    console.warn('[INSPECT] clipboard.writeText 실패, fallback 시도', err);
+                    this.copyInspectorIdFallback(text, doLog);
+                });
+            } else {
+                this.copyInspectorIdFallback(text, doLog);
+            }
+        },
+
+        /**
+         * 구형 브라우저/환경용 클립보드 복사 fallback
+         */
+        copyInspectorIdFallback(text, onSuccess) {
+            try {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                textarea.style.left = '-9999px';
+                document.body.appendChild(textarea);
+                textarea.focus();
+                textarea.select();
+                const ok = document.execCommand('copy');
+                document.body.removeChild(textarea);
+                if (ok && typeof onSuccess === 'function') {
+                    onSuccess();
+                }
+            } catch (err) {
+                console.warn('[INSPECT] execCommand copy 실패', err);
+            }
         },
 
         // --- Preview/Canvas Logic ---
