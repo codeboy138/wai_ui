@@ -19,8 +19,8 @@ const AppRoot = {
             previewContainerHeight: '50%', 
             timelineContainerHeight: '50%',
             isProjectModalOpen: false,
-            isDevModeActive: false, 
-            isDevModeFull: false,   
+            isDevModeActive: false,  // Inspect 모드
+            isDevModeFull: false,    // Dev 모드
             
             // Core Timeline/Canvas State
             tracks: [
@@ -136,22 +136,24 @@ const AppRoot = {
         },
 
         /**
-         * Inspector / Dev 모드 공통 마우스 무브 핸들러
-         * - Inspect 모드: ID/태그/클래스 + 크기만 표시
-         * - Dev 모드: element-specs.js + data-action 기반 정보 표시
+         * Inspector / Dev 모드용 마우스 무브 핸들러
+         * - Inspect: ID/태그/클래스/크기
+         * - Dev: 위 + element-specs.js + data-action 정보
          */
         setupInspectorMode() {
             const self = this;
             const TOOLTIP_MARGIN = 10;
-            const TOOLTIP_WIDTH = 260;
+            const TOOLTIP_WIDTH = 320;
             const TOOLTIP_HEIGHT_INSPECT = 70;
-            const TOOLTIP_HEIGHT_DEV = 130;
+            const TOOLTIP_HEIGHT_DEV = 140;
 
             document.addEventListener('mousemove', (e) => {
+                // 둘 다 꺼져 있으면 동작 안 함
                 if (!self.isDevModeActive && !self.isDevModeFull) return;
 
                 let target = e.target;
 
+                // 오버레이 위에 있으면 실제 아래 요소로 다시 계산
                 if (target.classList.contains('dev-highlight') || target.classList.contains('dev-tooltip')) {
                     const realTarget = document.elementFromPoint(e.clientX, e.clientY);
                     if (realTarget) target = realTarget;
@@ -167,6 +169,7 @@ const AppRoot = {
                         left: `${rect.left}px`,
                     };
 
+                    // Dev 모드일 때만 코드/브리지 정보 생성
                     const devInfo = self.isDevModeFull ? self.buildDevInfo(target) : '';
 
                     self.inspector = {
@@ -191,12 +194,12 @@ const AppRoot = {
                         top = rect.bottom + TOOLTIP_MARGIN;
                     }
 
-                    // 아래로도 나가지 않도록 클램프
+                    // 아래로 넘치면 화면 안으로
                     if (top + tooltipHeight > window.innerHeight - TOOLTIP_MARGIN) {
                         top = Math.max(TOOLTIP_MARGIN, window.innerHeight - tooltipHeight - TOOLTIP_MARGIN);
                     }
 
-                    // 오른쪽으로 나가면 왼쪽에 배치
+                    // 오른쪽으로 넘치면 왼쪽으로
                     if (left + TOOLTIP_WIDTH > window.innerWidth - TOOLTIP_MARGIN) {
                         left = rect.left - TOOLTIP_WIDTH - TOOLTIP_MARGIN;
                         if (left < TOOLTIP_MARGIN) {
@@ -225,8 +228,10 @@ const AppRoot = {
 
         /**
          * Dev 모드용 정보 문자열 생성
-         * - 코드/브리지 중심 정보만 표시
-         * - 사람이 읽기 쉬운 설명(desc)는 표시하지 않음
+         * - 모든 요소에 대해:
+         *   1) element-specs.js 에 spec 있으면 module / py_func / js_action
+         *   2) data-action 이 있으면 항상 표시
+         *   3) 둘 다 없으면 Spec: NOT FOUND 만 표시
          */
         buildDevInfo(targetEl) {
             const id = targetEl.id || '';
@@ -261,6 +266,7 @@ const AppRoot = {
                 lines.push(`data-action: ${dataAction}`);
             }
 
+            // 항상 최소 한 줄 이상 존재하도록 보장
             return lines.join('\n');
         },
 
@@ -345,13 +351,8 @@ const AppRoot = {
                 });
             };
             
-            // Left Panel (Width)
             setup('resizer-left', 'leftPanelWidth', 180, 'w', false);
-            
-            // Right Panel (Width - Reverse calculation)
             setup('resizer-right', 'rightPanelWidth', 250, 'w', true); 
-            
-            // Center Horizontal (Height)
             setup('resizer-timeline', 'previewContainerHeight', 100, 'h', false);
         },
         
