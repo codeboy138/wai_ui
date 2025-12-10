@@ -7,7 +7,7 @@
  *
  * 필드 가이드:
  * - module   : UI 모듈/영역 이름 (예: "header-nav", "panel-left")
- * - desc     : 간단한 설명 (사용자/개발자 공용)
+ * - desc     : 간단한 설명 (내부용)
  * - io       : { input, output } 형태의 입출력 요약
  * - logic    : 이 요소가 수행하는 핵심 로직 설명
  * - py_func  : 호출되는 Python 함수명 (없으면 null)
@@ -15,7 +15,7 @@
  * - js_action: 호출되는 JS 액션명 (store/methods 등에서 매핑)
  * - events   : 트리거 이벤트 리스트 (기본 "click")
  * - affects  : 이 요소가 주로 영향을 미치는 주요 타겟 id 리스트
- * - examples : 실제 DOM id 예시 (패턴일 경우 특히 유용)
+ * - examples : 실제 DOM id 예시
  * - deprecated: 더 이상 사용되지 않을 경우 true
  */
 (function (global) {
@@ -114,6 +114,40 @@
             deprecated: false
         },
 
+        'menu-main': {
+            module: 'header',
+            desc: '상단 햄버거 메뉴 컨테이너',
+            io: {
+                input: '클릭',
+                output: '메인 메뉴 토글 (향후 사용)'
+            },
+            logic: '현재는 시각적 아이콘만 존재, 추후 전역 메뉴 오픈에 사용.',
+            py_func: null,
+            py_params: {},
+            js_action: null,
+            events: ['click'],
+            affects: [],
+            examples: ['menu-main'],
+            deprecated: false
+        },
+
+        'nav-container': {
+            module: 'header-nav',
+            desc: '상단 네비게이션 버튼 그룹 컨테이너',
+            io: {
+                input: '내비게이션 버튼 클릭',
+                output: '화면/모드 전환'
+            },
+            logic: '탐색/제작/자산/설정/연구 탭을 수평으로 배치.',
+            py_func: null,
+            py_params: {},
+            js_action: null,
+            events: [],
+            affects: ['panel-center', 'panel-left', 'panel-right'],
+            examples: ['nav-container'],
+            deprecated: false
+        },
+
         'nav-explore': {
             module: 'header-nav',
             desc: '상단 네비게이션 - 탐색 탭',
@@ -145,6 +179,40 @@
             events: ['click'],
             affects: ['project-modal'],
             examples: ['nav-create'],
+            deprecated: false
+        },
+
+        'nav-assets': {
+            module: 'header-nav',
+            desc: '상단 네비게이션 - 자산 탭 (드롭다운 트리거)',
+            io: {
+                input: 'hover, click',
+                output: '자산 관련 드롭다운 노출'
+            },
+            logic: '자산 관리/라이브러리 관련 액션을 위한 드롭다운을 연다.',
+            py_func: null,
+            py_params: {},
+            js_action: null,
+            events: ['click'],
+            affects: ['menu-asset-manage'],
+            examples: ['nav-assets'],
+            deprecated: false
+        },
+
+        'menu-asset-manage': {
+            module: 'header-nav',
+            desc: '자산 드롭다운 - 자산 관리 메뉴',
+            io: {
+                input: 'click',
+                output: 'Python 자산 관리자 창 오픈 요청'
+            },
+            logic: '자산 관리자(별도 창 또는 패널)를 열도록 open_asset_manager Python 함수를 호출.',
+            py_func: 'open_asset_manager',
+            py_params: {},
+            js_action: null,
+            events: ['click'],
+            affects: ['panel-left'],
+            examples: ['menu-asset-manage'],
             deprecated: false
         },
 
@@ -182,25 +250,8 @@
             deprecated: false
         },
 
-        'menu-asset-manage': {
-            module: 'header-nav',
-            desc: '자산 드롭다운 - 자산 관리 메뉴',
-            io: {
-                input: 'click',
-                output: 'Python 자산 관리자 창 오픈 요청'
-            },
-            logic: '자산 관리자(별도 창 또는 패널)를 열도록 open_asset_manager Python 함수를 호출.',
-            py_func: 'open_asset_manager',
-            py_params: {},
-            js_action: null,
-            events: ['click'],
-            affects: ['panel-left'],
-            examples: ['menu-asset-manage'],
-            deprecated: false
-        },
-
         // =========================================
-        // 개발자 / 인스펙터 모드 토글
+        // 개발 도구 / Inspector / Dev
         // =========================================
         'inspector-toggle': {
             module: 'devtools',
@@ -226,13 +277,30 @@
                 input: 'click',
                 output: 'Dev 모드 on/off'
             },
-            logic: 'Vue 메서드 toggleDevMode("full")을 호출해 전체 개발자 모드를 토글.',
+            logic: 'Vue 메서드 toggleDevMode("full")을 호출해 개발자 모드(브리지/로직 표시)를 토글.',
             py_func: null,
             py_params: {},
             js_action: 'toggleDevModeFull',
             events: ['click'],
             affects: ['dev-overlay'],
             examples: ['dev-toggle'],
+            deprecated: false
+        },
+
+        'dev-overlay': {
+            module: 'devtools',
+            desc: 'Inspect / Dev 공용 오버레이 루트',
+            io: {
+                input: 'isDevModeActive / isDevModeFull 상태 변경',
+                output: '하이라이트 박스 + 정보 툴팁 표시/숨김'
+            },
+            logic: '마우스 위치에 따라 선택 요소 영역을 강조하고 ID/브리지 정보를 표시.',
+            py_func: null,
+            py_params: {},
+            js_action: null,
+            events: [],
+            affects: ['dev-highlight'],
+            examples: ['dev-overlay'],
             deprecated: false
         },
 
@@ -310,6 +378,23 @@
             deprecated: false
         },
 
+        'panel-left-header': {
+            module: 'panel-left',
+            desc: '좌측 자산 패널 헤더 영역',
+            io: {
+                input: '없음',
+                output: '섹션 타이틀 및 추가 버튼 배치'
+            },
+            logic: '자산 패널 제목과 “자산 추가” 버튼을 포함.',
+            py_func: null,
+            py_params: {},
+            js_action: null,
+            events: [],
+            affects: ['btn-add-asset'],
+            examples: ['panel-left-header'],
+            deprecated: false
+        },
+
         'btn-add-asset': {
             module: 'panel-left',
             desc: '새 자산 가져오기 버튼',
@@ -324,6 +409,23 @@
             events: ['click'],
             affects: ['react-asset-list'],
             examples: ['btn-add-asset'],
+            deprecated: false
+        },
+
+        'react-asset-list': {
+            module: 'panel-left',
+            desc: '자산 목록 렌더링 컨테이너(React/타 프레임워크 연동 가능)',
+            io: {
+                input: '자산 추가/삭제/로드 이벤트',
+                output: '자산 카드 리스트 렌더링'
+            },
+            logic: 'Python/JS에서 가져온 자산 데이터를 기반으로 리스트를 표시.',
+            py_func: null,
+            py_params: {},
+            js_action: null,
+            events: [],
+            affects: [],
+            examples: ['react-asset-list'],
             deprecated: false
         },
 
@@ -345,7 +447,248 @@
         },
 
         // =========================================
-        // 우측 패널 (속성)
+        // 중앙 패널 / 프리뷰
+        // =========================================
+        'panel-center': {
+            module: 'panel-center',
+            desc: '중앙 패널 (프리뷰 + 타임라인 컨테이너)',
+            io: {
+                input: '패널 리사이즈, 프리뷰/타임라인 상호작용',
+                output: '비디오 프리뷰 및 타임라인 표시'
+            },
+            logic: '상단 프리뷰 영역과 하단 타임라인 영역을 수직으로 배치.',
+            py_func: null,
+            py_params: {},
+            js_action: null,
+            events: [],
+            affects: ['preview-container'],
+            examples: ['panel-center'],
+            deprecated: false
+        },
+
+        'preview-container': {
+            module: 'panel-center',
+            desc: '프리뷰(캔버스) 영역 상단 컨테이너',
+            io: {
+                input: '패널 리사이즈',
+                output: '프리뷰 영역 높이 변경'
+            },
+            logic: 'previewContainerHeight 상태에 따라 프리뷰 영역의 세로 비율을 조절.',
+            py_func: null,
+            py_params: {},
+            js_action: null,
+            events: [],
+            affects: ['canvas-wrapper'],
+            examples: ['preview-container'],
+            deprecated: false
+        },
+
+        'preview-toolbar': {
+            module: 'panel-center',
+            desc: '프리뷰 상단 툴바 (비율, 해상도, 스냅 토글)',
+            io: {
+                input: '비율/해상도 선택, SNAP 토글',
+                output: '캔버스 크기/스냅 동작 변경'
+            },
+            logic: 'Dropdown 과 SNAP 토글을 통해 프리뷰 캔버스 설정을 제어.',
+            py_func: null,
+            py_params: {},
+            js_action: null,
+            events: [],
+            affects: ['dd-ratio', 'dd-resolution', 'btn-magnet'],
+            examples: ['preview-toolbar'],
+            deprecated: false
+        },
+
+        'dd-ratio': {
+            module: 'panel-center',
+            desc: '프리뷰 캔버스 종횡비 선택 드롭다운',
+            io: {
+                input: 'click, select',
+                output: 'aspectRatio 상태 변경'
+            },
+            logic: 'Vue 메서드 setAspect(r) 호출을 통해 프리뷰 캔버스 비율을 변경.',
+            py_func: null,
+            py_params: {},
+            js_action: 'setAspect',
+            events: ['click', 'select'],
+            affects: ['canvas-scaler'],
+            examples: ['dd-ratio'],
+            deprecated: false
+        },
+
+        'dd-resolution': {
+            module: 'panel-center',
+            desc: '프리뷰 캔버스 해상도 선택 드롭다운',
+            io: {
+                input: 'click, select',
+                output: 'resolution 및 canvasSize 변경 (간접)'
+            },
+            logic: 'Vue 메서드 setResolution(r) 호출을 통해 해상도 프리셋을 변경.',
+            py_func: null,
+            py_params: {},
+            js_action: 'setResolution',
+            events: ['click', 'select'],
+            affects: ['canvas-scaler'],
+            examples: ['dd-resolution'],
+            deprecated: false
+        },
+
+        'box-coords': {
+            module: 'panel-center',
+            desc: '프리뷰 캔버스 내 마우스 좌표 표시 박스',
+            io: {
+                input: '마우스 이동 (updateCanvasMouseCoord)',
+                output: 'coord-display 텍스트 업데이트'
+            },
+            logic: '현재 캔버스 상의 마우스 좌표를 실시간으로 보여줌.',
+            py_func: null,
+            py_params: {},
+            js_action: null,
+            events: [],
+            affects: ['coord-display'],
+            examples: ['box-coords'],
+            deprecated: false
+        },
+
+        'coord-display': {
+            module: 'panel-center',
+            desc: '마우스 좌표 숫자 표시 텍스트',
+            io: {
+                input: 'mouseCoord 상태 변경',
+                output: '텍스트 갱신'
+            },
+            logic: 'canvasSize, canvasScale 를 고려한 실제 캔버스 좌표를 표시.',
+            py_func: null,
+            py_params: {},
+            js_action: null,
+            events: [],
+            affects: [],
+            examples: ['coord-display'],
+            deprecated: false
+        },
+
+        'btn-magnet': {
+            module: 'panel-center',
+            desc: '프리뷰 캔버스 SNAP 온/오프 토글',
+            io: {
+                input: 'click',
+                output: 'isMagnet 상태 토글'
+            },
+            logic: 'Vue 데이터 isMagnet을 토글하여 캔버스 박스 정렬/스냅 동작을 켜고 끔.',
+            py_func: null,
+            py_params: {},
+            js_action: 'toggleSnapMagnet',
+            events: ['click'],
+            affects: ['canvas-scaler'],
+            examples: ['btn-magnet'],
+            deprecated: false
+        },
+
+        'canvas-wrapper': {
+            module: 'panel-center',
+            desc: '프리뷰 캔버스 전체를 감싸는 래퍼',
+            io: {
+                input: 'mousemove, mouseleave',
+                output: 'mouseCoord / isMouseOverCanvas 상태 업데이트'
+            },
+            logic: 'updateCanvasMouseCoord 메서드를 통해 마우스 위치를 추적.',
+            py_func: null,
+            py_params: {},
+            js_action: 'updateCanvasMouseCoord',
+            events: ['mousemove', 'mouseleave'],
+            affects: ['box-coords', 'mouseMarkerPos'],
+            examples: ['canvas-wrapper'],
+            deprecated: false
+        },
+
+        'canvas-viewport': {
+            module: 'panel-center',
+            desc: '프리뷰 캔버스가 들어가는 뷰포트',
+            io: {
+                input: '리사이즈',
+                output: 'canvasScale 재계산 (간접)'
+            },
+            logic: '실제 스케일된 캔버스를 표시하는 영역.',
+            py_func: null,
+            py_params: {},
+            js_action: null,
+            events: [],
+            affects: ['canvas-scaler'],
+            examples: ['canvas-viewport'],
+            deprecated: false
+        },
+
+        'canvas-scaler': {
+            module: 'panel-center',
+            desc: '실제 캔버스 컨텐츠가 배치되는 스케일러',
+            io: {
+                input: 'wrapper 리사이즈, 해상도 변경',
+                output: 'canvasScale 및 캔버스 표시 크기 조정'
+            },
+            logic: 'setupCanvasScaler에서 wrapper 크기를 기준으로 scale을 계산.',
+            py_func: null,
+            py_params: {},
+            js_action: null,
+            events: [],
+            affects: ['preview-canvas'],
+            examples: ['canvas-scaler'],
+            deprecated: false
+        },
+
+        'guide-h': {
+            module: 'panel-center',
+            desc: '프리뷰 캔버스 수평 가이드라인',
+            io: {
+                input: '스냅/정렬 연산',
+                output: '가이드라인 on/off'
+            },
+            logic: '캔버스 중앙선 등 정렬 가이드를 시각화.',
+            py_func: null,
+            py_params: {},
+            js_action: null,
+            events: [],
+            affects: [],
+            examples: ['guide-h'],
+            deprecated: false
+        },
+
+        'guide-v': {
+            module: 'panel-center',
+            desc: '프리뷰 캔버스 수직 가이드라인',
+            io: {
+                input: '스냅/정렬 연산',
+                output: '가이드라인 on/off'
+            },
+            logic: '캔버스 중앙선 등 정렬 가이드를 시각화.',
+            py_func: null,
+            py_params: {},
+            js_action: null,
+            events: [],
+            affects: [],
+            examples: ['guide-v'],
+            deprecated: false
+        },
+
+        'resizer-timeline': {
+            module: 'layout-main',
+            desc: '프리뷰와 타임라인 사이 세로 리사이저',
+            io: {
+                input: 'drag (mousedown + move)',
+                output: 'timelineContainerHeight, previewContainerHeight 변경'
+            },
+            logic: '프리뷰 vs 타임라인의 세로 비율을 사용자가 드래그로 조정.',
+            py_func: null,
+            py_params: {},
+            js_action: 'resizePanelCenter',
+            events: ['mousedown', 'mousemove', 'mouseup'],
+            affects: ['preview-container', 'timeline-panel'],
+            examples: ['resizer-timeline'],
+            deprecated: false
+        },
+
+        // =========================================
+        // 우측 패널 (속성 / 레이어)
         // =========================================
         'panel-right': {
             module: 'panel-right',
@@ -381,63 +724,25 @@
             deprecated: false
         },
 
-        // =========================================
-        // 중앙 패널 - 프리뷰 / 타임라인
-        // =========================================
-        'preview-container': {
-            module: 'panel-center',
-            desc: '프리뷰(캔버스) 영역 상단 컨테이너',
+        'vue-right-panel-root': {
+            module: 'panel-right',
+            desc: '우측 패널 내 Vue 컴포넌트 루트 (LayerPanel / PropertiesPanel)',
             io: {
-                input: '패널 리사이즈',
-                output: '프리뷰 영역 높이 변경'
+                input: '선택 객체/레이어 변경',
+                output: '레이어/속성 UI 업데이트'
             },
-            logic: 'previewContainerHeight 상태에 따라 프리뷰 영역의 세로 비율을 조절.',
+            logic: 'layer-panel, properties-panel 컴포넌트를 포함하는 컨테이너.',
             py_func: null,
             py_params: {},
             js_action: null,
             events: [],
-            affects: ['canvas-wrapper'],
-            examples: ['preview-container'],
-            deprecated: false
-        },
-
-        'btn-magnet': {
-            module: 'panel-center',
-            desc: '프리뷰 캔버스 SNAP 온/오프 토글',
-            io: {
-                input: 'click',
-                output: 'isMagnet 상태 토글'
-            },
-            logic: 'Vue 데이터 isMagnet을 토글하여 캔버스 박스 정렬/스냅 동작을 켜고 끔.',
-            py_func: null,
-            py_params: {},
-            js_action: 'toggleSnapMagnet',
-            events: ['click'],
-            affects: ['canvas-scaler'],
-            examples: ['btn-magnet'],
-            deprecated: false
-        },
-
-        'resizer-timeline': {
-            module: 'layout-main',
-            desc: '프리뷰와 타임라인 사이 세로 리사이저',
-            io: {
-                input: 'drag (mousedown + move)',
-                output: 'timelineContainerHeight, previewContainerHeight 변경'
-            },
-            logic: '프리뷰 vs 타임라인의 세로 비율을 사용자가 드래그로 조정.',
-            py_func: null,
-            py_params: {},
-            js_action: 'resizePanelCenter',
-            events: ['mousedown', 'mousemove', 'mouseup'],
-            affects: ['preview-container', 'timeline-panel'],
-            examples: ['resizer-timeline'],
+            affects: [],
+            examples: ['vue-right-panel-root'],
             deprecated: false
         },
 
         // =========================================
         // 동적 요소 패턴 예시
-        // (아직 실제 DOM id는 컴포넌트 측에서 생성됨)
         // =========================================
         'timeline-clip-{id}': {
             module: 'timeline',
