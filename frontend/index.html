@@ -26,22 +26,22 @@
                 extend: {
                     colors: {
                         bg: { 
-                            dark: '#09090b',    /* 앱 전체 배경 (Zinc-950) */
-                            panel: '#18181b',   /* 패널 배경 (Zinc-900) */
-                            hover: '#27272a',   /* 호버 상태 배경 (Zinc-800) */
-                            input: '#202023'    /* 입력창 배경 */
+                            dark: '#09090b',
+                            panel: '#18181b',
+                            hover: '#27272a',
+                            input: '#202023'
                         },
                         ui: { 
-                            border: '#27272a',  /* 테두리 색상 */
-                            selected: '#3f3f46',/* 선택됨 (Zinc-700) */
-                            accent: '#3b82f6',  /* 강조 (Blue-500) */
-                            danger: '#ef4444',  /* 위험/삭제 (Red-500) */
-                            success: '#22c55e'  /* 성공 (Green-500) */
+                            border: '#27272a',
+                            selected: '#3f3f46',
+                            accent: '#3b82f6',
+                            danger: '#ef4444',
+                            success: '#22c55e'
                         },
                         text: { 
-                            main: '#f4f4f5',    /* 메인 텍스트 (Zinc-100) */
-                            sub: '#a1a1aa',     /* 서브 텍스트 (Zinc-400) */
-                            inv: '#18181b'      /* 반전 텍스트 (검정) */
+                            main: '#f4f4f5',
+                            sub: '#a1a1aa',
+                            inv: '#18181b'
                         }
                     },
                     fontSize: { 
@@ -62,7 +62,7 @@
     </script>
 
     <style>
-        /* [전역 설정] */
+        /* 전역 설정 */
         body { 
             background-color: #09090b; 
             color: #f4f4f5; 
@@ -72,25 +72,24 @@
             font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif; 
         }
         
-        /* 스크롤바 커스터마이징 */
+        /* 스크롤바 */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: #18181b; }
         ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #52525b; }
 
-        /* 타임라인 그리드 레이아웃 */
+        /* 타임라인 그리드 */
         .timeline-grid { 
             display: grid; 
             height: 100%; 
-            overflow: hidden; /* 내부 컨테이너 스크롤 사용 */
+            overflow: hidden;
         }
         
-        /* 고정 요소 (Sticky Headers & Rulers) */
         .sticky-corner { position: sticky; top: 0; left: 0; z-index: 50; background: #18181b; border-bottom: 1px solid #27272a; border-right: 1px solid #27272a; }
         .sticky-ruler { position: sticky; top: 0; z-index: 40; background: #09090b; border-bottom: 1px solid #27272a; }
-        .sticky-col { position: sticky; left: 0; z-index: 30; background: #18181b; border-right: 1px solid #27272a; }
+        .sticky-col   { position: sticky; left: 0; z-index: 30; background: #18181b; border-right: 1px solid #27272a; }
 
-        /* 클립(Clip) 스타일 */
+        /* 클립 */
         .clip { 
             position: absolute; 
             top: 4px; 
@@ -129,7 +128,7 @@
             z-index: 2;
         }
 
-        /* 오디오 파형 및 볼륨 라인 */
+        /* 오디오 파형/볼륨 라인 */
         .waveform { 
             position: absolute; top: 50%; left: 0; width: 100%; height: 100%; 
             transform: translateY(-50%); opacity: 0.6; pointer-events: none; 
@@ -141,7 +140,7 @@
         }
         .volume-line:hover { background: #3b82f6; height: 3px; }
 
-        /* 프리뷰 캔버스 박스 (점선 자석 박스) */
+        /* 프리뷰 캔버스 박스 */
         .canvas-scaler { 
             transform-origin: top left; 
             background-color: #000; 
@@ -170,7 +169,7 @@
             text-shadow: 0 1px 2px black; opacity: 0.8; 
         }
         
-        /* 박스 리사이즈 핸들러 */
+        /* 박스 핸들 */
         .box-handle { 
             position: absolute; width: 8px; height: 8px; 
             background: #fff; border: 1px solid #000; 
@@ -182,14 +181,14 @@
         .bh-bl { bottom: -4px; left: -4px; cursor: nesw-resize; }
         .bh-br { bottom: -4px; right: -4px; cursor: nwse-resize; }
         
-        /* 스냅 플래시 효과 */
+        /* 스냅 플래시 */
         @keyframes flash { 
             0% { background-color: rgba(255,255,255,0.8); } 
             100% { background-color: rgba(255,255,255,0.05); } 
         }
         .snap-flash { animation: flash 0.3s ease-out; border-color: #fff !important; }
 
-        /* 가이드라인 (십자선) */
+        /* 가이드라인 */
         .guide-line-h { 
             position: absolute; left: 0; right: 0; height: 1px; 
             background-color: #3b82f6; border-top: 1px dashed #3b82f6; 
@@ -201,7 +200,7 @@
             display: none; pointer-events: none; z-index: 9999; opacity: 0.8; 
         }
 
-        /* 패널 리사이저 (Panel Resizers) */
+        /* 패널 리사이저 */
         .panel-resizer-v { 
             position: absolute; top: 0; bottom: 0; width: 4px; 
             cursor: col-resize; z-index: 100; transition: background 0.2s; 
@@ -226,7 +225,7 @@
         }
         .resizer-h:hover, .resizer-w:hover { background-color: #3b82f6; }
 
-        /* 공통 UI 유틸리티 */
+        /* 공통 버튼 */
         .tool-btn { 
             @apply p-1 rounded text-text-sub hover:text-text-main hover:bg-bg-hover transition-colors text-xs flex items-center justify-center w-6 h-6; 
         }
@@ -242,24 +241,24 @@
         }
         .win-btn.close:hover { @apply bg-ui-danger text-white; }
 
-        /* 커스텀 드롭다운 (FIXED) */
+        /* 커스텀 드롭다운 */
         .c-dropdown { 
             @apply relative inline-flex items-center px-2 h-full bg-bg-input rounded text-[10px] text-text-sub cursor-pointer hover:bg-bg-hover hover:text-text-main border border-ui-border select-none; 
         }
         .c-dropdown-menu { 
-            display: none; /* 기본 숨김 */
+            display: none;
             position: absolute; top: 105%; left: 0; width: 100%; 
             background-color: #18181b; border: 1px solid #27272a; border-radius: 4px; 
-            flex-direction: column; z-index: 1000; shadow-xl; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            flex-direction: column; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
         }
-        .c-dropdown.open .c-dropdown-menu { display: flex; } /* .open 클래스가 있을 때만 표시 */
+        .c-dropdown.open .c-dropdown-menu { display: flex; }
         
         .c-dropdown-item { @apply p-2 text-center hover:bg-ui-accent hover:text-white transition-colors; }
         .c-dropdown.locked { cursor: not-allowed; opacity: 0.7; border-color: #333; background: #1a1a1a; }
         .c-dropdown.locked:hover { background: #1a1a1a; color: #a1a1aa; }
         .c-dropdown.locked:hover .c-dropdown-menu { display: none; }
 
-        /* 개발자 모드 (Dev / Inspect Overlay) */
+        /* Dev / Inspect Overlay */
         .dev-overlay { 
             pointer-events: none; position: fixed; inset: 0; z-index: 9999; display: none; 
         }
@@ -271,7 +270,7 @@
         .dev-highlight { 
             position: absolute; 
             border: 1px solid #3b82f6; 
-            background: rgba(255, 255, 255, 0.1); /* 10% 투명도 영역 표시 */
+            background: rgba(255, 255, 255, 0.1); /* 10% 투명 영역 */
             transition: all 0.05s ease-out; 
             pointer-events: none;
         }
@@ -281,13 +280,13 @@
             background: rgba(255, 255, 255, 0.9); /* 흰 배경 90% */
             color: #000000; 
             padding: 4px 8px; 
-            font-size: 10px; 
+            font-size: 12px; /* Inspector / Dev 폰트 12px */
             border-radius: 2px; 
             font-family: monospace; 
             white-space: pre-wrap; 
             z-index: 10000; 
             box-shadow: 0 2px 8px rgba(0,0,0,0.5); 
-            pointer-events: auto;     /* 클릭 가능 (ID 복사) */
+            pointer-events: auto;
             max-width: 280px;
         }
 
@@ -297,13 +296,11 @@
         }
 
         .dev-tooltip-meta {
-            font-size: 9px;
             color: #333;
         }
 
         .dev-tooltip-hint {
             margin-top: 2px;
-            font-size: 9px;
             color: #555;
         }
 
@@ -311,15 +308,12 @@
             margin-top: 4px;
             padding-top: 4px;
             border-top: 1px solid #999;
-            background: rgba(255, 255, 255, 0.9); /* Dev 정보 영역도 흰 배경 */
-            font-size: 9px;
+            background: rgba(255, 255, 255, 0.9);
             color: #111;
             white-space: pre-wrap;
         }
 
-        /* (중복/구버전) data-dev 기반 툴팁 제거됨 */
-
-        /* 컨텍스트 메뉴 (Context Menu) */
+        /* 컨텍스트 메뉴 */
         .context-menu { 
             position: fixed; background: #1e1e1e; border: 1px solid #333; 
             box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 5000; border-radius: 4px; 
@@ -333,18 +327,16 @@
         .color-swatch { width: 16px; height: 16px; border-radius: 2px; cursor: pointer; border: 1px solid #333; }
         .color-swatch:hover { border-color: white; transform: scale(1.1); }
 
-        /* Drag Overlay Highlight */
         .timeline-drag-over { box-shadow: inset 0 0 0 2px #3b82f6; background-color: rgba(59, 130, 246, 0.1); }
 
-        /* 플레이헤드 (Playhead) */
+        /* 플레이헤드 */
         .playhead-line { position: absolute; top: 0; bottom: 0; width: 1px; background: #ef4444; z-index: 40; pointer-events: none; }
         .playhead-handle { position: absolute; top: 0; width: 11px; height: 12px; background: #ef4444; transform: translateX(-50%); clip-path: polygon(0 0, 100% 0, 50% 100%); cursor: ew-resize; pointer-events: auto; z-index: 50; }
         
-        /* Modal Style */
+        /* Modal */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); display: flex; justify-content: center; align-items: center; z-index: 5000; }
         .modal-window { background: #18181b; border: 1px solid #27272a; border-radius: 8px; width: 80%; height: 80%; max-width: 1000px; max-height: 700px; display: flex; flex-direction: column; overflow: hidden; }
 
-        /* Animation */
         .animate-fade-in { animation: fadeIn 0.2s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
@@ -586,19 +578,24 @@
                             <ruler-line :orientation="'v'" :max-size="canvasSize.h" :scale="canvasScale"></ruler-line>
                         </div>
 
-                        <!-- 마우스 가이드 라인 -->
+                        <!-- 마우스 가이드 -->
                         <div class="absolute top-0 left-0 w-full h-full z-30 pointer-events-none" :style="{paddingLeft: '20px', paddingTop: '20px'}">
                             <div class="absolute w-px h-full bg-ui-accent opacity-30" :style="{left: mouseMarkerPos.x + 'px'}" v-show="isMouseOverCanvas"></div>
                             <div class="absolute h-px w-full bg-ui-accent opacity-30" :style="{top: mouseMarkerPos.y + 'px'}" v-show="isMouseOverCanvas"></div>
                         </div>
 
-                        <!-- 실제 캔버스 뷰포트 -->
+                        <!-- 실제 캔버스 -->
                         <div class="relative overflow-hidden" id="preview-canvas-viewport" style="width:100%; height:100%;">
                             <div id="preview-canvas-scaler" class="canvas-scaler" :style="canvasScalerStyle">
                                 <div id="preview-guide-h" class="guide-line-h" style="top: 50%;"></div>
                                 <div id="preview-guide-v" class="guide-line-v" style="left: 50%;"></div>
                                 
-                                <preview-canvas :canvas-boxes="canvasBoxes" :selected-box-id="selectedBoxId" @select-box="setSelectedBoxId" @remove-box="removeBox"></preview-canvas>
+                                <preview-canvas
+                                    :canvas-boxes="canvasBoxes"
+                                    :selected-box-id="selectedBoxId"
+                                    @select-box="setSelectedBoxId"
+                                    @remove-box="removeBox"
+                                ></preview-canvas>
                             </div>
                         </div>
                     </div>
@@ -612,7 +609,7 @@
                     data-action="js:resizePanelCenter"
                 ></div>
 
-                <!-- 타임라인 패널 (Vue 컴포넌트) -->
+                <!-- 타임라인 패널 -->
                 <timeline-panel :vm="$data" :style="{ height: timelineContainerHeight }"></timeline-panel>
             </section>
 
@@ -660,14 +657,14 @@
                     Size: {{ inspector.w }} x {{ inspector.h }}
                 </div>
 
-                <!-- Inspect 모드: 기본 정보 + 힌트 -->
+                <!-- Inspect 모드 -->
                 <template v-if="isDevModeActive && !isDevModeFull">
                     <div class="dev-tooltip-hint">
                         클릭하면 현재 요소의 ID가 클립보드에 복사됩니다.
                     </div>
                 </template>
 
-                <!-- Dev 모드: element-specs.js / data-action 정보 -->
+                <!-- Dev 모드 -->
                 <template v-if="isDevModeFull">
                     <div class="dev-tooltip-devinfo" v-if="inspector.dataDev">
                         {{ inspector.dataDev }}
@@ -681,7 +678,7 @@
         
     </div>
 
-    <!-- JS 모듈: 상수, 명세, 컴포넌트, 앱 루트/부트스트랩 -->
+    <!-- JS 모듈 -->
     <script src="js/utils/constants.js"></script>
     <script src="docs/element-specs.js"></script>
 
