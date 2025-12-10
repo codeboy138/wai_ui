@@ -6,13 +6,9 @@
     <title>WAI Studio - Professional Editor (Full Version)</title>
     
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    
     <script src="https://cdn.tailwindcss.com"></script>
-    
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
     <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
 
     <script>
@@ -21,22 +17,22 @@
                 extend: {
                     colors: {
                         bg: { 
-                            dark: '#09090b',    /* 앱 전체 배경 (Zinc-950) */
-                            panel: '#18181b',   /* 패널 배경 (Zinc-900) */
-                            hover: '#27272a',   /* 호버 상태 배경 (Zinc-800) */
-                            input: '#202023'    /* 입력창 배경 */
+                            dark: '#09090b',
+                            panel: '#18181b',
+                            hover: '#27272a',
+                            input: '#202023'
                         },
                         ui: { 
-                            border: '#27272a',  /* 테두리 색상 */
-                            selected: '#3f3f46',/* 선택됨 (Zinc-700) */
-                            accent: '#3b82f6',  /* 강조 (Blue-500) */
-                            danger: '#ef4444',  /* 위험/삭제 (Red-500) */
-                            success: '#22c55e'  /* 성공 (Green-500) */
+                            border: '#27272a',
+                            selected: '#3f3f46',
+                            accent: '#3b82f6',
+                            danger: '#ef4444',
+                            success: '#22c55e'
                         },
                         text: { 
-                            main: '#f4f4f5',    /* 메인 텍스트 (Zinc-100) */
-                            sub: '#a1a1aa',     /* 서브 텍스트 (Zinc-400) */
-                            inv: '#18181b'      /* 반전 텍스트 (검정) */
+                            main: '#f4f4f5',
+                            sub: '#a1a1aa',
+                            inv: '#18181b'
                         }
                     },
                     fontSize: { 
@@ -77,7 +73,7 @@
         .timeline-grid { 
             display: grid; 
             height: 100%; 
-            overflow: hidden; /* 내부 컨테이너 스크롤 사용 */
+            overflow: hidden;
         }
         
         /* 고정 요소 (Sticky Headers & Rulers) */
@@ -242,12 +238,12 @@
             @apply relative inline-flex items-center px-2 h-full bg-bg-input rounded text-[10px] text-text-sub cursor-pointer hover:bg-bg-hover hover:text-text-main border border-ui-border select-none; 
         }
         .c-dropdown-menu { 
-            display: none; /* 기본 숨김 */
+            display: none;
             position: absolute; top: 105%; left: 0; width: 100%; 
             background-color: #18181b; border: 1px solid #27272a; border-radius: 4px; 
-            flex-direction: column; z-index: 1000; shadow-xl; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            flex-direction: column; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
         }
-        .c-dropdown.open .c-dropdown-menu { display: flex; } /* .open 클래스가 있을 때만 표시 */
+        .c-dropdown.open .c-dropdown-menu { display: flex; }
         
         .c-dropdown-item { @apply p-2 text-center hover:bg-ui-accent hover:text-white transition-colors; }
         .c-dropdown.locked { cursor: not-allowed; opacity: 0.7; border-color: #333; background: #1a1a1a; }
@@ -262,32 +258,35 @@
         
         .dev-highlight { 
             position: absolute; 
-            border: 1px solid rgba(31,31,31,0.8); 
-            background: rgba(31,31,31,0.2);  /* 인스펙트 영역 배경: 짙은 회색 20% 투명 */
+            border: 1px solid rgba(31,31,31,0.9); 
+            background: rgba(31,31,31,0.9);   /* 인스펙트 영역 배경: 짙은 회색, 불투명도 90% */
             transition: all 0.05s ease-out; 
             pointer-events: none;
         }
         
         .dev-tooltip { 
             position: absolute; 
-            background: rgba(31,31,31,0.2);  /* 툴팁 전체 배경: 짙은 회색 20% 투명 */
+            background: rgba(31,31,31,0.9);   /* 인스펙트 툴팁 배경: 짙은 회색, 불투명도 90% */
             color: #000000;                   /* 글씨: 검정 */
             padding: 4px 8px; 
             font-size: 10px; 
             border-radius: 2px; 
             font-family: monospace; 
-            white-space: pre; 
+            white-space: pre-wrap;            /* 줄바꿈 허용해서 내용 전체 표시 */
+            word-break: break-word;
             z-index: 10000; 
             box-shadow: 0 2px 8px rgba(0,0,0,0.5); 
             pointer-events: none;
-            max-width: 280px;
+            max-width: 320px;
         }
 
-        /* Dev 정보 박스: 흰색 20% + 검정 글씨 */
+        /* Dev 정보 박스: 흰색 90% + 검정 글씨, 내용 전체 보이도록 */
         .dev-tooltip-devinfo {
-            background: rgba(255,255,255,0.2); 
+            background: rgba(255,255,255,0.9);
             color: #000000;
             border-radius: 2px;
+            white-space: pre-wrap;
+            word-break: break-word;
         }
         
         body.dev-mode-full [data-dev]:hover::after {
