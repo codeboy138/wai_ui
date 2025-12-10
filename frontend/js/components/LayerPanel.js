@@ -99,7 +99,7 @@ const LayerPanel = {
                         <div
                             v-for="(col, i) in vm.layerCols"
                             :key="col.id + row.type"
-                            :id="'panel-right-layer-cell-' + i + '-' + row.type"
+                            :id="'panel-right-layer-cell-' + col.id + '-' + row.type"
                             :class="{
                                 'opacity-100 ring-1 ring-white': isActive(i, row.type),
                                 'opacity-30 grayscale': !isActive(i, row.type)
