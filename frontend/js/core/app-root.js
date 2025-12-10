@@ -19,8 +19,10 @@ const AppRoot = {
             previewContainerHeight: '50%', 
             timelineContainerHeight: '50%',
             isProjectModalOpen: false,
-            isDevModeActive: false,  // Inspect 모드
-            isDevModeFull: false,    // Dev 모드
+
+            // Dev / Inspector 모드 상태
+            isDevModeActive: false,   // Inspect
+            isDevModeFull: false,     // Dev
             
             // Core Timeline/Canvas State
             tracks: [
@@ -106,6 +108,13 @@ const AppRoot = {
                 console.log(`[DUMMY] Python call: ${f}`);
             }
         },
+
+        /**
+         * Inspect / Dev 모드 토글
+         * - active: Inspect
+         * - full: Dev
+         * 둘 중 하나만 활성화되도록 body 클래스와 함께 관리
+         */
         toggleDevMode(mode) {
             if (mode === 'active') {
                 this.isDevModeActive = !this.isDevModeActive;
@@ -123,6 +132,35 @@ const AppRoot = {
                 }
             }
         },
+
+        /**
+         * Inspector tooltip 클릭 시 현재 요소 ID를 클립보드에 복사
+         */
+        copyInspectorId() {
+            const id = this.inspector.id;
+            if (!id) return;
+
+            const text = id.toString();
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).catch(err => {
+                    console.warn('[Inspector] clipboard write failed', err);
+                });
+            } else {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.left = '-9999px';
+                document.body.appendChild(ta);
+                ta.select();
+                try {
+                    document.execCommand('copy');
+                } catch (err) {
+                    console.warn('[Inspector] execCommand copy failed', err);
+                }
+                document.body.removeChild(ta);
+            }
+        },
+
         addCol() { 
             this.layerCols.push({ id: `lc_${Date.now()}`, name: 'New', color: '#333' }); 
         },
@@ -136,24 +174,23 @@ const AppRoot = {
         },
 
         /**
-         * Inspector / Dev 모드용 마우스 무브 핸들러
-         * - Inspect: ID/태그/클래스/크기
-         * - Dev: 위 + element-specs.js + data-action 정보
+         * Inspector / Dev 모드 공통 마우스 무브 핸들러
+         * - Inspect 모드: ID/태그/클래스 + 크기만 표시
+         * - Dev 모드: element-specs.js + data-action 기반 정보 표시
          */
         setupInspectorMode() {
             const self = this;
             const TOOLTIP_MARGIN = 10;
-            const TOOLTIP_WIDTH = 340;
-            const TOOLTIP_HEIGHT_INSPECT = 70;
-            const TOOLTIP_HEIGHT_DEV = 140;
+            const TOOLTIP_WIDTH = 260;
+            const TOOLTIP_HEIGHT_INSPECT = 80;
+            const TOOLTIP_HEIGHT_DEV = 150;
 
             document.addEventListener('mousemove', (e) => {
-                // 둘 다 꺼져 있으면 동작 안 함
                 if (!self.isDevModeActive && !self.isDevModeFull) return;
 
                 let target = e.target;
 
-                // 오버레이 위에 있으면 실제 아래 요소로 다시 계산
+                // 오버레이 위에서 움직이는 경우 실제 요소로 재획득
                 if (target.classList.contains('dev-highlight') || target.classList.contains('dev-tooltip')) {
                     const realTarget = document.elementFromPoint(e.clientX, e.clientY);
                     if (realTarget) target = realTarget;
@@ -169,7 +206,6 @@ const AppRoot = {
                         left: `${rect.left}px`,
                     };
 
-                    // Dev 모드일 때만 코드/브리지 정보 생성
                     const devInfo = self.isDevModeFull ? self.buildDevInfo(target) : '';
 
                     self.inspector = {
@@ -194,12 +230,12 @@ const AppRoot = {
                         top = rect.bottom + TOOLTIP_MARGIN;
                     }
 
-                    // 아래로 넘치면 화면 안으로
+                    // 아래로도 나가지 않도록 클램프
                     if (top + tooltipHeight > window.innerHeight - TOOLTIP_MARGIN) {
                         top = Math.max(TOOLTIP_MARGIN, window.innerHeight - tooltipHeight - TOOLTIP_MARGIN);
                     }
 
-                    // 오른쪽으로 넘치면 왼쪽으로
+                    // 오른쪽으로 나가면 왼쪽에 배치
                     if (left + TOOLTIP_WIDTH > window.innerWidth - TOOLTIP_MARGIN) {
                         left = rect.left - TOOLTIP_WIDTH - TOOLTIP_MARGIN;
                         if (left < TOOLTIP_MARGIN) {
@@ -228,7 +264,8 @@ const AppRoot = {
 
         /**
          * Dev 모드용 정보 문자열 생성
-         * - element-specs.js + data-action 기반
+         * - 코드/브리지 중심 정보만 표시
+         * - 사람이 읽기 쉬운 설명(desc)는 element-specs.js 쪽에서 관리
          */
         buildDevInfo(targetEl) {
             const id = targetEl.id || '';
@@ -266,52 +303,6 @@ const AppRoot = {
             return lines.join('\n');
         },
 
-        /**
-         * Inspect / Dev 공용: 정보창 클릭 시 ID를 클립보드에 복사
-         * - inspector.id 가 비어있으면 아무 것도 하지 않음
-         */
-        copyInspectorId() {
-            const id = this.inspector.id;
-            if (!id) return;
-
-            const text = id;
-            const doLog = () => {
-                console.log(`[INSPECT] copied id="${text}" to clipboard`);
-            };
-
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(text).then(doLog).catch(err => {
-                    console.warn('[INSPECT] clipboard.writeText 실패, fallback 시도', err);
-                    this.copyInspectorIdFallback(text, doLog);
-                });
-            } else {
-                this.copyInspectorIdFallback(text, doLog);
-            }
-        },
-
-        /**
-         * 구형 브라우저/환경용 클립보드 복사 fallback
-         */
-        copyInspectorIdFallback(text, onSuccess) {
-            try {
-                const textarea = document.createElement('textarea');
-                textarea.value = text;
-                textarea.style.position = 'fixed';
-                textarea.style.opacity = '0';
-                textarea.style.left = '-9999px';
-                document.body.appendChild(textarea);
-                textarea.focus();
-                textarea.select();
-                const ok = document.execCommand('copy');
-                document.body.removeChild(textarea);
-                if (ok && typeof onSuccess === 'function') {
-                    onSuccess();
-                }
-            } catch (err) {
-                console.warn('[INSPECT] execCommand copy 실패', err);
-            }
-        },
-
         // --- Preview/Canvas Logic ---
         setAspect(r) { 
             this.aspectRatio = r; 
@@ -320,8 +311,8 @@ const AppRoot = {
             this.resolution = r; 
         },
         updateCanvasMouseCoord(e) {
-            const wrapper = document.getElementById('canvas-wrapper');
-            const scaler = document.getElementById('canvas-scaler');
+            const wrapper = document.getElementById('preview-canvas-wrapper');
+            const scaler = document.getElementById('preview-canvas-scaler');
             if (!wrapper || !scaler) return;
 
             const wrapperRect = wrapper.getBoundingClientRect();
@@ -385,7 +376,7 @@ const AppRoot = {
                 r.addEventListener('mousedown', e => {
                     e.preventDefault(); 
                     startS = dir === 'w' ? self[stateKey] : 
-                             (rid === 'resizer-timeline' ? document.getElementById('preview-container').offsetHeight : 0);
+                             (rid === 'main-center-timeline-resizer-h' ? document.getElementById('preview-main-container').offsetHeight : 0);
                     startP = dir === 'w' ? e.clientX : e.clientY;
 
                     document.addEventListener('mousemove', onMove); 
@@ -393,13 +384,18 @@ const AppRoot = {
                 });
             };
             
-            setup('resizer-left', 'leftPanelWidth', 180, 'w', false);
-            setup('resizer-right', 'rightPanelWidth', 250, 'w', true); 
-            setup('resizer-timeline', 'previewContainerHeight', 100, 'h', false);
+            // Left Panel (Width)
+            setup('main-left-resizer-v', 'leftPanelWidth', 180, 'w', false);
+            
+            // Right Panel (Width - Reverse calculation)
+            setup('main-right-resizer-v', 'rightPanelWidth', 250, 'w', true); 
+            
+            // Center Horizontal (Height)
+            setup('main-center-timeline-resizer-h', 'previewContainerHeight', 100, 'h', false);
         },
         
         setupCanvasScaler() {
-            const wrapper = document.getElementById('canvas-wrapper');
+            const wrapper = document.getElementById('preview-canvas-wrapper');
             if (!wrapper) return;
             
             const updateScale = () => {
@@ -517,4 +513,7 @@ const AppRoot = {
             }
         }
     }
-};
+};
+
+// Vue 앱 부트스트랩 (bootstrap.js에서 할 수도 있음)
+createApp(AppRoot).mount('#app-vue-root');
