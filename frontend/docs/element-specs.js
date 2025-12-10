@@ -5,11 +5,6 @@
  */
 
 (function (global) {
-    /**
-     * 공통 헬퍼: data-action 문자열을 py/js로 나누고, module을 id에서 추론할 때 참고용
-     * 실제 Dev표시는 app-root.js(buildDevInfo) 기준이므로, 여기서는 메타 정보만 저장
-     */
-
     const SPECS = {
         /* -----------------------------------------------------
          * Root / Layout
@@ -598,6 +593,347 @@
         },
 
         /* -----------------------------------------------------
+         * Timeline Panel
+         * --------------------------------------------------- */
+        'timeline-main-panel': {
+            module: 'timeline.panel',
+            desc: '타임라인 전체 패널(헤더 + 퀵바 + 트랙/클립 영역)',
+            io: {
+                input: ['wheel'],
+                output: ['zoom 변경 또는 수평 스크롤']
+            },
+            logic: '휠/Shift+휠로 줌/스크롤 조작을 처리 (handleWheel).',
+            py_func: null,
+            js_action: 'timelineWheelScroll',
+            events: ['wheel'],
+            affects: ['timeline-scroll-container'],
+            examples: [
+                'data-action="js:timelineWheelScroll"'
+            ]
+        },
+        'timeline-header-bar': {
+            module: 'timeline.header',
+            desc: '타임라인 상단 헤더 (접기, 타임코드, 줌 슬라이더)',
+            io: { input: [], output: [] },
+            logic: '좌측에 접기 버튼과 타임코드, 우측에 줌 슬라이더를 배치.',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: [
+                'timeline-header-collapse-btn',
+                'timeline-header-timecode-label',
+                'timeline-header-zoom-slider'
+            ],
+            examples: []
+        },
+        'timeline-header-collapse-btn': {
+            module: 'timeline.header',
+            desc: '타임라인 접기/펼치기 토글 버튼',
+            io: {
+                input: ['click'],
+                output: ['vm.isTimelineCollapsed 토글', 'preview-main-container 높이 변경']
+            },
+            logic: '타임라인 패널을 접거나 펼쳐서 프리뷰 영역 높이를 조정.',
+            py_func: null,
+            js_action: 'toggleTimelineCollapse',
+            events: ['click'],
+            affects: ['timeline-main-panel', 'preview-main-container'],
+            examples: [
+                'data-action="js:toggleTimelineCollapse"'
+            ]
+        },
+        'timeline-header-timecode-label': {
+            module: 'timeline.header',
+            desc: '현재 플레이헤드 시간을 표시하는 타임코드 라벨',
+            io: { input: [], output: [] },
+            logic: 'vm.currentTime을 HH:MM:SS:FF 포맷으로 표시.',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: [],
+            examples: []
+        },
+        'timeline-header-zoom-slider': {
+            module: 'timeline.header',
+            desc: '타임라인 줌 슬라이더',
+            io: {
+                input: ['input'],
+                output: ['vm.zoom 변경']
+            },
+            logic: '줌 레벨(10~100)을 변경하여 타임축 단위(초당 px)를 조절.',
+            py_func: null,
+            js_action: 'timelineChangeZoom',
+            events: ['input'],
+            affects: ['timeline-time-ruler-row', 'timeline-clip-{id}'],
+            examples: [
+                'data-action="js:timelineChangeZoom"'
+            ]
+        },
+        'timeline-toolbar-quick-bar': {
+            module: 'timeline.toolbar',
+            desc: '타임라인 퀵 툴바 (Cut/Delete/Magnet/Ripple/Normalize/Volume)',
+            io: { input: [], output: [] },
+            logic: '타임라인 편집에 자주 쓰이는 도구들을 묶어 둔 퀵바.',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: [
+                'timeline-tool-cut-btn',
+                'timeline-tool-delete-btn',
+                'timeline-tool-magnet-btn',
+                'timeline-tool-ripple-btn',
+                'timeline-tool-normalize-btn',
+                'timeline-tool-volume-icon'
+            ],
+            examples: []
+        },
+        'timeline-tool-cut-btn': {
+            module: 'timeline.toolbar',
+            desc: '타임라인 클립 자르기(Cut) 도구 버튼 (예약/미구현)',
+            io: {
+                input: ['click'],
+                output: []
+            },
+            logic: '현재는 UI만 존재. 추후 선택된 클립을 분할하는 기능 연결 예정.',
+            py_func: null,
+            js_action: 'timelineToolCut',
+            events: ['click'],
+            affects: [],
+            examples: [
+                'data-action="js:timelineToolCut"'
+            ]
+        },
+        'timeline-tool-delete-btn': {
+            module: 'timeline.toolbar',
+            desc: '타임라인 클립 삭제(Delete) 도구 버튼 (예약/미구현)',
+            io: {
+                input: ['click'],
+                output: []
+            },
+            logic: '현재는 UI만 존재. 추후 선택된 클립을 삭제하는 기능 연결 예정.',
+            py_func: null,
+            js_action: 'timelineToolDelete',
+            events: ['click'],
+            affects: [],
+            examples: [
+                'data-action="js:timelineToolDelete"'
+            ]
+        },
+        'timeline-tool-magnet-btn': {
+            module: 'timeline.toolbar',
+            desc: '타임라인 스냅(마그넷) 토글 버튼',
+            io: {
+                input: ['click'],
+                output: ['vm.isMagnet 토글']
+            },
+            logic: '클립/플레이헤드 이동/리사이즈 시 다른 클립 경계나 플레이헤드에 스냅 여부를 제어.',
+            py_func: null,
+            js_action: 'toggleTimelineMagnet',
+            events: ['click'],
+            affects: ['timeline-clip-{id}', 'timeline-playhead-handle'],
+            examples: [
+                'data-action="js:toggleTimelineMagnet"'
+            ]
+        },
+        'timeline-tool-ripple-btn': {
+            module: 'timeline.toolbar',
+            desc: '타임라인 오토 리플(Auto Ripple) 토글 버튼',
+            io: {
+                input: ['click'],
+                output: ['vm.isAutoRipple 토글']
+            },
+            logic: '클립 편집 시 이후 클립들을 자동으로 당기거나 밀지 여부를 제어 (로직은 추후 구현 가능).',
+            py_func: null,
+            js_action: 'toggleTimelineRipple',
+            events: ['click'],
+            affects: ['timeline-clip-{id}'],
+            examples: [
+                'data-action="js:toggleTimelineRipple"'
+            ]
+        },
+        'timeline-tool-normalize-btn': {
+            module: 'timeline.toolbar',
+            desc: 'Normalize 버튼 (오디오 정규화 기능, 예약/미구현)',
+            io: {
+                input: ['click'],
+                output: []
+            },
+            logic: '클릭 시 선택된 오디오 클립 볼륨을 정규화하는 기능을 연결할 예정.',
+            py_func: null,
+            js_action: 'timelineNormalizeAudio',
+            events: ['click'],
+            affects: ['timeline-clip-{id}'],
+            examples: [
+                'data-action="js:timelineNormalizeAudio"'
+            ]
+        },
+        'timeline-tool-volume-icon': {
+            module: 'timeline.toolbar',
+            desc: '타임라인 전체 볼륨/볼륨 컨트롤 아이콘 (예약/미구현)',
+            io: {
+                input: ['click'],
+                output: []
+            },
+            logic: '전체 타임라인 오디오 레벨을 조정하는 UI로 확장 가능.',
+            py_func: null,
+            js_action: 'timelineVolumeControl',
+            events: ['click'],
+            affects: [],
+            examples: [
+                'data-action="js:timelineVolumeControl"'
+            ]
+        },
+        'timeline-scroll-container': {
+            module: 'timeline.scroll',
+            desc: '트랙/클립 및 시간 룰러를 포함하는 스크롤 영역',
+            io: {
+                input: ['dragover', 'drop', 'wheel'],
+                output: ['스크롤 위치 변경', '클립 추가(addClipFromDrop)']
+            },
+            logic: '에셋을 드래그&드롭하여 새 클립을 생성하고, 수평 스크롤을 담당.',
+            py_func: null,
+            js_action: 'timelineDropAsset',
+            events: ['dragover', 'drop'],
+            affects: ['timeline-clip-{id}', 'timeline-track-row-{id}'],
+            examples: [
+                'data-action="js:timelineDropAsset"'
+            ]
+        },
+        'timeline-track-column': {
+            module: 'timeline.track',
+            desc: '타임라인 좌측 트랙 리스트 컬럼',
+            io: { input: [], output: [] },
+            logic: '각 트랙 이름과 색상을 표시하고, 드래그로 순서 변경 가능.',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: ['timeline-track-row-{id}'],
+            examples: []
+        },
+        'timeline-track-header-row': {
+            module: 'timeline.track',
+            desc: 'TRACKS 헤더 행',
+            io: { input: [], output: [] },
+            logic: '트랙 컬럼 상단 타이틀을 표시.',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: [],
+            examples: []
+        },
+        'timeline-track-row-{id}': {
+            module: 'timeline.track',
+            desc: '각 타임라인 트랙 행 (드래그로 순서 변경)',
+            io: {
+                input: ['dragstart', 'dragenter', 'dragend'],
+                output: ['vm.moveTrack(fromIndex, toIndex) 호출']
+            },
+            logic: '드래그 앤 드롭으로 트랙 순서를 재배치.',
+            py_func: null,
+            js_action: 'timelineTrackReorder',
+            events: ['dragstart', 'dragenter', 'dragend'],
+            affects: ['timeline-lane-row-{id}'],
+            examples: [
+                'data-action="js:timelineTrackReorder"'
+            ]
+        },
+        'timeline-track-name-{id}': {
+            module: 'timeline.track',
+            desc: '트랙 이름 텍스트 (contenteditable)',
+            io: {
+                input: ['text edit'],
+                output: ['track.name 변경 (직접 DOM 편집)']
+            },
+            logic: '사용자가 트랙 이름을 직접 수정할 수 있도록 contenteditable로 노출.',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: [],
+            examples: []
+        },
+        'timeline-lane-container': {
+            module: 'timeline.lane',
+            desc: '우측 트랙 레인 및 클립/플레이헤드 영역',
+            io: {
+                input: ['mousedown', 'mousemove', 'mouseup'],
+                output: ['vm.currentTime 변경 (플레이헤드 이동)']
+            },
+            logic: '상단 룰러와 하단 클립 레인이 포함된 실제 타임라인 영역. 클릭/드래그로 플레이헤드를 이동.',
+            py_func: null,
+            js_action: 'timelineDragPlayhead',
+            events: ['mousedown'],
+            affects: ['timeline-playhead-line', 'timeline-playhead-handle'],
+            examples: [
+                'data-action="js:timelineDragPlayhead"'
+            ]
+        },
+        'timeline-time-ruler-row': {
+            module: 'timeline.ruler',
+            desc: '타임라인 상단 시간 눈금 룰러',
+            io: { input: [], output: [] },
+            logic: '줌 레벨에 따라 일정 간격(5초 단위)의 시간 눈금을 표시.',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: [],
+            examples: []
+        },
+        'timeline-lane-row-{id}': {
+            module: 'timeline.lane',
+            desc: '각 트랙에 대응하는 클립 레인 행',
+            io: { input: [], output: [] },
+            logic: '해당 트랙에 속한 클립들을 수평으로 배치하는 영역.',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: ['timeline-clip-{id}'],
+            examples: []
+        },
+        'timeline-clip-{id}': {
+            module: 'timeline.clip',
+            desc: '각 트랙에 배치된 개별 클립 박스 (드래그/리사이즈 가능)',
+            io: {
+                input: ['click', 'drag', 'resize'],
+                output: ['vm.setSelectedClip', 'vm.moveClip', 'vm.updateClip']
+            },
+            logic: '클립의 시작 시간/길이를 시각적으로 표현하고, 드래그/리사이즈를 통해 값을 변경.',
+            py_func: null,
+            js_action: 'selectTimelineClip',
+            events: ['click', 'drag', 'resize'],
+            affects: ['timeline-main-panel'],
+            examples: [
+                'data-action="js:selectTimelineClip"'
+            ]
+        },
+        'timeline-playhead-line': {
+            module: 'timeline.playhead',
+            desc: '현재 재생 위치를 나타내는 수직 플레이헤드 라인',
+            io: { input: [], output: [] },
+            logic: 'vm.currentTime을 기준으로 x좌표를 계산하여 라인을 표시.',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: [],
+            examples: []
+        },
+        'timeline-playhead-handle': {
+            module: 'timeline.playhead',
+            desc: '플레이헤드 이동을 위한 삼각형 핸들',
+            io: {
+                input: ['mousedown', 'mousemove', 'mouseup'],
+                output: ['vm.currentTime 변경']
+            },
+            logic: '룰러/핸들을 드래그하여 재생 위치를 변경. 스냅 옵션(isMagnet)에 따라 클립 경계에 스냅.',
+            py_func: null,
+            js_action: 'timelineDragPlayhead',
+            events: ['mousedown'],
+            affects: ['timeline-playhead-line'],
+            examples: [
+                'data-action="js:timelineDragPlayhead"'
+            ]
+        },
+
+        /* -----------------------------------------------------
          * Right Panel
          * --------------------------------------------------- */
         'main-right-panel': {
@@ -685,15 +1021,29 @@
 
     /**
      * ID 기반 스펙 조회 함수
-     * - 정확히 일치하는 ID가 있으면 그대로 반환
-     * - 추후 패턴(id에 {id} 등) 매칭이 필요할 경우 이 함수 내부를 확장
+     * - 1) 정확히 일치하는 ID 우선
+     * - 2) 없으면 {id} 패턴 키를 이용해 prefix/suffix 매칭
+     *    예) timeline-clip-{id}  →  timeline-clip-123 과 매칭
      */
     function WAI_getElementSpec(id) {
         if (!id) return null;
+
+        // 1) 정확히 일치
         if (Object.prototype.hasOwnProperty.call(SPECS, id)) {
             return SPECS[id];
         }
-        // TODO: 패턴 매칭 (예: timeline-clip-{id}, canvas-box-{id}) 필요 시 여기서 처리
+
+        // 2) {id} 패턴 매칭
+        for (const key in SPECS) {
+            if (!Object.prototype.hasOwnProperty.call(SPECS, key)) continue;
+            if (!key.includes('{id}')) continue;
+
+            const [prefix, suffix] = key.split('{id}');
+            if (id.startsWith(prefix) && id.endsWith(suffix)) {
+                return SPECS[key];
+            }
+        }
+
         return null;
     }
 
