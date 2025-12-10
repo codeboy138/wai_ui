@@ -279,8 +279,9 @@
             word-break: break-word;
             z-index: 10000; 
             box-shadow: 0 2px 8px rgba(0,0,0,0.5); 
-            pointer-events: none;
+            pointer-events: auto;                 /* 클릭 이벤트 허용 (ID 복사용) */
             max-width: 340px;
+            cursor: pointer;
         }
 
         .dev-tooltip-devinfo {
@@ -607,7 +608,7 @@
         <!-- Inspect / Dev 공용 오버레이 -->
         <div class="dev-overlay" id="dev-overlay" v-if="inspector.tag">
             <div class="dev-highlight" :style="highlightStyle"></div>
-            <div class="dev-tooltip" :style="tooltipStyle">
+            <div class="dev-tooltip" :style="tooltipStyle" @click="copyInspectorId">
                 <!-- Inspect 모드 전용 표시 -->
                 <template v-if="!isDevModeFull">
                     <span class="font-bold">INSPECT</span><br>
