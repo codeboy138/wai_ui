@@ -1,903 +1,702 @@
 /**
- * WAI Studio - Element Specification Registry
- *
- * 각 DOM id에 대한 IO/로직/브리지 정보를 중앙에서 관리합니다.
- * - key: 고정 id 또는 패턴(id에 {id} 포함 가능)
- * - value: spec object
- *
- * 필드 가이드:
- * - module   : UI 모듈/영역 이름 (예: "header-nav", "panel-left")
- * - desc     : 간단한 설명 (내부용)
- * - io       : { input, output } 형태의 입출력 요약
- * - logic    : 이 요소가 수행하는 핵심 로직 설명
- * - py_func  : 호출되는 Python 함수명 (없으면 null)
- * - py_params: Python 호출 시 전달되는 기본 파라미터(객체)
- * - js_action: 호출되는 JS 액션명 (store/methods 등에서 매핑)
- * - events   : 트리거 이벤트 리스트 (기본 "click")
- * - affects  : 이 요소가 주로 영향을 미치는 주요 타겟 id 리스트
- * - examples : 실제 DOM id 예시
- * - deprecated: 더 이상 사용되지 않을 경우 true
+ * WAI UI Element Specs
+ * - Dev 모드에서 ID 기준으로 py/js/data-action 정보를 보여주기 위한 중앙 정의 파일
+ * - vm.buildDevInfo() → window.WAI_getElementSpec(id) 를 통해 접근
  */
+
 (function (global) {
-    'use strict';
+    /**
+     * 공통 헬퍼: data-action 문자열을 py/js로 나누고, module을 id에서 추론할 때 참고용
+     * 실제 Dev표시는 app-root.js(buildDevInfo) 기준이므로, 여기서는 메타 정보만 저장
+     */
 
-    /** @type {Record<string, any>} */
     const SPECS = {
-        // =========================================
-        // 앱 루트 / 레이아웃
-        // =========================================
-        'app-root': {
-            module: 'app',
-            desc: '애플리케이션 최상위 컨테이너 (body)',
-            io: {
-                input: '없음 (직접 인터랙션 없음)',
-                output: '하위 모든 패널/컴포넌트 렌더링'
-            },
-            logic: 'WAI Studio 전체 레이아웃과 Vue 루트 마운트의 기준이 되는 최상위 DOM.',
+        /* -----------------------------------------------------
+         * Root / Layout
+         * --------------------------------------------------- */
+        'app-root-container': {
+            module: 'root',
+            desc: 'WAI Studio 전체 앱 컨테이너 (body)',
+            io: { input: [], output: [] },
+            logic: '최상위 DOM 루트. Vue 앱 및 전체 레이아웃을 포함.',
             py_func: null,
-            py_params: {},
-            js_action: null,
-            events: [],
-            affects: ['vue-app', 'main-layout'],
-            examples: ['app-root'],
-            deprecated: false
-        },
-
-        'vue-app': {
-            module: 'app',
-            desc: 'Vue 3 애플리케이션이 마운트되는 루트 엘리먼트',
-            io: {
-                input: 'Vue 인스턴스 마운트',
-                output: '전체 UI 렌더링'
-            },
-            logic: 'Vue 3 createApp()이 마운트되는 실제 DOM 노드.',
-            py_func: null,
-            py_params: {},
-            js_action: null,
-            events: [],
-            affects: ['app-header', 'main-layout'],
-            examples: ['vue-app'],
-            deprecated: false
-        },
-
-        'main-layout': {
-            module: 'layout-main',
-            desc: '좌/중앙/우 패널을 포함하는 메인 레이아웃 컨테이너',
-            io: {
-                input: '패널 리사이즈, 뷰 전환',
-                output: '에디터 3분할 레이아웃 유지'
-            },
-            logic: '좌측 자산 패널, 중앙 프리뷰+타임라인, 우측 속성 패널을 3분할로 배치.',
-            py_func: null,
-            py_params: {},
-            js_action: null,
-            events: [],
-            affects: ['panel-left', 'panel-center', 'panel-right'],
-            examples: ['main-layout'],
-            deprecated: false
-        },
-
-        // =========================================
-        // 헤더 / 내비게이션
-        // =========================================
-        'app-header': {
-            module: 'header',
-            desc: '상단 헤더 바 (로고, 네비게이션, 윈도우 컨트롤 포함)',
-            io: {
-                input: '내비게이션 버튼 클릭, 창 제어 버튼 클릭',
-                output: '뷰 전환, 윈도우 상태 변경'
-            },
-            logic: '에디터 상단에 고정된 글로벌 컨트롤 영역.',
-            py_func: null,
-            py_params: {},
-            js_action: null,
-            events: [],
-            affects: ['main-layout', 'panel-center'],
-            examples: ['app-header'],
-            deprecated: false
-        },
-
-        'app-logo': {
-            module: 'header',
-            desc: 'WAI Studio 로고',
-            io: {
-                input: '클릭 (향후 홈/대시보드 이동에 사용 가능)',
-                output: '현재는 동작 없음'
-            },
-            logic: '브랜딩 및 홈 이동 트리거로 확장 가능.',
-            py_func: null,
-            py_params: {},
             js_action: null,
             events: [],
             affects: [],
-            examples: ['app-logo'],
-            deprecated: false
+            examples: []
         },
-
-        'menu-main': {
-            module: 'header',
-            desc: '상단 햄버거 메뉴 컨테이너',
-            io: {
-                input: '클릭',
-                output: '메인 메뉴 토글 (향후 사용)'
-            },
-            logic: '현재는 시각적 아이콘만 존재, 추후 전역 메뉴 오픈에 사용.',
+        'app-vue-root': {
+            module: 'root.vue',
+            desc: 'Vue 애플리케이션이 마운트되는 루트 노드',
+            io: { input: [], output: [] },
+            logic: 'Vue createApp(AppRoot).mount() 대상 엘리먼트.',
             py_func: null,
-            py_params: {},
             js_action: null,
-            events: ['click'],
+            events: [],
             affects: [],
-            examples: ['menu-main'],
-            deprecated: false
+            examples: []
+        },
+        'main-layout-root': {
+            module: 'layout.main',
+            desc: '좌/중앙/우 패널을 담는 메인 레이아웃 컨테이너',
+            io: { input: [], output: [] },
+            logic: 'flex 레이아웃으로 좌측 패널, 중앙 패널, 우측 패널을 배치.',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: ['main-left-panel', 'main-center-panel', 'main-right-panel'],
+            examples: []
         },
 
-        'nav-container': {
-            module: 'header-nav',
+        /* -----------------------------------------------------
+         * Header - Main
+         * --------------------------------------------------- */
+        'header-main-panel': {
+            module: 'header.main',
+            desc: '상단 헤더 전체 영역',
+            io: { input: [], output: [] },
+            logic: '로고, 상단 네비게이션, Inspector/Dev 토글, 윈도우 컨트롤을 포함.',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: ['header-nav-container', 'header-window-controls-container'],
+            examples: []
+        },
+        'header-main-logo-label': {
+            module: 'header.main',
+            desc: 'WAI 로고 텍스트 라벨',
+            io: { input: [], output: [] },
+            logic: '클릭 동작은 아직 정의되지 않은 단순 라벨.',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: [],
+            examples: []
+        },
+        'header-main-menu-container': {
+            module: 'header.main',
+            desc: '상단 좌측 햄버거 메뉴 컨테이너',
+            io: { input: [], output: [] },
+            logic: '추후 메인 메뉴 드롭다운 추가 예정.',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: [],
+            examples: []
+        },
+
+        /* -----------------------------------------------------
+         * Header - Navigation
+         * --------------------------------------------------- */
+        'header-nav-container': {
+            module: 'header.nav',
             desc: '상단 네비게이션 버튼 그룹 컨테이너',
-            io: {
-                input: '내비게이션 버튼 클릭',
-                output: '화면/모드 전환'
-            },
-            logic: '탐색/제작/자산/설정/연구 탭을 수평으로 배치.',
+            io: { input: [], output: [] },
+            logic: '탐색/제작/자산/설정/연구 탭 버튼 묶음.',
             py_func: null,
-            py_params: {},
             js_action: null,
             events: [],
-            affects: ['panel-center', 'panel-left', 'panel-right'],
-            examples: ['nav-container'],
-            deprecated: false
+            affects: [
+                'header-nav-explore-btn',
+                'header-nav-create-btn',
+                'header-nav-assets-btn',
+                'header-nav-settings-btn',
+                'header-nav-research-btn'
+            ],
+            examples: []
         },
-
-        'nav-explore': {
-            module: 'header-nav',
-            desc: '상단 네비게이션 - 탐색 탭',
+        'header-nav-explore-btn': {
+            module: 'header.nav',
+            desc: '상단 네비게이션 - 탐색 탭 버튼',
             io: {
-                input: 'click',
-                output: 'Python 탐색 화면 전환 요청'
+                input: ['click'],
+                output: ['backend.nav_explore']
             },
-            logic: '프로젝트 탐색/관리 뷰로 전환하도록 Python 브리지에 nav_explore를 요청.',
+            logic: '클릭 시 Python backend.nav_explore 호출 (프로젝트 탐색 화면 요청).',
             py_func: 'nav_explore',
-            py_params: {},
             js_action: null,
             events: ['click'],
-            affects: ['main-layout'],
-            examples: ['nav-explore'],
-            deprecated: false
+            affects: ['main-center-panel'],
+            examples: [
+                'data-action="py:nav_explore"'
+            ]
         },
-
-        'nav-create': {
-            module: 'header-nav',
-            desc: '상단 네비게이션 - 제작 탭 (새 프로젝트)',
+        'header-nav-create-btn': {
+            module: 'header.nav',
+            desc: '상단 네비게이션 - 제작 탭 버튼',
             io: {
-                input: 'click',
-                output: '새 프로젝트 생성 모달 오픈'
+                input: ['click'],
+                output: ['UI: isProjectModalOpen = true']
             },
-            logic: 'Vue 상태 isProjectModalOpen 값을 true로 설정해 프로젝트 생성 모달을 연다.',
+            logic: '클릭 시 새 프로젝트 생성 모달을 오픈.',
             py_func: null,
-            py_params: {},
             js_action: 'openProjectModal',
             events: ['click'],
             affects: ['project-modal'],
-            examples: ['nav-create'],
-            deprecated: false
+            examples: [
+                'data-action="js:openProjectModal"'
+            ]
         },
-
-        'nav-assets-group': {
-            module: 'header-nav',
-            desc: '상단 네비게이션 - 자산 탭 및 드롭다운 래퍼',
-            io: {
-                input: 'hover, click',
-                output: '자산 드롭다운 메뉴 표시/숨김'
-            },
-            logic: '자산 탭과 “자산 관리” 하위 메뉴를 그룹화하여 hover 시 드롭다운을 노출한다.',
+        'header-nav-assets-group': {
+            module: 'header.nav',
+            desc: '상단 네비게이션 - 자산 드롭다운 그룹 컨테이너',
+            io: { input: [], output: [] },
+            logic: 'hover 시 자산 관리 메뉴를 표시하는 그룹 래퍼.',
             py_func: null,
-            py_params: {},
             js_action: null,
-            events: ['mouseover', 'mouseout', 'click'],
-            affects: ['nav-assets', 'menu-asset-manage'],
-            examples: ['nav-assets-group'],
-            deprecated: false
+            events: ['hover'],
+            affects: ['header-nav-assets-btn', 'header-menu-assets-manage-item'],
+            examples: []
         },
-
-        'nav-assets': {
-            module: 'header-nav',
-            desc: '상단 네비게이션 - 자산 탭 (드롭다운 트리거)',
-            io: {
-                input: 'hover, click',
-                output: '자산 관련 드롭다운 노출'
-            },
-            logic: '자산 관리/라이브러리 관련 액션을 위한 드롭다운을 연다.',
+        'header-nav-assets-btn': {
+            module: 'header.nav',
+            desc: '상단 네비게이션 - 자산 버튼 (드롭다운 트리거)',
+            io: { input: ['hover', 'click'], output: [] },
+            logic: 'hover 시 자산 관련 서브 메뉴를 표시. 직접적인 py 호출은 없음.',
             py_func: null,
-            py_params: {},
             js_action: null,
-            events: ['click'],
-            affects: ['menu-asset-manage'],
-            examples: ['nav-assets'],
-            deprecated: false
+            events: ['mouseenter', 'mouseleave', 'click'],
+            affects: ['header-menu-assets-manage-item'],
+            examples: []
         },
-
-        'menu-asset-manage': {
-            module: 'header-nav',
-            desc: '자산 드롭다운 - 자산 관리 메뉴',
+        'header-menu-assets-manage-item': {
+            module: 'header.nav',
+            desc: '상단 네비게이션 - 자산 관리 메뉴 아이템',
             io: {
-                input: 'click',
-                output: 'Python 자산 관리자 창 오픈 요청'
+                input: ['click'],
+                output: ['backend.open_asset_manager']
             },
-            logic: '자산 관리자(별도 창 또는 패널)를 열도록 open_asset_manager Python 함수를 호출.',
+            logic: '클릭 시 Python backend.open_asset_manager 호출.',
             py_func: 'open_asset_manager',
-            py_params: {},
             js_action: null,
             events: ['click'],
-            affects: ['panel-left'],
-            examples: ['menu-asset-manage'],
-            deprecated: false
+            affects: [],
+            examples: [
+                'data-action="py:open_asset_manager"'
+            ]
         },
-
-        'nav-settings': {
-            module: 'header-nav',
-            desc: '상단 네비게이션 - 설정 탭',
+        'header-nav-settings-btn': {
+            module: 'header.nav',
+            desc: '상단 네비게이션 - 설정 탭 버튼',
             io: {
-                input: 'click',
-                output: 'Python 설정 뷰 전환 요청'
+                input: ['click'],
+                output: ['backend.nav_settings']
             },
-            logic: '설정 화면으로 전환하도록 Python 브리지에 nav_settings를 요청.',
+            logic: '클릭 시 Python backend.nav_settings 호출 (설정 화면 요청).',
             py_func: 'nav_settings',
-            py_params: {},
             js_action: null,
             events: ['click'],
-            affects: ['main-layout'],
-            examples: ['nav-settings'],
-            deprecated: false
+            affects: ['main-right-panel'],
+            examples: [
+                'data-action="py:nav_settings"'
+            ]
         },
-
-        'nav-research': {
-            module: 'header-nav',
-            desc: '상단 네비게이션 - 연구 탭',
+        'header-nav-research-btn': {
+            module: 'header.nav',
+            desc: '상단 네비게이션 - 연구 탭 버튼',
             io: {
-                input: 'click',
-                output: 'Python 연구 뷰 전환 요청'
+                input: ['click'],
+                output: ['backend.nav_research']
             },
-            logic: '연구/실험 관련 화면으로 전환하도록 Python 브리지에 nav_research를 요청.',
+            logic: '클릭 시 Python backend.nav_research 호출 (연구/실험 화면 요청).',
             py_func: 'nav_research',
-            py_params: {},
             js_action: null,
             events: ['click'],
-            affects: ['main-layout'],
-            examples: ['nav-research'],
-            deprecated: false
+            affects: [],
+            examples: [
+                'data-action="py:nav_research"'
+            ]
         },
 
-        // =========================================
-        // 개발 도구 / Inspector / Dev
-        // =========================================
-        'inspector-toggle': {
-            module: 'devtools',
-            desc: 'Inspect 모드 토글 버튼',
+        /* -----------------------------------------------------
+         * Header - Dev / Inspector
+         * --------------------------------------------------- */
+        'header-dev-inspect-btn': {
+            module: 'header.dev',
+            desc: 'Inspector 모드 토글 버튼',
             io: {
-                input: 'click',
-                output: '인스펙터 오버레이 on/off'
+                input: ['click'],
+                output: ['body.classList += dev-mode-active']
             },
-            logic: 'Vue 메서드 toggleDevMode("active")를 호출해 요소 인스펙션 모드를 토글.',
+            logic: '클릭 시 Inspect 모드를 토글. Dev 모드와는 상호 배타적.',
             py_func: null,
-            py_params: {},
             js_action: 'toggleDevModeActive',
             events: ['click'],
-            affects: ['dev-overlay'],
-            examples: ['inspector-toggle'],
-            deprecated: false
+            affects: ['dev-overlay-root'],
+            examples: [
+                'data-action="js:toggleDevModeActive"'
+            ]
         },
-
-        'dev-toggle': {
-            module: 'devtools',
-            desc: '전체 개발자 모드 토글 버튼',
+        'header-dev-mode-btn': {
+            module: 'header.dev',
+            desc: 'Dev(개발자) 모드 토글 버튼',
             io: {
-                input: 'click',
-                output: 'Dev 모드 on/off'
+                input: ['click'],
+                output: ['body.classList += dev-mode-full']
             },
-            logic: 'Vue 메서드 toggleDevMode("full")을 호출해 개발자 모드(브리지/로직 표시)를 토글.',
+            logic: '클릭 시 Dev 모드를 토글. Inspect 모드와는 상호 배타적.',
             py_func: null,
-            py_params: {},
             js_action: 'toggleDevModeFull',
             events: ['click'],
-            affects: ['dev-overlay'],
-            examples: ['dev-toggle'],
-            deprecated: false
+            affects: ['dev-overlay-root'],
+            examples: [
+                'data-action="js:toggleDevModeFull"'
+            ]
         },
 
-        'dev-overlay': {
-            module: 'devtools',
-            desc: 'Inspect / Dev 공용 오버레이 루트',
-            io: {
-                input: 'isDevModeActive / isDevModeFull 상태 변경',
-                output: '하이라이트 박스 + 정보 툴팁 표시/숨김'
-            },
-            logic: '마우스 위치에 따라 선택 요소 영역을 강조하고 ID/브리지 정보를 표시.',
+        /* -----------------------------------------------------
+         * Header - Window Controls
+         * --------------------------------------------------- */
+        'header-window-controls-container': {
+            module: 'header.window',
+            desc: '윈도우 컨트롤(최소화/최대화/닫기) 버튼 컨테이너',
+            io: { input: [], output: [] },
+            logic: '각 버튼은 Python backend를 통해 실제 OS 윈도우 제어.',
             py_func: null,
-            py_params: {},
             js_action: null,
             events: [],
-            affects: ['dev-highlight'],
-            examples: ['dev-overlay'],
-            deprecated: false
+            affects: [
+                'header-window-min-btn',
+                'header-window-max-btn',
+                'header-window-close-btn'
+            ],
+            examples: []
         },
-
-        // =========================================
-        // 창 제어 (윈도우 버튼)
-        // =========================================
-        'win-controls': {
-            module: 'window-controls',
-            desc: '윈도우 제어 버튼 그룹 컨테이너',
-            io: {
-                input: '내부 버튼 클릭',
-                output: '윈도우 최소화/최대화/닫기 동작'
-            },
-            logic: '최소화/최대화/닫기 버튼(win-min, win-max, win-close)을 수평으로 배치하는 래퍼.',
-            py_func: null,
-            py_params: {},
-            js_action: null,
-            events: [],
-            affects: ['win-min', 'win-max', 'win-close'],
-            examples: ['win-controls'],
-            deprecated: false
-        },
-
-        'win-min': {
-            module: 'window-controls',
+        'header-window-min-btn': {
+            module: 'header.window',
             desc: '윈도우 최소화 버튼',
             io: {
-                input: 'click',
-                output: '현재 앱 창 최소화'
+                input: ['click'],
+                output: ['backend.win_min']
             },
-            logic: 'Python 브리지의 win_min() 함수를 호출해 Electron 창을 최소화.',
+            logic: '클릭 시 Python backend.win_min 호출.',
             py_func: 'win_min',
-            py_params: {},
             js_action: null,
             events: ['click'],
             affects: [],
-            examples: ['win-min'],
-            deprecated: false
+            examples: [
+                'data-action="py:win_min"'
+            ]
         },
-
-        'win-max': {
-            module: 'window-controls',
-            desc: '윈도우 최대화/복원 버튼',
+        'header-window-max-btn': {
+            module: 'header.window',
+            desc: '윈도우 최대화/복원 토글 버튼',
             io: {
-                input: 'click',
-                output: '현재 앱 창 최대화 또는 복원'
+                input: ['click'],
+                output: ['backend.win_max']
             },
-            logic: 'Python 브리지의 win_max() 함수를 호출해 창을 최대화/복원 토글.',
+            logic: '클릭 시 Python backend.win_max 호출 (최대화/복원 토글).',
             py_func: 'win_max',
-            py_params: {},
             js_action: null,
             events: ['click'],
             affects: [],
-            examples: ['win-max'],
-            deprecated: false
+            examples: [
+                'data-action="py:win_max"'
+            ]
         },
-
-        'win-close': {
-            module: 'window-controls',
-            desc: '윈도우 닫기 버튼',
+        'header-window-close-btn': {
+            module: 'header.window',
+            desc: '윈도우 닫기(앱 종료) 버튼',
             io: {
-                input: 'click',
-                output: '애플리케이션 종료'
+                input: ['click'],
+                output: ['backend.win_close']
             },
-            logic: 'Python 브리지의 win_close() 함수를 호출해 앱을 종료.',
+            logic: '클릭 시 Python backend.win_close 호출 (앱 종료).',
             py_func: 'win_close',
-            py_params: {},
             js_action: null,
             events: ['click'],
             affects: [],
-            examples: ['win-close'],
-            deprecated: false
+            examples: [
+                'data-action="py:win_close"'
+            ]
         },
 
-        // =========================================
-        // 좌측 패널 (자산)
-        // =========================================
-        'panel-left': {
-            module: 'panel-left',
-            desc: '좌측 자산 패널 컨테이너',
-            io: {
-                input: '패널 리사이즈, 자산 선택',
-                output: '자산 목록 표시 및 선택 상태 반영'
-            },
-            logic: '프로젝트에서 사용하는 미디어/에셋 목록을 보여주는 패널.',
+        /* -----------------------------------------------------
+         * Left Panel (Assets)
+         * --------------------------------------------------- */
+        'main-left-panel': {
+            module: 'panel.left',
+            desc: '좌측 패널(자산 영역) 컨테이너',
+            io: { input: [], output: [] },
+            logic: '자산 목록 및 자산 추가 버튼을 포함.',
             py_func: null,
-            py_params: {},
             js_action: null,
             events: [],
-            affects: ['react-asset-list'],
-            examples: ['panel-left'],
-            deprecated: false
+            affects: ['main-left-assets-list'],
+            examples: []
         },
-
-        'panel-left-header': {
-            module: 'panel-left',
-            desc: '좌측 자산 패널 헤더 영역',
-            io: {
-                input: '없음',
-                output: '섹션 타이틀 및 추가 버튼 배치'
-            },
-            logic: '자산 패널 제목과 “자산 추가” 버튼을 포함.',
+        'main-left-header-bar': {
+            module: 'panel.left',
+            desc: '좌측 패널 헤더 바 (제목 및 + 버튼)',
+            io: { input: [], output: [] },
+            logic: '"자산(Assets)" 라벨과 자산 추가 버튼을 포함.',
             py_func: null,
-            py_params: {},
             js_action: null,
             events: [],
-            affects: ['btn-add-asset'],
-            examples: ['panel-left-header'],
-            deprecated: false
+            affects: ['main-left-assets-add-btn'],
+            examples: []
         },
-
-        'btn-add-asset': {
-            module: 'panel-left',
-            desc: '새 자산 가져오기 버튼',
+        'main-left-assets-add-btn': {
+            module: 'panel.left.assets',
+            desc: '좌측 패널 - 자산 추가(Import) 버튼',
             io: {
-                input: 'click',
-                output: 'Python 자산 가져오기 요청'
+                input: ['click'],
+                output: ['backend.import_asset']
             },
-            logic: 'Python 브리지의 import_asset()을 호출해 로컬/원격 자산을 프로젝트로 가져옴.',
+            logic: '클릭 시 Python backend.import_asset 호출 (새 자산 가져오기).',
             py_func: 'import_asset',
-            py_params: {},
             js_action: null,
             events: ['click'],
-            affects: ['react-asset-list'],
-            examples: ['btn-add-asset'],
-            deprecated: false
+            affects: ['main-left-assets-list'],
+            examples: [
+                'data-action="py:import_asset"'
+            ]
         },
-
-        'react-asset-list': {
-            module: 'panel-left',
-            desc: '자산 목록 렌더링 컨테이너(React/타 프레임워크 연동 가능)',
-            io: {
-                input: '자산 추가/삭제/로드 이벤트',
-                output: '자산 카드 리스트 렌더링'
-            },
-            logic: 'Python/JS에서 가져온 자산 데이터를 기반으로 리스트를 표시.',
+        'main-left-assets-list': {
+            module: 'panel.left.assets',
+            desc: '좌측 패널 - 자산 리스트(플레이스홀더)',
+            io: { input: [], output: [] },
+            logic: '초기에는 "자산 목록이 비어있습니다." 플레이스홀더를 표시.',
             py_func: null,
-            py_params: {},
             js_action: null,
             events: [],
             affects: [],
-            examples: ['react-asset-list'],
-            deprecated: false
+            examples: []
         },
-
-        'resizer-left': {
-            module: 'layout-main',
-            desc: '좌측 패널 너비 조절 핸들',
+        'main-left-resizer-v': {
+            module: 'panel.left.resizer',
+            desc: '좌측 패널 너비 조절 리사이저',
             io: {
-                input: 'drag (mousedown + move)',
-                output: 'leftPanelWidth 상태 변경'
+                input: ['mousedown', 'mousemove', 'mouseup'],
+                output: ['state.leftPanelWidth 변경']
             },
-            logic: 'Vue 메서드/핸들러를 통해 좌측 패널 너비를 실시간으로 조정.',
+            logic: '드래그하여 좌측 패널의 너비를 조절.',
             py_func: null,
-            py_params: {},
             js_action: 'resizePanelLeft',
-            events: ['mousedown', 'mousemove', 'mouseup'],
-            affects: ['panel-left', 'panel-center'],
-            examples: ['resizer-left'],
-            deprecated: false
+            events: ['mousedown'],
+            affects: ['main-left-panel'],
+            examples: [
+                'data-action="js:resizePanelLeft"'
+            ]
         },
 
-        // =========================================
-        // 중앙 패널 / 프리뷰
-        // =========================================
-        'panel-center': {
-            module: 'panel-center',
-            desc: '중앙 패널 (프리뷰 + 타임라인 컨테이너)',
-            io: {
-                input: '패널 리사이즈, 프리뷰/타임라인 상호작용',
-                output: '비디오 프리뷰 및 타임라인 표시'
-            },
-            logic: '상단 프리뷰 영역과 하단 타임라인 영역을 수직으로 배치.',
+        /* -----------------------------------------------------
+         * Center Panel / Preview
+         * --------------------------------------------------- */
+        'main-center-panel': {
+            module: 'panel.center',
+            desc: '중앙 패널(프리뷰 + 타임라인) 컨테이너',
+            io: { input: [], output: [] },
+            logic: '상단 프리뷰 영역과 하단 타임라인 패널로 구성.',
             py_func: null,
-            py_params: {},
             js_action: null,
             events: [],
-            affects: ['preview-container'],
-            examples: ['panel-center'],
-            deprecated: false
+            affects: ['preview-main-container'],
+            examples: []
         },
-
-        'preview-container': {
-            module: 'panel-center',
-            desc: '프리뷰(캔버스) 영역 상단 컨테이너',
-            io: {
-                input: '패널 리사이즈',
-                output: '프리뷰 영역 높이 변경'
-            },
-            logic: 'previewContainerHeight 상태에 따라 프리뷰 영역의 세로 비율을 조절.',
+        'preview-main-container': {
+            module: 'preview',
+            desc: '프리뷰 전체 컨테이너 (툴바 + 캔버스)',
+            io: { input: [], output: [] },
+            logic: '상단 툴바와 하단 실제 캔버스를 포함.',
             py_func: null,
-            py_params: {},
             js_action: null,
             events: [],
-            affects: ['canvas-wrapper'],
-            examples: ['preview-container'],
-            deprecated: false
+            affects: [
+                'preview-toolbar-panel',
+                'preview-canvas-wrapper'
+            ],
+            examples: []
         },
-
-        'preview-toolbar': {
-            module: 'panel-center',
-            desc: '프리뷰 상단 툴바 (비율, 해상도, 스냅 토글)',
-            io: {
-                input: '비율/해상도 선택, SNAP 토글',
-                output: '캔버스 크기/스냅 동작 변경'
-            },
-            logic: 'Dropdown 과 SNAP 토글을 통해 프리뷰 캔버스 설정을 제어.',
+        'preview-toolbar-panel': {
+            module: 'preview.toolbar',
+            desc: '프리뷰 상단 툴바 영역',
+            io: { input: [], output: [] },
+            logic: '비율/해상도/SNAP 토글 및 좌표 표시 기능 제공.',
             py_func: null,
-            py_params: {},
             js_action: null,
             events: [],
-            affects: ['dd-ratio', 'dd-resolution', 'btn-magnet'],
-            examples: ['preview-toolbar'],
-            deprecated: false
+            affects: [
+                'preview-toolbar-ratio-dropdown',
+                'preview-toolbar-resolution-dropdown',
+                'preview-toolbar-snap-toggle',
+                'preview-toolbar-coord-box'
+            ],
+            examples: []
         },
-
-        'dd-ratio': {
-            module: 'panel-center',
-            desc: '프리뷰 캔버스 종횡비 선택 드롭다운',
+        'preview-toolbar-ratio-dropdown': {
+            module: 'preview.toolbar',
+            desc: '프리뷰 - 캔버스 비율 선택 드롭다운',
             io: {
-                input: 'click, select',
-                output: 'aspectRatio 상태 변경'
+                input: ['select'],
+                output: ['state.aspectRatio 변경']
             },
-            logic: 'Vue 메서드 setAspect(r) 호출을 통해 프리뷰 캔버스 비율을 변경.',
+            logic: '선택한 비율(16:9, 9:16, 1:1)에 따라 캔버스 가로세로 비를 조정.',
             py_func: null,
-            py_params: {},
             js_action: 'setAspect',
-            events: ['click', 'select'],
-            affects: ['canvas-scaler'],
-            examples: ['dd-ratio'],
-            deprecated: false
+            events: ['change'],
+            affects: ['preview-canvas-scaler'],
+            examples: []
         },
-
-        'dd-resolution': {
-            module: 'panel-center',
-            desc: '프리뷰 캔버스 해상도 선택 드롭다운',
+        'preview-toolbar-coord-box': {
+            module: 'preview.toolbar',
+            desc: '프리뷰 - 마우스 좌표 표시 박스',
             io: {
-                input: 'click, select',
-                output: 'resolution 및 canvasSize 변경 (간접)'
+                input: ['mousemove (on canvas)'],
+                output: ['coord 텍스트 업데이트']
             },
-            logic: 'Vue 메서드 setResolution(r) 호출을 통해 해상도 프리셋을 변경.',
+            logic: '프리뷰 캔버스 내 마우스 위치를 표시.',
             py_func: null,
-            py_params: {},
-            js_action: 'setResolution',
-            events: ['click', 'select'],
-            affects: ['canvas-scaler'],
-            examples: ['dd-resolution'],
-            deprecated: false
-        },
-
-        'box-coords': {
-            module: 'panel-center',
-            desc: '프리뷰 캔버스 내 마우스 좌표 표시 박스',
-            io: {
-                input: '마우스 이동 (updateCanvasMouseCoord)',
-                output: 'coord-display 텍스트 업데이트'
-            },
-            logic: '현재 캔버스 상의 마우스 좌표를 실시간으로 보여줌.',
-            py_func: null,
-            py_params: {},
             js_action: null,
             events: [],
-            affects: ['coord-display'],
-            examples: ['box-coords'],
-            deprecated: false
+            affects: ['preview-toolbar-coord-label'],
+            examples: []
         },
-
-        'coord-display': {
-            module: 'panel-center',
-            desc: '마우스 좌표 숫자 표시 텍스트',
-            io: {
-                input: 'mouseCoord 상태 변경',
-                output: '텍스트 갱신'
-            },
-            logic: 'canvasSize, canvasScale 를 고려한 실제 캔버스 좌표를 표시.',
+        'preview-toolbar-coord-label': {
+            module: 'preview.toolbar',
+            desc: '프리뷰 - 마우스 좌표 라벨 (텍스트)',
+            io: { input: [], output: [] },
+            logic: 'Vue 바인딩으로 mouseCoord.x, mouseCoord.y 값을 표시.',
             py_func: null,
-            py_params: {},
             js_action: null,
             events: [],
             affects: [],
-            examples: ['coord-display'],
-            deprecated: false
+            examples: []
         },
-
-        'btn-magnet': {
-            module: 'panel-center',
-            desc: '프리뷰 캔버스 SNAP 온/오프 토글',
+        'preview-toolbar-resolution-dropdown': {
+            module: 'preview.toolbar',
+            desc: '프리뷰 - 해상도 선택 드롭다운',
             io: {
-                input: 'click',
-                output: 'isMagnet 상태 토글'
+                input: ['select'],
+                output: ['state.resolution 변경']
             },
-            logic: 'Vue 데이터 isMagnet을 토글하여 캔버스 박스 정렬/스냅 동작을 켜고 끔.',
+            logic: '8K/6K/4K/3K/2K 등 해상도 프리셋 변경.',
             py_func: null,
-            py_params: {},
+            js_action: 'setResolution',
+            events: ['change'],
+            affects: ['preview-canvas-scaler'],
+            examples: []
+        },
+        'preview-toolbar-snap-toggle': {
+            module: 'preview.toolbar',
+            desc: '프리뷰 - SNAP(자석) 토글 스위치',
+            io: {
+                input: ['click'],
+                output: ['state.isMagnet 토글']
+            },
+            logic: '캔버스 내 박스 이동/정렬 시 스냅 기능 온/오프.',
+            py_func: null,
             js_action: 'toggleSnapMagnet',
             events: ['click'],
-            affects: ['canvas-scaler'],
-            examples: ['btn-magnet'],
-            deprecated: false
+            affects: ['preview-canvas-scaler'],
+            examples: [
+                'data-action="js:toggleSnapMagnet"'
+            ]
         },
-
-        'canvas-wrapper': {
-            module: 'panel-center',
-            desc: '프리뷰 캔버스 전체를 감싸는 래퍼',
+        'preview-canvas-wrapper': {
+            module: 'preview.canvas',
+            desc: '프리뷰 캔버스 래퍼 (검정 배경 + 중앙 정렬)',
             io: {
-                input: 'mousemove, mouseleave',
-                output: 'mouseCoord / isMouseOverCanvas 상태 업데이트'
+                input: ['mousemove', 'mouseleave'],
+                output: ['mouseCoord, isMouseOverCanvas 업데이트']
             },
-            logic: 'updateCanvasMouseCoord 메서드를 통해 마우스 위치를 추적.',
+            logic: 'updateCanvasMouseCoord()의 기준이 되는 영역.',
             py_func: null,
-            py_params: {},
             js_action: 'updateCanvasMouseCoord',
             events: ['mousemove', 'mouseleave'],
-            affects: ['box-coords', 'mouseMarkerPos'],
-            examples: ['canvas-wrapper'],
-            deprecated: false
+            affects: ['preview-toolbar-coord-box', 'mouseMarkerPos'],
+            examples: []
         },
-
-        'ruler-h': {
-            module: 'panel-center',
-            desc: '프리뷰 상단 수평 눈금자 컨테이너',
-            io: {
-                input: '캔버스 크기/스케일 변경',
-                output: '시간/좌표 눈금 갱신'
-            },
-            logic: 'preview-canvas 의 가로 방향 스케일에 맞춰 눈금을 표시하는 RulerLine 컴포넌트를 포함.',
+        'preview-ruler-h': {
+            module: 'preview.ruler',
+            desc: '수평 룰러 컨테이너',
+            io: { input: [], output: [] },
+            logic: 'preview 상단의 수평 ruler-line 컴포넌트를 포함.',
             py_func: null,
-            py_params: {},
             js_action: null,
             events: [],
             affects: [],
-            examples: ['ruler-h'],
-            deprecated: false
+            examples: []
         },
-
-        'ruler-v': {
-            module: 'panel-center',
-            desc: '프리뷰 좌측 수직 눈금자 컨테이너',
-            io: {
-                input: '캔버스 크기/스케일 변경',
-                output: '세로 좌표 눈금 갱신'
-            },
-            logic: 'preview-canvas 의 세로 방향 스케일에 맞춰 눈금을 표시하는 RulerLine 컴포넌트를 포함.',
+        'preview-ruler-v': {
+            module: 'preview.ruler',
+            desc: '수직 룰러 컨테이너',
+            io: { input: [], output: [] },
+            logic: 'preview 좌측의 수직 ruler-line 컴포넌트를 포함.',
             py_func: null,
-            py_params: {},
             js_action: null,
             events: [],
             affects: [],
-            examples: ['ruler-v'],
-            deprecated: false
+            examples: []
         },
-
-        'canvas-viewport': {
-            module: 'panel-center',
-            desc: '프리뷰 캔버스가 들어가는 뷰포트',
-            io: {
-                input: '리사이즈',
-                output: 'canvasScale 재계산 (간접)'
-            },
-            logic: '실제 스케일된 캔버스를 표시하는 영역.',
+        'preview-canvas-viewport': {
+            module: 'preview.canvas',
+            desc: '프리뷰 캔버스 뷰포트(스크롤/클리핑 영역)',
+            io: { input: [], output: [] },
+            logic: '실제 캔버스 스케일러를 감싸는 뷰포트 역할.',
             py_func: null,
-            py_params: {},
             js_action: null,
             events: [],
-            affects: ['canvas-scaler'],
-            examples: ['canvas-viewport'],
-            deprecated: false
+            affects: ['preview-canvas-scaler'],
+            examples: []
         },
-
-        'canvas-scaler': {
-            module: 'panel-center',
-            desc: '실제 캔버스 컨텐츠가 배치되는 스케일러',
+        'preview-canvas-scaler': {
+            module: 'preview.canvas',
+            desc: '프리뷰 캔버스 스케일러 (실제 3840x2160 등 캔버스)',
             io: {
-                input: 'wrapper 리사이즈, 해상도 변경',
-                output: 'canvasScale 및 캔버스 표시 크기 조정'
+                input: ['ResizeObserver(wrapper)'],
+                output: ['state.canvasScale 변경']
             },
-            logic: 'setupCanvasScaler에서 wrapper 크기를 기준으로 scale을 계산.',
+            logic: 'wrapper 크기에 맞춰 Canvas를 scale하여 표시.',
             py_func: null,
-            py_params: {},
             js_action: null,
             events: [],
-            affects: ['preview-canvas'],
-            examples: ['canvas-scaler'],
-            deprecated: false
+            affects: ['preview-canvas-wrapper'],
+            examples: []
         },
-
-        'guide-h': {
-            module: 'panel-center',
-            desc: '프리뷰 캔버스 수평 가이드라인',
-            io: {
-                input: '스냅/정렬 연산',
-                output: '가이드라인 on/off'
-            },
-            logic: '캔버스 중앙선 등 정렬 가이드를 시각화.',
+        'preview-guide-h': {
+            module: 'preview.guides',
+            desc: '프리뷰 캔버스 수평 가이드 라인',
+            io: { input: [], output: [] },
+            logic: '캔버스 중앙 Y축 기준 가이드라인(십자선) 표시.',
             py_func: null,
-            py_params: {},
             js_action: null,
             events: [],
             affects: [],
-            examples: ['guide-h'],
-            deprecated: false
+            examples: []
         },
-
-        'guide-v': {
-            module: 'panel-center',
-            desc: '프리뷰 캔버스 수직 가이드라인',
-            io: {
-                input: '스냅/정렬 연산',
-                output: '가이드라인 on/off'
-            },
-            logic: '캔버스 중앙선 등 정렬 가이드를 시각화.',
+        'preview-guide-v': {
+            module: 'preview.guides',
+            desc: '프리뷰 캔버스 수직 가이드 라인',
+            io: { input: [], output: [] },
+            logic: '캔버스 중앙 X축 기준 가이드라인(십자선) 표시.',
             py_func: null,
-            py_params: {},
             js_action: null,
             events: [],
             affects: [],
-            examples: ['guide-v'],
-            deprecated: false
+            examples: []
         },
 
-        'resizer-timeline': {
-            module: 'layout-main',
-            desc: '프리뷰와 타임라인 사이 세로 리사이저',
+        /* -----------------------------------------------------
+         * Center Panel - Timeline Resizer
+         * --------------------------------------------------- */
+        'main-center-timeline-resizer-h': {
+            module: 'panel.center.timeline',
+            desc: '프리뷰/타임라인 사이 세로 리사이저',
             io: {
-                input: 'drag (mousedown + move)',
-                output: 'timelineContainerHeight, previewContainerHeight 변경'
+                input: ['mousedown', 'mousemove', 'mouseup'],
+                output: ['previewContainerHeight, timelineContainerHeight 변경']
             },
-            logic: '프리뷰 vs 타임라인의 세로 비율을 사용자가 드래그로 조정.',
+            logic: '드래그하여 프리뷰/타임라인 영역의 높이 비율을 조절.',
             py_func: null,
-            py_params: {},
             js_action: 'resizePanelCenter',
-            events: ['mousedown', 'mousemove', 'mouseup'],
-            affects: ['preview-container', 'timeline-panel'],
-            examples: ['resizer-timeline'],
-            deprecated: false
+            events: ['mousedown'],
+            affects: ['preview-main-container', 'timeline-panel'],
+            examples: [
+                'data-action="js:resizePanelCenter"'
+            ]
         },
 
-        // =========================================
-        // 우측 패널 (속성 / 레이어)
-        // =========================================
-        'panel-right': {
-            module: 'panel-right',
-            desc: '우측 속성/레이어 패널 컨테이너',
-            io: {
-                input: '패널 리사이즈, 속성 편집',
-                output: '선택된 객체 속성/레이어 정보 표시'
-            },
-            logic: '선택한 타임라인 클립 또는 캔버스 박스의 상세 속성을 편집하는 영역.',
+        /* -----------------------------------------------------
+         * Right Panel
+         * --------------------------------------------------- */
+        'main-right-panel': {
+            module: 'panel.right',
+            desc: '우측 패널(레이어/프로퍼티/이펙트) 컨테이너',
+            io: { input: [], output: [] },
+            logic: 'LayerPanel, PropertiesPanel, Effects 영역을 포함.',
             py_func: null,
-            py_params: {},
             js_action: null,
             events: [],
-            affects: ['vue-right-panel-root'],
-            examples: ['panel-right'],
-            deprecated: false
+            affects: ['main-right-vue-root'],
+            examples: []
         },
-
-        'resizer-right': {
-            module: 'layout-main',
-            desc: '우측 패널 너비 조절 핸들',
+        'main-right-resizer-v': {
+            module: 'panel.right.resizer',
+            desc: '우측 패널 너비 조절 리사이저',
             io: {
-                input: 'drag (mousedown + move)',
-                output: 'rightPanelWidth 상태 변경'
+                input: ['mousedown', 'mousemove', 'mouseup'],
+                output: ['state.rightPanelWidth 변경']
             },
-            logic: 'Vue 메서드/핸들러를 통해 우측 패널 너비를 실시간으로 조정.',
+            logic: '드래그하여 우측 패널의 너비를 조절.',
             py_func: null,
-            py_params: {},
             js_action: 'resizePanelRight',
-            events: ['mousedown', 'mousemove', 'mouseup'],
-            affects: ['panel-right', 'panel-center'],
-            examples: ['resizer-right'],
-            deprecated: false
+            events: ['mousedown'],
+            affects: ['main-right-panel'],
+            examples: [
+                'data-action="js:resizePanelRight"'
+            ]
         },
-
-        'vue-right-panel-root': {
-            module: 'panel-right',
-            desc: '우측 패널 내 Vue 컴포넌트 루트 (LayerPanel / PropertiesPanel)',
-            io: {
-                input: '선택 객체/레이어 변경',
-                output: '레이어/속성 UI 업데이트'
-            },
-            logic: 'layer-panel, properties-panel 컴포넌트를 포함하는 컨테이너.',
+        'main-right-vue-root': {
+            module: 'panel.right',
+            desc: '우측 패널 Vue 루트(LayerPanel, PropertiesPanel 등)',
+            io: { input: [], output: [] },
+            logic: 'LayerPanel, PropertiesPanel 컴포넌트를 렌더링하는 컨테이너.',
             py_func: null,
-            py_params: {},
             js_action: null,
             events: [],
             affects: [],
-            examples: ['vue-right-panel-root'],
-            deprecated: false
+            examples: []
         },
 
-        // =========================================
-        // 동적 요소 패턴 예시
-        // =========================================
-        'timeline-clip-{id}': {
-            module: 'timeline',
-            desc: '타임라인 상의 개별 클립 (동적 ID 패턴)',
+        /* -----------------------------------------------------
+         * Dev / Inspector Overlay
+         * --------------------------------------------------- */
+        'dev-overlay-root': {
+            module: 'dev.overlay',
+            desc: 'Inspector/Dev 공용 오버레이 루트',
             io: {
-                input: 'click, drag, contextmenu',
-                output: '클립 선택/이동/편집'
+                input: ['mousemove (문서 전체)', 'click (툴팁)'],
+                output: ['inspector state, highlightStyle, tooltipStyle 업데이트']
             },
-            logic: '타임라인에 배치된 미디어/레이어 클립. id 자리에 클립 고유 ID가 들어간다.',
+            logic: 'dev-mode-active / dev-mode-full 상태일 때 활성화되는 하이라이트/툴팁 레이어.',
             py_func: null,
-            py_params: {},
-            js_action: 'selectTimelineClip',
-            events: ['click', 'dragstart', 'dragend', 'contextmenu'],
-            affects: ['properties-panel', 'layer-panel'],
-            examples: ['timeline-clip-1', 'timeline-clip-42'],
-            deprecated: false
+            js_action: null,
+            events: [],
+            affects: ['dev-overlay-highlight', 'dev-overlay-tooltip'],
+            examples: []
         },
-
-        'canvas-box-{id}': {
-            module: 'canvas',
-            desc: '프리뷰 캔버스 상의 개별 박스 (동적 ID 패턴)',
-            io: {
-                input: 'click, drag, resize',
-                output: '박스 위치/크기/선택 상태 변경'
-            },
-            logic: '캔버스 상에 표시되는 텍스트/이미지 등 시각 요소를 나타내는 박스.',
+        'dev-overlay-highlight': {
+            module: 'dev.overlay',
+            desc: '현재 hover 된 요소의 영역을 표시하는 하이라이트 박스',
+            io: { input: [], output: [] },
+            logic: 'vm.highlightStyle에 따라 위치/크기/투명도(10%)를 반영.',
             py_func: null,
-            py_params: {},
-            js_action: 'selectCanvasBox',
-            events: ['click', 'dragstart', 'dragend'],
-            affects: ['properties-panel', 'layer-panel'],
-            examples: ['canvas-box-title', 'canvas-box-hero'],
-            deprecated: false
+            js_action: null,
+            events: [],
+            affects: [],
+            examples: []
+        },
+        'dev-overlay-tooltip': {
+            module: 'dev.overlay',
+            desc: 'Inspector/Dev 정보 툴팁',
+            io: {
+                input: ['click'],
+                output: ['clipboard에 inspector.id 복사']
+            },
+            logic: 'Inspect 모드에서는 ID/Tag/Size + 힌트만, Dev 모드에서는 element-specs.js/data-action 정보까지 표시.',
+            py_func: null,
+            js_action: 'copyInspectorId',
+            events: ['click'],
+            affects: [],
+            examples: []
         }
     };
 
-    // =============================================
-    // 내부 유틸: {id} 패턴 지원을 위한 정규식 빌더
-    // =============================================
-
     /**
-     * "timeline-clip-{id}" 같은 패턴을 정규식으로 변환합니다.
-     * @param {string} pattern
-     * @returns {RegExp}
+     * ID 기반 스펙 조회 함수
+     * - 정확히 일치하는 ID가 있으면 그대로 반환
+     * - 추후 패턴(id에 {id} 등) 매칭이 필요할 경우 이 함수 내부를 확장
      */
-    function buildPatternRegex(pattern) {
-        // 정규식 메타문자 이스케이프
-        const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        // {id} 자리만 캡처 그룹으로 교체
-        const source = '^' + escaped.replace('\\{id\\}', '(.+?)') + '$';
-        return new RegExp(source);
-    }
-
-    const PATTERN_ENTRIES = Object.entries(SPECS)
-        .filter(([key]) => key.includes('{id}'))
-        .map(([pattern, spec]) => ({
-            pattern,
-            regex: buildPatternRegex(pattern),
-            spec
-        }));
-
-    /**
-     * 주어진 DOM id에 대한 spec을 조회합니다.
-     * - 정확히 일치하는 id가 우선.
-     * - 없으면 {id} 패턴들을 순회하며 첫 매칭을 반환.
-     *
-     * @param {string} id
-     * @returns {any|null}
-     */
-    function getElementSpec(id) {
+    function WAI_getElementSpec(id) {
         if (!id) return null;
-
         if (Object.prototype.hasOwnProperty.call(SPECS, id)) {
             return SPECS[id];
         }
-
-        for (const entry of PATTERN_ENTRIES) {
-            if (entry.regex.test(id)) {
-                // 패턴에서 파생된 실제 id를 spec에 주입해서 반환 (얕은 복사)
-                return Object.assign({}, entry.spec, { resolvedId: id, pattern: entry.pattern });
-            }
-        }
-
+        // TODO: 패턴 매칭 (예: timeline-clip-{id}, canvas-box-{id}) 필요 시 여기서 처리
         return null;
     }
 
-    // 전역 공개
     global.WAI_ELEMENT_SPECS = SPECS;
-    global.WAI_getElementSpec = getElementSpec;
-})(typeof window !== 'undefined' ? window : this);
+    global.WAI_getElementSpec = WAI_getElementSpec;
+})(window);
