@@ -1009,6 +1009,17 @@
                 'data-action="js:toggleLayerPanelCollapse"'
             ]
         },
+        'panel-right-layer-body': {
+            module: 'panel.right.layer',
+            desc: '레이어 패널 본문 컨테이너',
+            io: { input: [], output: [] },
+            logic: '매트릭스, 컬럼 추가 버튼, 템플릿 저장 버튼을 포함하는 본문 래퍼.',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: [],
+            examples: []
+        },
         'panel-right-layer-mainname-badge': {
             module: 'panel.right.layer',
             desc: '현재 저장된 레이어 템플릿 메인 이름 배지',
@@ -1205,6 +1216,17 @@
             examples: [
                 'data-action="js:togglePropsPanelCollapse"'
             ]
+        },
+        'panel-right-props-body': {
+            module: 'panel.right.props',
+            desc: '속성 패널 본문 컨테이너',
+            io: { input: [], output: [] },
+            logic: '선택 없음 / 클립 선택 / 박스 선택 섹션을 포함하는 래퍼.',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: [],
+            examples: []
         },
         'panel-right-props-empty-label': {
             module: 'panel.right.props',
