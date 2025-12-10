@@ -58,8 +58,6 @@ const AppRoot = {
             canvasScale: 1.0, 
             
             // Inspector / Dev Overlay State
-            // Inspector: 사용자가 "챗봇에 말할 ID"를 확인하는 용도
-            // Dev: Python/JS 연동 정보 확인 용도
             inspector: { tag: '', id: '', className: '', x: 0, y: 0, w: 0, h: 0, dataDev: '' },
             highlightStyle: { width: '0', height: '0', top: '0', left: '0' },
             tooltipStyle: { top: '0', left: '0' },
@@ -72,7 +70,6 @@ const AppRoot = {
                 { id: 'c4', name: '하단', color: '#3b82f6' }
             ],
 
-            // 컨텍스트 메뉴 상태 (색상 변경 등)
             ctxMenu: null,
 
             COLORS
@@ -139,20 +136,22 @@ const AppRoot = {
         },
 
         /**
-         * Inspector / Dev 모드 공통 마우스 무브 핸들러 설정
+         * Inspector / Dev 모드 공통 마우스 무브 핸들러
          * - Inspect 모드: ID/태그/클래스 + 크기만 표시
-         * - Dev 모드: element-specs.js + data-action 기반 Dev 정보 표시
+         * - Dev 모드: element-specs.js + data-action 기반 정보 표시
          */
         setupInspectorMode() {
             const self = this;
+            const TOOLTIP_MARGIN = 10;
+            const TOOLTIP_WIDTH = 260;
+            const TOOLTIP_HEIGHT_INSPECT = 70;
+            const TOOLTIP_HEIGHT_DEV = 130;
 
             document.addEventListener('mousemove', (e) => {
-                // 두 모드 모두에서 인스펙터 동작 (둘 다 꺼져 있으면 동작 안 함)
                 if (!self.isDevModeActive && !self.isDevModeFull) return;
 
                 let target = e.target;
 
-                // 오버레이 자체 위에 마우스가 있을 때는 실제 아래 요소를 다시 계산
                 if (target.classList.contains('dev-highlight') || target.classList.contains('dev-tooltip')) {
                     const realTarget = document.elementFromPoint(e.clientX, e.clientY);
                     if (realTarget) target = realTarget;
@@ -160,7 +159,7 @@ const AppRoot = {
 
                 if (target && target.tagName !== 'HTML' && target.tagName !== 'BODY') {
                     const rect = target.getBoundingClientRect();
-                    
+
                     self.highlightStyle = {
                         width: `${rect.width}px`,
                         height: `${rect.height}px`,
@@ -168,8 +167,6 @@ const AppRoot = {
                         left: `${rect.left}px`,
                     };
 
-                    // Inspect 모드: dataDev는 비움 (ID만 보여주기 위함)
-                    // Dev 모드: element-specs + data-action 기반 정보 표시
                     const devInfo = self.isDevModeFull ? self.buildDevInfo(target) : '';
 
                     self.inspector = {
@@ -183,16 +180,34 @@ const AppRoot = {
                         dataDev: devInfo
                     };
 
-                    self.tooltipStyle = {
-                        top: `${rect.top - 50}px`, 
-                        left: `${rect.left + rect.width + 10}px`,
-                        transform: 'translateY(0)'
-                    };
+                    // 툴팁 위치 계산 (뷰포트 안으로 클램핑)
+                    const tooltipHeight = self.isDevModeFull ? TOOLTIP_HEIGHT_DEV : TOOLTIP_HEIGHT_INSPECT;
 
-                    // 화면 위쪽에 걸치면 아래로 내림
-                    if (rect.top - 50 < 0) {
-                        self.tooltipStyle.top = `${rect.bottom + 10}px`;
+                    let top = rect.top - tooltipHeight - TOOLTIP_MARGIN;
+                    let left = rect.left + rect.width + TOOLTIP_MARGIN;
+
+                    // 위로 나가면 아래로
+                    if (top < TOOLTIP_MARGIN) {
+                        top = rect.bottom + TOOLTIP_MARGIN;
                     }
+
+                    // 아래로도 나가지 않도록 클램프
+                    if (top + tooltipHeight > window.innerHeight - TOOLTIP_MARGIN) {
+                        top = Math.max(TOOLTIP_MARGIN, window.innerHeight - tooltipHeight - TOOLTIP_MARGIN);
+                    }
+
+                    // 오른쪽으로 나가면 왼쪽에 배치
+                    if (left + TOOLTIP_WIDTH > window.innerWidth - TOOLTIP_MARGIN) {
+                        left = rect.left - TOOLTIP_WIDTH - TOOLTIP_MARGIN;
+                        if (left < TOOLTIP_MARGIN) {
+                            left = Math.max(TOOLTIP_MARGIN, window.innerWidth - TOOLTIP_WIDTH - TOOLTIP_MARGIN);
+                        }
+                    }
+
+                    self.tooltipStyle = {
+                        top: `${top}px`,
+                        left: `${left}px`
+                    };
                 } else {
                     self.inspector = { 
                         tag: '', 
@@ -211,7 +226,7 @@ const AppRoot = {
         /**
          * Dev 모드용 정보 문자열 생성
          * - 코드/브리지 중심 정보만 표시
-         * - "읽기 쉬운 짧은 설명(desc)"는 의도적으로 표시하지 않음
+         * - 사람이 읽기 쉬운 설명(desc)는 표시하지 않음
          */
         buildDevInfo(targetEl) {
             const id = targetEl.id || '';
