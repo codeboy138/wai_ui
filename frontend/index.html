@@ -233,7 +233,7 @@
         }
         .win-btn.close:hover { @apply bg-ui-danger text-white; }
 
-        /* 커스텀 드롭다운 (FIXED) */
+        /* 커스텀 드롭다운 */
         .c-dropdown { 
             @apply relative inline-flex items-center px-2 h-full bg-bg-input rounded text-[10px] text-text-sub cursor-pointer hover:bg-bg-hover hover:text-text-main border border-ui-border select-none; 
         }
@@ -250,45 +250,50 @@
         .c-dropdown.locked:hover { background: #1a1a1a; color: #a1a1aa; }
         .c-dropdown.locked:hover .c-dropdown-menu { display: none; }
 
-        /* 개발자 모드 (Dev Mode Overlay) */
+        /* 개발자 모드 (Inspect / Dev 공용 오버레이) */
         .dev-overlay { 
             pointer-events: none; position: fixed; inset: 0; z-index: 9999; display: none; 
         }
-        body.dev-mode-active .dev-overlay { display: block; }
+        body.dev-mode-active .dev-overlay,
+        body.dev-mode-full .dev-overlay { 
+            display: block; 
+        }
         
         .dev-highlight { 
             position: absolute; 
-            border: 1px solid rgba(31,31,31,0.9); 
-            background: rgba(31,31,31,0.9);   /* 인스펙트 영역 배경: 짙은 회색, 불투명도 90% */
+            border: 1px solid rgba(0,0,0,0.9); 
+            background: rgba(255,255,255,0.9);   /* 인스펙트/Dev 공용: 흰 배경, 투명도 90% */
             transition: all 0.05s ease-out; 
             pointer-events: none;
         }
         
         .dev-tooltip { 
             position: absolute; 
-            background: rgba(31,31,31,0.9);   /* 인스펙트 툴팁 배경: 짙은 회색, 불투명도 90% */
-            color: #000000;                   /* 글씨: 검정 */
+            background: rgba(255,255,255,0.9);   /* 툴팁 공용: 흰 배경, 투명도 90% */
+            color: #000000;                       /* 글씨: 검정 */
             padding: 4px 8px; 
-            font-size: 10px; 
+            font-size: 10px;                      /* 요청: 글자크기 10px */
             border-radius: 2px; 
             font-family: monospace; 
-            white-space: pre-wrap;            /* 줄바꿈 허용해서 내용 전체 표시 */
+            white-space: pre-wrap;                /* 줄바꿈 허용 */
             word-break: break-word;
             z-index: 10000; 
             box-shadow: 0 2px 8px rgba(0,0,0,0.5); 
             pointer-events: none;
-            max-width: 320px;
+            max-width: 340px;
         }
 
-        /* Dev 정보 박스: 흰색 90% + 검정 글씨, 내용 전체 보이도록 */
+        /* Dev 정보 박스 (Dev 모드에서만 데이터 표시) */
         .dev-tooltip-devinfo {
             background: rgba(255,255,255,0.9);
             color: #000000;
             border-radius: 2px;
             white-space: pre-wrap;
             word-break: break-word;
+            font-size: 10px;                     /* Dev 정보 글자크기 10px */
         }
-        
+
+        /* (구) data-dev 호버 스타일 – 현재는 사용하지 않지만 남겨둠 */
         body.dev-mode-full [data-dev]:hover::after {
             content: attr(data-dev); position: absolute; z-index: 99999;
             background: rgba(0,0,0,0.95); color: #00ff00; padding: 6px; border: 1px solid #ef4444;
@@ -296,7 +301,7 @@
             bottom: 100%; left: 0; min-width: 200px; pointer-events: none; text-align: left;
         }
 
-        /* 컨텍스트 메뉴 (Context Menu) */
+        /* 컨텍스트 메뉴 */
         .context-menu { 
             position: fixed; background: #1e1e1e; border: 1px solid #333; 
             box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 5000; border-radius: 4px; 
@@ -305,23 +310,18 @@
         .ctx-item { padding: 4px 12px; font-size: 11px; color: #eee; cursor: pointer; display: flex; justify-content: space-between; gap: 10px; }
         .ctx-item:hover { background: #3b82f6; color: white; }
         
-        /* 색상 선택 그리드 */
         .color-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding: 4px; }
         .color-swatch { width: 16px; height: 16px; border-radius: 2px; cursor: pointer; border: 1px solid #333; }
         .color-swatch:hover { border-color: white; transform: scale(1.1); }
 
-        /* Drag Overlay Highlight */
         .timeline-drag-over { box-shadow: inset 0 0 0 2px #3b82f6; background-color: rgba(59, 130, 246, 0.1); }
 
-        /* 플레이헤드 (Playhead) */
         .playhead-line { position: absolute; top: 0; bottom: 0; width: 1px; background: #ef4444; z-index: 40; pointer-events: none; }
         .playhead-handle { position: absolute; top: 0; width: 11px; height: 12px; background: #ef4444; transform: translateX(-50%); clip-path: polygon(0 0, 100% 0, 50% 100%); cursor: ew-resize; pointer-events: auto; z-index: 50; }
         
-        /* Modal Style */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); display: flex; justify-content: center; align-items: center; z-index: 5000; }
         .modal-window { background: #18181b; border: 1px solid #27272a; border-radius: 8px; width: 80%; height: 80%; max-width: 1000px; max-height: 700px; display: flex; flex-direction: column; overflow: hidden; }
 
-        /* Animation */
         .animate-fade-in { animation: fadeIn 0.2s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
@@ -610,11 +610,14 @@
         <div class="dev-overlay" id="dev-overlay" v-if="inspector.tag">
             <div class="dev-highlight" :style="highlightStyle"></div>
             <div class="dev-tooltip" :style="tooltipStyle">
+                <!-- Inspect 공통 정보 (모든 요소 공통) -->
                 <span class="font-bold">#{{ inspector.id || '(no-id)' }}</span> 
                 <span> {{ inspector.tag }}</span> 
                 <span>{{ inspector.className ? ' .' + inspector.className.split(' ')[0] : '' }}</span><br>
                 Size: {{ inspector.w }} x {{ inspector.h }}<br>
-                <div v-if="inspector.dataDev" class="mt-1 pt-1 border-t border-gray-500 text-[9px] dev-tooltip-devinfo">
+
+                <!-- Dev 모드에서만 코드/브리지 정보 표시 (isDevModeFull일 때 inspector.dataDev에 채워짐) -->
+                <div v-if="inspector.dataDev" class="mt-1 pt-1 border-t border-gray-400 dev-tooltip-devinfo">
                     {{ inspector.dataDev }}
                 </div>
             </div>
