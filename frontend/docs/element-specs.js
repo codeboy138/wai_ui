@@ -934,7 +934,7 @@
         },
 
         /* -----------------------------------------------------
-         * Right Panel
+         * Right Panel - Container & Resizer
          * --------------------------------------------------- */
         'main-right-panel': {
             module: 'panel.right',
@@ -973,6 +973,379 @@
             events: [],
             affects: [],
             examples: []
+        },
+
+        /* -----------------------------------------------------
+         * Right Panel - LayerPanel
+         * --------------------------------------------------- */
+        'panel-right-layer-root': {
+            module: 'panel.right.layer',
+            desc: '우측 패널 - 레이어 관리 전체 영역',
+            io: { input: [], output: [] },
+            logic: '레이어 컬럼 매트릭스, 컬럼 추가, 템플릿 저장 및 색상 선택 컨텍스트 메뉴 포함.',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: [
+                'panel-right-layer-header',
+                'panel-right-layer-matrix-container',
+                'panel-right-layer-save-template-btn'
+            ],
+            examples: []
+        },
+        'panel-right-layer-header': {
+            module: 'panel.right.layer',
+            desc: '우측 레이어 패널 헤더 (레이어 관리 / 접기 토글)',
+            io: {
+                input: ['click'],
+                output: ['isCollapsed 토글']
+            },
+            logic: '클릭 시 레이어 매트릭스 영역을 접거나 펼침.',
+            py_func: null,
+            js_action: 'toggleLayerPanelCollapse',
+            events: ['click'],
+            affects: ['panel-right-layer-body'],
+            examples: [
+                'data-action="js:toggleLayerPanelCollapse"'
+            ]
+        },
+        'panel-right-layer-mainname-badge': {
+            module: 'panel.right.layer',
+            desc: '현재 저장된 레이어 템플릿 메인 이름 배지',
+            io: { input: [], output: [] },
+            logic: 'vm.layerMainName 값이 존재할 때만 표시되며, 현재 레이아웃 이름을 나타냄.',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: [],
+            examples: []
+        },
+        'panel-right-layer-matrix-label': {
+            module: 'panel.right.layer',
+            desc: '레이어 매트릭스 설명 라벨',
+            io: { input: [], output: [] },
+            logic: '"매트릭스 (우클릭: 색상)" 고정 텍스트.',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: [],
+            examples: []
+        },
+        'panel-right-layer-addcol-btn': {
+            module: 'panel.right.layer',
+            desc: '새 레이어 컬럼 추가 버튼',
+            io: {
+                input: ['click'],
+                output: ['vm.layerCols.push(...)']
+            },
+            logic: '레이어 컬럼 목록에 새 컬럼을 추가.',
+            py_func: null,
+            js_action: 'layerAddColumn',
+            events: ['click'],
+            affects: ['panel-right-layer-matrix-container'],
+            examples: [
+                'data-action="js:layerAddColumn"'
+            ]
+        },
+        'panel-right-layer-matrix-container': {
+            module: 'panel.right.layer',
+            desc: '레이어 매트릭스(컬럼 헤더 + EFF/TXT/BG 셀) 스크롤 컨테이너',
+            io: { input: [], output: [] },
+            logic: '컬럼 헤더 및 각 행(EFF/TXT/BG)을 가로 스크롤 가능하게 표시.',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: [
+                'panel-right-layer-col-{id}',
+                'panel-right-layer-row-{id}',
+                'panel-right-layer-cell-{id}'
+            ],
+            examples: []
+        },
+        'panel-right-layer-col-{id}': {
+            module: 'panel.right.layer',
+            desc: '개별 레이어 컬럼 헤더 셀',
+            io: {
+                input: ['contextmenu', 'input(내부 input)'],
+                output: ['컬럼 이름 변경', '컬럼 색상 변경']
+            },
+            logic: '우클릭으로 색상 선택 메뉴를 열고, input으로 컬럼 이름을 수정.',
+            py_func: null,
+            js_action: null,
+            events: ['contextmenu'],
+            affects: [
+                'panel-right-layer-col-name-{id}',
+                'panel-right-layer-color-menu'
+            ],
+            examples: []
+        },
+        'panel-right-layer-col-name-{id}': {
+            module: 'panel.right.layer',
+            desc: '레이어 컬럼 이름 입력 필드',
+            io: {
+                input: ['input'],
+                output: ['vm.layerCols[].name 변경']
+            },
+            logic: '컬럼의 표시 이름을 변경.',
+            py_func: null,
+            js_action: null,
+            events: ['input'],
+            affects: [],
+            examples: []
+        },
+        'panel-right-layer-row-{id}': {
+            module: 'panel.right.layer',
+            desc: '레이어 매트릭스 행(EFF/TXT/BG)',
+            io: { input: [], output: [] },
+            logic: '각 행 타입에 해당하는 셀들을 수평으로 배치.',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: ['panel-right-layer-cell-{id}'],
+            examples: []
+        },
+        'panel-right-layer-rowlabel-{id}': {
+            module: 'panel.right.layer',
+            desc: '레이어 매트릭스 행 레이블(EFF/TXT/BG)',
+            io: { input: [], output: [] },
+            logic: '행 타입 이름(Effect/Text/BG)을 표시.',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: [],
+            examples: []
+        },
+        'panel-right-layer-cell-{id}': {
+            module: 'panel.right.layer',
+            desc: '레이어 매트릭스의 개별 셀 (컬럼 x 행 타입)',
+            io: {
+                input: ['click'],
+                output: ['vm.addLayerBox(colIdx, type, color) 호출']
+            },
+            logic: '클릭 시 해당 컬럼/타입에 대응하는 캔버스 박스를 추가.',
+            py_func: null,
+            js_action: 'layerAddBox',
+            events: ['click'],
+            affects: ['preview-canvas-scaler'],
+            examples: [
+                'data-action="js:layerAddBox"'
+            ]
+        },
+        'panel-right-layer-save-template-btn': {
+            module: 'panel.right.layer',
+            desc: '레이어 템플릿 저장 버튼',
+            io: {
+                input: ['click'],
+                output: ['Swal.prompt → vm.saveLayerTemplate(name) 호출']
+            },
+            logic: 'SweetAlert2 팝업으로 템플릿 이름을 받아 vm.saveLayerTemplate(name)을 호출.',
+            py_func: null,
+            js_action: 'layerSaveTemplate',
+            events: ['click'],
+            affects: ['panel-right-layer-mainname-badge'],
+            examples: [
+                'data-action="js:layerSaveTemplate"'
+            ]
+        },
+        'panel-right-layer-color-menu': {
+            module: 'panel.right.layer',
+            desc: '레이어 컬럼 색상 선택 컨텍스트 메뉴',
+            io: {
+                input: ['click(색상 스와치)'],
+                output: ['해당 컬럼 color 변경']
+            },
+            logic: '우클릭한 컬럼에 대해 COLORS 팔레트 중 하나를 선택.',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: ['panel-right-layer-col-{id}'],
+            examples: []
+        },
+        'panel-right-layer-color-swatch-{id}': {
+            module: 'panel.right.layer',
+            desc: '팔레트 내 개별 색상 스와치',
+            io: {
+                input: ['click'],
+                output: ['선택한 컬럼의 색상 변경']
+            },
+            logic: 'contextMenu.colId에 해당하는 컬럼의 color 필드를 업데이트.',
+            py_func: null,
+            js_action: null,
+            events: ['click'],
+            affects: ['panel-right-layer-col-{id}'],
+            examples: []
+        },
+
+        /* -----------------------------------------------------
+         * Right Panel - PropertiesPanel
+         * --------------------------------------------------- */
+        'panel-right-props-root': {
+            module: 'panel.right.props',
+            desc: '우측 패널 - 속성 패널 전체 영역',
+            io: { input: [], output: [] },
+            logic: '선택된 클립 또는 캔버스 박스의 속성을 요약하여 표시.',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: ['panel-right-props-body'],
+            examples: []
+        },
+        'panel-right-props-header': {
+            module: 'panel.right.props',
+            desc: '속성 패널 헤더 (속성 / 접기 토글)',
+            io: {
+                input: ['click'],
+                output: ['isCollapsed 토글']
+            },
+            logic: '클릭 시 속성 패널 본문을 접거나 펼침.',
+            py_func: null,
+            js_action: 'togglePropsPanelCollapse',
+            events: ['click'],
+            affects: ['panel-right-props-body'],
+            examples: [
+                'data-action="js:togglePropsPanelCollapse"'
+            ]
+        },
+        'panel-right-props-empty-label': {
+            module: 'panel.right.props',
+            desc: '선택된 요소가 없을 때 표시되는 안내 문구',
+            io: { input: [], output: [] },
+            logic: 'vm.selectedClip 및 vm.selectedBoxId가 모두 비어있을 때만 노출.',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: [],
+            examples: []
+        },
+        'panel-right-props-clip-section': {
+            module: 'panel.right.props',
+            desc: '선택된 클립에 대한 속성 정보 섹션',
+            io: { input: [], output: [] },
+            logic: '클립 이름, 시작(Start), 길이(Dur) 정보를 표시하고 삭제 버튼 제공.',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: [
+                'panel-right-props-clip-start',
+                'panel-right-props-clip-duration',
+                'panel-right-props-clip-delete-btn'
+            ],
+            examples: []
+        },
+        'panel-right-props-clip-start': {
+            module: 'panel.right.props',
+            desc: '선택된 클립 시작 시간 표시 입력창',
+            io: { input: [], output: [] },
+            logic: 'vm.selectedClip.start 값을 소수점 한 자리로 표시 (readonly).',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: [],
+            examples: []
+        },
+        'panel-right-props-clip-duration': {
+            module: 'panel.right.props',
+            desc: '선택된 클립 길이 표시 입력창',
+            io: { input: [], output: [] },
+            logic: 'vm.selectedClip.duration 값을 소수점 한 자리로 표시 (readonly).',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: [],
+            examples: []
+        },
+        'panel-right-props-clip-delete-btn': {
+            module: 'panel.right.props',
+            desc: '선택된 클립 삭제 버튼',
+            io: {
+                input: ['click'],
+                output: ['vm.removeClip(id)', 'vm.selectedClip = null']
+            },
+            logic: '현재 선택된 클립을 타임라인에서 제거.',
+            py_func: null,
+            js_action: 'propsDeleteClip',
+            events: ['click'],
+            affects: ['timeline-clip-{id}', 'panel-right-props-root'],
+            examples: [
+                'data-action="js:propsDeleteClip"'
+            ]
+        },
+        'panel-right-props-box-section': {
+            module: 'panel.right.props',
+            desc: '선택된 캔버스 박스에 대한 속성 정보 섹션',
+            io: { input: [], output: [] },
+            logic: '박스 타입, ZIndex, 위치(X/Y), 크기(W/H)를 표시하고 삭제 버튼 제공.',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: [
+                'panel-right-props-box-x',
+                'panel-right-props-box-y',
+                'panel-right-props-box-w',
+                'panel-right-props-box-h',
+                'panel-right-props-box-delete-btn'
+            ],
+            examples: []
+        },
+        'panel-right-props-box-x': {
+            module: 'panel.right.props',
+            desc: '선택된 박스의 X 좌표 표시 입력창',
+            io: { input: [], output: [] },
+            logic: 'selectedBox.x 값을 반올림하여 표시 (readonly).',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: [],
+            examples: []
+        },
+        'panel-right-props-box-y': {
+            module: 'panel.right.props',
+            desc: '선택된 박스의 Y 좌표 표시 입력창',
+            io: { input: [], output: [] },
+            logic: 'selectedBox.y 값을 반올림하여 표시 (readonly).',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: [],
+            examples: []
+        },
+        'panel-right-props-box-w': {
+            module: 'panel.right.props',
+            desc: '선택된 박스의 너비(W) 표시 입력창',
+            io: { input: [], output: [] },
+            logic: 'selectedBox.w 값을 반올림하여 표시 (readonly).',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: [],
+            examples: []
+        },
+        'panel-right-props-box-h': {
+            module: 'panel.right.props',
+            desc: '선택된 박스의 높이(H) 표시 입력창',
+            io: { input: [], output: [] },
+            logic: 'selectedBox.h 값을 반올림하여 표시 (readonly).',
+            py_func: null,
+            js_action: null,
+            events: [],
+            affects: [],
+            examples: []
+        },
+        'panel-right-props-box-delete-btn': {
+            module: 'panel.right.props',
+            desc: '선택된 캔버스 박스 삭제 버튼',
+            io: {
+                input: ['click'],
+                output: ['vm.removeBox(vm.selectedBoxId)']
+            },
+            logic: '현재 선택된 캔버스 박스를 제거.',
+            py_func: null,
+            js_action: 'propsDeleteBox',
+            events: ['click'],
+            affects: ['preview-canvas-scaler', 'panel-right-props-root'],
+            examples: [
+                'data-action="js:propsDeleteBox"'
+            ]
         },
 
         /* -----------------------------------------------------
