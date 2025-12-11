@@ -11,9 +11,9 @@ WAI Local Snapshot Tool
     → 최근 3개만 유지, 나머지는 자동 삭제
 
 - CLI 모드:
-  - py tools\wai_local_snapshot.py save "설명"
-  - py tools\wai_local_snapshot.py list
-  - py tools\wai_local_snapshot.py restore <스냅샷_폴더이름>
+  - py tools\\wai_local_snapshot.py save "설명"
+  - py tools\\wai_local_snapshot.py list
+  - py tools\\wai_local_snapshot.py restore <스냅샷_폴더이름>
 """
 
 import os
@@ -40,11 +40,17 @@ def ensure_dir(path: str) -> None:
 
 
 def slugify(text: str) -> str:
+    """
+    설명 문자열을 스냅샷 이름에 쓸 수 있는 안전한 형태로 변환.
+    - 공백 → 하이픈
+    - 한글/영문/숫자/하이픈/언더스코어만 허용
+    - 그 외 문자(따옴표, 역슬래시 등)는 제거
+    """
     text = text.strip()
     # 공백 → 하이픈
     text = re.sub(r"\s+", "-", text)
-    # 한글/영문/숫자/하이픈/언더스코어만 허용
-    text = re.sub(r"[^0-9A-Za-z가-힣\-_]+", "", text)
+    # 허용되지 않는 문자 제거
+    text = re.sub(r"[^0-9A-Za-z가-힣_-]+", "", text)
     # 너무 길면 자르기
     return text[:60] if len(text) > 60 else text
 
@@ -164,6 +170,9 @@ def save_snapshot(description: str, keep_last: int = 3) -> None:
     slug = slugify(description) or "snapshot"
 
     folder_name = f"{ts_for_name}_{git_sha}_P{prompt_idx}_{slug}"
+    # Windows에서 허용되지 않는 문자 제거 (폴더 이름 전체에 대해 한 번 더 방어)
+    folder_name = re.sub(r'[\\/:*?"<>|]+', "_", folder_name)
+
     snap_path = os.path.join(SNAP_DIR, folder_name)
     ensure_dir(snap_path)
 
@@ -317,15 +326,12 @@ def watch_clipboard() -> None:
                 # 이전에 오류가 있었다면, 한 번 정상 동작 시 플래그 리셋
                 had_clipboard_error = False
             except PyperclipException:
-                # Windows에서 OpenClipboard 실패 등으로 인한 오류는
-                # 여기서 조용히 무시 (한 번 정도만 경고하고 이후엔 침묵)
                 if not had_clipboard_error:
                     print("[WARN] 클립보드 접근 오류 발생. 잠시 후 재시도합니다.")
                     had_clipboard_error = True
                 time.sleep(1.0)
                 continue
             except Exception:
-                # 예상치 못한 예외도 너무 시끄럽지 않게 처리
                 time.sleep(1.0)
                 continue
 
