@@ -1,1 +1,64 @@
-→ 파일 저장 + 자동 커밋(+푸시)
+# WAI-UI 로컬 개발 시스템 프로토콜 (ChatGPT용)
+
+이 문서는 **WAI-UI 프론트엔드 프로젝트**에서 ChatGPT가 코드를 수정할 때 따라야 하는 규칙을 정의한다.  
+핵심은 두 개의 도구를 기준으로 하는 **클립보드 기반 자동 동기화 + 로컬 스냅샷 시스템**이다.
+
+---
+
+## 1. 로컬 환경 개요
+
+### 1.1 경로 구조
+
+- Git 저장소 루트: `C:\wai-ui`
+- 프론트엔드 루트: `C:\wai-ui\frontend`
+- 주요 도구:
+  - `C:\wai-ui\frontend\wai_magic.py`
+  - `C:\wai-ui\frontend\tools\wai_local_snapshot.py`
+
+### 1.2 실행 중인 두 개의 감시 스크립트
+
+#### A. `wai_magic.py`
+
+- 위치: `C:\wai-ui\frontend\wai_magic.py`
+- 역할:
+  - 클립보드를 계속 감시한다.
+  - 클립보드에 **``** 가 포함된 코드블럭이 복사되면:
+    1. `경로`에 해당하는 파일을 `C:\wai-ui\frontend` 기준으로 저장
+    2. Git 자동 `add + commit` 수행
+    3. 원격 설정이 되어 있으면 자동 `push` 까지 시도
+- 이 스크립트는 **파일 수정 전용**이며, 스냅샷은 다루지 않는다.
+
+#### B. `wai_local_snapshot.py`
+
+- 위치: `C:\wai-ui\frontend\tools\wai_local_snapshot.py`
+- 모드:
+  1. **감시 모드** (인자 없음):
+     - `py tools\wai_local_snapshot.py` 로 실행
+     - 클립보드를 계속 감시한다.
+     - 클립보드에 **`### [WAI:LOCAL_SNAPSHOT:설명]`** 이 포함된 텍스트가 복사되면:
+       - `설명`을 이용해 로컬 스냅샷을 생성
+       - Git이 추적하는 프론트엔드 파일들을 `_snapshots/` 아래에 백업
+       - 항상 **가장 최근 스냅샷 3개만 유지**하고, 오래된 것은 자동 삭제
+  2. **CLI 모드** (인자 있음, _복구 및 확인용 전용_):
+     - `py tools\wai_local_snapshot.py list`
+       - 저장된 스냅샷 목록 출력
+     - `py tools\wai_local_snapshot.py restore <스냅샷이름>`
+       - 해당 스냅샷으로 파일을 덮어써서 복구
+     - `py tools\wai_local_snapshot.py save "설명"`  
+       - 수동으로 스냅샷 저장 (자동 시스템 외의 예외 상황용)
+
+- 이 스크립트는 **자동 스냅샷 + 수동 복구**를 담당한다.  
+- ChatGPT는 **복구 명령을 직접 실행하지 않는다**. 복구는 사용자가 CLI에서 직접 수행한다.
+
+---
+
+## 2. ChatGPT가 따라야 하는 출력 규칙
+
+### 2.1 파일 수정: `### [WAI:UPDATE:경로]`
+
+- ChatGPT가 **어떤 파일이든 수정/생성**할 때는 반드시 아래 패턴을 사용한다.
+
+```text
+```<언어 혹은 text>
+### [WAI:UPDATE:상대경로]
+...이 파일의 전체 내용...
