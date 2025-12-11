@@ -32,27 +32,55 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
 SNAP_DIR = os.path.join(REPO_ROOT, "_snapshots")
 
+# Windows에서 폴더/파일 이름에 허용되지 않는 문자
+INVALID_WIN_CHARS = '<>:"/\\|?*'
+
 
 # --- 공통 유틸 ---
 
 def ensure_dir(path: str) -> None:
+    if not path:
+        return
     os.makedirs(path, exist_ok=True)
 
 
 def slugify(text: str) -> str:
     """
-    설명 문자열을 스냅샷 이름에 쓸 수 있는 안전한 형태로 변환.
+    설명 문자열을 스냅샷 이름 일부로 쓸 수 있는 안전한 형태로 변환.
     - 공백 → 하이픈
     - 한글/영문/숫자/하이픈/언더스코어만 허용
     - 그 외 문자(따옴표, 역슬래시 등)는 제거
     """
-    text = text.strip()
+    text = (text or "").strip()
+    if not text:
+        return ""
     # 공백 → 하이픈
     text = re.sub(r"\s+", "-", text)
-    # 허용되지 않는 문자 제거
+    # 허용되지 않는 문자 제거 (백슬래시 포함 X)
     text = re.sub(r"[^0-9A-Za-z가-힣_-]+", "", text)
     # 너무 길면 자르기
     return text[:60] if len(text) > 60 else text
+
+
+def sanitize_for_path(name: str) -> str:
+    """
+    전체 폴더 이름에 대해 Windows에서 쓸 수 없는 문자 제거/변환.
+    - INVALID_WIN_CHARS 에 포함된 문자는 모두 '_' 로 치환
+    - 공백은 그대로 두되, 맨 앞/뒤 공백은 제거
+    - 빈 문자열이면 'snapshot' 반환
+    """
+    name = (name or "").strip()
+    if not name:
+        return "snapshot"
+
+    safe_chars = []
+    for ch in name:
+        if ch in INVALID_WIN_CHARS:
+            safe_chars.append("_")
+        else:
+            safe_chars.append(ch)
+    safe = "".join(safe_chars).strip()
+    return safe or "snapshot"
 
 
 def get_git_short_sha() -> str:
@@ -169,9 +197,8 @@ def save_snapshot(description: str, keep_last: int = 3) -> None:
     git_sha = get_git_short_sha()
     slug = slugify(description) or "snapshot"
 
-    folder_name = f"{ts_for_name}_{git_sha}_P{prompt_idx}_{slug}"
-    # Windows에서 허용되지 않는 문자 제거 (폴더 이름 전체에 대해 한 번 더 방어)
-    folder_name = re.sub(r'[\\/:*?"<>|]+', "_", folder_name)
+    raw_name = f"{ts_for_name}_{git_sha}_P{prompt_idx}_{slug}"
+    folder_name = sanitize_for_path(raw_name)
 
     snap_path = os.path.join(SNAP_DIR, folder_name)
     ensure_dir(snap_path)
