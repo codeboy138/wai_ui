@@ -1,314 +1,362 @@
-import argparse
-import datetime
-import json
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+WAI Local Snapshot Tool
+
+역할:
+- 기본 실행(인자 없음): 클립보드 워처 모드
+  - 클립보드에서 `### [WAI:LOCAL_SNAPSHOT:설명]` 패턴을 감지하면
+    → 현재 프로젝트 상태를 _snapshots/ 에 로컬 스냅샷으로 저장
+    → 최근 3개만 유지, 나머지는 자동 삭제
+
+- CLI 모드:
+  - py tools\wai_local_snapshot.py save "설명"
+  - py tools\wai_local_snapshot.py list
+  - py tools\wai_local_snapshot.py restore <스냅샷_폴더이름>
+"""
+
+import os
+import sys
 import re
 import shutil
-import subprocess
-import sys
+import json
 import time
-from pathlib import Path
+import subprocess
+import argparse
+from datetime import datetime
+from typing import List
 
-import pyperclip
-
-# 이 스크립트는 frontend/ 하위 tools/ 폴더에 위치한다고 가정
-ROOT = Path(__file__).resolve().parents[1]   # C:\wai-ui\frontend
-SNAP_ROOT = ROOT / "_snapshots"
-PROMPT_COUNTER_FILE = SNAP_ROOT / "_prompt_counter.txt"
-LAST_CONTENT = ""
+# --- 경로 설정 ---
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
+SNAP_DIR = os.path.join(REPO_ROOT, "_snapshots")
 
 
-def run_git(args):
+# --- 공통 유틸 ---
+
+def ensure_dir(path: str) -> None:
+    os.makedirs(path, exist_ok=True)
+
+
+def slugify(text: str) -> str:
+    text = text.strip()
+    # 공백 → 하이픈
+    text = re.sub(r"\s+", "-", text)
+    # 한글/영문/숫자/하이픈/언더스코어만 허용
+    text = re.sub(r"[^0-9A-Za-z가-힣\-_]+", "", text)
+    # 너무 길면 자르기
+    return text[:60] if len(text) > 60 else text
+
+
+def get_git_short_sha() -> str:
     try:
-        out = subprocess.check_output(["git"] + args, cwd=ROOT)
-        return out.decode("utf-8", errors="ignore").strip()
+        out = subprocess.check_output(
+            ["git", "-C", REPO_ROOT, "rev-parse", "--short", "HEAD"],
+            stderr=subprocess.DEVNULL,
+            text=True
+        ).strip()
+        return out or "nogit"
     except Exception:
-        return ""
+        return "nogit"
 
 
-def get_head_short():
-    head = run_git(["rev-parse", "--short", "HEAD"])
-    return head or "nogit"
-
-
-def list_tracked_files():
-    """git으로 추적 중인 파일 목록을 가져온다."""
-    out = run_git(["ls-files"])
-    if not out:
-        return []
-    return [line.strip() for line in out.splitlines() if line.strip()]
-
-
-def safe_slug(text: str, max_len: int = 40) -> str:
-    if not text:
-        return ""
-    # 한글/공백 등은 - 로 치환
-    text = re.sub(r"[^0-9a-zA-Z가-힣_-]+", "-", text)
-    text = text.strip("-")
-    if len(text) > max_len:
-        text = text[:max_len]
-    return text or ""
-
-
-def next_prompt_index() -> int:
+def collect_files_for_snapshot() -> List[str]:
     """
-    프롬프트 단위 번호 증가:
-    - _snapshots/_prompt_counter.txt 에 마지막 번호 저장
-    - 새 스냅샷마다 +1 해서 반환
+    스냅샷에 포함할 파일 목록을 결정.
+    1순위: git ls-files 결과 (트래킹된 파일만)
+    실패 시: .git, _snapshots, venv 등 몇몇 디렉토리 제외하고 전체 탐색
     """
-    SNAP_ROOT.mkdir(parents=True, exist_ok=True)
-    n = 0
+    # 1) git ls-files 시도
     try:
-        if PROMPT_COUNTER_FILE.exists():
-            raw = PROMPT_COUNTER_FILE.read_text(encoding="utf-8").strip()
-            if raw:
-                n = int(raw)
-    except Exception:
-        n = 0
-    n += 1
-    PROMPT_COUNTER_FILE.write_text(str(n), encoding="utf-8")
-    return n
-
-
-def cleanup_old_snapshots(max_keep: int = 3):
-    """
-    _snapshots 안의 스냅샷 디렉터리 중,
-    가장 최근 max_keep 개만 남기고 나머지는 오래된 것부터 삭제.
-    """
-    if not SNAP_ROOT.exists():
-        return
-
-    snaps = [p for p in SNAP_ROOT.iterdir() if p.is_dir()]
-    if len(snaps) <= max_keep:
-        return
-
-    snaps_sorted = sorted(snaps, key=lambda p: p.name)   # 오래된 것부터
-    to_delete = snaps_sorted[:-max_keep]
-
-    for d in to_delete:
-        try:
-            shutil.rmtree(d)
-            print(f"[WAI SNAPSHOT] Removed old snapshot: {d.name}")
-        except Exception as e:
-            print(f"[WAI SNAPSHOT] Failed to remove {d.name}: {e}")
-
-
-def cmd_save(description: str, only_tracked: bool = True):
-    SNAP_ROOT.mkdir(parents=True, exist_ok=True)
-
-    now = datetime.datetime.now()
-    ts_pretty = now.strftime("%Y-%m-%d %H:%M:%S")
-    ts_id = now.strftime("%Y%m%d_%H%M%S")
-    head = get_head_short()
-    slug = safe_slug(description)
-    prompt_index = next_prompt_index()
-
-    # 스냅샷 디렉터리 이름: 시간_커밋_프롬프트번호_설명
-    snap_name_parts = [ts_id, head, f"P{prompt_index}"]
-    if slug:
-        snap_name_parts.append(slug)
-    snap_name = "_".join(snap_name_parts)
-
-    snap_dir = SNAP_ROOT / snap_name
-    snap_dir.mkdir(parents=True, exist_ok=True)
-
-    # 백업 대상 파일 목록
-    if only_tracked:
-        files = list_tracked_files()
-    else:
-        # frontend 전체를 백업하고 싶을 때 (숨김/스냅샷/.git 제외)
+        out = subprocess.check_output(
+            ["git", "-C", REPO_ROOT, "ls-files"],
+            stderr=subprocess.DEVNULL,
+            text=True
+        )
         files = []
-        for p in ROOT.rglob("*"):
-            if p.is_dir():
+        for line in out.splitlines():
+            line = line.strip()
+            if not line:
                 continue
-            rel = p.relative_to(ROOT)
-            parts = rel.parts
-            if parts[0] in (".git", "_snapshots"):
+            # git 출력은 / 기준이므로 OS 구분자로 교체
+            files.append(line.replace("/", os.sep))
+        if files:
+            return files
+    except Exception:
+        pass
+
+    # 2) fallback: 디렉토리 전체 탐색
+    result = []
+    skip_dirs = {".git", "_snapshots", "__pycache__", "venv", "env", ".venv", "node_modules"}
+    for root, dirs, files in os.walk(REPO_ROOT):
+        rel_root = os.path.relpath(root, REPO_ROOT)
+        # 상위에서 스킵 디렉토리 제거
+        dirs[:] = [d for d in dirs if d not in skip_dirs]
+
+        # 루트인 경우
+        if rel_root == ".":
+            rel_root = ""
+
+        for f in files:
+            if f.endswith((".pyc", ".pyo")):
                 continue
-            files.append(str(rel).replace("\\", "/"))
+            rel_path = os.path.join(rel_root, f) if rel_root else f
+            result.append(rel_path)
 
-    copied = []
+    return result
 
+
+def get_next_prompt_index() -> int:
+    """
+    스냅샷 폴더 이름에서 _P숫자_ 패턴을 읽어 가장 큰 값 + 1 을 반환.
+    예: 20251211_143058_efaf152_P1_테스트-스냅샷 → P1 → 다음은 2
+    """
+    ensure_dir(SNAP_DIR)
+    max_idx = 0
+    for name in os.listdir(SNAP_DIR):
+        m = re.search(r"_P(\d+)_", name)
+        if m:
+            try:
+                idx = int(m.group(1))
+                if idx > max_idx:
+                    max_idx = idx
+            except ValueError:
+                continue
+    return max_idx + 1
+
+
+def cleanup_old_snapshots(keep_last: int = 3) -> None:
+    """
+    _snapshots 내에서 가장 최근 것 N개만 남기고 나머지는 삭제
+    - 정렬 기준: 폴더 이름(앞에 timestamp가 붙어 있으므로 이름 정렬 == 시간 정렬)
+    """
+    ensure_dir(SNAP_DIR)
+    dirs = [
+        d for d in os.listdir(SNAP_DIR)
+        if os.path.isdir(os.path.join(SNAP_DIR, d))
+    ]
+    if len(dirs) <= keep_last:
+        return
+
+    dirs_sorted = sorted(dirs)  # 오래된 순
+    to_delete = dirs_sorted[:-keep_last]
+    for name in to_delete:
+        path = os.path.join(SNAP_DIR, name)
+        try:
+            shutil.rmtree(path)
+            print(f"[INFO] 오래된 스냅샷 삭제: {name}")
+        except Exception as e:
+            print(f"[WARN] 스냅샷 삭제 실패: {name} ({e})")
+
+
+def save_snapshot(description: str, keep_last: int = 3) -> None:
+    """
+    현재 REPO_ROOT 상태를 _snapshots/ 하위에 저장.
+    """
+    ensure_dir(SNAP_DIR)
+
+    prompt_idx = get_next_prompt_index()
+    now = datetime.now()
+    ts_for_name = now.strftime("%Y%m%d_%H%M%S")
+    ts_for_log = now.strftime("%Y-%m-%d %H:%M:%S")
+    git_sha = get_git_short_sha()
+    slug = slugify(description) or "snapshot"
+
+    folder_name = f"{ts_for_name}_{git_sha}_P{prompt_idx}_{slug}"
+    snap_path = os.path.join(SNAP_DIR, folder_name)
+    ensure_dir(snap_path)
+
+    files = collect_files_for_snapshot()
+
+    # 파일 복사
     for rel_path in files:
-        src = ROOT / rel_path
-        if not src.exists():
-            continue
-        dst = snap_dir / rel_path
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dst)
-        copied.append(rel_path)
+        src = os.path.join(REPO_ROOT, rel_path)
+        dst = os.path.join(snap_path, rel_path)
+        dst_dir = os.path.dirname(dst)
+        ensure_dir(dst_dir)
+        if os.path.isfile(src):
+            shutil.copy2(src, dst)
 
+    # manifest 저장
     manifest = {
-        "snapshot": snap_name,
-        "created": ts_pretty,
-        "head": head,
         "description": description,
-        "root": str(ROOT),
-        "file_count": len(copied),
-        "files": copied,
-        "prompt_index": prompt_index,
+        "prompt_index": prompt_idx,
+        "created_at": ts_for_log,
+        "git_head": git_sha,
+        "files": files,
     }
-    with open(snap_dir / "manifest.json", "w", encoding="utf-8") as f:
+    with open(os.path.join(snap_path, "manifest.json"), "w", encoding="utf-8") as f:
         json.dump(manifest, f, ensure_ascii=False, indent=2)
 
-    # 프롬프트형 로그 포맷
-    print(f"[PROMPT {prompt_index} 1/3 | {ts_pretty}]")
-    print(f" ✨ [로컬 스냅샷 저장] {snap_name}")
-    print(f"    경로   : {snap_dir}")
-    print(f"    파일수 : {len(copied)}")
+    # 오래된 스냅샷 정리
+    cleanup_old_snapshots(keep_last=keep_last)
 
-    # 최근 3개만 유지
-    cleanup_old_snapshots(max_keep=3)
+    # 로그 출력 + 복구 명령어 안내
+    print(f"[PROMPT {prompt_idx} | {ts_for_log}]")
+    print(f" ✨ [로컬 스냅샷 저장] {folder_name}")
+    print(f"    경로   : {snap_path}")
+    print(f"    파일수 : {len(files)}")
+    print(f"    복구   : py tools\\wai_local_snapshot.py restore {folder_name}")
 
 
-def cmd_list():
-    if not SNAP_ROOT.exists():
-        print("No snapshots found.")
+def list_snapshots() -> None:
+    ensure_dir(SNAP_DIR)
+    dirs = [
+        d for d in os.listdir(SNAP_DIR)
+        if os.path.isdir(os.path.join(SNAP_DIR, d))
+    ]
+    if not dirs:
+        print("저장된 스냅샷이 없습니다.")
         return
 
-    snaps = sorted([p for p in SNAP_ROOT.iterdir() if p.is_dir()], key=lambda p: p.name)
-    if not snaps:
-        print("No snapshots found.")
-        return
-
-    print("Available snapshots (oldest -> newest):")
-    for p in snaps:
-        manifest_path = p / "manifest.json"
+    dirs_sorted = sorted(dirs)  # 오래된 순
+    print("=== 로컬 스냅샷 목록 (오래된 → 최신) ===")
+    for name in dirs_sorted:
+        path = os.path.join(SNAP_DIR, name)
+        manifest_path = os.path.join(path, "manifest.json")
         desc = ""
-        created = ""
-        head = ""
-        prompt_index = None
-        if manifest_path.exists():
+        created_at = ""
+        prompt_idx = ""
+        if os.path.isfile(manifest_path):
             try:
-                data = json.loads(manifest_path.read_text(encoding="utf-8"))
-                desc = data.get("description", "")
-                created = data.get("created", "")
-                head = data.get("head", "")
-                prompt_index = data.get("prompt_index", None)
+                with open(manifest_path, "r", encoding="utf-8") as f:
+                    m = json.load(f)
+                desc = m.get("description", "")
+                created_at = m.get("created_at", "")
+                prompt_idx = m.get("prompt_index", "")
             except Exception:
                 pass
-        line = f"  - {p.name}"
-        if prompt_index is not None:
-            line += f"  (PROMPT {prompt_index})"
-        print(line)
-        meta = []
-        if created:
-            meta.append(f"created: {created}")
-        if head:
-            meta.append(f"head: {head}")
-        if desc:
-            meta.append(f"desc: {desc}")
-        if meta:
-            print("      " + ", ".join(meta))
+        print(f"- {name}")
+        if created_at or prompt_idx or desc:
+            print(f"    PROMPT : {prompt_idx}")
+            print(f"    시각   : {created_at}")
+            if desc:
+                print(f"    설명   : {desc}")
 
 
-def cmd_restore(name: str):
-    snap_dir = SNAP_ROOT / name
-    manifest_path = snap_dir / "manifest.json"
-
-    if not snap_dir.exists():
-        print(f"[ERROR] Snapshot not found: {snap_dir}")
+def restore_snapshot(snap_name: str) -> None:
+    snap_path = os.path.join(SNAP_DIR, snap_name)
+    if not os.path.isdir(snap_path):
+        print(f"[ERROR] 스냅샷 폴더가 존재하지 않습니다: {snap_path}")
         return
 
-    if not manifest_path.exists():
-        print(f"[ERROR] manifest.json not found in snapshot: {snap_dir}")
+    manifest_path = os.path.join(snap_path, "manifest.json")
+    if not os.path.isfile(manifest_path):
+        print("[WARN] manifest.json 이 없어도 복구는 시도할 수 있지만, 권장되지 않습니다.")
+        files = []
+    else:
+        with open(manifest_path, "r", encoding="utf-8") as f:
+            m = json.load(f)
+        files = m.get("files", [])
+
+    print("=== 스냅샷 복구 준비 ===")
+    print(f"대상 스냅샷 : {snap_name}")
+    print(f"경로        : {snap_path}")
+    print("현재 REPO_ROOT 내 동일 경로의 파일들이 모두 덮어쓰기 됩니다.")
+    ans = input('정말 복구하시겠습니까? (진행하려면 "YES" 입력) : ').strip()
+    if ans != "YES":
+        print("복구를 취소했습니다.")
         return
 
-    data = json.loads(manifest_path.read_text(encoding="utf-8"))
-    files = data.get("files", [])
-    prompt_index = data.get("prompt_index", "?")
-    created = data.get("created", "?")
+    if files:
+        # manifest 기반 복구
+        for rel_path in files:
+            src = os.path.join(snap_path, rel_path)
+            dst = os.path.join(REPO_ROOT, rel_path)
+            if os.path.isfile(src):
+                dst_dir = os.path.dirname(dst)
+                ensure_dir(dst_dir)
+                shutil.copy2(src, dst)
+    else:
+        # manifest 없으면 폴더 전체를 덮어쓰는 방식
+        for root, dirs, fs in os.walk(snap_path):
+            rel_root = os.path.relpath(root, snap_path)
+            if rel_root == ".":
+                rel_root = ""
+            for f in fs:
+                if f == "manifest.json":
+                    continue
+                rel_path = os.path.join(rel_root, f) if rel_root else f
+                src = os.path.join(snap_path, rel_path)
+                dst = os.path.join(REPO_ROOT, rel_path)
+                dst_dir = os.path.dirname(dst)
+                ensure_dir(dst_dir)
+                shutil.copy2(src, dst)
 
-    print(f"[WAI LOCAL SNAPSHOT] Restoring snapshot: {name}")
-    print(f"  PROMPT : {prompt_index}")
-    print(f"  created: {created}")
-    print(f"  From   : {snap_dir}")
-    print(f"  Files  : {len(files)}")
-    confirm = input("  정말로 현재 파일들을 이 스냅샷으로 덮어쓸까요? (yes/no): ").strip().lower()
-    if confirm not in ("yes", "y"):
-        print("  취소됨.")
+    print("스냅샷 복구가 완료되었습니다.")
+
+
+# --- 클립보드 워처 모드 ---
+
+def watch_clipboard() -> None:
+    try:
+        import pyperclip
+    except ImportError:
+        print("[ERROR] pyperclip 모듈이 없습니다.")
+        print("다음 명령으로 설치 후 다시 실행하세요:")
+        print("  py -m pip install pyperclip")
+        sys.exit(1)
+
+    print("=== WAI Local Snapshot Watcher ===")
+    print("클립보드에 다음 형식이 포함되면 자동으로 스냅샷을 저장합니다:")
+    print("  ### [WAI:LOCAL_SNAPSHOT:설명]")
+    print("중지하려면 Ctrl + C 를 누르세요.\n")
+
+    last_text = None
+    pattern = re.compile(r"###\s*\[WAI:LOCAL_SNAPSHOT:(.+?)\]", re.IGNORECASE | re.DOTALL)
+
+    try:
+        while True:
+            try:
+                text = pyperclip.paste()
+            except Exception:
+                text = ""
+
+            if text != last_text:
+                last_text = text
+                m = pattern.search(text)
+                if m:
+                    desc_raw = m.group(1).strip()
+                    # 줄바꿈/공백 정리
+                    desc_one_line = " ".join(desc_raw.split())
+                    save_snapshot(desc_one_line)
+
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        print("\n클립보드 워처를 종료합니다.")
+
+
+# --- 메인 ---
+
+def main():
+    # 인자 없으면 워처 모드
+    if len(sys.argv) == 1:
+        watch_clipboard()
         return
 
-    for rel_path in files:
-        src = snap_dir / rel_path
-        dst = ROOT / rel_path
-        if not src.exists():
-            print(f"  [SKIP] Missing in snapshot: {rel_path}")
-            continue
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dst)
-        print(f"  [RESTORE] {rel_path}")
+    parser = argparse.ArgumentParser(description="WAI Local Snapshot CLI")
+    sub = parser.add_subparsers(dest="cmd")
 
-    print("[DONE] Restore complete. git diff 로 변경 내용 확인 후 커밋하세요.")
-
-
-# ------------------ 모드 1: CLI (복구 전용) ------------------ #
-
-def cli_main():
-    parser = argparse.ArgumentParser(
-        description="WAI UI Local Snapshot Helper (frontend/_snapshots)"
-    )
-    sub = parser.add_subparsers(dest="command")
-
-    p_save = sub.add_parser("save", help="현재 frontend 상태를 스냅샷으로 저장")
-    p_save.add_argument("description", nargs="?", default="", help="스냅샷 설명")
-    p_save.add_argument(
-        "--all",
-        action="store_true",
-        help="git 추적 파일만이 아니라 frontend 전체 파일을 스냅샷",
-    )
+    p_save = sub.add_parser("save", help="현재 상태를 스냅샷으로 저장")
+    p_save.add_argument("description", help="스냅샷 설명")
 
     sub.add_parser("list", help="저장된 스냅샷 목록 보기")
 
-    p_restore = sub.add_parser("restore", help="지정한 스냅샷으로 파일 복구")
-    p_restore.add_argument("name", help="_snapshots/ 하위 스냅샷 디렉터리 이름")
+    p_restore = sub.add_parser("restore", help="지정 스냅샷으로 복구")
+    p_restore.add_argument("snapshot_name", help="_snapshots 안의 스냅샷 폴더 이름")
 
     args = parser.parse_args()
 
-    if args.command == "save":
-        cmd_save(args.description, only_tracked=not args.all)
-    elif args.command == "list":
-        cmd_list()
-    elif args.command == "restore":
-        cmd_restore(args.name)
+    if args.cmd == "save":
+        save_snapshot(args.description)
+    elif args.cmd == "list":
+        list_snapshots()
+    elif args.cmd == "restore":
+        restore_snapshot(args.snapshot_name)
     else:
         parser.print_help()
 
 
-# ------------------ 모드 2: 클립보드 감시 (자동 스냅샷) ------------------ #
-
-def watch_clipboard():
-    global LAST_CONTENT
-    print("=============================================")
-    print("  🧊 WAI Local Snapshot Watcher")
-    print(f"  📂 frontend: {ROOT}")
-    print("  패턴:  ### [WAI:LOCAL_SNAPSHOT:설명]")
-    print("  동작:  새 프롬프트 끝에서 해당 블럭 복사 → 자동 스냅샷 저장")
-    print("  복구:  py tools/wai_local_snapshot.py list / restore ... (CLI 전용)")
-    print("=============================================\n")
-
-    while True:
-        try:
-            content = pyperclip.paste()
-            if content != LAST_CONTENT:
-                LAST_CONTENT = content
-                m = re.search(r'### \[WAI:LOCAL_SNAPSHOT:(.*?)\]', content)
-                if m:
-                    desc = m.group(1).strip()
-                    if not desc:
-                        desc = "NO_DESC"
-                    cmd_save(desc, only_tracked=True)
-        except KeyboardInterrupt:
-            print("\n👋 Local Snapshot Watcher 종료")
-            break
-        except Exception as e:
-            print(f"❌ [오류] {e}")
-        time.sleep(0.5)
-
-
 if __name__ == "__main__":
-    # 인자가 없으면 → 감시 모드(자동 스냅샷)
-    # 인자가 있으면 → CLI 모드(list/restore/save)
-    if len(sys.argv) == 1:
-        watch_clipboard()
-    else:
-        cli_main()
+    main()
