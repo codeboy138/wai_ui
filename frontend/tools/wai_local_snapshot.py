@@ -32,7 +32,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
 SNAP_DIR = os.path.join(REPO_ROOT, "_snapshots")
 
-# Windows에서 폴더/파일 이름에 허용되지 않는 문자
+# Windows에서 폴더/파일 이름에 허용되지 않는 문자 (경로 구분자 자체는 제외, 컴포넌트 단위로 검사)
 INVALID_WIN_CHARS = '<>:"/\\|?*'
 
 
@@ -80,6 +80,23 @@ def sanitize_for_path(name: str) -> str:
     return safe or "snapshot"
 
 
+def has_invalid_component_chars(path: str, sep: str) -> bool:
+    """
+    주어진 경로 문자열을 sep 기준으로 나눈 각 '컴포넌트(폴더/파일 이름)'에
+    INVALID_WIN_CHARS 가 포함되어 있는지 검사.
+    - sep 자체(경로 구분자)는 무시
+    """
+    if not path:
+        return False
+    parts = path.split(sep)
+    for part in parts:
+        if not part:
+            continue
+        if any(ch in INVALID_WIN_CHARS for ch in part):
+            return True
+    return False
+
+
 def get_git_short_sha() -> str:
     try:
         out = subprocess.check_output(
@@ -107,16 +124,16 @@ def collect_files_for_snapshot() -> List[str]:
         )
         files = []
         for line in out.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            rel_path = line.replace("/", os.sep)
-
-            # 윈도우에서 불가능한 문자가 포함된 경로는 스냅샷 대상에서 제외
-            if any(ch in INVALID_WIN_CHARS for ch in rel_path):
-                print(f"[WARN] 스냅샷에서 제외 (윈도우에서 불가능한 git 경로): {rel_path!r}")
+            git_path = line.strip()  # 항상 / 기준
+            if not git_path:
                 continue
 
+            # 경로 컴포넌트 기준으로 invalid 문자 검사 (구분자 '/' 는 제외)
+            if has_invalid_component_chars(git_path, "/"):
+                print(f"[WARN] 스냅샷에서 제외 (윈도우에서 불가능한 git 경로): {git_path!r}")
+                continue
+
+            rel_path = git_path.replace("/", os.sep)
             files.append(rel_path)
         if files:
             return files
@@ -140,7 +157,7 @@ def collect_files_for_snapshot() -> List[str]:
                 continue
             rel_path = os.path.join(rel_root, f) if rel_root else f
 
-            if any(ch in INVALID_WIN_CHARS for ch in rel_path):
+            if has_invalid_component_chars(rel_path, os.sep):
                 print(f"[WARN] 스냅샷에서 제외 (윈도우에서 불가능한 파일): {rel_path!r}")
                 continue
 
@@ -212,14 +229,14 @@ def save_snapshot(description: str, keep_last: int = 3) -> None:
     snap_path = os.path.join(SNAP_DIR, folder_name)
     ensure_dir(snap_path)
 
-    # 파일 목록 수집 (이미 여기서 INVALID_WIN_CHARS 필터링됨)
+    # 파일 목록 수집 (여기서 INVALID_WIN_CHARS 필터링 완료)
     files = collect_files_for_snapshot()
 
     # 파일 복사
     for rel_path in files:
         if not rel_path:
             continue
-        if any(ch in INVALID_WIN_CHARS for ch in rel_path):
+        if has_invalid_component_chars(rel_path, os.sep):
             # 이중 방어 (위에서 이미 필터링되지만 혹시 모를 경우)
             print(f"[WARN] 스냅샷에서 제외 (윈도우에서 불가능한 경로 - 2차 필터): {rel_path!r}")
             continue
