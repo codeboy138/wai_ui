@@ -4,12 +4,17 @@ import json
 import re
 import shutil
 import subprocess
+import sys
+import time
 from pathlib import Path
 
+import pyperclip
+
 # 이 스크립트는 frontend/ 하위 tools/ 폴더에 위치한다고 가정
-ROOT = Path(__file__).resolve().parents[1]   # frontend 루트
+ROOT = Path(__file__).resolve().parents[1]   # C:\wai-ui\frontend
 SNAP_ROOT = ROOT / "_snapshots"
 PROMPT_COUNTER_FILE = SNAP_ROOT / "_prompt_counter.txt"
+LAST_CONTENT = ""
 
 
 def run_git(args):
@@ -68,8 +73,6 @@ def cleanup_old_snapshots(max_keep: int = 3):
     """
     _snapshots 안의 스냅샷 디렉터리 중,
     가장 최근 max_keep 개만 남기고 나머지는 오래된 것부터 삭제.
-    - 디렉터리 이름이 YYYYMMDD_HHMMSS_... 형식이라서
-      이름 정렬 = 시간 정렬로 사용.
     """
     if not SNAP_ROOT.exists():
         return
@@ -238,7 +241,9 @@ def cmd_restore(name: str):
     print("[DONE] Restore complete. git diff 로 변경 내용 확인 후 커밋하세요.")
 
 
-def main():
+# ------------------ 모드 1: CLI (복구 전용) ------------------ #
+
+def cli_main():
     parser = argparse.ArgumentParser(
         description="WAI UI Local Snapshot Helper (frontend/_snapshots)"
     )
@@ -269,5 +274,41 @@ def main():
         parser.print_help()
 
 
+# ------------------ 모드 2: 클립보드 감시 (자동 스냅샷) ------------------ #
+
+def watch_clipboard():
+    global LAST_CONTENT
+    print("=============================================")
+    print("  🧊 WAI Local Snapshot Watcher")
+    print(f"  📂 frontend: {ROOT}")
+    print("  패턴:  ### [WAI:LOCAL_SNAPSHOT:설명]")
+    print("  동작:  새 프롬프트 끝에서 해당 블럭 복사 → 자동 스냅샷 저장")
+    print("  복구:  py tools/wai_local_snapshot.py list / restore ... (CLI 전용)")
+    print("=============================================\n")
+
+    while True:
+        try:
+            content = pyperclip.paste()
+            if content != LAST_CONTENT:
+                LAST_CONTENT = content
+                m = re.search(r'### \[WAI:LOCAL_SNAPSHOT:(.*?)\]', content)
+                if m:
+                    desc = m.group(1).strip()
+                    if not desc:
+                        desc = "NO_DESC"
+                    cmd_save(desc, only_tracked=True)
+        except KeyboardInterrupt:
+            print("\n👋 Local Snapshot Watcher 종료")
+            break
+        except Exception as e:
+            print(f"❌ [오류] {e}")
+        time.sleep(0.5)
+
+
 if __name__ == "__main__":
-    main()
+    # 인자가 없으면 → 감시 모드(자동 스냅샷)
+    # 인자가 있으면 → CLI 모드(list/restore/save)
+    if len(sys.argv) == 1:
+        watch_clipboard()
+    else:
+        cli_main()
