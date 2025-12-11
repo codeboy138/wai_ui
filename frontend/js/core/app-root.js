@@ -20,21 +20,21 @@ const AppRoot = {
             timelineContainerHeight: '50%',
             isProjectModalOpen: false,
 
-            // Dev / Inspector 모드 상태
-            isDevModeActive: false,   // Inspect
-            isDevModeFull: false,     // Dev
+            // Dev / Inspector 모드
+            isDevModeActive: false,
+            isDevModeFull: false,
             
             // Core Timeline/Canvas State
             tracks: [
                 { id: 't1', name: 'Global', type: 'video', color: '#64748b' }, 
-                { id: 't2', name: 'Top', type: 'text', color: '#eab308' },
+                { id: 't2', name: 'Top',    type: 'text',  color: '#eab308' },
                 { id: 't3', name: 'Middle', type: 'video', color: '#22c55e' }, 
-                { id: 't4', name: 'Bottom', type: 'text', color: '#3b82f6' },
-                { id: 't5', name: 'BGM', type: 'audio', color: '#a855f7' }
+                { id: 't4', name: 'Bottom', type: 'text',  color: '#3b82f6' },
+                { id: 't5', name: 'BGM',    type: 'audio', color: '#a855f7' }
             ],
             clips: [
-                { id: 'c1', trackId: 't1', name: 'Intro_BG.mp4', start: 0, duration: 10, type: 'video' },
-                { id: 'c3', trackId: 't5', name: 'BGM_Main.mp3', start: 0, duration: 30, type: 'audio' }
+                { id: 'c1', trackId: 't1', name: 'Intro_BG.mp4',  start: 0, duration: 10, type: 'video' },
+                { id: 'c3', trackId: 't5', name: 'BGM_Main.mp3',  start: 0, duration: 30, type: 'audio' }
             ],
             canvasBoxes: [
                 { id: 'box_init', colIdx: 1, type: 'TXT', zIndex: 240, color: '#eab308', x: 1720, y: 980, w: 400, h: 200 }
@@ -54,7 +54,7 @@ const AppRoot = {
             // Preview Toolbar State
             aspectRatio: '16:9',
             resolution: '4K',
-            canvasSize: { w: 3840, h: 2160 }, 
+            canvasSize: { w: 3840, h: 2160 },   // 4K 16:9 기본값
             mouseCoord: { x: 0, y: 0 }, 
             isMouseOverCanvas: false,
             canvasScale: 1.0, 
@@ -80,7 +80,7 @@ const AppRoot = {
     computed: {
         canvasScalerStyle() {
             return {
-                width: this.canvasSize.w + 'px', 
+                width:  this.canvasSize.w + 'px', 
                 height: this.canvasSize.h + 'px', 
                 backgroundColor: '#000', 
                 transform: `translate(-50%, -50%) scale(${this.canvasScale})`,
@@ -109,12 +109,6 @@ const AppRoot = {
             }
         },
 
-        /**
-         * Inspect / Dev 모드 토글
-         * - active: Inspect
-         * - full: Dev
-         * 둘 중 하나만 활성화되도록 body 클래스와 함께 관리
-         */
         toggleDevMode(mode) {
             if (mode === 'active') {
                 this.isDevModeActive = !this.isDevModeActive;
@@ -133,9 +127,6 @@ const AppRoot = {
             }
         },
 
-        /**
-         * Inspector tooltip 클릭 시 현재 요소 ID를 클립보드에 복사
-         */
         copyInspectorId() {
             const id = this.inspector.id;
             if (!id) return;
@@ -173,11 +164,7 @@ const AppRoot = {
             this.ctxMenu = null;
         },
 
-        /**
-         * Inspector / Dev 모드 공통 마우스 무브 핸들러
-         * - Inspect 모드: ID/태그/클래스 + 크기만 표시
-         * - Dev 모드: element-specs.js + data-action 기반 정보 표시
-         */
+        // --- Inspector / Dev 모드 마우스 트래킹 ---
         setupInspectorMode() {
             const self = this;
             const TOOLTIP_MARGIN = 10;
@@ -190,7 +177,6 @@ const AppRoot = {
 
                 let target = e.target;
 
-                // 오버레이 위에서 움직이는 경우 실제 요소로 재획득
                 if (target.classList.contains('dev-highlight') || target.classList.contains('dev-tooltip')) {
                     const realTarget = document.elementFromPoint(e.clientX, e.clientY);
                     if (realTarget) target = realTarget;
@@ -200,10 +186,10 @@ const AppRoot = {
                     const rect = target.getBoundingClientRect();
 
                     self.highlightStyle = {
-                        width: `${rect.width}px`,
+                        width:  `${rect.width}px`,
                         height: `${rect.height}px`,
-                        top: `${rect.top}px`,
-                        left: `${rect.left}px`,
+                        top:    `${rect.top}px`,
+                        left:   `${rect.left}px`,
                     };
 
                     const devInfo = self.isDevModeFull ? self.buildDevInfo(target) : '';
@@ -219,23 +205,19 @@ const AppRoot = {
                         dataDev: devInfo
                     };
 
-                    // 툴팁 위치 계산 (뷰포트 안으로 클램핑)
                     const tooltipHeight = self.isDevModeFull ? TOOLTIP_HEIGHT_DEV : TOOLTIP_HEIGHT_INSPECT;
 
                     let top = rect.top - tooltipHeight - TOOLTIP_MARGIN;
                     let left = rect.left + rect.width + TOOLTIP_MARGIN;
 
-                    // 위로 나가면 아래로
                     if (top < TOOLTIP_MARGIN) {
                         top = rect.bottom + TOOLTIP_MARGIN;
                     }
 
-                    // 아래로도 나가지 않도록 클램프
                     if (top + tooltipHeight > window.innerHeight - TOOLTIP_MARGIN) {
                         top = Math.max(TOOLTIP_MARGIN, window.innerHeight - tooltipHeight - TOOLTIP_MARGIN);
                     }
 
-                    // 오른쪽으로 나가면 왼쪽에 배치
                     if (left + TOOLTIP_WIDTH > window.innerWidth - TOOLTIP_MARGIN) {
                         left = rect.left - TOOLTIP_WIDTH - TOOLTIP_MARGIN;
                         if (left < TOOLTIP_MARGIN) {
@@ -244,7 +226,7 @@ const AppRoot = {
                     }
 
                     self.tooltipStyle = {
-                        top: `${top}px`,
+                        top:  `${top}px`,
                         left: `${left}px`
                     };
                 } else {
@@ -262,11 +244,6 @@ const AppRoot = {
             });
         },
 
-        /**
-         * Dev 모드용 정보 문자열 생성
-         * - 코드/브리지 중심 정보만 표시
-         * - 사람이 읽기 쉬운 설명(desc)는 element-specs.js 쪽에서 관리
-         */
         buildDevInfo(targetEl) {
             const id = targetEl.id || '';
             const dataAction = targetEl.getAttribute('data-action') || '';
@@ -283,15 +260,9 @@ const AppRoot = {
             const lines = [];
 
             if (spec) {
-                if (spec.module) {
-                    lines.push(`module: ${spec.module}`);
-                }
-                if (spec.py_func) {
-                    lines.push(`py: ${spec.py_func}`);
-                }
-                if (spec.js_action) {
-                    lines.push(`js: ${spec.js_action}`);
-                }
+                if (spec.module)   lines.push(`module: ${spec.module}`);
+                if (spec.py_func)  lines.push(`py: ${spec.py_func}`);
+                if (spec.js_action) lines.push(`js: ${spec.js_action}`);
             } else {
                 lines.push('Spec: NOT FOUND');
             }
@@ -303,27 +274,62 @@ const AppRoot = {
             return lines.join('\n');
         },
 
-        // --- Preview/Canvas Logic ---
+        // --- Preview / Canvas Logic ---
+
+        // 해상도별 기준 높이(16:9 기준)를 정의
+        getResolutionBaseHeight(res) {
+            switch (res) {
+                case '8K': return 4320;   // 7680x4320
+                case '6K': return 3160;   // 대략 6144x3160
+                case '4K': return 2160;   // 3840x2160
+                case '3K': return 1620;   // 2880x1620
+                case '2K': return 1080;   // 1920x1080
+                default:  return 1080;
+            }
+        },
+
+        // aspectRatio(16:9, 9:16, 1:1) + resolution(8K~2K)에 맞게 canvasSize 재계산
+        updateCanvasSize() {
+            const ratioParts = this.aspectRatio.split(':').map(Number);
+            if (ratioParts.length !== 2 || !ratioParts[0] || !ratioParts[1]) {
+                return;
+            }
+            const [wRatio, hRatio] = ratioParts;
+            const baseH = this.getResolutionBaseHeight(this.resolution);
+
+            const h = baseH;
+            const w = Math.round(baseH * (wRatio / hRatio));
+
+            this.canvasSize = { w, h };
+        },
+
         setAspect(r) { 
             this.aspectRatio = r; 
+            this.updateCanvasSize();
         },
         setResolution(r) { 
             this.resolution = r; 
+            this.updateCanvasSize();
         },
+
         updateCanvasMouseCoord(e) {
             const wrapper = document.getElementById('preview-canvas-wrapper');
-            const scaler = document.getElementById('preview-canvas-scaler');
+            const scaler  = document.getElementById('preview-canvas-scaler');
             if (!wrapper || !scaler) return;
 
             const wrapperRect = wrapper.getBoundingClientRect();
-            const scalerRect = scaler.getBoundingClientRect();
+            const scalerRect  = scaler.getBoundingClientRect();
             
             const padding = 20; 
 
             const mouseX = e.clientX - wrapperRect.left - padding;
-            const mouseY = e.clientY - wrapperRect.top - padding;
+            const mouseY = e.clientY - wrapperRect.top  - padding;
             
-            this.isMouseOverCanvas = mouseX > 0 && mouseY > 0 && mouseX < wrapperRect.width - padding && mouseY < wrapperRect.height - padding;
+            this.isMouseOverCanvas =
+                mouseX > 0 &&
+                mouseY > 0 &&
+                mouseX < wrapperRect.width  - padding &&
+                mouseY < wrapperRect.height - padding;
             
             this.mouseMarkerPos = { x: mouseX + padding, y: mouseY + padding };
 
@@ -363,7 +369,7 @@ const AppRoot = {
                         newSize = targetHeight;
                         const effectiveHeight = Math.max(minSize, newSize);
 
-                        self.previewContainerHeight = `${effectiveHeight}px`;
+                        self.previewContainerHeight  = `${effectiveHeight}px`;
                         self.timelineContainerHeight = `calc(100% - ${effectiveHeight}px)`;
                     }
                 };
@@ -375,8 +381,11 @@ const AppRoot = {
 
                 r.addEventListener('mousedown', e => {
                     e.preventDefault(); 
-                    startS = dir === 'w' ? self[stateKey] : 
-                             (rid === 'main-center-timeline-resizer-h' ? document.getElementById('preview-main-container').offsetHeight : 0);
+                    startS = dir === 'w'
+                        ? self[stateKey]
+                        : (rid === 'main-center-timeline-resizer-h'
+                            ? document.getElementById('preview-main-container').offsetHeight
+                            : 0);
                     startP = dir === 'w' ? e.clientX : e.clientY;
 
                     document.addEventListener('mousemove', onMove); 
@@ -384,13 +393,11 @@ const AppRoot = {
                 });
             };
             
-            // Left Panel (Width)
+            // Left Panel
             setup('main-left-resizer-v', 'leftPanelWidth', 180, 'w', false);
-            
-            // Right Panel (Width - Reverse calculation)
+            // Right Panel
             setup('main-right-resizer-v', 'rightPanelWidth', 250, 'w', true); 
-            
-            // Center Horizontal (Height)
+            // Center H
             setup('main-center-timeline-resizer-h', 'previewContainerHeight', 100, 'h', false);
         },
         
@@ -401,7 +408,7 @@ const AppRoot = {
             const updateScale = () => {
                 const padding = 20; 
                 const scale = Math.min(
-                    (wrapper.clientWidth - padding) / this.canvasSize.w, 
+                    (wrapper.clientWidth  - padding) / this.canvasSize.w, 
                     (wrapper.clientHeight - padding) / this.canvasSize.h
                 ); 
                 this.canvasScale = scale;
@@ -515,5 +522,4 @@ const AppRoot = {
     }
 };
 
-// Vue 앱 부트스트랩 (bootstrap.js에서 할 수도 있음)
 createApp(AppRoot).mount('#app-vue-root');
