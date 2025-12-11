@@ -145,7 +145,7 @@ def cleanup_old_snapshots(keep_last: int = 3) -> None:
         path = os.path.join(SNAP_DIR, name)
         try:
             shutil.rmtree(path)
-            print(f"[INFO] 오래된 스냅샷 삭제: {name}")
+            print(f"[WAI SNAPSHOT] Removed old snapshot: {name}")
         except Exception as e:
             print(f"[WARN] 스냅샷 삭제 실패: {name} ({e})")
 
@@ -292,6 +292,7 @@ def restore_snapshot(snap_name: str) -> None:
 def watch_clipboard() -> None:
     try:
         import pyperclip
+        from pyperclip import PyperclipException
     except ImportError:
         print("[ERROR] pyperclip 모듈이 없습니다.")
         print("다음 명령으로 설치 후 다시 실행하세요:")
@@ -306,12 +307,27 @@ def watch_clipboard() -> None:
     last_text = None
     pattern = re.compile(r"###\s*\[WAI:LOCAL_SNAPSHOT:(.+?)\]", re.IGNORECASE | re.DOTALL)
 
+    # 동일 오류 반복 출력 방지용
+    had_clipboard_error = False
+
     try:
         while True:
             try:
                 text = pyperclip.paste()
+                # 이전에 오류가 있었다면, 한 번 정상 동작 시 플래그 리셋
+                had_clipboard_error = False
+            except PyperclipException:
+                # Windows에서 OpenClipboard 실패 등으로 인한 오류는
+                # 여기서 조용히 무시 (한 번 정도만 경고하고 이후엔 침묵)
+                if not had_clipboard_error:
+                    print("[WARN] 클립보드 접근 오류 발생. 잠시 후 재시도합니다.")
+                    had_clipboard_error = True
+                time.sleep(1.0)
+                continue
             except Exception:
-                text = ""
+                # 예상치 못한 예외도 너무 시끄럽지 않게 처리
+                time.sleep(1.0)
+                continue
 
             if text != last_text:
                 last_text = text
