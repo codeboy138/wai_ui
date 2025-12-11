@@ -46,19 +46,16 @@ def ensure_dir(path: str) -> None:
 
 def slugify(text: str) -> str:
     """
-    설명 문자열을 스냅샷 이름 일부로 쓸 수 있는 안전한 형태로 변환.
-    - 공백 → 하이픈
-    - 한글/영문/숫자/하이픈/언더스코어만 허용
-    - 그 외 문자(따옴표, 역슬래시 등)는 제거
+    설명 문자열을 사람이 읽기 쉬운 단축 문자열로 만든다.
+    (폴더 이름에는 더 이상 사용하지 않지만, 필요시 확장용으로 남겨둠)
     """
     text = (text or "").strip()
     if not text:
         return ""
     # 공백 → 하이픈
     text = re.sub(r"\s+", "-", text)
-    # 허용되지 않는 문자 제거 (백슬래시 포함 X)
+    # 허용되지 않는 문자 제거
     text = re.sub(r"[^0-9A-Za-z가-힣_-]+", "", text)
-    # 너무 길면 자르기
     return text[:60] if len(text) > 60 else text
 
 
@@ -66,7 +63,7 @@ def sanitize_for_path(name: str) -> str:
     """
     전체 폴더 이름에 대해 Windows에서 쓸 수 없는 문자 제거/변환.
     - INVALID_WIN_CHARS 에 포함된 문자는 모두 '_' 로 치환
-    - 공백은 그대로 두되, 맨 앞/뒤 공백은 제거
+    - 앞뒤 공백 제거
     - 빈 문자열이면 'snapshot' 반환
     """
     name = (name or "").strip()
@@ -144,7 +141,7 @@ def collect_files_for_snapshot() -> List[str]:
 def get_next_prompt_index() -> int:
     """
     스냅샷 폴더 이름에서 _P숫자_ 패턴을 읽어 가장 큰 값 + 1 을 반환.
-    예: 20251211_143058_efaf152_P1_테스트-스냅샷 → P1 → 다음은 2
+    예: 20251211_143058_efaf152_P1_SNAP → P1 → 다음은 2
     """
     ensure_dir(SNAP_DIR)
     max_idx = 0
@@ -187,6 +184,7 @@ def cleanup_old_snapshots(keep_last: int = 3) -> None:
 def save_snapshot(description: str, keep_last: int = 3) -> None:
     """
     현재 REPO_ROOT 상태를 _snapshots/ 하위에 저장.
+    폴더 이름에는 설명을 넣지 않고, manifest + 로그에만 설명을 남긴다.
     """
     ensure_dir(SNAP_DIR)
 
@@ -195,9 +193,9 @@ def save_snapshot(description: str, keep_last: int = 3) -> None:
     ts_for_name = now.strftime("%Y%m%d_%H%M%S")
     ts_for_log = now.strftime("%Y-%m-%d %H:%M:%S")
     git_sha = get_git_short_sha()
-    slug = slugify(description) or "snapshot"
 
-    raw_name = f"{ts_for_name}_{git_sha}_P{prompt_idx}_{slug}"
+    # 폴더 이름은 안전한 구성 요소만 사용
+    raw_name = f"{ts_for_name}_{git_sha}_P{prompt_idx}_SNAP"
     folder_name = sanitize_for_path(raw_name)
 
     snap_path = os.path.join(SNAP_DIR, folder_name)
@@ -214,7 +212,7 @@ def save_snapshot(description: str, keep_last: int = 3) -> None:
         if os.path.isfile(src):
             shutil.copy2(src, dst)
 
-    # manifest 저장
+    # manifest 저장 (여기에 description 그대로 보존)
     manifest = {
         "description": description,
         "prompt_index": prompt_idx,
@@ -234,6 +232,8 @@ def save_snapshot(description: str, keep_last: int = 3) -> None:
     print(f"    경로   : {snap_path}")
     print(f"    파일수 : {len(files)}")
     print(f"    복구   : py tools\\wai_local_snapshot.py restore {folder_name}")
+    if description:
+        print(f"    설명   : {description}")
 
 
 def list_snapshots() -> None:
