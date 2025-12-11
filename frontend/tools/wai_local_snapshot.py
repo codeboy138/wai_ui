@@ -110,8 +110,14 @@ def collect_files_for_snapshot() -> List[str]:
             line = line.strip()
             if not line:
                 continue
-            # git 출력은 / 기준이므로 OS 구분자로 교체
-            files.append(line.replace("/", os.sep))
+            rel_path = line.replace("/", os.sep)
+
+            # 윈도우에서 불가능한 문자가 포함된 경로는 스냅샷 대상에서 제외
+            if any(ch in INVALID_WIN_CHARS for ch in rel_path):
+                print(f"[WARN] 스냅샷에서 제외 (윈도우에서 불가능한 git 경로): {rel_path!r}")
+                continue
+
+            files.append(rel_path)
         if files:
             return files
     except Exception:
@@ -133,6 +139,11 @@ def collect_files_for_snapshot() -> List[str]:
             if f.endswith((".pyc", ".pyo")):
                 continue
             rel_path = os.path.join(rel_root, f) if rel_root else f
+
+            if any(ch in INVALID_WIN_CHARS for ch in rel_path):
+                print(f"[WARN] 스냅샷에서 제외 (윈도우에서 불가능한 파일): {rel_path!r}")
+                continue
+
             result.append(rel_path)
 
     return result
@@ -201,10 +212,18 @@ def save_snapshot(description: str, keep_last: int = 3) -> None:
     snap_path = os.path.join(SNAP_DIR, folder_name)
     ensure_dir(snap_path)
 
+    # 파일 목록 수집 (이미 여기서 INVALID_WIN_CHARS 필터링됨)
     files = collect_files_for_snapshot()
 
     # 파일 복사
     for rel_path in files:
+        if not rel_path:
+            continue
+        if any(ch in INVALID_WIN_CHARS for ch in rel_path):
+            # 이중 방어 (위에서 이미 필터링되지만 혹시 모를 경우)
+            print(f"[WARN] 스냅샷에서 제외 (윈도우에서 불가능한 경로 - 2차 필터): {rel_path!r}")
+            continue
+
         src = os.path.join(REPO_ROOT, rel_path)
         dst = os.path.join(snap_path, rel_path)
         dst_dir = os.path.dirname(dst)
