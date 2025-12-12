@@ -600,12 +600,12 @@
 
                             <div class="w-px h-3 bg-ui-border"></div>
 
-                            <!-- 드롭다운: 해상도 -->
+                            <!-- 드롭다운: 해상도 (비율에 따른 픽셀 표시) -->
                             <dropdown-menu
                                 id="preview-toolbar-resolution-dropdown"
                                 label="해상도"
-                                :current-value="resolution"
-                                :items="['8K', '6K', '4K', '3K', '2K']"
+                                :current-value="currentResolutionLabel"
+                                :items="resolutionOptions"
                                 @select="setResolution"
                                 title="캔버스 해상도 선택"
                             ></dropdown-menu>
@@ -619,14 +619,6 @@
                         @mousemove="updateCanvasMouseCoord"
                         @mouseleave="mouseCoord = {x: 0, y: 0}; isMouseOverCanvas = false"
                     >
-                        <!-- 룰러 -->
-                        <div class="absolute top-0 left-0 w-full h-5 bg-[#121212] border-b border-[#333] z-20 pl-5 flex overflow-hidden" id="preview-ruler-h">
-                            <ruler-line :orientation="'h'" :max-size="canvasSize.w" :scale="canvasScale"></ruler-line>
-                        </div>
-                        <div class="absolute top-0 left-0 w-5 h-full bg-[#121212] border-r border-[#333] z-20 pt-5 flex flex-col overflow-hidden" id="preview-ruler-v">
-                            <ruler-line :orientation="'v'" :max-size="canvasSize.h" :scale="canvasScale"></ruler-line>
-                        </div>
-
                         <!-- 마우스 가이드 (선만 유지, 표시창 제거) -->
                         <div class="absolute top-0 left-0 w-full h-full z-30 pointer-events:none" :style="{paddingLeft: '20px', paddingTop: '20px'}">
                             <div class="absolute w-px h-full bg-ui-accent opacity-30" :style="{left: mouseMarkerPos.x + 'px'}" v-show="isMouseOverCanvas"></div>
