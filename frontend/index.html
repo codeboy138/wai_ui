@@ -140,41 +140,25 @@
         }
         .volume-line:hover { background: #3b82f6; height: 3px; }
 
-        /* 프리뷰 뷰포트: 패널 안에서 실제 화면을 가운데 정렬 + 20px 여백 확보 */
+        /* 프리뷰 뷰포트: 패널 안에서 실제 화면을 가운데 정렬 */
         #preview-canvas-viewport {
             width: 100%;
             height: 100%;
             position: relative;
-            display: flex;
-            align-items: center;      /* 세로 가운데 */
-            justify-content: center;  /* 가로 가운데 */
-            padding: 20px;            /* 상하좌우 20px 여백 */
-            box-sizing: border-box;
             overflow: hidden;
         }
 
-        /* 프리뷰 캔버스 박스(실제 화면 역할) - 비율 고정, 패널 리사이즈와 무관하게 유지 */
+        /* 프리뷰 캔버스 박스(실제 화면 역할) - 비율은 JS에서 width/height 로 관리 */
         .canvas-scaler {
             position: relative;
             background-color: #000;
-            border-radius: 0;               /* <-- 라운드 제거, 직각 모서리 */
+            border-radius: 0;
             border: 2px solid #ffffff;
             box-shadow: 0 0 40px rgba(0,0,0,0.7);
             overflow: hidden;
-
-            /* 캔버스 자체가 비율을 결정 (기본값 16:9, 클래스에서 덮어씀) */
-            aspect-ratio: 16 / 9;
-
-            /* 패널 안에서 "contain" 되도록 최대 크기만 제한 */
-            max-width: 100%;
-            max-height: 100%;
-
-            /* 세로를 기준으로 채우고, 가로는 비율에 따라 자동 결정 */
-            height: 100%;
-            width: auto;
         }
 
-        /* 비율별 aspect-ratio (드롭다운과 1:1 매칭) */
+        /* 비율별 aspect-ratio (향후 용도, 현재는 JS width/height 가 우선) */
         .canvas-ar-16-9 { aspect-ratio: 16 / 9; }
         .canvas-ar-9-16 { aspect-ratio: 9 / 16; }
         .canvas-ar-1-1  { aspect-ratio: 1 / 1; }
