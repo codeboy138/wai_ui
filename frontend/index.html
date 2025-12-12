@@ -165,10 +165,13 @@
 
         .canvas-box {
             position: absolute;
-            border: 2px dashed rgba(255,255,255,0.3);
+            border: 0.5px dashed rgba(255,255,255,0.6);
             background: rgba(255,255,255,0.05);
-            display: flex; align-items: flex-start; justify-content: flex-end;
-            touch-action: none; box-sizing: border-box;
+            display: flex;
+            align-items: flex-start;
+            justify-content: flex-end;
+            touch-action: none;
+            box-sizing: border-box;
         }
         .canvas-box.selected {
             border-style: solid;
@@ -177,32 +180,82 @@
             border-color: #3b82f6;
         }
         .canvas-label {
-            position: absolute; right: 0; bottom: -16px;
-            background: #3b82f6; color: #fff;
-            padding: 0 4px; font-size: 9px; font-weight: bold;
-            border-radius: 2px; font-family: monospace;
-            white-space: nowrap; pointer-events: none;
-            text-shadow: 0 1px 2px black; opacity: 0.8;
+            position: absolute;
+            right: 0;
+            top: -16px;
+            background: #3b82f6;
+            color: #fff;
+            padding: 0 4px;
+            font-size: 9px;
+            font-weight: bold;
+            border-radius: 2px;
+            font-family: monospace;
+            white-space: nowrap;
+            pointer-events: none;
+            text-shadow: 0 1px 2px black;
+            opacity: 0.9;
         }
 
-        /* 박스 핸들 */
+        .canvas-text-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 2px 6px;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+
+        /* 박스 핸들 (모서리 ㄱ자) */
         .box-handle {
-            position: absolute; width: 8px; height: 8px;
-            background: #fff; border: 1px solid #000;
-            z-index: 20; display: none;
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: transparent;
+            border: 2px solid #ffffff;
+            z-index: 20;
+            display: none;
+            box-sizing: border-box;
         }
         .canvas-box.selected .box-handle { display: block; }
-        .bh-tl { top: -4px; left: -4px; cursor: nwse-resize; }
-        .bh-tr { top: -4px; right: -4px; cursor: nesw-resize; }
-        .bh-bl { bottom: -4px; left: -4px; cursor: nesw-resize; }
-        .bh-br { bottom: -4px; right: -4px; cursor: nwse-resize; }
+        .bh-tl {
+            top: -1px;
+            left: -1px;
+            border-right: none;
+            border-bottom: none;
+            cursor: nwse-resize;
+        }
+        .bh-tr {
+            top: -1px;
+            right: -1px;
+            border-left: none;
+            border-bottom: none;
+            cursor: nesw-resize;
+        }
+        .bh-bl {
+            bottom: -1px;
+            left: -1px;
+            border-right: none;
+            border-top: none;
+            cursor: nesw-resize;
+        }
+        .bh-br {
+            bottom: -1px;
+            right: -1px;
+            border-left: none;
+            border-top: none;
+            cursor: nwse-resize;
+        }
 
         /* 스냅 플래시 */
         @keyframes flash {
-            0%   { background-color: rgba(255,255,255,0.8); }
-            100% { background-color: rgba(255,255,255,0.05); }
+            0%   { opacity: 1; }
+            100% { opacity: 0; }
         }
-        .snap-flash { animation: flash 0.3s ease-out; border-color: #fff !important; }
+        .snap-flash {
+            box-shadow: 0 0 0 2px #ffffff;
+            animation: flash 0.5s ease-out;
+        }
 
         /* 가이드라인 */
         .guide-line-h {
@@ -362,7 +415,7 @@
             white-space: pre-wrap;
         }
 
-        /* 컨텍스트 메뉴 */
+        /* 컨텍스트 메뉴 (레이어 컬러 등) */
         .context-menu {
             position: fixed; background: #1e1e1e; border: 1px solid #333;
             box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 5000; border-radius: 4px;
@@ -637,7 +690,6 @@
                                     :canvas-boxes="canvasBoxes"
                                     :selected-box-id="selectedBoxId"
                                     @select-box="setSelectedBoxId"
-                                    @remove-box="removeBox"
                                 ></preview-canvas>
                             </div>
                         </div>
@@ -683,6 +735,14 @@
         <!-- 프로젝트 모달 -->
         <project-modal v-if="isProjectModalOpen" @close="isProjectModalOpen = false"></project-modal>
 
+        <!-- 레이어 설정 모달 -->
+        <layer-config-modal
+            v-if="layerConfig.isOpen && layerConfigBox"
+            :box="layerConfigBox"
+            @close="closeLayerConfig"
+            @delete="deleteLayerFromConfig"
+        ></layer-config-modal>
+
         <!-- Inspector / Dev Overlay -->
         <div class="dev-overlay" id="dev-overlay-root" v-if="inspector.tag">
             <div id="dev-overlay-highlight" class="dev-highlight" :style="highlightStyle"></div>
@@ -726,6 +786,7 @@
     <script src="js/components/DropdownMenu.js"></script>
     <script src="js/components/RulerLine.js"></script>
     <script src="js/components/ProjectModal.js"></script>
+    <script src="js/components/LayerConfigModal.js"></script>
     <script src="js/components/LayerPanel.js"></script>
     <script src="js/components/PropertiesPanel.js"></script>
     <script src="js/components/PreviewCanvas.js"></script>
