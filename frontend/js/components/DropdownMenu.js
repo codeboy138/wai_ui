@@ -1,10 +1,10 @@
 // Dropdown Menu Component (Reusable)
-// 드롭다운 규칙:
+// 드롭다운 규칙 (WAI-UI):
 // - 레이블과 표시필드 분리 없음 → 표시필드 자체가 레이블.
-// - 접힘 상태: 표시필드에는 항상 레이블만.
-// - 펼침 상태: 목록에는 옵션만 (값만).
-// - 선택 옵션은 테두리(zinc 계열)로 강조.
-// - 표시필드 hover 시, "레이블 (선택: 값)" 형태로 현재 선택값을 보여줌.
+// - 접힘(Closed) 상태 기본: 표시필드에는 레이블만.
+// - 접힘 상태에서 표시필드 Hover 시: 레이블 대신 현재 선택된 옵션값만 표시(교체).
+// - 펼침(Opened) 상태: 표시필드에는 항상 레이블만 유지, 옵션 리스트에는 옵션 텍스트만.
+// - 선택된 옵션은 테두리(zinc 계열)로 강조 (CSS: .c-dropdown-item-selected 등에서 처리).
 
 const DropdownMenu = {
     props: {
@@ -36,12 +36,19 @@ const DropdownMenu = {
         };
     },
     computed: {
-        // 표시필드 텍스트:
-        // - 기본: 레이블만
-        // - Hover + 값 존재: "레이블 (선택: 값)"
+        /**
+         * 표시필드 텍스트 규칙:
+         * - 드롭다운이 열린 상태(isOpen === true): 항상 레이블만 표시
+         * - 드롭다운이 닫힌 상태(isOpen === false):
+         *   - Hover + currentValue 존재: 현재 선택된 값만 표시 (레이블 → 값으로 교체)
+         *   - 그 외: 레이블만 표시
+         */
         displayText() {
+            if (this.isOpen) {
+                return this.label;
+            }
             if (this.isHovered && this.currentValue) {
-                return `${this.label} (선택: ${this.currentValue})`;
+                return String(this.currentValue);
             }
             return this.label;
         }
@@ -54,6 +61,9 @@ const DropdownMenu = {
             if (!this.$el.contains(e.target)) {
                 this.isOpen = false;
             }
+        },
+        handleMouseEnter() {
+            this.isHovered = true;
         },
         handleMouseLeave() {
             this.isHovered = false;
@@ -72,18 +82,31 @@ const DropdownMenu = {
     template: `
         <div
             :id="id"
-            class="c-dropdown w-24 h-6 border-none bg-transparent px-0"
-            :class="{ 'open': isOpen }"
-            @click.stop="toggleDropdown"
-            @mouseenter="isHovered = true"
+            class="wai-dropdown c-dropdown w-24 h-6 border-none bg-transparent px-0"
+            :class="{ 'wai-dropdown--open': isOpen }"
+            @mouseenter="handleMouseEnter"
             @mouseleave="handleMouseLeave"
         >
-            <span :id="'val-' + id" class="truncate max-w-[90%]">
-                {{ displayText }}
-            </span>
-            <i class="fa-solid fa-caret-down ml-auto text-[8px]"></i>
+            <!-- 표시필드(트리거): 레이블/값을 보여주는 버튼 -->
+            <button
+                type="button"
+                class="wai-dropdown-trigger flex items-center w-full h-full"
+                @click.stop="toggleDropdown"
+            >
+                <span
+                    :id="id ? ('val-' + id) : null"
+                    class="truncate max-w-[90%]"
+                >
+                    {{ displayText }}
+                </span>
+                <i class="fa-solid fa-caret-down ml-auto text-[8px]"></i>
+            </button>
 
-            <div class="c-dropdown-menu">
+            <!-- 옵션 리스트: 드롭다운이 열렸을 때만 렌더링 -->
+            <div
+                v-if="isOpen"
+                class="wai-dropdown-menu c-dropdown-menu"
+            >
                 <div
                     v-for="item in items"
                     :key="item"
