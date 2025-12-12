@@ -16,7 +16,9 @@ WAI Magic
 - 로그 포맷:
     - [HH:MM:SS] [PROMPT N k/총파일수] path 저장 + git add
     - [HH:MM:SS] [PROMPT N] git commit / push 완료 여부
-    - git push 성공 시, 다음 줄에 완료 시각(YYYY-MM-DD HH:MM:SS)을 한 번 더 표시
+    - git push 성공 시, 같은 프롬프트에 대해
+      [HH:MM:SS] [PROMPT N] 작업 완료 시각: YYYY-MM-DD HH:MM:SS
+      를 푸시 로그 바로 다음 줄에 한 번 더 출력
 
 PROMPT 번호는 tools/wai_local_snapshot.py 와 공유됨:
 - 동일한 프롬프트(동일한 클립보드 텍스트)에 대해
