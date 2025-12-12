@@ -51,7 +51,6 @@ const AppRoot = {
                 { id: 'c3', trackId: 't5', name: 'BGM_Main.mp3', start: 0, duration: 30, type: 'audio' }
             ],
             canvasBoxes: [
-                // 좌표가 1920x1080 기준으로 잡혀 있으므로 BASE 기준도 1920x1080 으로 맞춘다.
                 { id: 'box_init', colIdx: 1, type: 'TXT', zIndex: 240, color: '#eab308', x: 1720, y: 980, w: 400, h: 200 }
             ],
             zoom: 20,
@@ -98,7 +97,7 @@ const AppRoot = {
     computed: {
         /**
          * 프리뷰 캔버스 실제 픽셀 사이즈(canvasSize) + 스케일(canvasScale)을
-         * preview-canvas-viewport 중앙에 배치하는 스타일.
+         * preview-canvas-wrapper 중앙에 배치하는 스타일.
          * - transform scale 은 항상 균일(scaleX = scaleY) → 화면비율 그대로 유지
          */
         canvasScalerStyle() {
@@ -348,13 +347,12 @@ const AppRoot = {
         },
 
         // 해상도 선택
-        // - 이제 프리뷰 캔버스 크기/비율과는 연동하지 않고, 메타 정보/라벨만 변경
+        // - 프리뷰 캔버스 크기/비율과는 연동하지 않고, 메타 정보/라벨만 변경
         setResolution(labelOrKey) { 
             const str = (labelOrKey || '').toString().trim();
             const match = str.match(/^(\S+)/); // 첫 토큰만 해상도 키로 사용
             const key = match ? match[1] : (str || this.resolution);
             this.resolution = key;
-            // 프리뷰 캔버스는 그대로 유지 (recalculateCanvasScale 호출하지 않음)
         },
 
         /**
@@ -367,18 +365,17 @@ const AppRoot = {
             let w, h;
 
             if (aspectRatio === '9:16') {
-                // 세로형: 높이를 긴 변으로 사용 (예: 1080 x 1920 과 비슷한 비율)
+                // 세로형
                 h = longSide;
-                w = Math.round(longSide * 9 / 16); // 1080
+                w = Math.round(longSide * 9 / 16);
             } else if (aspectRatio === '1:1') {
-                // 1:1 은 16:9 높이(약 1080)에 맞춰 정사각형
-                const square = Math.round(longSide * 9 / 16); // 1080
+                const square = Math.round(longSide * 9 / 16);
                 w = square;
                 h = square;
             } else {
                 // 기본: 16:9 가로형
-                w = longSide;                           // 1920
-                h = Math.round(longSide * 9 / 16);      // 1080
+                w = longSide;
+                h = Math.round(longSide * 9 / 16);
             }
             return { w, h };
         },
@@ -421,27 +418,25 @@ const AppRoot = {
         },
 
         /**
-         * preview-canvas-viewport 안에서
+         * preview-canvas-wrapper 안에서
          * - 사방 20px 마진을 최소로 두고
          * - 그 안을 기준으로 설정된 화면비율을 최대한 채우도록 스케일 계산
          * 남는 여백은 그대로 비워두는(레터박스) 방식.
          */
         recalculateCanvasScale() {
-            const viewport = document.getElementById('preview-canvas-viewport');
-            if (!viewport) return;
+            const wrapper = document.getElementById('preview-canvas-wrapper');
+            if (!wrapper) return;
 
-            const PADDING = 20; // CSS 의 padding 과 동일해야 함
+            const PADDING = 20;
 
-            // clientWidth/Height 는 padding 을 포함하므로, 실제 "컨텐츠 영역"은 -2*padding
-            const innerW = viewport.clientWidth - PADDING * 2;
-            const innerH = viewport.clientHeight - PADDING * 2;
+            const innerW = wrapper.clientWidth - PADDING * 2;
+            const innerH = wrapper.clientHeight - PADDING * 2;
 
             if (innerW <= 0 || innerH <= 0 || this.canvasSize.w <= 0 || this.canvasSize.h <= 0) {
                 this.canvasScale = 1.0;
                 return;
             }
 
-            // 가로/세로 중 더 작은 비율을 사용 → 비율 유지 + 여백은 그대로 둠
             const scale = Math.min(
                 innerW / this.canvasSize.w,
                 innerH / this.canvasSize.h
@@ -451,39 +446,35 @@ const AppRoot = {
         },
 
         updateCanvasMouseCoord(e) {
-            const viewport = document.getElementById('preview-canvas-viewport');
+            const wrapper = document.getElementById('preview-canvas-wrapper');
             const scaler = document.getElementById('preview-canvas-scaler');
-            if (!viewport || !scaler) return;
+            if (!wrapper || !scaler) return;
 
-            const vpRect = viewport.getBoundingClientRect();
-            const scRect = scaler.getBoundingClientRect();
+            const wRect = wrapper.getBoundingClientRect();
+            const sRect = scaler.getBoundingClientRect();
             const PADDING = 20;
 
-            // 뷰포트 기준 마우스 위치
-            const mouseXInVp = e.clientX - vpRect.left;
-            const mouseYInVp = e.clientY - vpRect.top;
+            const mouseXInWrapper = e.clientX - wRect.left;
+            const mouseYInWrapper = e.clientY - wRect.top;
 
             const innerLeft = PADDING;
             const innerTop = PADDING;
-            const innerRight = vpRect.width - PADDING;
-            const innerBottom = vpRect.height - PADDING;
+            const innerRight = wRect.width - PADDING;
+            const innerBottom = wRect.height - PADDING;
 
-            // 캔버스 영역(20px 마진 안쪽)을 기준으로 마우스가 안에 있는지 판단
             this.isMouseOverCanvas =
-                mouseXInVp >= innerLeft &&
-                mouseXInVp <= innerRight &&
-                mouseYInVp >= innerTop &&
-                mouseYInVp <= innerBottom;
+                mouseXInWrapper >= innerLeft &&
+                mouseXInWrapper <= innerRight &&
+                mouseYInWrapper >= innerTop &&
+                mouseYInWrapper <= innerBottom;
 
-            // 마우스 마커 위치도 뷰포트 내부 좌표로 저장
             this.mouseMarkerPos = {
-                x: mouseXInVp,
-                y: mouseYInVp
+                x: mouseXInWrapper,
+                y: mouseYInWrapper
             };
 
-            // 실제 캔버스 좌표 (스케일 이전 좌표)
-            const canvasX = e.clientX - scRect.left;
-            const canvasY = e.clientY - scRect.top;
+            const canvasX = e.clientX - sRect.left;
+            const canvasY = e.clientY - sRect.top;
             const scale = this.canvasScale || 1.0;
 
             const realX = canvasX / scale;
@@ -522,7 +513,6 @@ const AppRoot = {
                         self.timelineContainerHeight = `calc(100% - ${effectiveHeight}px)`;
                     }
 
-                    // 프리뷰 패널 크기가 변하면 캔버스 스케일 재계산
                     self.recalculateCanvasScale();
                 };
                 
@@ -553,8 +543,8 @@ const AppRoot = {
         },
         
         setupCanvasScaler() {
-            const viewport = document.getElementById('preview-canvas-viewport');
-            if (!viewport) return;
+            const wrapper = document.getElementById('preview-canvas-wrapper');
+            if (!wrapper) return;
             
             const updateScale = () => {
                 this.recalculateCanvasScale();
@@ -563,7 +553,7 @@ const AppRoot = {
             updateScale();
 
             if (window.ResizeObserver) {
-                new ResizeObserver(updateScale).observe(viewport);
+                new ResizeObserver(updateScale).observe(wrapper);
             } else {
                 window.addEventListener('resize', updateScale);
             }
