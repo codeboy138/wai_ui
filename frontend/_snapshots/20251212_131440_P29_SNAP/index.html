@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -244,63 +243,18 @@
 
         /* 커스텀 드롭다운 (표시필드는 레이블 역할, 값은 Hover/옵션에서 확인) */
         .c-dropdown {
-            /* Tailwind 빌드가 없어도 기본 스타일이 적용되도록 명시적인 CSS 사용 */
-            position: relative;
-            display: inline-flex;
-            align-items: center;
-            justify-content: flex-start;
-            padding: 0 8px;
-            height: 24px;
-            background-color: #202023; /* bg.bg.input */
-            border-radius: 4px;
-            font-size: 10px;
-            color: #a1a1aa; /* text.sub */
-            cursor: pointer;
-            user-select: none;
-            border: 1px solid #27272a; /* ui.border */
-            transition: background-color 0.15s ease, color 0.15s ease;
+            @apply relative inline-flex items-center px-2 h-full bg-bg-input rounded text-[10px] text-text-sub cursor-pointer hover:bg-bg-hover hover:text-text-main border border-ui-border select-none;
         }
-        .c-dropdown:hover {
-            background-color: #27272a; /* bg.hover */
-            color: #f4f4f5;           /* text.main */
-        }
-        /* open 상태에서는 아래쪽 메뉴와 하나의 카드처럼 연결 */
-        .c-dropdown.open {
-            border-bottom-left-radius: 0;
-            border-bottom-right-radius: 0;
-            border-bottom-color: transparent;
-        }
-
-        /* 드롭다운 옵션 패널: 표시필드 바로 아래에 “틈 없이” 붙어 있도록 배치 */
         .c-dropdown-menu {
             display: none;
-            position: absolute;
-            top: 100%;
-            left: 0;
-            width: 100%;
-            margin-top: 0;
-            background-color: #18181b;
-            border: 1px solid #27272a;
-            border-top: none;
-            border-radius: 0 0 4px 4px;
-            flex-direction: column;
-            z-index: 1000;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            position: absolute; top: 105%; left: 0; width: 100%;
+            background-color: #18181b; border: 1px solid #27272a; border-radius: 4px;
+            flex-direction: column; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
         }
-        .c-dropdown.open .c-dropdown-menu {
-            display: flex;
-        }
+        .c-dropdown.open .c-dropdown-menu { display: flex; }
 
         .c-dropdown-item {
-            padding: 6px 8px;
-            text-align: center;
-            font-size: 10px;
-            cursor: pointer;
-            transition: background-color 0.15s ease, color 0.15s ease;
-        }
-        .c-dropdown-item:hover {
-            background-color: #3b82f6; /* ui.accent */
-            color: #ffffff;
+            @apply p-2 text-center hover:bg-ui-accent hover:text-white transition-colors;
         }
 
         /* 선택된 옵션 강조 (zinc 계열 테두리) */
@@ -310,18 +264,10 @@
         }
 
         .c-dropdown.locked {
-            cursor: not-allowed;
-            opacity: 0.7;
-            border-color: #333;
-            background: #1a1a1a;
+            cursor: not-allowed; opacity: 0.7; border-color: #333; background: #1a1a1a;
         }
-        .c-dropdown.locked:hover {
-            background: #1a1a1a;
-            color: #a1a1aa;
-        }
-        .c-dropdown.locked:hover .c-dropdown-menu {
-            display: none;
-        }
+        .c-dropdown.locked:hover { background: #1a1a1a; color: #a1a1aa; }
+        .c-dropdown.locked:hover .c-dropdown-menu { display: none; }
 
         /* Dev / Inspect Overlay */
         .dev-overlay {
@@ -773,103 +719,3 @@
     <script src="js/core/bootstrap.js"></script>
 </body>
 </html>
-[WAI:UPDATE:js/components/DropdownMenu.js]
-Copy// Dropdown Menu Component (Reusable)
-// 드롭다운 규칙:
-// - 레이블과 표시필드 분리 없음 → 표시필드 자체가 레이블.
-// - 접힘 상태: 표시필드에는 항상 레이블만.
-// - 펼침 상태: 목록에는 옵션만 (값만).
-// - 선택 옵션은 테두리(zinc 계열)로 강조.
-// - 표시필드 hover 시, "레이블 (선택: 값)" 형태로 현재 선택값을 보여줌.
-
-const DropdownMenu = {
-    props: {
-        id: {
-            type: String,
-            required: false
-        },
-        // 표시필드에 항상 나오는 레이블 (예: "비율", "해상도")
-        label: {
-            type: String,
-            required: true
-        },
-        // 실제 선택된 값 (예: "16:9", "4K")
-        currentValue: {
-            type: [String, Number],
-            required: false,
-            default: ''
-        },
-        // 옵션 리스트 (값 배열)
-        items: {
-            type: Array,
-            required: true
-        }
-    },
-    data() {
-        return {
-            isOpen: false,
-            isHovered: false
-        };
-    },
-    computed: {
-        // 표시필드 텍스트:
-        // - 기본: 레이블만
-        // - Hover + 값 존재: "레이블 (선택: 값)"
-        displayText() {
-            if (this.isHovered && this.currentValue) {
-                return `${this.label} (선택: ${this.currentValue})`;
-            }
-            return this.label;
-        }
-    },
-    methods: {
-        toggleDropdown() {
-            this.isOpen = !this.isOpen;
-        },
-        closeOnOutsideClick(e) {
-            if (!this.$el.contains(e.target)) {
-                this.isOpen = false;
-            }
-        },
-        handleMouseLeave() {
-            this.isHovered = false;
-        },
-        selectItem(item) {
-            this.$emit('select', item);
-            this.isOpen = false;
-        }
-    },
-    mounted() {
-        document.addEventListener('click', this.closeOnOutsideClick);
-    },
-    beforeUnmount() {
-        document.removeEventListener('click', this.closeOnOutsideClick);
-    },
-    template: `
-        <div
-            :id="id"
-            class="c-dropdown w-24"
-            :class="{ 'open': isOpen }"
-            @click.stop="toggleDropdown"
-            @mouseenter="isHovered = true"
-            @mouseleave="handleMouseLeave"
-        >
-            <span :id="'val-' + id" class="truncate max-w-[90%]">
-                {{ displayText }}
-            </span>
-            <i class="fa-solid fa-caret-down ml-auto text-[8px]"></i>
-
-            <div class="c-dropdown-menu">
-                <div
-                    v-for="item in items"
-                    :key="item"
-                    class="c-dropdown-item"
-                    :class="{ 'c-dropdown-item-selected': item === currentValue }"
-                    @click.stop="selectItem(item)"
-                >
-                    {{ item }}
-                </div>
-            </div>
-        </div>
-    `
-};
