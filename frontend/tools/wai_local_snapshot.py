@@ -2,20 +2,24 @@
 # -*- coding: utf-8 -*-
 
 """
-WAI Local Snapshot Tool (순수 로컬 스냅샷)
+WAI Local Snapshot Tool (순수 로컬 스냅샷 + Git 복구 커밋/푸시)
 
 역할:
 - 기본 실행(인자 없음): 클립보드 워처 모드
   - 클립보드에서 `### [WAI:LOCAL_SNAPSHOT:설명]` 패턴을 감지하면
     → 현재 프로젝트(frontend) 전체 상태를 _snapshots/ 에 로컬 스냅샷으로 저장
     → 최근 3개만 유지, 나머지는 자동 삭제
-  - PROMPT 번호는 wai_magic.py 와 공유:
+  - 이때 PROMPT 번호는 wai_magic.py 와 공유:
     - 동일한 클립보드 텍스트에 대해 항상 같은 [PROMPT N] 사용
 
 - CLI 모드:
   - py tools\\wai_local_snapshot.py save "설명"
+      → 새 PROMPT 번호를 할당하고 로컬 스냅샷 생성
   - py tools\\wai_local_snapshot.py list
+      → 저장된 스냅샷 목록 표시
   - py tools\\wai_local_snapshot.py restore <스냅샷_폴더이름>
+      → 해당 스냅샷 내용으로 frontend 폴더 전체 복구
+      → Git 리포지토리라면 자동으로 git add -A + commit + push 수행
 """
 
 import os
@@ -26,6 +30,7 @@ import json
 import time
 import argparse
 import hashlib
+import subprocess
 from datetime import datetime
 from typing import List
 
@@ -68,6 +73,33 @@ def sanitize_for_path(name: str) -> str:
             safe_chars.append(ch)
     safe = "".join(safe_chars).strip()
     return safe or "snapshot"
+
+
+# --- Git 유틸 (restore 시 전체 커밋/푸시용) ---
+
+def is_git_repo() -> bool:
+    try:
+        subprocess.check_output(
+            ["git", "-C", REPO_ROOT, "rev-parse", "--is-inside-work-tree"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+        return True
+    except Exception:
+        return False
+
+
+def run_git(args, check=False):
+    return subprocess.run(
+        ["git", "-C", REPO_ROOT] + args,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=check,
+    )
+
+
+GIT_AVAILABLE = is_git_repo()
 
 
 # --- PROMPT 상태 공유 (wai_magic.py 와 동일 규칙) ---
@@ -288,7 +320,7 @@ def save_snapshot(description: str, prompt_idx: int, keep_last: int = 3) -> None
         "created_at": ts_for_log,
         "files": files,
     }
-    with open(os.path.join(snap_path, "manifest.json"), "w", encoding="utf-8") as f:
+    with open(os.path.join(sap_path := snap_path, "manifest.json"), "w", encoding="utf-8") as f:
         json.dump(manifest, f, ensure_ascii=False, indent=2)
 
     # 오래된 스냅샷 정리
@@ -348,6 +380,8 @@ def restore_snapshot(snap_name: str) -> None:
         return
 
     manifest_path = os.path.join(snap_path, "manifest.json")
+    prompt_idx = None
+    description = ""
     if not os.path.isfile(manifest_path):
         print("[WARN] manifest.json 이 없어도 복구는 시도할 수 있지만, 권장되지 않습니다.")
         files = []
@@ -355,6 +389,8 @@ def restore_snapshot(snap_name: str) -> None:
         with open(manifest_path, "r", encoding="utf-8") as f:
             m = json.load(f)
         files = m.get("files", [])
+        prompt_idx = m.get("prompt_index")
+        description = m.get("description", "")
 
     print("=== 스냅샷 복구 준비 ===")
     print(f"대상 스냅샷 : {snap_name}")
@@ -365,9 +401,12 @@ def restore_snapshot(snap_name: str) -> None:
         print("복구를 취소했습니다.")
         return
 
+    # 파일 복구
     if files:
         # manifest 기반 복구
         for rel_path in files:
+            if not rel_path:
+                continue
             src = os.path.join(snap_path, rel_path)
             dst = os.path.join(REPO_ROOT, rel_path)
             if os.path.isfile(src):
@@ -375,7 +414,7 @@ def restore_snapshot(snap_name: str) -> None:
                 ensure_dir(dst_dir)
                 shutil.copy2(src, dst)
     else:
-        # manifest 없으면 폴더 전체를 덮어쓰는 방식
+        # manifest 없으면 폴더 전체를 덮어쓰는 방식 (비권장)
         for root, dirs, fs in os.walk(snap_path):
             rel_root = os.path.relpath(root, snap_path)
             if rel_root == ".":
@@ -391,6 +430,52 @@ def restore_snapshot(snap_name: str) -> None:
                 shutil.copy2(src, dst)
 
     print("스냅샷 복구가 완료되었습니다.")
+
+    # Git 리포지토리라면: 전체 변경 사항을 하나의 버전으로 커밋 + 푸시
+    if not GIT_AVAILABLE:
+        print("[RESTORE] 현재 디렉터리는 Git 리포지토리가 아닙니다. git add/commit/push 는 수행하지 않습니다.")
+        return
+
+    try:
+        # 변경 사항이 있는지 확인
+        diff_proc = run_git(["status", "--porcelain"], check=False)
+        if not diff_proc.stdout.strip():
+            print("[RESTORE] 복구 후 변경된 파일이 없어 commit/push 를 생략합니다.")
+            return
+
+        print("[RESTORE] git add -A 실행 중...")
+        add_proc = run_git(["add", "-A"], check=False)
+        if add_proc.returncode != 0:
+            print(f"[RESTORE] git add 실패: {add_proc.stderr.strip()}")
+            return
+
+        # 커밋 메시지 구성
+        if prompt_idx:
+            msg = f"[RESTORE SNAPSHOT P{prompt_idx}] Restore from local snapshot {snap_name}"
+        else:
+            msg = f"[RESTORE SNAPSHOT] Restore from local snapshot {snap_name}"
+
+        print(f"[RESTORE] git commit 실행 중... ({msg})")
+        commit_proc = run_git(["commit", "-m", msg], check=False)
+        if commit_proc.returncode != 0:
+            stderr = commit_proc.stderr.strip()
+            if "nothing to commit" in stderr.lower():
+                print("[RESTORE] 커밋할 변경 사항이 없어 commit 을 생략합니다.")
+            else:
+                print(f"[RESTORE] git commit 실패: {stderr}")
+                return
+        else:
+            print(f"[RESTORE] git commit 완료: {msg}")
+
+        print("[RESTORE] git push 실행 중...")
+        push_proc = run_git(["push"], check=False)
+        if push_proc.returncode != 0:
+            print(f"[RESTORE] git push 실패: {push_proc.stderr.strip()}")
+        else:
+            print("[RESTORE] git push 완료")
+
+    except Exception as e:
+        print(f"[RESTORE] git 처리 중 예외 발생: {e}")
 
 
 # --- 클립보드 워처 모드 ---
@@ -410,8 +495,14 @@ def watch_clipboard() -> None:
     print("  ### [WAI:LOCAL_SNAPSHOT:설명]")
     print("중지하려면 Ctrl + C 를 누르세요.\n")
 
-    last_text = None
     pattern = re.compile(r"###\s*\[WAI:LOCAL_SNAPSHOT:(.+?)\]", re.IGNORECASE | re.DOTALL)
+
+    # 시작 시점의 클립보드는 '베이스라인'으로만 저장하고, 스냅샷 트리거로는 사용하지 않는다.
+    try:
+        import pyperclip  # 재사용
+        last_text = pyperclip.paste()
+    except Exception:
+        last_text = ""
 
     had_clipboard_error = False
 
