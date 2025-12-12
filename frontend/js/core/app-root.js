@@ -91,16 +91,21 @@ const AppRoot = {
         }
     },
     computed: {
+        /**
+         * 프리뷰 캔버스 실제 픽셀 사이즈(canvasSize) + 스케일(canvasScale)을
+         * preview-canvas-viewport 중앙에 배치하는 스타일.
+         * - transform scale 은 항상 균일(scaleX = scaleY) → 화면비율 그대로 유지
+         */
         canvasScalerStyle() {
             return {
-                width: this.canvasSize.w + 'px', 
-                height: this.canvasSize.h + 'px', 
-                backgroundColor: '#000', 
+                width: this.canvasSize.w + 'px',
+                height: this.canvasSize.h + 'px',
+                backgroundColor: '#000',
                 transform: `translate(-50%, -50%) scale(${this.canvasScale})`,
-                position: 'absolute', 
-                top: '50%', 
+                position: 'absolute',
+                top: '50%',
                 left: '50%'
-            }
+            };
         },
 
         // 현재 aspectRatio 에 맞는 해상도 옵션 라벨 리스트
@@ -380,49 +385,73 @@ const AppRoot = {
             this.recalculateCanvasScale();
         },
 
-        // wrapper 크기에 맞춰 canvasScale 재계산
+        /**
+         * wrapper(프리뷰 패널) 안에서
+         * - preview-canvas-viewport 의 아웃라인 기준으로
+         * - 사방 20px 마진을 남기고
+         * - 그 안을 기준으로 설정된 화면비율을 최대한 채우도록 스케일 계산
+         * 남는 여백은 그대로 비워두는(레터박스) 방식.
+         */
         recalculateCanvasScale() {
-            const wrapper = document.getElementById('preview-canvas-wrapper');
-            if (!wrapper) return;
+            const viewport = document.getElementById('preview-canvas-viewport');
+            if (!viewport) return;
 
-            const padding = 20;
-            const availW = wrapper.clientWidth - padding;
-            const availH = wrapper.clientHeight - padding;
+            const PADDING = 20; // CSS 의 padding 과 동일해야 함
 
-            if (availW <= 0 || availH <= 0 || this.canvasSize.w <= 0 || this.canvasSize.h <= 0) {
+            // clientWidth/Height 는 padding 을 포함하므로, 실제 "컨텐츠 영역"은 -2*padding
+            const innerW = viewport.clientWidth - PADDING * 2;
+            const innerH = viewport.clientHeight - PADDING * 2;
+
+            if (innerW <= 0 || innerH <= 0 || this.canvasSize.w <= 0 || this.canvasSize.h <= 0) {
                 this.canvasScale = 1.0;
                 return;
             }
 
+            // 가로/세로 중 더 작은 비율을 사용 → 비율 유지 + 여백은 그대로 둠
             const scale = Math.min(
-                availW / this.canvasSize.w,
-                availH / this.canvasSize.h
+                innerW / this.canvasSize.w,
+                innerH / this.canvasSize.h
             );
 
             this.canvasScale = (scale > 0 && Number.isFinite(scale)) ? scale : 1.0;
         },
 
         updateCanvasMouseCoord(e) {
-            const wrapper = document.getElementById('preview-canvas-wrapper');
+            const viewport = document.getElementById('preview-canvas-viewport');
             const scaler = document.getElementById('preview-canvas-scaler');
-            if (!wrapper || !scaler) return;
+            if (!viewport || !scaler) return;
 
-            const wrapperRect = wrapper.getBoundingClientRect();
-            const scalerRect = scaler.getBoundingClientRect();
-            
-            const padding = 20; 
+            const vpRect = viewport.getBoundingClientRect();
+            const scRect = scaler.getBoundingClientRect();
+            const PADDING = 20;
 
-            const mouseX = e.clientX - wrapperRect.left - padding;
-            const mouseY = e.clientY - wrapperRect.top - padding;
-            
-            this.isMouseOverCanvas = mouseX > 0 && mouseY > 0 && mouseX < wrapperRect.width - padding && mouseY < wrapperRect.height - padding;
-            
-            this.mouseMarkerPos = { x: mouseX + padding, y: mouseY + padding };
+            // 뷰포트 기준 마우스 위치
+            const mouseXInVp = e.clientX - vpRect.left;
+            const mouseYInVp = e.clientY - vpRect.top;
 
-            const canvasX = e.clientX - scalerRect.left;
-            const canvasY = e.clientY - scalerRect.top;
-            
-            const scale = this.canvasScale;
+            const innerLeft = PADDING;
+            const innerTop = PADDING;
+            const innerRight = vpRect.width - PADDING;
+            const innerBottom = vpRect.height - PADDING;
+
+            // 캔버스 영역(20px 마진 안쪽)을 기준으로 마우스가 안에 있는지 판단
+            this.isMouseOverCanvas =
+                mouseXInVp >= innerLeft &&
+                mouseXInVp <= innerRight &&
+                mouseYInVp >= innerTop &&
+                mouseYInVp <= innerBottom;
+
+            // 마우스 마커 위치도 뷰포트 내부 좌표로 저장
+            this.mouseMarkerPos = {
+                x: mouseXInVp,
+                y: mouseYInVp
+            };
+
+            // 실제 캔버스 좌표 (스케일 이전 좌표)
+            const canvasX = e.clientX - scRect.left;
+            const canvasY = e.clientY - scRect.top;
+            const scale = this.canvasScale || 1.0;
+
             const realX = canvasX / scale;
             const realY = canvasY / scale;
 
@@ -458,6 +487,9 @@ const AppRoot = {
                         self.previewContainerHeight = `${effectiveHeight}px`;
                         self.timelineContainerHeight = `calc(100% - ${effectiveHeight}px)`;
                     }
+
+                    // 프리뷰 높이/너비가 변하면 캔버스 스케일 재계산
+                    self.recalculateCanvasScale();
                 };
                 
                 const onUp = () => {
@@ -487,15 +519,20 @@ const AppRoot = {
         },
         
         setupCanvasScaler() {
-            const wrapper = document.getElementById('preview-canvas-wrapper');
-            if (!wrapper) return;
+            const viewport = document.getElementById('preview-canvas-viewport');
+            if (!viewport) return;
             
             const updateScale = () => {
                 this.recalculateCanvasScale();
             };
 
             updateScale();
-            new ResizeObserver(updateScale).observe(wrapper);
+
+            if (window.ResizeObserver) {
+                new ResizeObserver(updateScale).observe(viewport);
+            } else {
+                window.addEventListener('resize', updateScale);
+            }
         },
 
         // --- Core Model Methods (Clips/Boxes) ---
