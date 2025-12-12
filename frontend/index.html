@@ -259,7 +259,7 @@
             border: 1px solid #27272a;
             border-radius: 0 0 4px 4px;
             flex-direction: column;
-            z-index: 2000; /* 드롭다운이 다른 레이어 위에 오도록 충분히 높게 */
+            z-index: 2000; /* 다른 레이어보다 위 */
             box-shadow: 0 4px 12px rgba(0,0,0,0.5);
         }
 
@@ -401,8 +401,7 @@
         .animate-fade-in { animation: fadeIn 0.2s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-        /* 프리뷰 툴바 자체를 상위 레이어로 올려,
-           드롭다운 옵션 리스트가 캔버스/타임라인 위에 보이도록 함 */
+        /* 프리뷰 툴바를 상위 레이어로 올려 드롭다운이 가려지지 않도록 */
         #preview-toolbar-panel {
             position: relative;
             z-index: 40;
@@ -589,7 +588,7 @@
                     <div id="preview-toolbar-panel" class="h-8 bg-bg-panel border-b border-ui-border flex items-center justify-center px-2 gap-3 shrink-0 z-20">
                         <div class="flex items-center gap-2 bg-bg-input rounded px-3 h-6 border border-ui-border">
 
-                            <!-- 드롭다운: 비율 (레이블만, 옵션 목록은 값만) -->
+                            <!-- 드롭다운: 비율 -->
                             <dropdown-menu
                                 id="preview-toolbar-ratio-dropdown"
                                 label="비율"
@@ -598,18 +597,6 @@
                                 @select="setAspect"
                                 title="캔버스 비율 선택"
                             ></dropdown-menu>
-
-                            <div class="w-px h-3 bg-ui-border"></div>
-
-                            <div
-                                id="preview-toolbar-coord-box"
-                                class="c-info-box px-2 flex items-center bg-bg-input rounded h-6 border border-ui-border w-24 justify-center"
-                                title="마우스 좌표"
-                            >
-                                <span id="preview-toolbar-coord-label" class="text-xxs font-mono text-ui-accent">
-                                    {{ Math.round(mouseCoord.x) }}, {{ Math.round(mouseCoord.y) }}
-                                </span>
-                            </div>
 
                             <div class="w-px h-3 bg-ui-border"></div>
 
@@ -622,19 +609,6 @@
                                 @select="setResolution"
                                 title="캔버스 해상도 선택"
                             ></dropdown-menu>
-
-                            <div class="w-px h-3 bg-ui-border"></div>
-
-                            <div
-                                id="preview-toolbar-snap-toggle"
-                                class="cursor-pointer flex items-center gap-1 hover:text-white text-[10px] font-bold"
-                                @click="isMagnet = !isMagnet"
-                                :class="{'text-ui-accent': isMagnet, 'text-text-sub': !isMagnet}"
-                                data-action="js:toggleSnapMagnet"
-                                title="프리뷰 캔버스 스냅 온/오프"
-                            >
-                                <i class="fa-solid fa-magnet mr-1"></i> SNAP {{ isMagnet ? 'ON' : 'OFF' }}
-                            </div>
                         </div>
                     </div>
 
@@ -653,13 +627,13 @@
                             <ruler-line :orientation="'v'" :max-size="canvasSize.h" :scale="canvasScale"></ruler-line>
                         </div>
 
-                        <!-- 마우스 가이드 -->
+                        <!-- 마우스 가이드 (선만 유지, 표시창 제거) -->
                         <div class="absolute top-0 left-0 w-full h-full z-30 pointer-events:none" :style="{paddingLeft: '20px', paddingTop: '20px'}">
                             <div class="absolute w-px h-full bg-ui-accent opacity-30" :style="{left: mouseMarkerPos.x + 'px'}" v-show="isMouseOverCanvas"></div>
                             <div class="absolute h-px w-full bg-ui-accent opacity-30" :style="{top: mouseMarkerPos.y + 'px'}" v-show="isMouseOverCanvas"></div>
                         </div>
 
-                        <!-- 실제 캔버스 -->
+                        <!-- 실제 캔버스 (비율/해상도는 canvasScalerStyle 에서 제어) -->
                         <div class="relative overflow-hidden" id="preview-canvas-viewport" style="width:100%; height:100%;">
                             <div id="preview-canvas-scaler" class="canvas-scaler" :style="canvasScalerStyle">
                                 <div id="preview-guide-h" class="guide-line-h" style="top: 50%;"></div>
