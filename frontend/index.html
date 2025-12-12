@@ -140,16 +140,44 @@
         }
         .volume-line:hover { background: #3b82f6; height: 3px; }
 
-        /* 프리뷰 캔버스 박스 */
-        .canvas-scaler {
-            transform-origin: top left;
-            background-color: #000;
-            box-shadow: 0 0 50px rgba(0,0,0,0.5);
-            position: relative;
-            /* 캔버스 경계가 확실히 보이도록 흰색 테두리 강조 */
-            border-radius: 8px;
-            border: 2px solid #ffffff;
+        /* 프리뷰 뷰포트: 패널 안에서 실제 화면을 가운데 정렬 + 20px 여백 확보 */
+        #preview-canvas-viewport {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;      /* 세로 가운데 */
+            justify-content: center;  /* 가로 가운데 */
+            padding: 20px;            /* 상하좌우 20px 여백 */
+            box-sizing: border-box;
+            overflow: hidden;
         }
+
+        /* 프리뷰 캔버스 박스(실제 화면 역할) - 비율 고정, 패널 리사이즈와 무관하게 유지 */
+        .canvas-scaler {
+            position: relative;
+            background-color: #000;
+            border-radius: 0;               /* <-- 라운드 제거, 직각 모서리 */
+            border: 2px solid #ffffff;
+            box-shadow: 0 0 40px rgba(0,0,0,0.7);
+            overflow: hidden;
+
+            /* 캔버스 자체가 비율을 결정 (기본값 16:9, 클래스에서 덮어씀) */
+            aspect-ratio: 16 / 9;
+
+            /* 패널 안에서 "contain" 되도록 최대 크기만 제한 */
+            max-width: 100%;
+            max-height: 100%;
+
+            /* 세로를 기준으로 채우고, 가로는 비율에 따라 자동 결정 */
+            height: 100%;
+            width: auto;
+        }
+
+        /* 비율별 aspect-ratio (드롭다운과 1:1 매칭) */
+        .canvas-ar-16-9 { aspect-ratio: 16 / 9; }
+        .canvas-ar-9-16 { aspect-ratio: 9 / 16; }
+        .canvas-ar-1-1  { aspect-ratio: 1 / 1; }
+
         .canvas-box {
             position: absolute;
             border: 2px dashed rgba(255,255,255,0.3);
@@ -244,14 +272,11 @@
         }
         .win-btn.close:hover { @apply bg-ui-danger text-white; }
 
-        /* 커스텀 드롭다운 (표시필드는 레이블 역할, 값은 Hover/옵션에서 확인) */
+        /* 커스텀 드롭다운 */
         .c-dropdown {
             @apply relative inline-flex items-center px-2 h-full bg-bg-input rounded text-[10px] text-text-sub cursor-pointer hover:bg-bg-hover hover:text-text-main border border-ui-border select-none;
         }
 
-        /* 드롭다운 메뉴 패널:
-           - wai-dropdown 컴포넌트에서는 v-if 로 열림/닫힘을 제어하므로
-             여기서는 display 를 강제하지 않고, 위치/레이아웃만 책임진다. */
         .c-dropdown-menu {
             position: absolute;
             top: 100%;
@@ -262,12 +287,10 @@
             border: 1px solid #27272a;
             border-radius: 0 0 4px 4px;
             flex-direction: column;
-            z-index: 2000; /* 다른 레이어보다 위 */
+            z-index: 2000;
             box-shadow: 0 4px 12px rgba(0,0,0,0.5);
         }
 
-        /* 기존 .c-dropdown.open .c-dropdown-menu 는
-           다른 사용처를 위해 남겨 두되, wai-dropdown 에서는 사용하지 않는다. */
         .c-dropdown.open .c-dropdown-menu {
             display: flex;
         }
@@ -276,17 +299,14 @@
             @apply p-2 text-center hover:bg-ui-accent hover:text-white transition-colors;
         }
 
-        /* 선택된 옵션 강조 (zinc 계열 테두리) */
         .c-dropdown-item-selected {
-            border: 1px solid #71717a; /* zinc-500 정도 */
+            border: 1px solid #71717a;
             border-radius: 4px;
         }
 
-        /* WAI-UI 드롭다운 레이아웃 전용 클래스
-           - 컨테이너는 위치 기준만 담당하고, 실제 테두리는 트리거/메뉴에서 처리한다. */
         .wai-dropdown {
             position: relative;
-            border: none; /* .c-dropdown 의 border 를 덮어써서 트리거에 위임 */
+            border: none;
         }
 
         .wai-dropdown-trigger {
@@ -297,7 +317,6 @@
             background-color: transparent;
         }
 
-        /* open 상태에서 트리거와 메뉴가 하나의 카드처럼 이어지도록 처리 */
         .wai-dropdown--open .wai-dropdown-trigger {
             border-bottom-left-radius: 0;
             border-bottom-right-radius: 0;
@@ -305,7 +324,6 @@
         }
 
         .wai-dropdown-menu {
-            /* 상단 경계선이 두 줄로 보이지 않도록 상단 테두리 제거 */
             border-top-width: 0;
         }
 
@@ -371,7 +389,6 @@
         }
         .ctx-item:hover { background: #3b82f6; color: white; }
 
-        /* 색상 선택 그리드 */
         .color-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding: 4px; }
         .color-swatch { width: 16px; height: 16px; border-radius: 2px; cursor: pointer; border: 1px solid #333; }
         .color-swatch:hover { border-color: white; transform: scale(1.1); }
@@ -591,19 +608,19 @@
                     <div id="preview-toolbar-panel" class="h-8 bg-bg-panel border-b border-ui-border flex items-center justify-center px-2 gap-3 shrink-0 z-20">
                         <div class="flex items-center gap-2 bg-bg-input rounded px-3 h-6 border border-ui-border">
 
-                            <!-- 드롭다운: 비율 -->
+                            <!-- 드롭다운: 화면비율 -->
                             <dropdown-menu
                                 id="preview-toolbar-ratio-dropdown"
-                                label="비율"
+                                label="화면비율"
                                 :current-value="aspectRatio"
                                 :items="['16:9', '9:16', '1:1']"
                                 @select="setAspect"
-                                title="캔버스 비율 선택"
+                                title="캔버스 화면비율 선택"
                             ></dropdown-menu>
 
                             <div class="w-px h-3 bg-ui-border"></div>
 
-                            <!-- 드롭다운: 해상도 (비율에 따른 픽셀 표시) -->
+                            <!-- 드롭다운: 해상도 -->
                             <dropdown-menu
                                 id="preview-toolbar-resolution-dropdown"
                                 label="해상도"
@@ -622,9 +639,11 @@
                         @mousemove="updateCanvasMouseCoord"
                         @mouseleave="mouseCoord = {x: 0, y: 0}; isMouseOverCanvas = false"
                     >
-                        <!-- 실제 캔버스 (비율/해상도는 canvasScalerStyle 에서 제어) -->
-                        <div class="relative overflow-hidden" id="preview-canvas-viewport" style="width:100%; height:100%;">
-                            <div id="preview-canvas-scaler" class="canvas-scaler" :style="canvasScalerStyle">
+                        <div id="preview-canvas-viewport">
+                            <div
+                                id="preview-canvas-scaler"
+                                :class="['canvas-scaler', 'canvas-ar-' + (aspectRatio || '16:9').replace(':','-')]"
+                            >
                                 <div id="preview-guide-h" class="guide-line-h" style="top: 50%;"></div>
                                 <div id="preview-guide-v" class="guide-line-v" style="left: 50%;"></div>
 
@@ -696,14 +715,12 @@
                     Size: {{ inspector.w }} x {{ inspector.h }}
                 </div>
 
-                <!-- Inspect 모드 -->
                 <template v-if="isDevModeActive && !isDevModeFull">
                     <div class="dev-tooltip-hint">
                         클릭하면 현재 요소의 ID가 클립보드에 복사됩니다.
                     </div>
                 </template>
 
-                <!-- Dev 모드 -->
                 <template v-if="isDevModeFull">
                     <div class="dev-tooltip-devinfo" v-if="inspector.dataDev">
                         {{ inspector.dataDev }}

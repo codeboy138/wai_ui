@@ -1,7 +1,7 @@
 {
-  "description": "RESTORE:20251212_142144_P48_SNAP - 프리뷰패널-화면격리-상태저장",
-  "prompt_index": 54,
-  "created_at": "2025-12-12 14:47:19",
+  "description": "프리뷰패널-십자선제거-정상파일기준",
+  "prompt_index": 57,
+  "created_at": "2025-12-12 14:53:04",
   "files": [
     "index.html",
     "PROJECT_MAP.md",
