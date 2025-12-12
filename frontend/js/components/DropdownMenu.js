@@ -72,7 +72,7 @@ const DropdownMenu = {
     template: `
         <div
             :id="id"
-            class="c-dropdown w-24 h-6 border-none bg-transparent px-0"
+            class="c-dropdown w-24"
             :class="{ 'open': isOpen }"
             @click.stop="toggleDropdown"
             @mouseenter="isHovered = true"
