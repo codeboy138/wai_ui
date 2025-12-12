@@ -16,6 +16,7 @@ WAI Magic
 - 로그 포맷:
     - [HH:MM:SS] [PROMPT N k/총파일수] path 저장 + git add
     - [HH:MM:SS] [PROMPT N] git commit / push 완료 여부
+    - git push 성공 시, 다음 줄에 완료 시각(YYYY-MM-DD HH:MM:SS)을 한 번 더 표시
 
 PROMPT 번호는 tools/wai_local_snapshot.py 와 공유됨:
 - 동일한 프롬프트(동일한 클립보드 텍스트)에 대해
@@ -282,6 +283,9 @@ def process_clipboard_text(text: str):
                 push_proc = run_git(["push"], check=False)
                 if push_proc.returncode == 0:
                     log(f"[PROMPT {prompt_id}] git push 완료")
+                    # 푸시 바로 다음 줄에 완료 시각 한 번 더 표시
+                    finished_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    log(f"[PROMPT {prompt_id}] 작업 완료 시각: {finished_at}")
                 else:
                     log(f"[PROMPT {prompt_id}] git push 실패: {push_proc.stderr.strip()}")
             except Exception as e:
@@ -310,7 +314,7 @@ def watch_clipboard():
     if not GIT_AVAILABLE:
         log("[WARN] 현재 디렉터리는 Git 리포지토리가 아닙니다. git add/commit/push 는 생략됩니다.")
 
-    last_text = None
+    last_text = None    # 마지막으로 처리한 클립보드 텍스트
     had_clipboard_error = False
 
     try:
