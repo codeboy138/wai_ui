@@ -14,8 +14,11 @@ WAI Magic
     - 각 파일 git add
     - 전체 파일 한 번에 git commit + git push
 - 로그 포맷:
-    - [PROMPT N k/총파일수] path 저장 + git add
-    - [PROMPT N] git commit / push 완료 여부
+    - [HH:MM:SS] [PROMPT N k/총파일수] path 저장 + git add
+    - [HH:MM:SS] [PROMPT N] git commit / push 완료 여부
+    - git push 성공 시, 같은 프롬프트에 대해
+      [HH:MM:SS] [PROMPT N] 작업 완료 시각: YYYY-MM-DD HH:MM:SS
+      를 푸시 로그 바로 다음 줄에 한 번 더 출력
 
 PROMPT 번호는 tools/wai_local_snapshot.py 와 공유됨:
 - 동일한 프롬프트(동일한 클립보드 텍스트)에 대해
@@ -45,6 +48,18 @@ STATE_LOCK = os.path.join(SNAP_DIR, "prompt_state.lock")
 def ensure_dir(path: str) -> None:
     if path and not os.path.isdir(path):
         os.makedirs(path, exist_ok=True)
+
+
+# ---------- 공통 로그 유틸 (시간 표시) ----------
+
+def _now_time_str() -> str:
+    """HH:MM:SS 형식 현재 시간 문자열."""
+    return datetime.now().strftime("%H:%M:%S")
+
+
+def log(msg: str) -> None:
+    """모든 런타임 로그에 시간 프리픽스를 붙여 출력."""
+    print(f"[{_now_time_str()}] {msg}")
 
 
 # ---------- PROMPT 상태 공유 (wai_local_snapshot.py 와 동일 규칙) ----------
@@ -111,8 +126,10 @@ def _load_prompt_state_unlocked():
 def _save_prompt_state_unlocked(state):
     with open(STATE_FILE, "w", encoding="utf-8") as f:
         json.dump(
-            {"last_id": int(state.get("last_id", 0)),
-             "last_hash": str(state.get("last_hash", ""))},
+            {
+                "last_id": int(state.get("last_id", 0)),
+                "last_hash": str(state.get("last_hash", "")),
+            },
             f,
             ensure_ascii=False,
             indent=2,
@@ -218,6 +235,10 @@ def save_file(rel_path: str, content: str):
 def process_clipboard_text(text: str):
     updates = extract_updates(text)
     if not updates:
+        # 클립보드 안에 WAI:UPDATE 문자열은 있는데 포맷이 틀린 경우를 디버깅하기 위함
+        if "[WAI:UPDATE:" in text:
+            log("[WAI MAGIC] [WAI:UPDATE:] 헤더는 감지했지만 유효한 블록을 파싱하지 못했습니다. "
+                "헤더가 코드블록 첫 줄에 있는지, 형식이 정확한지 확인해 주세요.")
         return  # 처리할 것 없음
 
     # 이번 프롬프트의 PROMPT ID 계산 (wai_local_snapshot 과 공유)
@@ -234,11 +255,11 @@ def process_clipboard_text(text: str):
         if GIT_AVAILABLE:
             try:
                 run_git(["add", saved_rel], check=False)
-                print(f"[PROMPT {prompt_id} {idx}/{total}] {saved_rel} 저장 + git add")
+                log(f"[PROMPT {prompt_id} {idx}/{total}] {saved_rel} 저장 + git add")
             except Exception as e:
-                print(f"[PROMPT {prompt_id} {idx}/{total}] {saved_rel} 저장은 완료, git add 실패: {e}")
+                log(f"[PROMPT {prompt_id} {idx}/{total}] {saved_rel} 저장은 완료, git add 실패: {e}")
         else:
-            print(f"[PROMPT {prompt_id} {idx}/{total}] {saved_rel} 저장 (git 미사용 모드)")
+            log(f"[PROMPT {prompt_id} {idx}/{total}] {saved_rel} 저장 (git 미사용 모드)")
 
     # Git commit + push (한 번에)
     if GIT_AVAILABLE and changed_files:
@@ -254,22 +275,25 @@ def process_clipboard_text(text: str):
             try:
                 commit_proc = run_git(["commit", "-m", msg], check=False)
                 if commit_proc.returncode == 0:
-                    print(f"[PROMPT {prompt_id}] git commit 완료: {msg}")
+                    log(f"[PROMPT {prompt_id}] git commit 완료: {msg}")
                 else:
-                    print(f"[PROMPT {prompt_id}] git commit 실패: {commit_proc.stderr.strip()}")
+                    log(f"[PROMPT {prompt_id}] git commit 실패: {commit_proc.stderr.strip()}")
             except Exception as e:
-                print(f"[PROMPT {prompt_id}] git commit 예외 발생: {e}")
+                log(f"[PROMPT {prompt_id}] git commit 예외 발생: {e}")
 
             try:
                 push_proc = run_git(["push"], check=False)
                 if push_proc.returncode == 0:
-                    print(f"[PROMPT {prompt_id}] git push 완료")
+                    log(f"[PROMPT {prompt_id}] git push 완료")
+                    # 푸시 바로 다음 줄에 완료 시각 한 번 더 표시
+                    finished_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    log(f"[PROMPT {prompt_id}] 작업 완료 시각: {finished_at}")
                 else:
-                    print(f"[PROMPT {prompt_id}] git push 실패: {push_proc.stderr.strip()}")
+                    log(f"[PROMPT {prompt_id}] git push 실패: {push_proc.stderr.strip()}")
             except Exception as e:
-                print(f"[PROMPT {prompt_id}] git push 예외 발생: {e}")
+                log(f"[PROMPT {prompt_id}] git push 예외 발생: {e}")
         else:
-            print(f"[PROMPT {prompt_id}] 변경된 내용이 없어 commit/push 생략")
+            log(f"[PROMPT {prompt_id}] 변경된 내용이 없어 commit/push 생략")
 
 
 # ---------- 클립보드 워처 ----------
@@ -290,9 +314,9 @@ def watch_clipboard():
     print("중지하려면 Ctrl + C 를 누르세요.\n")
 
     if not GIT_AVAILABLE:
-        print("[WARN] 현재 디렉터리는 Git 리포지토리가 아닙니다. git add/commit/push 는 생략됩니다.\n")
+        log("[WARN] 현재 디렉터리는 Git 리포지토리가 아닙니다. git add/commit/push 는 생략됩니다.")
 
-    last_text = None
+    last_text = None    # 마지막으로 처리한 클립보드 텍스트
     had_clipboard_error = False
 
     try:
@@ -302,7 +326,7 @@ def watch_clipboard():
                 had_clipboard_error = False
             except PyperclipException:
                 if not had_clipboard_error:
-                    print("[WARN] 클립보드 접근 오류 발생. 잠시 후 재시도합니다.")
+                    log("[WARN] 클립보드 접근 오류 발생. 잠시 후 재시도합니다.")
                     had_clipboard_error = True
                 time.sleep(1.0)
                 continue
@@ -312,9 +336,8 @@ def watch_clipboard():
 
             if text != last_text:
                 last_text = text
-                # 새 텍스트에 대해 WAI:UPDATE 블록 처리
-                if "###" in text and "[WAI:UPDATE:" in text:
-                    process_clipboard_text(text)
+                # 새 텍스트에 대해 WAI:UPDATE 블록 처리 시도
+                process_clipboard_text(text)
 
             time.sleep(0.5)
     except KeyboardInterrupt:
@@ -333,4 +356,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main()
