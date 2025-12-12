@@ -4,8 +4,9 @@ REM ============================================================
 REM WAI-UI frontend 구조/파일 개요 출력 배치파일
 REM 위치: C:\wai-ui\frontend\wai_frontend_overview.bat
 REM 실행: C:\wai-ui\frontend> wai_frontend_overview.bat
-REM 출력: 콘솔에 Markdown 형식으로 폴더 구조 + 파일 목록/간단 설명
-REM       (그대로 복사해서 새 ChatGPT 대화에 붙여넣기)
+REM 출력: 콘솔에 Markdown 형식으로
+REM       - 현재 시점의 폴더 구조
+REM       - 파일 목록 + 확장자 기반 간략 설명
 REM ============================================================
 
 REM 스크립트 위치 기준으로 frontend 루트로 이동
@@ -31,7 +32,7 @@ echo 아래는 현재 시점의 frontend 폴더 구조를 `ls -r` 스타일로 �
 echo ChatGPT는 이 구조를 기준으로 파일 위치/모듈 구성을 이해하면 된다.
 echo
 echo ^```text
-powershell -NoProfile -Command "ls -r | ForEach-Object { ^$_.FullName }"
+powershell -NoProfile -Command "Get-ChildItem -Recurse ^| ForEach-Object { $_.FullName }"
 echo ^```
 echo
 echo ---
@@ -50,19 +51,7 @@ echo - .md    ^: 문서 / Markdown
 echo - 기타   ^: 기타 파일
 echo
 echo ^```text
-powershell -NoProfile -Command ^
- "ls -r -File ^| ForEach-Object { ^
-    ^$ext = ^$_.Extension.ToLower(); ^
-    ^$desc = switch (^$ext) { ^
-        '.html' { 'HTML 템플릿/뷰' } ^
-        '.js'   { 'JavaScript/Vue 로직' } ^
-        '.css'  { 'CSS 스타일' } ^
-        '.py'   { 'Python 스크립트/도구' } ^
-        '.md'   { '문서/Markdown' } ^
-        default { '기타 파일' } ^
-    }; ^
-    Write-Output (^$_.FullName + ' - ' + ^$desc) ^
- }"
+powershell -NoProfile -Command "Get-ChildItem -Recurse -File ^| ForEach-Object { $ext = $_.Extension.ToLower(); $desc = switch ($ext) { '.html' { 'HTML 템플릿/뷰' } '.js' { 'JavaScript/Vue 로직' } '.css' { 'CSS 스타일' } '.py' { 'Python 스크립트/도구' } '.md' { '문서/Markdown' } default { '기타 파일' } }; Write-Output ($_.FullName + ' - ' + $desc) }"
 echo ^```
 echo
 echo ---
