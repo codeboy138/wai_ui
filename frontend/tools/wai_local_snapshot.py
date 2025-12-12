@@ -13,11 +13,11 @@ WAI Local Snapshot Tool (순수 로컬 스냅샷 + Git 복구 커밋/푸시)
     - 동일한 클립보드 텍스트에 대해 항상 같은 [PROMPT N] 사용
 
 - CLI 모드:
-  - py tools\\wai_local_snapshot.py save "설명"
+  - py tools\wai_local_snapshot.py save "설명"
       → 새 PROMPT 번호를 할당하고 로컬 스냅샷 생성
-  - py tools\\wai_local_snapshot.py list
+  - py tools\wai_local_snapshot.py list
       → 저장된 스냅샷 목록 표시
-  - py tools\\wai_local_snapshot.py restore <스냅샷_폴더이름>
+  - py tools\wai_local_snapshot.py restore <스냅샷_폴더이름>
       → 해당 스냅샷 내용으로 frontend 폴더 전체 복구
       → Git 리포지토리라면 자동으로 git add -A + commit + push 수행
 """
@@ -166,8 +166,10 @@ def _load_prompt_state_unlocked():
 def _save_prompt_state_unlocked(state):
     with open(STATE_FILE, "w", encoding="utf-8") as f:
         json.dump(
-            {"last_id": int(state.get("last_id", 0)),
-             "last_hash": str(state.get("last_hash", ""))},
+            {
+                "last_id": int(state.get("last_id", 0)),
+                "last_hash": str(state.get("last_hash", "")),
+            },
             f,
             ensure_ascii=False,
             indent=2,
@@ -236,7 +238,7 @@ def collect_files_for_snapshot() -> List[str]:
         ".venv",
         "node_modules",
         ".idea",
-        ".vscode"
+        ".vscode",
     }
 
     for root, dirs, files in os.walk(REPO_ROOT):
@@ -280,6 +282,32 @@ def cleanup_old_snapshots(keep_last: int = 3) -> None:
             print(f"[WAI SNAPSHOT] Removed old snapshot: {name}")
         except Exception as e:
             print(f"[WARN] 스냅샷 삭제 실패: {name} ({e})")
+
+
+def get_previous_snapshot_name(current_snap_name: str):
+    """
+    현재 스냅샷 기준, 정렬 상 바로 이전(오래된 쪽) 스냅샷 폴더 이름을 반환.
+    - 이전 스냅샷이 없으면 None 반환.
+    - cleanup_old_snapshots 이후 호출하여, 보존 대상 중에서만 이전 스냅샷을 찾는다.
+    """
+    ensure_dir(SNAP_DIR)
+    dirs = [
+        d for d in os.listdir(SNAP_DIR)
+        if os.path.isdir(os.path.join(SNAP_DIR, d))
+    ]
+    if not dirs:
+        return None
+
+    dirs_sorted = sorted(dirs)  # 오래된 → 최신
+    try:
+        idx = dirs_sorted.index(current_snap_name)
+    except ValueError:
+        return None
+
+    if idx == 0:
+        return None
+
+    return dirs_sorted[idx - 1]
 
 
 def save_snapshot(description: str, prompt_idx: int, keep_last: int = 3) -> None:
@@ -326,12 +354,19 @@ def save_snapshot(description: str, prompt_idx: int, keep_last: int = 3) -> None
     # 오래된 스냅샷 정리
     cleanup_old_snapshots(keep_last=keep_last)
 
+    # 정리 후, "이 작업을 되돌릴 때 갈 곳" = 직전(이전) 스냅샷으로 안내
+    prev_snap_name = get_previous_snapshot_name(folder_name)
+
     # 로그 출력 + 복구 명령어 안내
     print(f"[PROMPT {prompt_idx} | {ts_for_log}]")
     print(f" ✨ [로컬 스냅샷 저장] {folder_name}")
     print(f"    경로   : {snap_path}")
     print(f"    파일수 : {len(files)}")
-    print(f"    복구   : py tools\\wai_local_snapshot.py restore {folder_name}")
+    if prev_snap_name:
+        # 현재 스냅샷(Pn) 기준, 한 단계 이전(Pn-1)으로 롤백하는 명령 안내
+        print(f"    복구   : py tools\\wai_local_snapshot.py restore {prev_snap_name}")
+    else:
+        print(f"    복구   : (이전 스냅샷 없음)")
     if description:
         print(f"    설명   : {description}")
 
@@ -430,6 +465,18 @@ def restore_snapshot(snap_name: str) -> None:
                 shutil.copy2(src, dst)
 
     print("스냅샷 복구가 완료되었습니다.")
+
+    # 복구 직후, "복구된 상태"를 새로운 PROMPT/P 스냅샷으로 자동 저장
+    # - 이렇게 해야 이후 작업에서 다시 스냅샷을 찍어도,
+    #   롤백 기준이 예전(Pn) 이 아니라 "복구 이후 상태(Pn+1 이후)"가 된다.
+    try:
+        new_prompt_idx = allocate_new_prompt_id_cli()
+        auto_desc = f"RESTORE:{snap_name}"
+        if description:
+            auto_desc += f" - {description}"
+        save_snapshot(auto_desc, new_prompt_idx)
+    except Exception as e:
+        print(f"[RESTORE] 복구 후 자동 스냅샷 생성 중 예외 발생: {e}")
 
     # Git 리포지토리라면: 전체 변경 사항을 하나의 버전으로 커밋 + 푸시
     if not GIT_AVAILABLE:
