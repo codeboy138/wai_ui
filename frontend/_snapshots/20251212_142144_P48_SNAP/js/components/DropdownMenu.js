@@ -51,6 +51,40 @@ const DropdownMenu = {
                 return String(this.currentValue);
             }
             return this.label;
+        },
+
+        /**
+         * 필드 폭: 이 드롭다운에 등장할 수 있는 텍스트 중
+         * 최대 길이를 기준으로 min-width 를 고정한다.
+         * - label
+         * - items 전체
+         * - currentValue (선택값)
+         * 에 대해 가장 긴 문자열 길이를 구해, 약간의 여유(아이콘/패딩용) 포함하여 Nch 로 지정.
+         */
+        fieldWidthStyle() {
+            const texts = [];
+
+            if (typeof this.label === 'string') {
+                texts.push(this.label);
+            }
+
+            if (Array.isArray(this.items)) {
+                for (const it of this.items) {
+                    texts.push(String(it));
+                }
+            }
+
+            if (this.currentValue !== null && this.currentValue !== undefined && this.currentValue !== '') {
+                texts.push(String(this.currentValue));
+            }
+
+            const maxLen = texts.reduce((max, t) => Math.max(max, t.length), 0);
+            // 여유분(아이콘 + 패딩) 4ch 정도 추가
+            const widthCh = Math.max(0, maxLen) + 4;
+
+            return {
+                minWidth: `${widthCh}ch`
+            };
         }
     },
     methods: {
@@ -82,8 +116,9 @@ const DropdownMenu = {
     template: `
         <div
             :id="id"
-            class="wai-dropdown c-dropdown w-24 h-6 border-none bg-transparent px-0"
+            class="wai-dropdown c-dropdown h-6 border-none bg-transparent px-0"
             :class="{ 'wai-dropdown--open': isOpen }"
+            :style="fieldWidthStyle"
             @mouseenter="handleMouseEnter"
             @mouseleave="handleMouseLeave"
         >
@@ -95,11 +130,11 @@ const DropdownMenu = {
             >
                 <span
                     :id="id ? ('val-' + id) : null"
-                    class="truncate max-w-[90%]"
+                    class="whitespace-nowrap"
                 >
                     {{ displayText }}
                 </span>
-                <i class="fa-solid fa-caret-down ml-auto text-[8px]"></i>
+                <i class="fa-solid fa-caret-down ml-1 text-[8px]"></i>
             </button>
 
             <!-- 옵션 리스트: 드롭다운이 열렸을 때만 렌더링 -->

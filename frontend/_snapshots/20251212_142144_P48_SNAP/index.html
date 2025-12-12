@@ -259,7 +259,7 @@
             border: 1px solid #27272a;
             border-radius: 0 0 4px 4px;
             flex-direction: column;
-            z-index: 1000;
+            z-index: 2000; /* 다른 레이어보다 위 */
             box-shadow: 0 4px 12px rgba(0,0,0,0.5);
         }
 
@@ -368,51 +368,6 @@
         }
         .ctx-item:hover { background: #3b82f6; color: white; }
 
-        /* 상단 메뉴바 / 종속메뉴 (WAI-UI 규칙) */
-        .wai-menubar-item {
-            position: relative;
-        }
-        .wai-menu-label {
-            display: flex;
-            align-items: center;
-            height: 100%;
-        }
-        .wai-menu-indicator {
-            margin-left: 4px;
-            font-size: 10px;
-            color: #a1a1aa;
-        }
-        .wai-menu-panel {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            margin-top: 0;
-            background-color: #18181b;
-            border: 1px solid #27272a;
-            border-radius: 0 0 4px 4px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-            min-width: 120px;
-            padding: 4px 0;
-            z-index: 50;
-            display: none;
-        }
-        /* 클릭/포커스로만 종속메뉴 열기 (hover 자동 열림 금지) */
-        .wai-menubar-item:focus-within .wai-menu-panel {
-            display: block;
-        }
-        .wai-menu-item {
-            font-size: 11px;
-            color: #e4e4e7;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border: 1px solid transparent;
-        }
-        .wai-menu-item:hover {
-            border-color: #71717a; /* zinc 계열 테두리 */
-            background-color: #27272a;
-        }
-
         /* 색상 선택 그리드 */
         .color-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding: 4px; }
         .color-swatch { width: 16px; height: 16px; border-radius: 2px; cursor: pointer; border: 1px solid #333; }
@@ -445,6 +400,12 @@
 
         .animate-fade-in { animation: fadeIn 0.2s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* 프리뷰 툴바를 상위 레이어로 올려 드롭다운이 가려지지 않도록 */
+        #preview-toolbar-panel {
+            position: relative;
+            z-index: 40;
+        }
     </style>
 </head>
 
@@ -481,27 +442,23 @@
                         제작
                     </button>
 
-                    <!-- 자산 메뉴: 클릭/포커스로만 종속메뉴 열림 + '>' 인디케이터 -->
-                    <div id="header-nav-assets-group" class="relative h-full flex items-center wai-menubar-item">
+                    <div id="header-nav-assets-group" class="relative group h-full flex items-center">
                         <button
                             id="header-nav-assets-btn"
-                            type="button"
-                            class="nav-btn hover:text-white text-text-sub wai-menu-label"
+                            class="nav-btn hover:text-white text-text-sub"
                             title="자산 패널 열기"
                         >
-                            <span>자산</span>
-                            <span class="wai-menu-indicator">&gt;</span>
+                            자산
                         </button>
-                        <div class="wai-menu-panel absolute top-full left-0 w-32 bg-bg-panel border border-ui-border shadow-xl rounded-b z-50">
+                        <div class="absolute top-full left-0 w-32 bg-bg-panel border border-ui-border shadow-xl rounded-b hidden group-hover:block z-50">
                             <button
                                 id="header-menu-assets-manage-item"
-                                type="button"
-                                class="wai-menu-item w-full text-left px-4 py-2 text-xs text-text-main"
+                                class="w-full text-left px-4 py-2 hover:bg-bg-hover text-xs text-text-main"
                                 @click="firePython('open_asset_manager')"
                                 data-action="py:open_asset_manager"
                                 title="자산 관리 창 열기"
                             >
-                                <span>자산 관리</span>
+                                자산 관리
                             </button>
                         </div>
                     </div>
@@ -631,7 +588,7 @@
                     <div id="preview-toolbar-panel" class="h-8 bg-bg-panel border-b border-ui-border flex items-center justify-center px-2 gap-3 shrink-0 z-20">
                         <div class="flex items-center gap-2 bg-bg-input rounded px-3 h-6 border border-ui-border">
 
-                            <!-- 드롭다운: 비율 (레이블만, 옵션 목록은 값만) -->
+                            <!-- 드롭다운: 비율 -->
                             <dropdown-menu
                                 id="preview-toolbar-ratio-dropdown"
                                 label="비율"
@@ -643,40 +600,15 @@
 
                             <div class="w-px h-3 bg-ui-border"></div>
 
-                            <div
-                                id="preview-toolbar-coord-box"
-                                class="c-info-box px-2 flex items-center bg-bg-input rounded h-6 border border-ui-border w-24 justify-center"
-                                title="마우스 좌표"
-                            >
-                                <span id="preview-toolbar-coord-label" class="text-xxs font-mono text-ui-accent">
-                                    {{ Math.round(mouseCoord.x) }}, {{ Math.round(mouseCoord.y) }}
-                                </span>
-                            </div>
-
-                            <div class="w-px h-3 bg-ui-border"></div>
-
-                            <!-- 드롭다운: 해상도 -->
+                            <!-- 드롭다운: 해상도 (비율에 따른 픽셀 표시) -->
                             <dropdown-menu
                                 id="preview-toolbar-resolution-dropdown"
                                 label="해상도"
-                                :current-value="resolution"
-                                :items="['8K', '6K', '4K', '3K', '2K']"
+                                :current-value="currentResolutionLabel"
+                                :items="resolutionOptions"
                                 @select="setResolution"
                                 title="캔버스 해상도 선택"
                             ></dropdown-menu>
-
-                            <div class="w-px h-3 bg-ui-border"></div>
-
-                            <div
-                                id="preview-toolbar-snap-toggle"
-                                class="cursor-pointer flex items-center gap-1 hover:text-white text-[10px] font-bold"
-                                @click="isMagnet = !isMagnet"
-                                :class="{'text-ui-accent': isMagnet, 'text-text-sub': !isMagnet}"
-                                data-action="js:toggleSnapMagnet"
-                                title="프리뷰 캔버스 스냅 온/오프"
-                            >
-                                <i class="fa-solid fa-magnet mr-1"></i> SNAP {{ isMagnet ? 'ON' : 'OFF' }}
-                            </div>
                         </div>
                     </div>
 
@@ -687,21 +619,13 @@
                         @mousemove="updateCanvasMouseCoord"
                         @mouseleave="mouseCoord = {x: 0, y: 0}; isMouseOverCanvas = false"
                     >
-                        <!-- 룰러 -->
-                        <div class="absolute top-0 left-0 w-full h-5 bg-[#121212] border-b border-[#333] z-20 pl-5 flex overflow-hidden" id="preview-ruler-h">
-                            <ruler-line :orientation="'h'" :max-size="canvasSize.w" :scale="canvasScale"></ruler-line>
-                        </div>
-                        <div class="absolute top-0 left-0 w-5 h-full bg-[#121212] border-r border-[#333] z-20 pt-5 flex flex-col overflow-hidden" id="preview-ruler-v">
-                            <ruler-line :orientation="'v'" :max-size="canvasSize.h" :scale="canvasScale"></ruler-line>
-                        </div>
-
-                        <!-- 마우스 가이드 -->
-                        <div class="absolute top-0 left-0 w-full h-full z-30 pointer-events-none" :style="{paddingLeft: '20px', paddingTop: '20px'}">
+                        <!-- 마우스 가이드 (선만 유지, 표시창 제거) -->
+                        <div class="absolute top-0 left-0 w-full h-full z-30 pointer-events:none" :style="{paddingLeft: '20px', paddingTop: '20px'}">
                             <div class="absolute w-px h-full bg-ui-accent opacity-30" :style="{left: mouseMarkerPos.x + 'px'}" v-show="isMouseOverCanvas"></div>
                             <div class="absolute h-px w-full bg-ui-accent opacity-30" :style="{top: mouseMarkerPos.y + 'px'}" v-show="isMouseOverCanvas"></div>
                         </div>
 
-                        <!-- 실제 캔버스 -->
+                        <!-- 실제 캔버스 (비율/해상도는 canvasScalerStyle 에서 제어) -->
                         <div class="relative overflow-hidden" id="preview-canvas-viewport" style="width:100%; height:100%;">
                             <div id="preview-canvas-scaler" class="canvas-scaler" :style="canvasScalerStyle">
                                 <div id="preview-guide-h" class="guide-line-h" style="top: 50%;"></div>
