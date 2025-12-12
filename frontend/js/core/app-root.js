@@ -1,7 +1,10 @@
 const { createApp, reactive, ref, onMounted, computed, nextTick } = Vue;
 
-// 해상도별 기준 긴 변 픽셀 (16:9 기준 가로 길이)
-// - aspectRatio 에 따라 실제 w/h 는 computeCanvasSize 에서 계산
+// 프리뷰 캔버스 기준 긴 변 픽셀 (해상도와 무관, 프리뷰 전용)
+// - 16:9 가로형 기준 1920 x 1080
+const BASE_CANVAS_LONG_SIDE = 1920;
+
+// 해상도별 기준 긴 변 픽셀 (레이블용, 프리뷰 스케일과는 무관)
 const RESOLUTION_KEYS = ['8K', '6K', '4K', '3K', '2K'];
 const RESOLUTION_LONG_SIDE = {
     '8K': 7680,
@@ -48,6 +51,7 @@ const AppRoot = {
                 { id: 'c3', trackId: 't5', name: 'BGM_Main.mp3', start: 0, duration: 30, type: 'audio' }
             ],
             canvasBoxes: [
+                // 좌표가 1920x1080 기준으로 잡혀 있으므로 BASE 기준도 1920x1080 으로 맞춘다.
                 { id: 'box_init', colIdx: 1, type: 'TXT', zIndex: 240, color: '#eab308', x: 1720, y: 980, w: 400, h: 200 }
             ],
             zoom: 20,
@@ -65,9 +69,10 @@ const AppRoot = {
             // Preview Toolbar State
             aspectRatio: '16:9',
             // 해상도 키(내부 값): '8K' / '6K' / '4K' / '3K' / '2K'
+            // ※ 프리뷰 캔버스 크기와는 연동하지 않고, 프로젝트 메타/라벨 용도만 사용
             resolution: '4K',
-            // 실제 픽셀 사이즈 (aspectRatio + resolution 으로 계산)
-            canvasSize: { w: 3840, h: 2160 }, 
+            // 프리뷰용 기준 픽셀 사이즈 (aspectRatio 만 반영, 해상도와 무관)
+            canvasSize: { w: 1920, h: 1080 }, 
             mouseCoord: { x: 0, y: 0 }, 
             isMouseOverCanvas: false,
             canvasScale: 1.0, 
@@ -121,7 +126,7 @@ const AppRoot = {
     },
     mounted() {
         this.$nextTick(() => { 
-            // 초기 비율/해상도 기준으로 canvasSize + scale 계산
+            // 초기 비율 기준으로 canvasSize + scale 계산 (해상도와는 무관)
             this.updateCanvasSizeFromControls();
             this.setupPanelResizers(); 
             this.setupCanvasScaler(); 
@@ -342,29 +347,59 @@ const AppRoot = {
             this.updateCanvasSizeFromControls();
         },
 
-        // 해상도 선택 (드롭다운에서 오는 값은 "4K" 또는 "4K (3840 x 2160)" 형식)
+        // 해상도 선택
+        // - 이제 프리뷰 캔버스 크기/비율과는 연동하지 않고, 메타 정보/라벨만 변경
         setResolution(labelOrKey) { 
             const str = (labelOrKey || '').toString().trim();
             const match = str.match(/^(\S+)/); // 첫 토큰만 해상도 키로 사용
             const key = match ? match[1] : (str || this.resolution);
             this.resolution = key;
-            this.updateCanvasSizeFromControls();
+            // 프리뷰 캔버스는 그대로 유지 (recalculateCanvasScale 호출하지 않음)
         },
 
-        // 주어진 비율/해상도 키에 대한 캔버스 픽셀 사이즈 계산
-        computeCanvasSize(aspectRatio, resolutionKey) {
+        /**
+         * 프리뷰용 기준 캔버스 크기 계산
+         * - BASE_CANVAS_LONG_SIDE (1920)를 기준으로만 계산
+         * - 해상도와 무관
+         */
+        computeCanvasSize(aspectRatio) {
+            const longSide = BASE_CANVAS_LONG_SIDE;
+            let w, h;
+
+            if (aspectRatio === '9:16') {
+                // 세로형: 높이를 긴 변으로 사용 (예: 1080 x 1920 과 비슷한 비율)
+                h = longSide;
+                w = Math.round(longSide * 9 / 16); // 1080
+            } else if (aspectRatio === '1:1') {
+                // 1:1 은 16:9 높이(약 1080)에 맞춰 정사각형
+                const square = Math.round(longSide * 9 / 16); // 1080
+                w = square;
+                h = square;
+            } else {
+                // 기본: 16:9 가로형
+                w = longSide;                           // 1920
+                h = Math.round(longSide * 9 / 16);      // 1080
+            }
+            return { w, h };
+        },
+
+        /**
+         * 해상도 라벨용 픽셀 크기 계산
+         * - 실제 프리뷰 크기에는 사용하지 않고, 드롭다운 텍스트에만 사용
+         */
+        computeResolutionSize(aspectRatio, resolutionKey) {
             const key = resolutionKey || '4K';
             const longSide = RESOLUTION_LONG_SIDE[key] || RESOLUTION_LONG_SIDE['4K'];
             let w, h;
 
             if (aspectRatio === '9:16') {
-                // 세로형: 높이를 긴 변으로 사용
                 h = longSide;
                 w = Math.round(longSide * 9 / 16);
             } else if (aspectRatio === '1:1') {
-                w = h = longSide;
+                const square = Math.round(longSide * 9 / 16);
+                w = square;
+                h = square;
             } else {
-                // 기본: 16:9 가로형
                 w = longSide;
                 h = Math.round(longSide * 9 / 16);
             }
@@ -374,21 +409,20 @@ const AppRoot = {
         // 특정 해상도 키에 대한 "4K (3840 x 2160)" 형식 라벨 생성
         getResolutionLabelFor(key) {
             const k = key || this.resolution || '4K';
-            const size = this.computeCanvasSize(this.aspectRatio, k);
+            const size = this.computeResolutionSize(this.aspectRatio, k);
             return `${k} (${size.w} x ${size.h})`;
         },
 
-        // 비율/해상도 컨트롤 값 기반으로 canvasSize + scale 갱신
+        // 비율(Aspect) 변경 시 프리뷰용 canvasSize + scale 갱신
         updateCanvasSizeFromControls() {
-            const size = this.computeCanvasSize(this.aspectRatio, this.resolution);
+            const size = this.computeCanvasSize(this.aspectRatio);
             this.canvasSize = size;
             this.recalculateCanvasScale();
         },
 
         /**
-         * wrapper(프리뷰 패널) 안에서
-         * - preview-canvas-viewport 의 아웃라인 기준으로
-         * - 사방 20px 마진을 남기고
+         * preview-canvas-viewport 안에서
+         * - 사방 20px 마진을 최소로 두고
          * - 그 안을 기준으로 설정된 화면비율을 최대한 채우도록 스케일 계산
          * 남는 여백은 그대로 비워두는(레터박스) 방식.
          */
@@ -488,7 +522,7 @@ const AppRoot = {
                         self.timelineContainerHeight = `calc(100% - ${effectiveHeight}px)`;
                     }
 
-                    // 프리뷰 높이/너비가 변하면 캔버스 스케일 재계산
+                    // 프리뷰 패널 크기가 변하면 캔버스 스케일 재계산
                     self.recalculateCanvasScale();
                 };
                 
