@@ -14,6 +14,27 @@ const RESOLUTION_LONG_SIDE = {
     '2K': 1920
 };
 
+// 레이어 매트릭스 컬럼 역할 (좌→우)
+const LAYER_COLUMN_ROLES = ['full', 'high', 'mid', 'low'];
+
+// 레이어 매트릭스 행 메타 (위→아래)
+const LAYER_ROW_META = {
+    EFF: { name: 'effect', zOffset: 80 },
+    TXT: { name: 'text',   zOffset: 40 },
+    BG:  { name: 'bg',     zOffset: 20 }
+};
+
+function createDefaultTextStyle() {
+    return {
+        fontFamily: 'Pretendard',
+        fontSize: 48,
+        strokeColor: '#000000',
+        strokeWidth: 0,
+        fillColor: '#ffffff',
+        backgroundColor: 'transparent'
+    };
+}
+
 // --- Main App Vue Instance ---
 const AppRoot = {
     components: { 
@@ -23,7 +44,8 @@ const AppRoot = {
         'properties-panel': PropertiesPanel,
         'preview-canvas': PreviewCanvas,
         'timeline-panel': TimelinePanel,
-        'ruler-line': RulerLine
+        'ruler-line': RulerLine,
+        'layer-config-modal': LayerConfigModal
     },
     data() {
         return {
@@ -50,9 +72,29 @@ const AppRoot = {
                 { id: 'c1', trackId: 't1', name: 'Intro_BG.mp4', start: 0, duration: 10, type: 'video' },
                 { id: 'c3', trackId: 't5', name: 'BGM_Main.mp3', start: 0, duration: 30, type: 'audio' }
             ],
+
+            // 캔바스 레이어 박스 (레이어 매트릭스 12셀과 1:1 연동)
             canvasBoxes: [
-                { id: 'box_init', colIdx: 1, type: 'TXT', zIndex: 240, color: '#eab308', x: 1720, y: 980, w: 400, h: 200 }
+                {
+                    id: 'box_init',
+                    colIdx: 1,
+                    colId: 'c2',
+                    colRole: 'high',
+                    rowType: 'TXT',
+                    rowName: 'text',
+                    slotKey: 'high_text',
+                    layerName: '상단',
+                    zIndex: 240,
+                    color: '#eab308',
+                    layerBgColor: 'rgba(255,255,255,0.02)',
+                    textStyle: createDefaultTextStyle(),
+                    x: 860,
+                    y: 490,
+                    w: 400,
+                    h: 200
+                }
             ],
+
             zoom: 20,
             selectedClip: null,
             selectedBoxId: null,
@@ -82,6 +124,7 @@ const AppRoot = {
             tooltipStyle: { top: '0', left: '0' },
             mouseMarkerPos: { x: 0, y: 0 },
 
+            // 레이어 매트릭스 컬럼 정의
             layerCols: [
                 { id: 'c1', name: '전체', color: '#64748b' },
                 { id: 'c2', name: '상단', color: '#eab308' },
@@ -90,6 +133,12 @@ const AppRoot = {
             ],
 
             ctxMenu: null,
+
+            // 레이어 설정 모달 상태
+            layerConfig: {
+                isOpen: false,
+                boxId: null
+            },
 
             COLORS
         }
@@ -121,6 +170,12 @@ const AppRoot = {
         // 현재 선택된 해상도 라벨
         currentResolutionLabel() {
             return this.getResolutionLabelFor(this.resolution);
+        },
+
+        // 레이어 설정 모달에서 편집 중인 박스
+        layerConfigBox() {
+            if (!this.layerConfig.isOpen || !this.layerConfig.boxId) return null;
+            return this.canvasBoxes.find(b => b.id === this.layerConfig.boxId) || null;
         }
     },
     mounted() {
@@ -210,8 +265,6 @@ const AppRoot = {
 
         /**
          * Inspector / Dev 모드 공통 마우스 무브 핸들러
-         * - Inspect 모드: ID/태그/클래스 + 크기만 표시
-         * - Dev 모드: element-specs.js + data-action 기반 정보 표시
          */
         setupInspectorMode() {
             const self = this;
@@ -299,8 +352,6 @@ const AppRoot = {
 
         /**
          * Dev 모드용 정보 문자열 생성
-         * - 코드/브리지 중심 정보만 표시
-         * - 사람이 읽기 쉬운 설명(desc)는 element-specs.js 쪽에서 관리
          */
         buildDevInfo(targetEl) {
             const id = targetEl.id || '';
@@ -338,6 +389,121 @@ const AppRoot = {
             return lines.join('\n');
         },
 
+        // --- 레이어/슬롯 헬퍼 ---
+
+        getColRole(colIdx) {
+            return LAYER_COLUMN_ROLES[colIdx] || `col${colIdx}`;
+        },
+
+        getRowName(rowType) {
+            const meta = LAYER_ROW_META[rowType];
+            return meta ? meta.name : (rowType || '').toLowerCase();
+        },
+
+        getSlotKey(colIdx, rowType) {
+            const role = this.getColRole(colIdx);
+            const rowName = this.getRowName(rowType);
+            return `${role}_${rowName}`;
+        },
+
+        getZIndexForCell(colIdx, rowType) {
+            const meta = LAYER_ROW_META[rowType];
+            const offset = meta ? meta.zOffset : 0;
+            const base = (colIdx * 100) + 100;
+            return base + offset;
+        },
+
+        // 기존 getZIndex 를 사용하던 코드와의 호환용
+        getZIndex(colIdx, type) {
+            return this.getZIndexForCell(colIdx, type);
+        },
+
+        findBoxBySlot(slotKey) {
+            return this.canvasBoxes.find(b => b.slotKey === slotKey) || null;
+        },
+
+        createBoxForSlot(colIdx, rowType, color) {
+            const colRole = this.getColRole(colIdx);
+            const rowName = this.getRowName(rowType);
+            const slotKey = this.getSlotKey(colIdx, rowType);
+            const zIndex = this.getZIndexForCell(colIdx, rowType);
+
+            const col = this.layerCols[colIdx] || null;
+            const layerName = col ? col.name : `Layer ${colIdx + 1}`;
+            const boxColor = color || (col && col.color) || '#ffffff';
+
+            const cw = this.canvasSize.w;
+            const ch = this.canvasSize.h;
+
+            let x = 0;
+            let y = 0;
+            let w = cw;
+            let h = ch;
+
+            if (colRole === 'full') {
+                x = 0;
+                y = 0;
+                w = cw;
+                h = ch;
+            } else if (colRole === 'high') {
+                x = 0;
+                y = 0;
+                w = cw;
+                h = Math.round(ch / 3);
+            } else if (colRole === 'mid') {
+                x = 0;
+                y = Math.round(ch / 3);
+                w = cw;
+                h = Math.round(ch / 3);
+            } else if (colRole === 'low') {
+                x = 0;
+                y = Math.round((2 * ch) / 3);
+                w = cw;
+                h = ch - y; // 합계가 정확히 ch 가 되도록
+            }
+
+            const box = {
+                id: `box_${slotKey}_${Date.now()}`,
+                colIdx,
+                colId: col ? col.id : null,
+                colRole,
+                rowType,
+                rowName,
+                slotKey,
+                layerName,
+                color: boxColor,
+                zIndex,
+                layerBgColor: 'rgba(255,255,255,0.02)',
+                x,
+                y,
+                w,
+                h
+            };
+
+            if (rowType === 'TXT') {
+                box.textStyle = createDefaultTextStyle();
+            }
+
+            return box;
+        },
+
+        // 레이어 매트릭스 셀 클릭 → 박스 생성/선택
+        addLayerBox(colIdx, rowType, color) {
+            const slotKey = this.getSlotKey(colIdx, rowType);
+            const existing = this.findBoxBySlot(slotKey);
+
+            if (existing) {
+                // 이미 박스가 있으면 선택만
+                this.setSelectedBoxId(existing.id);
+                return;
+            }
+
+            const newBox = this.createBoxForSlot(colIdx, rowType, color);
+            this.canvasBoxes = [...this.canvasBoxes, newBox];
+            this.selectedBoxId = newBox.id;
+            this.selectedClip = null;
+        },
+
         // --- Preview/Canvas Logic ---
 
         // 비율 선택 (16:9 / 9:16 / 1:1)
@@ -346,8 +512,7 @@ const AppRoot = {
             this.updateCanvasSizeFromControls();
         },
 
-        // 해상도 선택
-        // - 프리뷰 캔버스 크기/비율과는 연동하지 않고, 메타 정보/라벨만 변경
+        // 해상도 선택 (프리뷰와는 연동하지 않고 라벨만 변경)
         setResolution(labelOrKey) { 
             const str = (labelOrKey || '').toString().trim();
             const match = str.match(/^(\S+)/); // 첫 토큰만 해상도 키로 사용
@@ -559,65 +724,78 @@ const AppRoot = {
             }
         },
 
+        // --- 레이어 설정 모달 ---
+
+        openLayerConfig(boxId) {
+            this.layerConfig.isOpen = true;
+            this.layerConfig.boxId = boxId;
+            this.setSelectedBoxId(boxId);
+        },
+
+        closeLayerConfig() {
+            this.layerConfig.isOpen = false;
+            this.layerConfig.boxId = null;
+        },
+
+        deleteLayerFromConfig() {
+            const box = this.layerConfigBox;
+            if (box) {
+                this.removeBox(box.id);
+            }
+            this.closeLayerConfig();
+        },
+
         // --- Core Model Methods (Clips/Boxes) ---
-        getZIndex(colIdx, type) {
-            const base = (colIdx * 100) + 100;
-            const offset = Z_INDEX_OFFSETS[type] || 60;
-            return base + offset;
-        },
-        addLayerBox(colIdx, type, color) {
-            const zIndex = this.getZIndex(colIdx, type);
-            const newBox = {
-                id: `box_${Date.now()}`, colIdx, type, zIndex, color,
-                x: 1920 - 200 + (colIdx * 50), 
-                y: 1080 - 150 + (colIdx * 50), 
-                w: 400, 
-                h: 300
-            };
-            this.canvasBoxes.push(newBox);
-        },
         removeBox(id) {
             this.canvasBoxes = this.canvasBoxes.filter(b => b.id !== id);
             if (this.selectedBoxId === id) this.selectedBoxId = null;
         },
+
         setSelectedBoxId(id) {
             this.selectedBoxId = (this.selectedBoxId === id) ? null : id;
             this.selectedClip = null;
         },
-        updateBoxPosition(id, dx, dy, dw, dh, isResizeEnd = false) {
+
+        // 박스 위치/크기를 절대 좌표로 갱신
+        updateBoxPosition(id, newX, newY, newW, newH) {
             const index = this.canvasBoxes.findIndex(b => b.id === id);
             if (index === -1) return;
 
             const box = this.canvasBoxes[index];
+            const updated = { ...box };
+
+            if (typeof newX === 'number') updated.x = newX;
+            if (typeof newY === 'number') updated.y = newY;
+            if (typeof newW === 'number') updated.w = newW;
+            if (typeof newH === 'number') updated.h = newH;
+
             const newBoxes = [...this.canvasBoxes];
-            
-            newBoxes[index] = { 
-                ...box, 
-                x: box.x + dx, 
-                y: box.y + dy,
-                w: isResizeEnd ? dw : box.w,
-                h: isResizeEnd ? dh : box.h
-            };
+            newBoxes[index] = updated;
             this.canvasBoxes = newBoxes;
         },
+
         removeClip(id) {
             this.clips = this.clips.filter(c => c.id !== id);
         },
+
         setSelectedClip(clip) {
             this.selectedClip = (this.selectedClip && this.selectedClip.id === clip.id) ? null : clip;
             this.selectedBoxId = null;
         },
+
         moveTrack(fromIndex, toIndex) {
             const tracks = [...this.tracks];
             const [removed] = tracks.splice(fromIndex, 1);
             tracks.splice(toIndex, 0, removed);
             this.tracks = tracks;
         },
+
         saveLayerTemplate(name) {
             const newTpl = { id: `tpl_${Date.now()}`, name, cols: this.layerCols }; 
             this.layerTemplates.push(newTpl);
             this.layerMainName = name; 
         },
+
         addClipFromDrop(fileType, trackIndex, time, assetName) {
             const trackId = this.tracks[trackIndex] ? this.tracks[trackIndex].id : null;
             if (!trackId) return;
@@ -631,6 +809,7 @@ const AppRoot = {
             };
             this.clips.push(newClip);
         },
+
         updateClip(clipId, startChange, durationChange) {
             const index = this.clips.findIndex(c => c.id === clipId);
             if (index !== -1) {
@@ -648,6 +827,7 @@ const AppRoot = {
                 this.clips = newClips;
             }
         },
+
         moveClip(clipId, timeChange) {
             const index = this.clips.findIndex(c => c.id === clipId);
             if (index !== -1) {
