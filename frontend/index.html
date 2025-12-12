@@ -146,6 +146,9 @@
             background-color: #000;
             box-shadow: 0 0 50px rgba(0,0,0,0.5);
             position: relative;
+            /* 패널 안에 '화면'이 따로 보이도록 테두리/라운드 추가 */
+            border-radius: 6px;
+            border: 1px solid #27272a;
         }
         .canvas-box {
             position: absolute;
@@ -615,7 +618,7 @@
                     <!-- 프리뷰 캔버스 -->
                     <div
                         id="preview-canvas-wrapper"
-                        class="flex-1 relative overflow-hidden bg-black flex items-center justify-center"
+                        class="flex-1 relative overflow-hidden bg-zinc-950 flex items-center justify-center"
                         @mousemove="updateCanvasMouseCoord"
                         @mouseleave="mouseCoord = {x: 0, y: 0}; isMouseOverCanvas = false"
                     >
