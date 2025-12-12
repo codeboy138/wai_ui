@@ -82,7 +82,7 @@ const DropdownMenu = {
     template: `
         <div
             :id="id"
-            class="wai-dropdown c-dropdown w-24 h-6 border-none bg-transparent px-0"
+            class="wai-dropdown c-dropdown h-6 border-none bg-transparent px-0"
             :class="{ 'wai-dropdown--open': isOpen }"
             @mouseenter="handleMouseEnter"
             @mouseleave="handleMouseLeave"
@@ -95,11 +95,11 @@ const DropdownMenu = {
             >
                 <span
                     :id="id ? ('val-' + id) : null"
-                    class="truncate max-w-[90%]"
+                    class="whitespace-nowrap"
                 >
                     {{ displayText }}
                 </span>
-                <i class="fa-solid fa-caret-down ml-auto text-[8px]"></i>
+                <i class="fa-solid fa-caret-down ml-1 text-[8px]"></i>
             </button>
 
             <!-- 옵션 리스트: 드롭다운이 열렸을 때만 렌더링 -->
