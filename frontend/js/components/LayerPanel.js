@@ -77,7 +77,7 @@ const LayerPanel = {
                             <div
                                 class="absolute top-0 right-0 text-[8px] opacity-0 group-hover:opacity-100 p-0.5 bg-black/50 rounded"
                             >
-                                Z:{{ vm.getZIndexForCell(i, 'TXT') }}
+                                Z:{{ getZIndexForCell(i, 'TXT') }}
                             </div>
                         </div>
                     </div>
@@ -106,14 +106,14 @@ const LayerPanel = {
                             }"
                             class="w-[50px] h-6 border rounded flex flex-col items-center justify-center cursor-pointer hover:border-white transition-all"
                             :style="cellStyle(i, row.type, col.color)"
-                            @click="vm.addLayerBox(i, row.type, col.color)"
+                            @click="handleCellClick(i, row.type, col.color)"
                             data-action="js:layerAddBox"
                         >
                             <span
                                 class="text-[10px] font-bold text-white drop-shadow-md"
                                 style="text-shadow: 0 0 3px black"
                             >
-                                {{ vm.getZIndexForCell(i, row.type) }}
+                                {{ getZIndexForCell(i, row.type) }}
                             </span>
                         </div>
                     </div>
@@ -156,20 +156,32 @@ const LayerPanel = {
         return {
             isCollapsed: false,
             contextMenu: null,
+            // 12셀 구성: 전체(full) / 상단(high) / 중단(mid) / 하단(low) × EFF/TXT/BG
             rows: [
-                { type: 'EFF', label: 'Effect', color: '#ef4444' }, 
-                { type: 'TXT', label: 'Text',  color: '#eab308' }, 
-                { type: 'BG',  label: 'BG',    color: '#3b82f6' }
+                { type: 'EFF', label: 'Effect', color: '#ef4444', zOffset: 80 },
+                { type: 'TXT', label: 'Text',   color: '#eab308', zOffset: 40 },
+                { type: 'BG',  label: 'BG',     color: '#3b82f6', zOffset: 20 }
             ],
             COLORS: COLORS
-        }
+        };
     },
     methods: {
+        // colIdx + rowType 에 대한 slotKey 생성 (full_text, mid_bg, high_effect ...)
+        getColRole(colIdx) {
+            const roles = ['full', 'high', 'mid', 'low'];
+            return roles[colIdx] || `col${colIdx}`;
+        },
+        getRowName(rowType) {
+            if (rowType === 'EFF') return 'effect';
+            if (rowType === 'TXT') return 'text';
+            if (rowType === 'BG')  return 'bg';
+            return (rowType || '').toLowerCase();
+        },
+        getSlotKey(colIdx, rowType) {
+            return `${this.getColRole(colIdx)}_${this.getRowName(rowType)}`;
+        },
         cellSlotKey(colIdx, rowType) {
-            if (this.vm && typeof this.vm.getSlotKey === 'function') {
-                return this.vm.getSlotKey(colIdx, rowType);
-            }
-            return `${colIdx}_${rowType}`;
+            return this.getSlotKey(colIdx, rowType);
         },
         isActive(colIdx, rowType) {
             const slotKey = this.cellSlotKey(colIdx, rowType);
@@ -181,6 +193,19 @@ const LayerPanel = {
                 backgroundColor: '#27272a',
                 borderColor: active ? colColor : '#27272a'
             };
+        },
+        // 12셀 숫자(z-index) 계산 로직 (캔바스 내에서만 적용)
+        getZIndexForCell(colIdx, rowType) {
+            const row = this.rows.find(r => r.type === rowType);
+            const offset = row ? row.zOffset : 0;
+            const base = (colIdx * 100) + 100;
+            return base + offset;
+        },
+        handleCellClick(colIdx, rowType, color) {
+            // 상위(AppRoot)의 addLayerBox 사용
+            if (this.$parent && typeof this.$parent.addLayerBox === 'function') {
+                this.$parent.addLayerBox(colIdx, rowType, color);
+            }
         },
         addColumn() {
             const newCol = { id: `lc_${Date.now()}`, name: 'New', color: '#333' };
