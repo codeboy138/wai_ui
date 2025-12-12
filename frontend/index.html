@@ -144,6 +144,7 @@
         #preview-canvas-viewport {
             width: 100%;
             height: 100%;
+            position: relative;
             display: flex;
             align-items: center;      /* 세로 가운데 */
             justify-content: center;  /* 가로 가운데 */
@@ -643,6 +644,7 @@
                             <div
                                 id="preview-canvas-scaler"
                                 :class="['canvas-scaler', 'canvas-ar-' + (aspectRatio || '16:9').replace(':','-')]"
+                                :style="canvasScalerStyle"
                             >
                                 <div id="preview-guide-h" class="guide-line-h" style="top: 50%;"></div>
                                 <div id="preview-guide-v" class="guide-line-v" style="left: 50%;"></div>
