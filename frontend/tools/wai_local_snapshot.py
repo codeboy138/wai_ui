@@ -2,13 +2,15 @@
 # -*- coding: utf-8 -*-
 
 """
-WAI Local Snapshot Tool
+WAI Local Snapshot Tool (순수 로컬 스냅샷)
 
 역할:
 - 기본 실행(인자 없음): 클립보드 워처 모드
   - 클립보드에서 `### [WAI:LOCAL_SNAPSHOT:설명]` 패턴을 감지하면
-    → 현재 프로젝트 상태를 _snapshots/ 에 로컬 스냅샷으로 저장
+    → 현재 프로젝트(frontend) 전체 상태를 _snapshots/ 에 로컬 스냅샷으로 저장
     → 최근 3개만 유지, 나머지는 자동 삭제
+  - PROMPT 번호는 wai_magic.py 와 공유:
+    - 동일한 클립보드 텍스트에 대해 항상 같은 [PROMPT N] 사용
 
 - CLI 모드:
   - py tools\\wai_local_snapshot.py save "설명"
@@ -22,17 +24,19 @@ import re
 import shutil
 import json
 import time
-import subprocess
 import argparse
+import hashlib
 from datetime import datetime
 from typing import List
 
 # --- 경로 설정 ---
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
+REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))   # C:\wai-ui\frontend
 SNAP_DIR = os.path.join(REPO_ROOT, "_snapshots")
+STATE_FILE = os.path.join(SNAP_DIR, "prompt_state.json")
+STATE_LOCK = os.path.join(SNAP_DIR, "prompt_state.lock")
 
-# Windows에서 폴더/파일 이름에 허용되지 않는 문자 (경로 구분자 자체는 제외, 컴포넌트 단위로 검사)
+# Windows에서 폴더/파일 이름에 허용되지 않는 문자 (폴더 이름에만 사용)
 INVALID_WIN_CHARS = '<>:"/\\|?*'
 
 
@@ -41,22 +45,8 @@ INVALID_WIN_CHARS = '<>:"/\\|?*'
 def ensure_dir(path: str) -> None:
     if not path:
         return
-    os.makedirs(path, exist_ok=True)
-
-
-def slugify(text: str) -> str:
-    """
-    설명 문자열을 사람이 읽기 쉬운 단축 문자열로 만든다.
-    (폴더 이름에는 더 이상 사용하지 않지만, 필요시 확장용으로 남겨둠)
-    """
-    text = (text or "").strip()
-    if not text:
-        return ""
-    # 공백 → 하이픈
-    text = re.sub(r"\s+", "-", text)
-    # 허용되지 않는 문자 제거
-    text = re.sub(r"[^0-9A-Za-z가-힣_-]+", "", text)
-    return text[:60] if len(text) > 60 else text
+    if not os.path.isdir(path):
+        os.makedirs(path, exist_ok=True)
 
 
 def sanitize_for_path(name: str) -> str:
@@ -80,109 +70,160 @@ def sanitize_for_path(name: str) -> str:
     return safe or "snapshot"
 
 
-def has_invalid_component_chars(path: str, sep: str) -> bool:
-    """
-    주어진 경로 문자열을 sep 기준으로 나눈 각 '컴포넌트(폴더/파일 이름)'에
-    INVALID_WIN_CHARS 가 포함되어 있는지 검사.
-    - sep 자체(경로 구분자)는 무시
-    """
-    if not path:
-        return False
-    parts = path.split(sep)
-    for part in parts:
-        if not part:
-            continue
-        if any(ch in INVALID_WIN_CHARS for ch in part):
-            return True
-    return False
+# --- PROMPT 상태 공유 (wai_magic.py 와 동일 규칙) ---
+
+def _acquire_state_lock():
+    """prompt_state.json 접근용 간단한 파일 락."""
+    ensure_dir(SNAP_DIR)
+    while True:
+        try:
+            fd = os.open(STATE_LOCK, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            return fd
+        except FileExistsError:
+            time.sleep(0.05)
 
 
-def get_git_short_sha() -> str:
+def _release_state_lock(fd):
     try:
-        out = subprocess.check_output(
-            ["git", "-C", REPO_ROOT, "rev-parse", "--short", "HEAD"],
-            stderr=subprocess.DEVNULL,
-            text=True
-        ).strip()
-        return out or "nogit"
-    except Exception:
-        return "nogit"
+        os.close(fd)
+    finally:
+        try:
+            os.remove(STATE_LOCK)
+        except FileNotFoundError:
+            pass
 
+
+def _load_prompt_state_unlocked():
+    """
+    락이 잡힌 상태에서만 호출.
+    - prompt_state.json 이 없으면 기존 _snapshots 폴더명에서 최대 P번호를 찾아 초기화.
+    구조: { "last_id": int, "last_hash": str }
+    """
+    ensure_dir(SNAP_DIR)
+    if os.path.isfile(STATE_FILE):
+        try:
+            with open(STATE_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, dict):
+                raise ValueError("invalid state")
+            return {
+                "last_id": int(data.get("last_id", 0)),
+                "last_hash": str(data.get("last_hash", "")),
+            }
+        except Exception:
+            pass
+
+    # 초기 상태: 기존 스냅샷 폴더명에서 최대 P번호 추출
+    max_idx = 0
+    try:
+        for name in os.listdir(SNAP_DIR):
+            m = re.search(r"_P(\d+)_", name)
+            if m:
+                try:
+                    idx = int(m.group(1))
+                    if idx > max_idx:
+                        max_idx = idx
+                except ValueError:
+                    continue
+    except FileNotFoundError:
+        pass
+
+    return {"last_id": max_idx, "last_hash": ""}
+
+
+def _save_prompt_state_unlocked(state):
+    with open(STATE_FILE, "w", encoding="utf-8") as f:
+        json.dump(
+            {"last_id": int(state.get("last_id", 0)),
+             "last_hash": str(state.get("last_hash", ""))},
+            f,
+            ensure_ascii=False,
+            indent=2,
+        )
+
+
+def get_or_allocate_prompt_id_by_hash(text_hash: str) -> int:
+    """
+    wai_magic.py 와 동일한 규칙:
+    - 같은 클립보드 텍스트(=text_hash)에 대해서는 항상 같은 PROMPT ID 사용
+    - 다른 텍스트면 last_id + 1 할당
+    """
+    fd = _acquire_state_lock()
+    try:
+        state = _load_prompt_state_unlocked()
+        last_id = int(state.get("last_id", 0))
+        last_hash = str(state.get("last_hash", ""))
+
+        if last_hash == text_hash and last_id > 0:
+            return last_id
+
+        new_id = last_id + 1
+        state["last_id"] = new_id
+        state["last_hash"] = text_hash
+        _save_prompt_state_unlocked(state)
+        return new_id
+    finally:
+        _release_state_lock(fd)
+
+
+def allocate_new_prompt_id_cli() -> int:
+    """
+    CLI save 용 단독 PROMPT ID 할당.
+    - 텍스트 해시 없이 last_id + 1 만 증가
+    - last_hash 는 빈 문자열로 초기화
+    """
+    fd = _acquire_state_lock()
+    try:
+        state = _load_prompt_state_unlocked()
+        last_id = int(state.get("last_id", 0))
+        new_id = last_id + 1
+        state["last_id"] = new_id
+        state["last_hash"] = ""
+        _save_prompt_state_unlocked(state)
+        return new_id
+    finally:
+        _release_state_lock(fd)
+
+
+# --- 스냅샷 파일 수집/저장 ---
 
 def collect_files_for_snapshot() -> List[str]:
     """
     스냅샷에 포함할 파일 목록을 결정.
-    1순위: git ls-files 결과 (트래킹된 파일만)
-    실패 시: .git, _snapshots, venv 등 몇몇 디렉토리 제외하고 전체 탐색
+    - git 사용 X
+    - C:\wai-ui\frontend 전체를 os.walk로 돌면서 수집
+    - 일부 디렉토리만 제외: .git, _snapshots, venv, node_modules 등
     """
-    # 1) git ls-files 시도
-    try:
-        out = subprocess.check_output(
-            ["git", "-C", REPO_ROOT, "ls-files"],
-            stderr=subprocess.DEVNULL,
-            text=True
-        )
-        files = []
-        for line in out.splitlines():
-            git_path = line.strip()  # 항상 / 기준
-            if not git_path:
-                continue
-
-            # 경로 컴포넌트 기준으로 invalid 문자 검사 (구분자 '/' 는 제외)
-            if has_invalid_component_chars(git_path, "/"):
-                print(f"[WARN] 스냅샷에서 제외 (윈도우에서 불가능한 git 경로): {git_path!r}")
-                continue
-
-            rel_path = git_path.replace("/", os.sep)
-            files.append(rel_path)
-        if files:
-            return files
-    except Exception:
-        pass
-
-    # 2) fallback: 디렉토리 전체 탐색
     result = []
-    skip_dirs = {".git", "_snapshots", "__pycache__", "venv", "env", ".venv", "node_modules"}
+    skip_dirs = {
+        ".git",
+        "_snapshots",
+        "__pycache__",
+        "venv",
+        "env",
+        ".venv",
+        "node_modules",
+        ".idea",
+        ".vscode"
+    }
+
     for root, dirs, files in os.walk(REPO_ROOT):
-        rel_root = os.path.relpath(root, REPO_ROOT)
-        # 상위에서 스킵 디렉토리 제거
+        # 스냅샷/가상환경/IDE 관련 폴더 제외
         dirs[:] = [d for d in dirs if d not in skip_dirs]
 
-        # 루트인 경우
+        rel_root = os.path.relpath(root, REPO_ROOT)
         if rel_root == ".":
             rel_root = ""
 
         for f in files:
+            # 파이썬 바이트코드 등은 굳이 백업 안 해도 됨
             if f.endswith((".pyc", ".pyo")):
                 continue
+
             rel_path = os.path.join(rel_root, f) if rel_root else f
-
-            if has_invalid_component_chars(rel_path, os.sep):
-                print(f"[WARN] 스냅샷에서 제외 (윈도우에서 불가능한 파일): {rel_path!r}")
-                continue
-
             result.append(rel_path)
 
     return result
-
-
-def get_next_prompt_index() -> int:
-    """
-    스냅샷 폴더 이름에서 _P숫자_ 패턴을 읽어 가장 큰 값 + 1 을 반환.
-    예: 20251211_143058_efaf152_P1_SNAP → P1 → 다음은 2
-    """
-    ensure_dir(SNAP_DIR)
-    max_idx = 0
-    for name in os.listdir(SNAP_DIR):
-        m = re.search(r"_P(\d+)_", name)
-        if m:
-            try:
-                idx = int(m.group(1))
-                if idx > max_idx:
-                    max_idx = idx
-            except ValueError:
-                continue
-    return max_idx + 1
 
 
 def cleanup_old_snapshots(keep_last: int = 3) -> None:
@@ -209,36 +250,28 @@ def cleanup_old_snapshots(keep_last: int = 3) -> None:
             print(f"[WARN] 스냅샷 삭제 실패: {name} ({e})")
 
 
-def save_snapshot(description: str, keep_last: int = 3) -> None:
+def save_snapshot(description: str, prompt_idx: int, keep_last: int = 3) -> None:
     """
     현재 REPO_ROOT 상태를 _snapshots/ 하위에 저장.
-    폴더 이름에는 설명을 넣지 않고, manifest + 로그에만 설명을 남긴다.
+    - prompt_idx 는 외부에서 결정 (wai_magic 과 번호 공유 가능)
     """
     ensure_dir(SNAP_DIR)
 
-    prompt_idx = get_next_prompt_index()
     now = datetime.now()
     ts_for_name = now.strftime("%Y%m%d_%H%M%S")
     ts_for_log = now.strftime("%Y-%m-%d %H:%M:%S")
-    git_sha = get_git_short_sha()
 
-    # 폴더 이름은 안전한 구성 요소만 사용
-    raw_name = f"{ts_for_name}_{git_sha}_P{prompt_idx}_SNAP"
+    raw_name = f"{ts_for_name}_P{prompt_idx}_SNAP"
     folder_name = sanitize_for_path(raw_name)
 
     snap_path = os.path.join(SNAP_DIR, folder_name)
     ensure_dir(snap_path)
 
-    # 파일 목록 수집 (여기서 INVALID_WIN_CHARS 필터링 완료)
     files = collect_files_for_snapshot()
 
     # 파일 복사
     for rel_path in files:
         if not rel_path:
-            continue
-        if has_invalid_component_chars(rel_path, os.sep):
-            # 이중 방어 (위에서 이미 필터링되지만 혹시 모를 경우)
-            print(f"[WARN] 스냅샷에서 제외 (윈도우에서 불가능한 경로 - 2차 필터): {rel_path!r}")
             continue
 
         src = os.path.join(REPO_ROOT, rel_path)
@@ -248,12 +281,11 @@ def save_snapshot(description: str, keep_last: int = 3) -> None:
         if os.path.isfile(src):
             shutil.copy2(src, dst)
 
-    # manifest 저장 (여기에 description 그대로 보존)
+    # manifest 저장
     manifest = {
         "description": description,
         "prompt_index": prompt_idx,
         "created_at": ts_for_log,
-        "git_head": git_sha,
         "files": files,
     }
     with open(os.path.join(snap_path, "manifest.json"), "w", encoding="utf-8") as f:
@@ -271,6 +303,8 @@ def save_snapshot(description: str, keep_last: int = 3) -> None:
     if description:
         print(f"    설명   : {description}")
 
+
+# --- CLI: list / restore ---
 
 def list_snapshots() -> None:
     ensure_dir(SNAP_DIR)
@@ -379,14 +413,12 @@ def watch_clipboard() -> None:
     last_text = None
     pattern = re.compile(r"###\s*\[WAI:LOCAL_SNAPSHOT:(.+?)\]", re.IGNORECASE | re.DOTALL)
 
-    # 동일 오류 반복 출력 방지용
     had_clipboard_error = False
 
     try:
         while True:
             try:
                 text = pyperclip.paste()
-                # 이전에 오류가 있었다면, 한 번 정상 동작 시 플래그 리셋
                 had_clipboard_error = False
             except PyperclipException:
                 if not had_clipboard_error:
@@ -403,9 +435,12 @@ def watch_clipboard() -> None:
                 m = pattern.search(text)
                 if m:
                     desc_raw = m.group(1).strip()
-                    # 줄바꿈/공백 정리
                     desc_one_line = " ".join(desc_raw.split())
-                    save_snapshot(desc_one_line)
+
+                    # 동일한 클립보드 텍스트에 대해 prompt ID 공유
+                    text_hash = hashlib.sha1(text.encode("utf-8", errors="ignore")).hexdigest()
+                    prompt_idx = get_or_allocate_prompt_id_by_hash(text_hash)
+                    save_snapshot(desc_one_line, prompt_idx)
 
             time.sleep(0.5)
     except KeyboardInterrupt:
@@ -434,7 +469,9 @@ def main():
     args = parser.parse_args()
 
     if args.cmd == "save":
-        save_snapshot(args.description)
+        # CLI save 는 독립적인 PROMPT ID 사용
+        prompt_idx = allocate_new_prompt_id_cli()
+        save_snapshot(args.description, prompt_idx)
     elif args.cmd == "list":
         list_snapshots()
     elif args.cmd == "restore":
