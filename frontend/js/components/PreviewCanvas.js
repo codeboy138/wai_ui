@@ -128,6 +128,10 @@ const PreviewCanvas = {
                 justifyContent,
                 textAlign: hAlign,
 
+                // CSS 의 top:50%, left:50%, transform:translate(-50%, -50%)
+                // 을 덮어써서 레이어 전체 영역(0,0~w,h) 안에서만 정렬되도록 강제
+                transform: 'none',
+
                 color: ts.fillColor || '#ffffff',
                 fontFamily: ts.fontFamily || 'Pretendard, system-ui, sans-serif',
                 fontSize: fontSize + 'px',
