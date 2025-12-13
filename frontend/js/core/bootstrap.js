@@ -1,3 +1,2 @@
-const { createApp } = Vue;
-
-createApp(AppRoot).mount('#app-vue-root');
+const app = createApp(AppRoot);
+app.mount('#vue-app');

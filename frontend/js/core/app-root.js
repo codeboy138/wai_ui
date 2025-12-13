@@ -1,5 +1,10 @@
+const { createApp, reactive, ref, onMounted, computed, nextTick } = Vue;
+
+// 프리뷰 캔버스 기준 긴 변 픽셀 (해상도와 무관, 프리뷰 전용)
+// - 16:9 가로형 기준 1920 x 1080
 const BASE_CANVAS_LONG_SIDE = 1920;
 
+// 해상도별 기준 긴 변 픽셀 (레이블용, 프리뷰 스케일과는 무관)
 const RESOLUTION_KEYS = ['8K', '6K', '4K', '3K', '2K'];
 const RESOLUTION_LONG_SIDE = {
     '8K': 7680,
@@ -9,14 +14,17 @@ const RESOLUTION_LONG_SIDE = {
     '2K': 1920
 };
 
+// 레이어 매트릭스 컬럼 역할 (좌→우)
 const LAYER_COLUMN_ROLES = ['full', 'high', 'mid', 'low'];
 
+// 레이어 매트릭스 행 메타 (위→아래)
 const LAYER_ROW_META = {
     EFF: { name: 'effect', zOffset: 80 },
     TXT: { name: 'text',   zOffset: 40 },
     BG:  { name: 'bg',     zOffset: 20 }
 };
 
+// 텍스트 레이어 기본 메시지
 const DEFAULT_TEXT_MESSAGE = '현재의 레이어에 적용할\n텍스트 스타일을 설정하세요';
 
 function createDefaultTextStyle() {
@@ -30,6 +38,7 @@ function createDefaultTextStyle() {
     };
 }
 
+// --- Main App Vue Instance ---
 const AppRoot = {
     components: { 
         'dropdown-menu': DropdownMenu, 
@@ -43,15 +52,18 @@ const AppRoot = {
     },
     data() {
         return {
+            // UI Layout State
             leftPanelWidth: 240, 
             rightPanelWidth: 320,
             previewContainerHeight: '50%', 
             timelineContainerHeight: '50%',
             isProjectModalOpen: false,
 
-            isDevModeActive: false,
-            isDevModeFull: false,
+            // Dev / Inspector 모드 상태
+            isDevModeActive: false,   // Inspect
+            isDevModeFull: false,     // Dev
             
+            // Core Timeline/Canvas State
             tracks: [
                 { id: 't1', name: 'Global', type: 'video', color: '#64748b' }, 
                 { id: 't2', name: 'Top', type: 'text',  color: '#eab308' },
@@ -64,6 +76,7 @@ const AppRoot = {
                 { id: 'c3', trackId: 't5', name: 'BGM_Main.mp3', start: 0, duration: 30, type: 'audio' }
             ],
 
+            // 캔바스 레이어 박스 (레이어 매트릭스 12셀과 1:1 연동) - 기본은 빈 상태
             canvasBoxes: [],
 
             zoom: 20,
@@ -78,18 +91,24 @@ const AppRoot = {
             dragItemIndex: null, 
             dragOverItemIndex: null, 
             
+            // Preview Toolbar State
             aspectRatio: '16:9',
+            // 해상도 키(내부 값): '8K' / '6K' / '4K' / '3K' / '2K'
+            // ※ 프리뷰 캔버스 크기와는 연동하지 않고, 프로젝트 메타/라벨 용도만 사용
             resolution: '4K',
+            // 프리뷰용 기준 픽셀 사이즈 (aspectRatio 만 반영, 해상도와 무관)
             canvasSize: { w: 1920, h: 1080 }, 
             mouseCoord: { x: 0, y: 0 }, 
             isMouseOverCanvas: false,
             canvasScale: 1.0, 
             
+            // Inspector / Dev Overlay State
             inspector: { tag: '', id: '', className: '', x: 0, y: 0, w: 0, h: 0, dataDev: '' },
             highlightStyle: { width: '0', height: '0', top: '0', left: '0' },
             tooltipStyle: { top: '0', left: '0' },
             mouseMarkerPos: { x: 0, y: 0 },
 
+            // 레이어 매트릭스 컬럼 정의
             layerCols: [
                 { id: 'c1', name: '전체', color: '#64748b' },
                 { id: 'c2', name: '상단', color: '#eab308' },
@@ -99,6 +118,7 @@ const AppRoot = {
 
             ctxMenu: null,
 
+            // 레이어 설정 모달 상태
             layerConfig: {
                 isOpen: false,
                 boxId: null
@@ -108,6 +128,10 @@ const AppRoot = {
         };
     },
     computed: {
+        /**
+         * 프리뷰 캔버스 실제 픽셀 사이즈(canvasSize) + 스케일(canvasScale)을
+         * preview-canvas-wrapper 중앙에 배치하는 스타일.
+         */
         canvasScalerStyle() {
             return {
                 width: this.canvasSize.w + 'px',
@@ -136,7 +160,7 @@ const AppRoot = {
             this.setupPanelResizers(); 
             this.setupCanvasScaler(); 
             this.setupInspectorMode();
-            this.setupSpinWheel();
+            this.setupSpinWheel();      // 모든 number 스핀박스 마우스휠 활성화
         });
         window.vm = this; 
     },
@@ -147,6 +171,7 @@ const AppRoot = {
         }
     },
     methods: {
+        // --- System & Dev Mode ---
         firePython(f) {
             console.log('Py:', f);
             if (window.backend && window.backend[f]) {
@@ -326,6 +351,7 @@ const AppRoot = {
             return lines.join('\n');
         },
 
+        // --- 레이어/슬롯 헬퍼 ---
         getColRole(colIdx) {
             return LAYER_COLUMN_ROLES[colIdx] || `col${colIdx}`;
         },
@@ -433,6 +459,7 @@ const AppRoot = {
             this.selectedClip = null;
         },
 
+        // --- Preview/Canvas Logic ---
         setAspect(r) { 
             this.aspectRatio = r; 
             this.updateCanvasSizeFromControls();
@@ -550,6 +577,7 @@ const AppRoot = {
             };
         },
         
+        // --- Layout Resizer Handlers ---
         setupPanelResizers() {
             const setup = (rid, stateKey, minSize, dir, isReverse = false) => {
                 const r = document.getElementById(rid);
@@ -617,6 +645,7 @@ const AppRoot = {
             }
         },
 
+        // --- 모든 number 스핀박스: 마우스 휠로 증감 (기본 min=0, 음수 방지) ---
         setupSpinWheel() {
             const handler = (event) => {
                 const target = event.target;
@@ -624,6 +653,7 @@ const AppRoot = {
                 if (target.type !== 'number') return;
                 if (target.disabled || target.readOnly) return;
 
+                // 스핀박스 위에서만 스크롤 캡처
                 event.preventDefault();
 
                 const stepAttr = target.step;
@@ -633,6 +663,7 @@ const AppRoot = {
                 let value = parseFloat(target.value);
                 if (isNaN(value)) value = 0;
 
+                // 기본 min은 0 (음수 방지)
                 const min = target.min !== '' ? parseFloat(target.min) : 0;
                 const max = target.max !== '' ? parseFloat(target.max) : +Infinity;
 
@@ -642,6 +673,7 @@ const AppRoot = {
 
                 target.value = value;
 
+                // v-model 갱신을 위한 input 이벤트 강제 발생
                 const evt = new Event('input', { bubbles: true });
                 target.dispatchEvent(evt);
             };
@@ -650,6 +682,7 @@ const AppRoot = {
             this._spinWheelHandler = handler;
         },
 
+        // --- 레이어 설정 모달 ---
         openLayerConfig(boxId) {
             this.layerConfig.isOpen = true;
             this.layerConfig.boxId = boxId;
@@ -667,6 +700,7 @@ const AppRoot = {
             this.closeLayerConfig();
         },
 
+        // --- Core Model Methods (Clips/Boxes) ---
         removeBox(id) {
             this.canvasBoxes = this.canvasBoxes.filter(b => b.id !== id);
             if (this.selectedBoxId === id) this.selectedBoxId = null;
@@ -705,6 +739,7 @@ const AppRoot = {
             this.tracks = tracks;
         },
 
+        // 레이어 템플릿 저장 (JSON 스냅샷 포함)
         saveLayerTemplate(name, matrixJson) {
             const newTpl = {
                 id: `tpl_${Date.now()}`,
@@ -762,4 +797,4 @@ const AppRoot = {
     }
 };
 
-window.AppRoot = AppRoot;
+createApp(AppRoot).mount('#app-vue-root');
