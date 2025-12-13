@@ -1,7 +1,8 @@
 // PreviewRenderer
 // - 퍼센트 좌표(0~1)를 사용하는 프리뷰 전용 Canvas2D 렌더러 뼈대
 // - 나중에 WebGL + SDF/MSDF 렌더러로 교체하기 위한 자리입니다.
-// - 현재는 레이어 박스를 점선 사각형으로만 그립니다.
+// - 현재는 레이어 박스를 점선 사각형으로만 그리고,
+//   프리뷰 화면 배율(%)을 상단 UI에 표시합니다.
 
 (function (global) {
     const PreviewRenderer = {
@@ -44,6 +45,24 @@
             global.requestAnimationFrame(this.loop.bind(this));
         },
 
+        /**
+         * 프리뷰 상단 화면 배율 표시 업데이트
+         * - 기준: 논리 캔버스 높이 대비 실제 렌더 캔버스 높이 비율
+         * - 예: hPix(360) / ch(1080) = 0.333... → 33%
+         */
+        updateZoomIndicator(scale) {
+            const valueEl = global.document.getElementById('preview-zoom-indicator-value');
+            if (!valueEl) return;
+
+            if (!scale || !isFinite(scale) || scale <= 0) {
+                valueEl.textContent = '100%';
+                return;
+            }
+
+            const pct = scale * 100;
+            valueEl.textContent = pct.toFixed(0) + '%';
+        },
+
         render() {
             if (!this.ctx || !this.vm) return;
             const state = this.vm;
@@ -54,8 +73,12 @@
             const ch = canvasSize.h || 1;
 
             const rect = this.canvas.getBoundingClientRect();
-            const wPix = rect.width;
-            const hPix = rect.height;
+            const wPix = rect.width || 1;
+            const hPix = rect.height || 1;
+
+            // 화면 배율 표시 갱신
+            const scaleY = ch ? (hPix / ch) : 1;
+            this.updateZoomIndicator(scaleY);
 
             this.ctx.clearRect(0, 0, wPix, hPix);
 
@@ -66,6 +89,7 @@
             for (const box of boxes) {
                 if (!box || box.isHidden) continue;
 
+                // 퍼센트 좌표가 있으면 우선 사용, 없으면 px → 비율 변환
                 const nx = (typeof box.nx === 'number') ? box.nx : (box.x || 0) / cw;
                 const ny = (typeof box.ny === 'number') ? box.ny : (box.y || 0) / ch;
                 const nw = (typeof box.nw === 'number') ? box.nw : (box.w || cw) / cw;
