@@ -44,15 +44,15 @@ const PreviewCanvas = {
             </div>
         </div>
     `,
-    data() { 
+    data() {
         return {};
     },
-    mounted() { 
-        this.initInteract(); 
+    mounted() {
+        this.initInteract();
     },
-    updated() { 
-        this.initInteract(); 
-    }, 
+    updated() {
+        this.initInteract();
+    },
     methods: {
         boxStyle(box) {
             return {
@@ -82,18 +82,23 @@ const PreviewCanvas = {
             }
         },
         initInteract() {
+            // interact.js 가 없으면 (CDN 로딩 실패 등) 그냥 종료
+            if (typeof interact === 'undefined') {
+                console.warn('[PreviewCanvas] interact.js not found');
+                return;
+            }
+
             const self = this;
-            if (!window.interact) return;
 
             // 기존 바인딩 해제
-            window.interact('.canvas-box').unset();
+            interact('.canvas-box').unset();
 
             // ---------------------------
             // 드래그 (박스 전체 영역)
             // ---------------------------
-            window.interact('.canvas-box').draggable({
+            interact('.canvas-box').draggable({
                 modifiers: [
-                    window.interact.modifiers.restrictRect({
+                    interact.modifiers.restrictRect({
                         restriction: 'parent',
                         endOnly: true
                     })
@@ -104,10 +109,10 @@ const PreviewCanvas = {
                         const scaler = document.getElementById('preview-canvas-scaler');
                         const scaleMatch = scaler && scaler.style.transform.match(/scale\(([^)]+)\)/);
                         const scale = scaleMatch ? parseFloat(scaleMatch[1]) : 1.0;
-                        
+
                         let x = (parseFloat(target.getAttribute('data-x')) || 0) + (e.dx / scale);
                         let y = (parseFloat(target.getAttribute('data-y')) || 0) + (e.dy / scale);
-                        
+
                         // 중앙 가이드 (수직)
                         const guideV = document.getElementById('preview-guide-v');
                         if (guideV) {
@@ -124,7 +129,7 @@ const PreviewCanvas = {
                             guideV.style.display = Math.abs(cx - centerX) < 10 ? 'block' : 'none';
                         }
 
-                        target.style.transform = `translate(${x}px, ${y}px)`; 
+                        target.style.transform = `translate(${x}px, ${y}px)`;
                         target.setAttribute('data-x', x);
                         target.setAttribute('data-y', y);
                     },
@@ -142,9 +147,9 @@ const PreviewCanvas = {
                         const boxId = target.id.replace('preview-canvas-box-', '');
                         const box = self.canvasBoxes.find(b => b.id === boxId);
                         if (!box) {
-                            target.removeAttribute('data-x'); 
+                            target.removeAttribute('data-x');
                             target.removeAttribute('data-y');
-                            target.style.transform = 'translate(0, 0)'; 
+                            target.style.transform = 'translate(0, 0)';
                             return;
                         }
 
@@ -166,9 +171,9 @@ const PreviewCanvas = {
                             self.triggerSnapFlash(target);
                         }
 
-                        target.removeAttribute('data-x'); 
+                        target.removeAttribute('data-x');
                         target.removeAttribute('data-y');
-                        target.style.transform = 'translate(0, 0)'; 
+                        target.style.transform = 'translate(0, 0)';
                     }
                 }
             })
@@ -176,22 +181,22 @@ const PreviewCanvas = {
             // 리사이즈 (변 5px 영역만)
             // ---------------------------
             .resizable({
-                // 네 변 모두 리사이즈 가능
                 edges: { left: true, right: true, bottom: true, top: true },
                 // 커서가 변에서 5px 이내일 때만 리사이즈로 인식
                 margin: 5,
                 modifiers: [
-                    window.interact.modifiers.restrictEdges({ outer: 'parent' })
+                    interact.modifiers.restrictEdges({ outer: 'parent' })
                 ],
                 listeners: {
                     move(e) {
                         const scaler = document.getElementById('preview-canvas-scaler');
                         const scaleMatch = scaler && scaler.style.transform.match(/scale\(([^)]+)\)/);
                         const scale = scaleMatch ? parseFloat(scaleMatch[1]) : 1.0;
-                        
+
                         let { x, y } = e.target.dataset;
                         x = (parseFloat(x) || 0) + (e.deltaRect.left / scale);
                         y = (parseFloat(y) || 0) + (e.deltaRect.top / scale);
+
                         Object.assign(e.target.style, {
                             width: `${e.rect.width / scale}px`,
                             height: `${e.rect.height / scale}px`,
@@ -203,13 +208,13 @@ const PreviewCanvas = {
                         const scaler = document.getElementById('preview-canvas-scaler');
                         const scaleMatch = scaler && scaler.style.transform.match(/scale\(([^)]+)\)/);
                         const scale = scaleMatch ? parseFloat(scaleMatch[1]) : 1.0;
-                        
+
                         const boxId = e.target.id.replace('preview-canvas-box-', '');
                         const box = self.canvasBoxes.find(b => b.id === boxId);
                         if (!box) {
-                            e.target.removeAttribute('data-x'); 
+                            e.target.removeAttribute('data-x');
                             e.target.removeAttribute('data-y');
-                            e.target.style.transform = 'translate(0, 0)'; 
+                            e.target.style.transform = 'translate(0, 0)';
                             e.target.style.width = null;
                             e.target.style.height = null;
                             return;
@@ -236,16 +241,16 @@ const PreviewCanvas = {
                                 newY,
                                 newW,
                                 newH
-                            ); 
+                            );
                         }
 
                         if (snapResult.snapped) {
                             self.triggerSnapFlash(e.target);
                         }
 
-                        e.target.removeAttribute('data-x'); 
+                        e.target.removeAttribute('data-x');
                         e.target.removeAttribute('data-y');
-                        e.target.style.transform = 'translate(0, 0)'; 
+                        e.target.style.transform = 'translate(0, 0)';
                         e.target.style.width = null;
                         e.target.style.height = null;
                     }
