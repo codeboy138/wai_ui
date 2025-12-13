@@ -1,4 +1,4 @@
-// Preview Canvas Component
+// Preview Canvas Component (no interact.js, pure mouse drag/resize)
 const PreviewCanvas = {
     props: ['canvasBoxes', 'selectedBoxId'],
     template: `
@@ -15,10 +15,8 @@ const PreviewCanvas = {
                 class="canvas-box pointer-events-auto"
                 :class="{ 'selected': selectedBoxId === box.id }"
                 :style="boxStyle(box)"
-                @mousedown.stop="$emit('select-box', box.id)"
+                @mousedown.stop="onBoxMouseDown($event, box)"
                 @contextmenu.prevent="openLayerConfig(box.id)"
-                data-x="0"
-                data-y="0"
                 data-action="js:selectCanvasBox"
             >
                 <!-- 텍스트 박스 내용: 레이어 전체 영역 사용 -->
@@ -30,7 +28,7 @@ const PreviewCanvas = {
                     {{ effectiveText(box) }}
                 </div>
 
-                <!-- 모서리 ㄱ자 핸들 -->
+                <!-- 모서리 ㄱ자 핸들 (시각적 요소만, 실제 리사이즈는 박스 가장자리 5px 기준) -->
                 <div class="box-handle bh-tl"></div>
                 <div class="box-handle bh-tr"></div>
                 <div class="box-handle bh-bl"></div>
@@ -58,19 +56,18 @@ const PreviewCanvas = {
     `,
     data() {
         return {
-            _interactBound: false
+            // 드래그/리사이즈 상태
+            dragMode: null,       // 'move' | 'resize' | null
+            dragBoxId: null,
+            dragStartMouse: { x: 0, y: 0 },
+            dragStartBox:   { x: 0, y: 0, w: 0, h: 0 },
+            dragEdges: { left: false, right: false, top: false, bottom: false },
+            dragScale: 1.0,
+            dragCanvasSize: { w: 1920, h: 1080 }
         };
     },
-    mounted() {
-        this.initInteractOnce();
-    },
-    updated() {
-        // interact.js 는 selector 기반이므로 한 번만 바인딩하면
-        // 이후에 생성되는 .canvas-box 들에도 자동 적용됨.
-        this.initInteractOnce();
-    },
     methods: {
-        // 기본 안내 문구
+        // ---------- 텍스트 표시 ----------
         defaultTextMessage() {
             return '현재의 레이어에 적용할\n텍스트 스타일을 설정하세요';
         },
@@ -81,7 +78,7 @@ const PreviewCanvas = {
             return this.defaultTextMessage();
         },
 
-        // 레이어 박스 스타일: 점선 + 2px (기존 대비 2배)
+        // 레이어 박스 스타일: 점선 + 2px (색상 시인성)
         boxStyle(box) {
             return {
                 display: box.isHidden ? 'none' : 'block',
@@ -95,19 +92,19 @@ const PreviewCanvas = {
                 borderWidth: '2px',
                 boxSizing: 'border-box',
                 zIndex: box.zIndex,
-                backgroundColor: box.layerBgColor || 'rgba(0,0,0,1)'
+                backgroundColor: box.layerBgColor || '#000000'
             };
         },
 
-        // 텍스트 표시 영역: 레이어 전체를 덮도록 설정
-        // + 행간 1.2, 정렬은 box.textStyle.textAlign(left/center/right) 사용
+        // 텍스트 표시 영역: 레이어 전체를 사용
+        // 정렬은 box.textStyle.textAlign ('left' | 'center' | 'right')
         textStyle(box) {
             const ts = box.textStyle || {};
             const fontSize = ts.fontSize || 48;
             const align = ts.textAlign || 'center';
 
             let justifyContent = 'center';
-            if (align === 'left') justifyContent = 'flex-start';
+            if (align === 'left')  justifyContent = 'flex-start';
             if (align === 'right') justifyContent = 'flex-end';
 
             return {
@@ -120,8 +117,8 @@ const PreviewCanvas = {
                 boxSizing: 'border-box',
 
                 display: 'flex',
-                alignItems: 'center',       // 수직 중앙 정렬
-                justifyContent,             // 수평 정렬
+                alignItems: 'center',     // 수직 중앙
+                justifyContent,           // 수평 정렬
                 textAlign: align,
 
                 color: ts.fillColor || '#ffffff',
@@ -135,6 +132,7 @@ const PreviewCanvas = {
             };
         },
 
+        // ---------- 레이블 텍스트 ----------
         // 컬럼 이름: 전체 / 상단 / 중단 / 하단
         getColLabel(box) {
             const role = box.colRole || '';
@@ -152,58 +150,60 @@ const PreviewCanvas = {
             return '';
         },
 
-        // 레이블 위치 계산
-        // - 기본: 박스 우측 외측
-        // - EFF: 박스 우측 "상단" 기준
-        // - TXT: 박스 우측 "중앙" 기준
-        // - BG : 박스 우측 "하단" 기준
-        // - 우측 캔버스 밖으로 나가면 → 박스 내부 우측으로 이동
+        // 레이블 위치:
+        // - 기본 기준은 "박스 안" 좌표계 (box 내부 기준)
+        // - EFF: 우측 상단 외측
+        // - TXT: 우측 중앙 외측
+        // - BG : 우측 하단 외측
+        // - 박스의 x + w + 라벨폭이 캔버스를 넘으면 → 우측 "내측"으로 이동
         labelWrapperStyle(box) {
             const margin = 8;
             const labelWidth = 220;
-            const labelHeight = 90; // 폰트 40px 기준 여유
+            const labelHeight = 90; // 폰트 40 기준 여유
 
             const canvasSize = (this.$parent && this.$parent.canvasSize) || { w: 1920, h: 1080 };
             const canvasW = canvasSize.w;
-            const canvasH = canvasSize.h;
 
-            let left = box.x + box.w + margin;
-            let top;
+            // 밖으로 뺄 경우의 전역 X 좌표
+            const worldRightOutside = box.x + box.w + margin + labelWidth;
+            const overflowRight = worldRightOutside > canvasW;
 
+            // localX: 박스 내부 기준
+            let localLeft;
+            if (overflowRight) {
+                // 내측
+                localLeft = box.w - labelWidth - margin;
+                if (localLeft < margin) localLeft = margin;
+            } else {
+                // 외측
+                localLeft = box.w + margin;
+            }
+
+            // localY: 박스 내부 기준
+            let localTop;
             if (box.rowType === 'EFF') {
-                top = box.y; // 상단
+                localTop = margin;                           // 위쪽
             } else if (box.rowType === 'BG') {
-                top = box.y + box.h - labelHeight; // 하단
+                localTop = box.h - labelHeight - margin;     // 아래쪽
             } else {
                 // TXT 또는 기타 → 중앙
-                top = box.y + (box.h / 2) - (labelHeight / 2);
+                localTop = (box.h - labelHeight) / 2;
             }
-
-            // 우측으로 튀어나가면 박스 내부 우측으로 이동
-            const overflowRight = left + labelWidth > canvasW;
-            if (overflowRight) {
-                left = box.x + box.w - labelWidth - margin;
-                if (left < box.x + margin) {
-                    left = box.x + margin;
-                }
-            }
-
-            // 상/하단 캔버스 범위 보정
-            if (top < 0) top = 0;
-            if (top + labelHeight > canvasH) {
-                top = canvasH - labelHeight;
+            if (localTop < margin) localTop = margin;
+            if (localTop + labelHeight > box.h - margin) {
+                localTop = Math.max(margin, box.h - labelHeight - margin);
             }
 
             return {
                 position: 'absolute',
-                left: left + 'px',
-                top: top + 'px',
+                left: localLeft + 'px',
+                top: localTop + 'px',
                 pointerEvents: 'none',
                 zIndex: box.zIndex + 1
             };
         },
 
-        // 레이블 칩 스타일: 폰트 크기 40, 중앙 정렬(양쪽 균형)
+        // 레이블 칩 스타일: 폰트 40, 중앙 정렬
         labelChipStyle(box) {
             const bg = box.color || '#22c55e';
             const textColor = this.getContrastingTextColor(bg);
@@ -222,12 +222,14 @@ const PreviewCanvas = {
             };
         },
 
+        // ---------- 모달 오픈 ----------
         openLayerConfig(boxId) {
             if (this.$parent && typeof this.$parent.openLayerConfig === 'function') {
                 this.$parent.openLayerConfig(boxId);
             }
         },
 
+        // 대비 텍스트 색
         getContrastingTextColor(bgColor) {
             const rgb = this.parseColorToRgb(bgColor);
             if (!rgb) return '#000000';
@@ -240,9 +242,7 @@ const PreviewCanvas = {
 
             if (color[0] === '#') {
                 let hex = color.slice(1);
-                if (hex.length === 3) {
-                    hex = hex.split('').map(c => c + c).join('');
-                }
+                if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
                 if (hex.length !== 6) return null;
                 const num = parseInt(hex, 16);
                 return {
@@ -262,189 +262,144 @@ const PreviewCanvas = {
             return null;
         },
 
-        // -------------------------------
-        // 드래그 & 리사이즈 (interact.js)
-        // -------------------------------
-        initInteractOnce() {
-            if (this._interactBound) return;
+        // ---------- 드래그 / 리사이즈 (순수 JS) ----------
+        onBoxMouseDown(e, box) {
+            e.preventDefault();
+            this.$emit('select-box', box.id);
 
-            const i = window.interact || window.interactjs;
-            if (!i) {
-                console.warn('[PreviewCanvas] interact.js not found');
-                return;
+            const target = e.currentTarget;
+            const rect = target.getBoundingClientRect();
+            const offsetX = e.clientX - rect.left;
+            const offsetY = e.clientY - rect.top;
+            const edgeMargin = 5; // px
+
+            const nearLeft   = offsetX <= edgeMargin;
+            const nearRight  = rect.width  - offsetX <= edgeMargin;
+            const nearTop    = offsetY <= edgeMargin;
+            const nearBottom = rect.height - offsetY <= edgeMargin;
+
+            // 스케일 계산
+            const scaler = document.getElementById('preview-canvas-scaler');
+            let scale = 1.0;
+            if (scaler && scaler.style.transform) {
+                const m = scaler.style.transform.match(/scale\(([^)]+)\)/);
+                if (m) scale = parseFloat(m[1]) || 1.0;
             }
 
-            const self = this;
-            const selector = '.canvas-box';
+            this.dragCanvasSize = (this.$parent && this.$parent.canvasSize) || { w: 1920, h: 1080 };
+            this.dragScale = scale;
+            this.dragBoxId = box.id;
+            this.dragStartMouse = { x: e.clientX, y: e.clientY };
+            this.dragStartBox = { x: box.x, y: box.y, w: box.w, h: box.h };
 
-            // 기존 바인딩이 남아 있을 수 있으므로 한 번 정리 시도
-            try {
-                i(selector).unset();
-            } catch (e) {
-                // 초기에는 아직 바인딩이 없을 수 있으므로 무시
+            if (nearLeft || nearRight || nearTop || nearBottom) {
+                this.dragMode = 'resize';
+                this.dragEdges = { left: nearLeft, right: nearRight, top: nearTop, bottom: nearBottom };
+            } else {
+                this.dragMode = 'move';
+                this.dragEdges = { left: false, right: false, top: false, bottom: false };
             }
 
-            const boxesCount = document.querySelectorAll(selector).length;
-            console.log('[PreviewCanvas] interact bound, boxes:', boxesCount);
-
-            i(selector)
-                .draggable({
-                    modifiers: [
-                        i.modifiers.restrictRect({
-                            restriction: 'parent',
-                            endOnly: true
-                        })
-                    ],
-                    listeners: {
-                        move(event) {
-                            const target = event.target;
-                            if (target.style.display === 'none') return;
-
-                            const scaler = document.getElementById('preview-canvas-scaler');
-                            let scale = 1.0;
-                            if (scaler && scaler.style.transform) {
-                                const m = scaler.style.transform.match(/scale\(([^)]+)\)/);
-                                if (m) scale = parseFloat(m[1]) || 1.0;
-                            }
-
-                            let x = (parseFloat(target.getAttribute('data-x')) || 0) + (event.dx / scale);
-                            let y = (parseFloat(target.getAttribute('data-y')) || 0) + (event.dy / scale);
-
-                            target.style.transform = `translate(${x}px, ${y}px)`;
-                            target.setAttribute('data-x', x);
-                            target.setAttribute('data-y', y);
-                        },
-                        end(event) {
-                            const target = event.target;
-
-                            const scaler = document.getElementById('preview-canvas-scaler');
-                            let scale = 1.0;
-                            if (scaler && scaler.style.transform) {
-                                const m = scaler.style.transform.match(/scale\(([^)]+)\)/);
-                                if (m) scale = parseFloat(m[1]) || 1.0;
-                            }
-
-                            const boxId = target.id.replace('preview-canvas-box-', '');
-                            const box = self.canvasBoxes.find(b => b.id === boxId);
-                            if (!box) {
-                                target.removeAttribute('data-x');
-                                target.removeAttribute('data-y');
-                                target.style.transform = 'translate(0, 0)';
-                                return;
-                            }
-
-                            const dx = parseFloat(target.getAttribute('data-x')) || 0;
-                            const dy = parseFloat(target.getAttribute('data-y')) || 0;
-
-                            let newX = box.x + dx;
-                            let newY = box.y + dy;
-
-                            const snapResult = self.checkSnap(boxId, newX, newY, box.w, box.h);
-                            newX = snapResult.x;
-                            newY = snapResult.y;
-
-                            if (self.$parent && typeof self.$parent.updateBoxPosition === 'function') {
-                                self.$parent.updateBoxPosition(boxId, newX, newY, undefined, undefined);
-                            }
-
-                            if (snapResult.snapped) {
-                                self.triggerSnapFlash(target);
-                            }
-
-                            target.removeAttribute('data-x');
-                            target.removeAttribute('data-y');
-                            target.style.transform = 'translate(0, 0)';
-                        }
-                    }
-                })
-                .resizable({
-                    edges: { left: true, right: true, bottom: true, top: true },
-                    margin: 5,
-                    modifiers: [
-                        i.modifiers.restrictEdges({ outer: 'parent' })
-                    ],
-                    listeners: {
-                        move(event) {
-                            const target = event.target;
-                            if (target.style.display === 'none') return;
-
-                            const scaler = document.getElementById('preview-canvas-scaler');
-                            let scale = 1.0;
-                            if (scaler && scaler.style.transform) {
-                                const m = scaler.style.transform.match(/scale\(([^)]+)\)/);
-                                if (m) scale = parseFloat(m[1]) || 1.0;
-                            }
-
-                            let x = (parseFloat(target.dataset.x) || 0) + (event.deltaRect.left / scale);
-                            let y = (parseFloat(target.dataset.y) || 0) + (event.deltaRect.top / scale);
-
-                            Object.assign(target.style, {
-                                width: `${event.rect.width / scale}px`,
-                                height: `${event.rect.height / scale}px`,
-                                transform: `translate(${x}px, ${y}px)`
-                            });
-                            Object.assign(target.dataset, { x, y });
-                        },
-                        end(event) {
-                            const target = event.target;
-                            const scaler = document.getElementById('preview-canvas-scaler');
-                            let scale = 1.0;
-                            if (scaler && scaler.style.transform) {
-                                const m = scaler.style.transform.match(/scale\(([^)]+)\)/);
-                                if (m) scale = parseFloat(m[1]) || 1.0;
-                            }
-
-                            const boxId = target.id.replace('preview-canvas-box-', '');
-                            const box = self.canvasBoxes.find(b => b.id === boxId);
-                            if (!box) {
-                                target.removeAttribute('data-x');
-                                target.removeAttribute('data-y');
-                                target.style.transform = 'translate(0, 0)';
-                                target.style.width = null;
-                                target.style.height = null;
-                                return;
-                            }
-
-                            const dx = parseFloat(target.dataset.x) || 0;
-                            const dy = parseFloat(target.dataset.y) || 0;
-
-                            let newX = box.x + dx;
-                            let newY = box.y + dy;
-                            let newW = event.rect.width / scale;
-                            let newH = event.rect.height / scale;
-
-                            const snapResult = self.checkSnap(boxId, newX, newY, newW, newH);
-                            newX = snapResult.x;
-                            newY = snapResult.y;
-                            newW = snapResult.w;
-                            newH = snapResult.h;
-
-                            if (self.$parent && typeof self.$parent.updateBoxPosition === 'function') {
-                                self.$parent.updateBoxPosition(
-                                    boxId,
-                                    newX,
-                                    newY,
-                                    newW,
-                                    newH
-                                );
-                            }
-
-                            if (snapResult.snapped) {
-                                self.triggerSnapFlash(target);
-                            }
-
-                            target.removeAttribute('data-x');
-                            target.removeAttribute('data-y');
-                            target.style.transform = 'translate(0, 0)';
-                            target.style.width = null;
-                            target.style.height = null;
-                        }
-                    }
-                });
-
-            this._interactBound = true;
+            window.addEventListener('mousemove', this.onMouseMove);
+            window.addEventListener('mouseup', this.onMouseUp);
         },
 
+        onMouseMove(e) {
+            if (!this.dragMode || !this.dragBoxId) return;
+
+            const dxClient = e.clientX - this.dragStartMouse.x;
+            const dyClient = e.clientY - this.dragStartMouse.y;
+            const dx = dxClient / this.dragScale;
+            const dy = dyClient / this.dragScale;
+
+            const start = this.dragStartBox;
+            const canvas = this.dragCanvasSize;
+            let newX = start.x;
+            let newY = start.y;
+            let newW = start.w;
+            let newH = start.h;
+
+            if (this.dragMode === 'move') {
+                newX = start.x + dx;
+                newY = start.y + dy;
+
+                // 캔버스 내부로 제한
+                newX = Math.max(0, Math.min(newX, canvas.w - newW));
+                newY = Math.max(0, Math.min(newY, canvas.h - newH));
+            } else if (this.dragMode === 'resize') {
+                const edges = this.dragEdges;
+
+                if (edges.left) {
+                    newX = start.x + dx;
+                    newW = start.w - dx;
+                }
+                if (edges.right) {
+                    newW = start.w + dx;
+                }
+                if (edges.top) {
+                    newY = start.y + dy;
+                    newH = start.h - dy;
+                }
+                if (edges.bottom) {
+                    newH = start.h + dy;
+                }
+
+                // 최소 크기
+                const minW = 20;
+                const minH = 20;
+                if (newW < minW) {
+                    if (edges.left) newX -= (minW - newW);
+                    newW = minW;
+                }
+                if (newH < minH) {
+                    if (edges.top) newY -= (minH - newH);
+                    newH = minH;
+                }
+
+                // 캔버스 범위 보정
+                if (newX < 0) {
+                    newW += newX;
+                    newX = 0;
+                }
+                if (newY < 0) {
+                    newH += newY;
+                    newY = 0;
+                }
+                if (newX + newW > canvas.w) newW = canvas.w - newX;
+                if (newY + newH > canvas.h) newH = canvas.h - newY;
+            }
+
+            if (this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
+                this.$parent.updateBoxPosition(this.dragBoxId, newX, newY, newW, newH);
+            }
+        },
+
+        onMouseUp() {
+            if (this.dragMode && this.dragBoxId) {
+                const box = this.canvasBoxes.find(b => b.id === this.dragBoxId);
+                if (box) {
+                    const snapResult = this.checkSnap(box.id, box.x, box.y, box.w, box.h);
+                    if (snapResult.snapped && this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
+                        this.$parent.updateBoxPosition(
+                            box.id,
+                            snapResult.x,
+                            snapResult.y,
+                            snapResult.w,
+                            snapResult.h
+                        );
+                        const target = document.getElementById('preview-canvas-box-' + box.id);
+                        if (target) this.triggerSnapFlash(target);
+                    }
+                }
+            }
+
+            window.removeEventListener('mousemove', this.onMouseMove);
+            window.removeEventListener('mouseup', this.onMouseUp);
+            this.dragMode = null;
+            this.dragBoxId = null;
+        },
+
+        // ---------- 스냅 & 플래시 ----------
         checkSnap(boxId, x, y, w, h) {
             const threshold = 8;
             let snapped = false;
@@ -454,7 +409,7 @@ const PreviewCanvas = {
             let right = x + w;
             let bottom = y + h;
 
-            const canvasSize = (this.$parent && this.$parent.canvasSize) || { w: 1920, h: 1080 };
+            const canvasSize = this.dragCanvasSize || { w: 1920, h: 1080 };
             const canvasLeft = 0;
             const canvasTop = 0;
             const canvasRight = canvasSize.w;
@@ -512,15 +467,9 @@ const PreviewCanvas = {
             flash.style.transition = 'opacity 0.5s ease-out';
 
             target.appendChild(flash);
-
-            requestAnimationFrame(() => {
-                flash.style.opacity = '0';
-            });
-
+            requestAnimationFrame(() => { flash.style.opacity = '0'; });
             setTimeout(() => {
-                if (flash.parentNode === target) {
-                    target.removeChild(flash);
-                }
+                if (flash.parentNode === target) target.removeChild(flash);
             }, 500);
         }
     }
