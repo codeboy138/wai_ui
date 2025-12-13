@@ -21,13 +21,13 @@ const PreviewCanvas = {
                 data-y="0"
                 data-action="js:selectCanvasBox"
             >
-                <!-- 텍스트 박스 내용 -->
+                <!-- 텍스트 박스 내용 (모달 상단 입력필드와 연동) -->
                 <div
-                    v-if="box.rowType === 'TXT' && box.textStyle"
+                    v-if="box.rowType === 'TXT'"
                     class="canvas-text-content"
                     :style="textStyle(box)"
                 >
-                    {{ box.textStyle.sampleText || '텍스트' }}
+                    {{ effectiveText(box) }}
                 </div>
 
                 <!-- 모서리 ㄱ자 핸들 (선택 시 표시) -->
@@ -86,7 +86,7 @@ const PreviewCanvas = {
                 boxSizing: 'border-box',
                 gap: '4px',
                 pointerEvents: 'none',
-                fontSize: '45px',             // <<< 라벨 텍스트 크기 (1.5배)
+                fontSize: '45px',             // 라벨 텍스트 크기
                 fontWeight: '700',
                 lineHeight: '1'
             };
@@ -99,6 +99,17 @@ const PreviewCanvas = {
         this.initInteract();
     },
     methods: {
+        // 텍스트 기본 문구 (box.textContent 없을 때)
+        defaultTextMessage() {
+            return '현재의 레이어에 적용할\n텍스트 스타일을 설정하세요';
+        },
+        effectiveText(box) {
+            if (box.textContent && box.textContent.trim().length > 0) {
+                return box.textContent;
+            }
+            return this.defaultTextMessage();
+        },
+
         // 박스 기본 스타일: 점선 + 두께 2배(1px)
         boxStyle(box) {
             return {
@@ -124,11 +135,11 @@ const PreviewCanvas = {
                 fontSize: (ts.fontSize || 48) + 'px',
                 backgroundColor: ts.backgroundColor || 'transparent',
                 WebkitTextStrokeColor: ts.strokeColor || 'transparent',
-                WebkitTextStrokeWidth: (ts.strokeWidth || 0) + 'px'
+                WebkitTextStrokeWidth: (ts.strokeWidth || 0) + 'px',
+                whiteSpace: 'pre-wrap'          // 모달에서 입력한 줄바꿈 그대로 표시
             };
         },
 
-        // --- 라벨 텍스트 "열/행" 조합 ---
         // 열(컬럼 역할) → 전체 / 상단 / 중단 / 하단
         getColLabel(box) {
             const role = box.colRole || '';
@@ -145,7 +156,7 @@ const PreviewCanvas = {
             if (rowType === 'BG')  return '배경';
             return '';
         },
-        // 각 컬럼에 찍을 라벨 문자열: "열/행" (예: 전체/이펙트, 상단/텍스트 ...)
+        // 각 컬럼에 찍을 라벨 문자열: "열/행" (예: 전체/이펙트, 상단/텍스트 …)
         segmentLabel(box, segType) {
             const col = this.getColLabel(box);
             const row = this.getRowLabel(segType);
@@ -156,9 +167,6 @@ const PreviewCanvas = {
         },
 
         // 3컬럼 레이블 각각의 스타일
-        // - 1컬럼: 이펙트
-        // - 2컬럼: 텍스트
-        // - 3컬럼: 배경
         // → 해당 박스 타입(rowType)에 해당하는 칸만 컬러 하이라이트
         labelSegmentStyle(box, segType) {
             const isActive = box.rowType === segType;
@@ -174,7 +182,7 @@ const PreviewCanvas = {
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 padding: '4px 8px',
-                pointerEvents: 'none',
+                pointerEvents: 'none'
             };
 
             if (isActive) {
@@ -188,7 +196,6 @@ const PreviewCanvas = {
                     textShadow: '0 0 4px rgba(0,0,0,0.6)'
                 });
             } else {
-                // 비활성 레이블은 어두운 회색톤으로 표시
                 return Object.assign({}, base, {
                     backgroundColor: 'rgba(0,0,0,0.55)',
                     color: 'rgba(255,255,255,0.65)'
