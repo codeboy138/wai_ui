@@ -9,7 +9,7 @@ const PreviewCanvas = {
             @click="$emit('select-box', null)"
         >
             <div
-                v-for="box in canvasBoxes"
+                v-for="box in visibleBoxes"
                 :key="box.id"
                 :id="'preview-canvas-box-' + box.id"
                 class="canvas-box pointer-events-auto"
@@ -23,7 +23,7 @@ const PreviewCanvas = {
             >
                 <div
                     class="canvas-label"
-                    :style="{ backgroundColor: box.color }"
+                    :style="labelStyle(box)"
                 >
                     {{ box.layerName || ('Z:' + box.zIndex) }}
                 </div>
@@ -36,7 +36,6 @@ const PreviewCanvas = {
                     텍스트
                 </div>
 
-                <!-- 모서리 ㄱ자 핸들 (선택 시 표시) -->
                 <div class="box-handle bh-tl"></div>
                 <div class="box-handle bh-tr"></div>
                 <div class="box-handle bh-bl"></div>
@@ -44,8 +43,11 @@ const PreviewCanvas = {
             </div>
         </div>
     `,
-    data() {
-        return {};
+    computed: {
+        // 숨김 처리된 레이어는 프리뷰/스냅에서 제외
+        visibleBoxes() {
+            return (this.canvasBoxes || []).filter(b => !b.isHidden);
+        }
     },
     mounted() {
         this.initInteract();
@@ -76,6 +78,60 @@ const PreviewCanvas = {
                 WebkitTextStrokeWidth: (ts.strokeWidth || 0) + 'px'
             };
         },
+        // 라벨 위치: Effect / Text / BG → 하단 3등분
+        labelStyle(box) {
+            const base = {
+                bottom: '0px',
+                height: '16px',
+                lineHeight: '16px',
+                fontSize: '10px',
+                fontWeight: 'bold',
+                position: 'absolute',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+            };
+
+            let left = '0%';
+            let width = '100%';
+            let textAlign = 'center';
+
+            if (box.rowType === 'EFF') {
+                left = '0%';
+                width = '33.333%';
+                textAlign = 'left';
+            } else if (box.rowType === 'TXT') {
+                left = '33.333%';
+                width = '33.333%';
+                textAlign = 'center';
+            } else if (box.rowType === 'BG') {
+                left = '66.666%';
+                width = '33.333%';
+                textAlign = 'right';
+            }
+
+            const bg = box.color || '#3b82f6';
+            const fg = this.getComplementColor(bg);
+
+            return Object.assign({}, base, {
+                left,
+                width,
+                textAlign,
+                backgroundColor: bg,
+                color: fg
+            });
+        },
+        //  보색 계산 (hex 6자리 기준)
+        getComplementColor(color) {
+            if (!color) return '#ffffff';
+            const hex = color.replace('#', '').trim();
+            if (hex.length !== 6) return '#ffffff';
+            const r = 255 - parseInt(hex.slice(0, 2), 16);
+            const g = 255 - parseInt(hex.slice(2, 4), 16);
+            const b = 255 - parseInt(hex.slice(4, 6), 16);
+            const toHex = v => v.toString(16).padStart(2, '0');
+            return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+        },
         openLayerConfig(boxId) {
             if (this.$parent && typeof this.$parent.openLayerConfig === 'function') {
                 this.$parent.openLayerConfig(boxId);
@@ -90,12 +146,9 @@ const PreviewCanvas = {
 
             const self = this;
 
-            // 기존 바인딩 해제
             i('.canvas-box').unset();
 
-            // ---------------------------
-            // 드래그 (박스 전체 영역)
-            // ---------------------------
+            // 드래그
             i('.canvas-box').draggable({
                 modifiers: [
                     i.modifiers.restrictRect({
@@ -113,11 +166,10 @@ const PreviewCanvas = {
                         let x = (parseFloat(target.getAttribute('data-x')) || 0) + (e.dx / scale);
                         let y = (parseFloat(target.getAttribute('data-y')) || 0) + (e.dy / scale);
 
-                        // 중앙 가이드 (수직)
                         const guideV = document.getElementById('preview-guide-v');
                         if (guideV) {
                             const boxId = target.id.replace('preview-canvas-box-', '');
-                            const box = self.canvasBoxes.find(b => b.id === boxId);
+                            const box = self.visibleBoxes.find(b => b.id === boxId);
                             const canvasW = (self.$parent && self.$parent.canvasSize) ? self.$parent.canvasSize.w : 1920;
                             const centerX = canvasW / 2;
 
@@ -135,9 +187,7 @@ const PreviewCanvas = {
                     },
                     end(e) {
                         const guideV = document.getElementById('preview-guide-v');
-                        if (guideV) {
-                            guideV.style.display = 'none';
-                        }
+                        if (guideV) guideV.style.display = 'none';
 
                         const target = e.target;
                         const scaler = document.getElementById('preview-canvas-scaler');
@@ -145,7 +195,7 @@ const PreviewCanvas = {
                         const scale = scaleMatch ? parseFloat(scaleMatch[1]) : 1.0;
 
                         const boxId = target.id.replace('preview-canvas-box-', '');
-                        const box = self.canvasBoxes.find(b => b.id === boxId);
+                        const box = self.visibleBoxes.find(b => b.id === boxId);
                         if (!box) {
                             target.removeAttribute('data-x');
                             target.removeAttribute('data-y');
@@ -177,12 +227,9 @@ const PreviewCanvas = {
                     }
                 }
             })
-            // ---------------------------
-            // 리사이즈 (변 5px 영역만)
-            // ---------------------------
+            // 리사이즈 (변 5px)
             .resizable({
                 edges: { left: true, right: true, bottom: true, top: true },
-                // 커서가 변에서 5px 이내일 때만 리사이즈로 인식
                 margin: 5,
                 modifiers: [
                     i.modifiers.restrictEdges({ outer: 'parent' })
@@ -210,7 +257,7 @@ const PreviewCanvas = {
                         const scale = scaleMatch ? parseFloat(scaleMatch[1]) : 1.0;
 
                         const boxId = e.target.id.replace('preview-canvas-box-', '');
-                        const box = self.canvasBoxes.find(b => b.id === boxId);
+                        const box = self.visibleBoxes.find(b => b.id === boxId);
                         if (!box) {
                             e.target.removeAttribute('data-x');
                             e.target.removeAttribute('data-y');
@@ -258,9 +305,9 @@ const PreviewCanvas = {
             });
         },
 
-        // 캔버스/다른 박스와의 스냅 + 플래시 판정
+        // 캔바스/다른 박스와의 스냅 + 플래시 판정
         checkSnap(boxId, x, y, w, h) {
-            const threshold = 2;
+            const threshold = 6; // 조금 넉넉하게
             let snapped = false;
 
             let left = x;
@@ -278,7 +325,7 @@ const PreviewCanvas = {
                 return Math.abs(value - target) <= threshold ? target : null;
             };
 
-            // 캔버스 아웃라인 스냅
+            // 캔바스 아웃라인
             let s = snapTo(left, canvasLeft);
             if (s !== null) { left = s; right = left + w; snapped = true; }
             s = snapTo(right, canvasRight);
@@ -288,8 +335,8 @@ const PreviewCanvas = {
             s = snapTo(bottom, canvasBottom);
             if (s !== null) { bottom = s; top = bottom - h; snapped = true; }
 
-            // 다른 박스와의 스냅
-            const boxes = this.canvasBoxes || [];
+            // 다른 박스
+            const boxes = this.visibleBoxes || [];
             boxes.forEach(b => {
                 if (b.id === boxId) return;
                 const bLeft = b.x;
