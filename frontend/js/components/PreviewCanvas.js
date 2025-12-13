@@ -36,7 +36,7 @@ const PreviewCanvas = {
                 <div class="box-handle bh-bl"></div>
                 <div class="box-handle bh-br"></div>
 
-                <!-- 레이어 레이블: 레이어 박스 하단 내부, 행별 높이 다르게 -->
+                <!-- 레이어 레이블: 레이어 박스 하단 내부 (행별 좌/중/우 배치) -->
                 <div
                     class="canvas-label-right"
                     :style="labelWrapperStyle(box)"
@@ -46,10 +46,7 @@ const PreviewCanvas = {
                         :style="labelChipStyle(box)"
                     >
                         <div class="canvas-label-line">
-                            {{ getColLabel(box) }}
-                        </div>
-                        <div class="canvas-label-line">
-                            {{ getRowLabel(box.rowType) }}
+                            {{ labelText(box) }}
                         </div>
                     </div>
                 </div>
@@ -67,11 +64,7 @@ const PreviewCanvas = {
             dragScale: 1.0,
             dragCanvasSize: { w: 1920, h: 1080 },
             _mouseMoveHandler: null,
-            _mouseUpHandler: null,
-
-            // rAF 기반 드래그 스무딩
-            _dragRafId: null,
-            _dragPending: null
+            _mouseUpHandler: null
         };
     },
     methods: {
@@ -164,39 +157,53 @@ const PreviewCanvas = {
             if (rowType === 'BG')  return '배경';
             return '';
         },
+        // 1행 레이블 텍스트 (예: "중단 텍스트")
+        labelText(box) {
+            const col = this.getColLabel(box);
+            const row = this.getRowLabel(box.rowType);
+            return `${col || ''} ${row || ''}`.trim();
+        },
 
         /**
          * 레이블 위치: 레이어 박스 기준 local 좌표
          *
          * - 항상 "하단 내부"에 위치
-         * - 같은 컬럼 안에서 rowType 별로 서로 다른 높이로 배치 (EFF/TXT/BG 순서)
-         * - 가로는 박스 안쪽 우측에 붙이되, 너무 작을 경우 안에서 클램프
-         * - 캔버스가 스케일되면 레이블도 함께 스케일됨 (canvas-scaler 내부이므로)
+         * - 같은 컬럼 안에서 rowType 별로 좌/중/우로 나눠서 배치
+         *   - EFF : 좌측 하단
+         *   - TXT : 중앙 하단
+         *   - BG  : 우측 하단
          */
         labelWrapperStyle(box) {
-            const marginX = 4;
-            const marginY = 2;
-            const labelApproxWidth = 140;  // 현재 크기 기준
-            const labelApproxHeight = 20;  // 한 줄 높이 기준
+            const marginX = 8;
+            const marginY = 4;
+            const labelApproxWidth = 140;
+            const labelApproxHeight = 20;
 
-            // 1) 행별 스택 순서: 같은 컬럼에서 서로 다른 높이
-            //    BG (0) : 가장 아래, TXT (1) : 그 위, EFF (2) : 가장 위
-            let stackIndex = 0;
-            if (box.rowType === 'TXT') stackIndex = 1;
-            else if (box.rowType === 'EFF') stackIndex = 2;
-
-            // 하단 기준으로 위로 쌓기
-            const baseBottom = box.h - marginY;
-            let localTop = baseBottom - labelApproxHeight * (stackIndex + 1);
-
+            // 세로: 공통으로 아랫변 안쪽
+            let localTop = box.h - labelApproxHeight - marginY;
             if (localTop < marginY) {
                 localTop = marginY;
             }
 
-            // 2) 가로 위치: 기본은 박스 내부 우측 정렬
-            let localLeft = box.w - marginX - labelApproxWidth;
+            // 가로: 행 타입별 위치
+            let localLeft;
+            if (box.rowType === 'EFF') {
+                // 좌측
+                localLeft = marginX;
+            } else if (box.rowType === 'BG') {
+                // 우측
+                localLeft = box.w - marginX - labelApproxWidth;
+            } else {
+                // TXT: 중앙
+                localLeft = (box.w - labelApproxWidth) / 2;
+            }
+
+            // 박스 내부로 클램프
             if (localLeft < marginX) {
                 localLeft = marginX;
+            }
+            if (localLeft + labelApproxWidth > box.w - marginX) {
+                localLeft = Math.max(marginX, box.w - marginX - labelApproxWidth);
             }
 
             return {
@@ -208,7 +215,7 @@ const PreviewCanvas = {
             };
         },
 
-        // 레이블 칩: 현재 크기(느낌) 유지, 캔버스 스케일에 따라 같이 확대/축소
+        // 레이블 칩: 현재 크기 유지, 캔버스 스케일에 따라 같이 확대/축소
         labelChipStyle(box) {
             const base = box.color || '#22c55e';
             const rgb = this.parseColorToRgb(base);
@@ -227,7 +234,7 @@ const PreviewCanvas = {
                 border: '2px solid ' + base,
                 backgroundColor: bg,
                 color: textColor,
-                fontSize: '40px',       // 현재 사용 중인 크기 그대로 유지
+                fontSize: '40px',       // 현재 사용 중인 크기 그대로
                 lineHeight: '1.0',
                 textAlign: 'center',
                 boxSizing: 'border-box',
@@ -278,7 +285,7 @@ const PreviewCanvas = {
 
         // ---------- 공통: 엣지 상태 계산 & 커서 결정 ----------
         getEdgeState(e, rect) {
-            const edgeMargin = 5;
+            const edgeMargin = 8; // 기존 5px → 1.5배 정도 확장
             const offsetX = e.clientX - rect.left;
             const offsetY = e.clientY - rect.top;
 
@@ -437,41 +444,12 @@ const PreviewCanvas = {
                 if (newY + newH > canvas.h) newH = canvas.h - newY;
             }
 
-            // rAF 기반으로 한 프레임에 한 번만 실제 업데이트
-            const pending = {
-                id: this.dragBoxId,
-                x: newX,
-                y: newY,
-                w: newW,
-                h: newH
-            };
-            this._dragPending = pending;
-
-            if (!this._dragRafId) {
-                this._dragRafId = requestAnimationFrame(() => {
-                    this._dragRafId = null;
-                    const p = this._dragPending;
-                    this._dragPending = null;
-                    if (!p) return;
-                    if (this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
-                        this.$parent.updateBoxPosition(p.id, p.x, p.y, p.w, p.h);
-                    }
-                });
+            if (this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
+                this.$parent.updateBoxPosition(this.dragBoxId, newX, newY, newW, newH);
             }
         },
 
         handleMouseUp() {
-            // 남아 있는 pending 위치가 있으면 바로 반영
-            if (this._dragPending && this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
-                const p = this._dragPending;
-                this.$parent.updateBoxPosition(p.id, p.x, p.y, p.w, p.h);
-            }
-            this._dragPending = null;
-            if (this._dragRafId) {
-                cancelAnimationFrame(this._dragRafId);
-                this._dragRafId = null;
-            }
-
             if (this.dragMode && this.dragBoxId) {
                 const box = this.canvasBoxes.find(b => b.id === this.dragBoxId);
                 if (box) {
