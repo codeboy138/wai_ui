@@ -3,16 +3,19 @@ const LayerConfigModal = {
     template: `
         <div
             v-if="box"
-            class="fixed inset-0 z-40 flex items-center justify-center bg-black/60"
+            class="fixed inset-0 z-40 bg-black/60"
             @click.self="onClose"
         >
             <div
+                ref="win"
                 class="layer-config-window bg-bg-panel border border-ui-border rounded shadow-lg text-xs text-text-main flex flex-col"
-                :style="windowStyle"
+                :style="combinedWindowStyle"
+                @mousedown.stop
             >
-                <!-- 헤더 -->
+                <!-- 헤더 (드래그 영역) -->
                 <div
-                    class="flex items-center justify-between px-3 py-2 border-b border-ui-border bg-bg-hover"
+                    class="flex items-center justify-between px-3 py-2 border-b border-ui-border bg-bg-hover cursor-move"
+                    @mousedown.stop.prevent="onHeaderMouseDown"
                 >
                     <div class="flex flex-col">
                         <span class="text-[11px] font-bold">
@@ -24,7 +27,7 @@ const LayerConfigModal = {
                     </div>
                     <button
                         class="text-[10px] text-text-sub hover:text-white"
-                        @click="onClose"
+                        @click.stop="onClose"
                     >
                         ✕
                     </button>
@@ -119,7 +122,7 @@ const LayerConfigModal = {
                             레이어 색상 / 배경
                         </label>
                         <div class="space-y-1">
-                            <!-- 레이어 테두리/라벨 색상 -->
+                            <!-- 레이어 테두리/레이블 색상 -->
                             <div class="flex items-center justify-between gap-2">
                                 <span class="text-[10px] text-text-sub w-16">레이어 색상</span>
                                 <select
@@ -130,8 +133,9 @@ const LayerConfigModal = {
                                         v-for="opt in colorOptions"
                                         :key="'layer-color-' + opt.value"
                                         :value="opt.value"
+                                        :style="optionStyle(opt.value)"
                                     >
-                                        {{ opt.label }}
+                                        {{ '■ ' + opt.name + ' ' + opt.code }}
                                     </option>
                                 </select>
                             </div>
@@ -147,8 +151,9 @@ const LayerConfigModal = {
                                         v-for="opt in colorOptions"
                                         :key="'layer-bg-' + opt.value"
                                         :value="opt.value"
+                                        :style="optionStyle(opt.value)"
                                     >
-                                        {{ opt.label }}
+                                        {{ '■ ' + opt.name + ' ' + opt.code }}
                                     </option>
                                 </select>
                             </div>
@@ -185,7 +190,7 @@ const LayerConfigModal = {
                                 </div>
                             </div>
 
-                            <!-- 색상 필드: 모두 '선택' 대신 색상 이름/코드 표시 -->
+                            <!-- 텍스트 색상 -->
                             <div class="flex items-center justify-between gap-2">
                                 <span class="text-[10px] text-text-sub w-16">텍스트 색상</span>
                                 <select
@@ -196,12 +201,14 @@ const LayerConfigModal = {
                                         v-for="opt in colorOptions"
                                         :key="'fill-' + opt.value"
                                         :value="opt.value"
+                                        :style="optionStyle(opt.value)"
                                     >
-                                        {{ opt.label }}
+                                        {{ '■ ' + opt.name + ' ' + opt.code }}
                                     </option>
                                 </select>
                             </div>
 
+                            <!-- 테두리 색상 -->
                             <div class="flex items-center justify-between gap-2">
                                 <span class="text-[10px] text-text-sub w-16">테두리 색상</span>
                                 <select
@@ -212,12 +219,14 @@ const LayerConfigModal = {
                                         v-for="opt in colorOptions"
                                         :key="'stroke-' + opt.value"
                                         :value="opt.value"
+                                        :style="optionStyle(opt.value)"
                                     >
-                                        {{ opt.label }}
+                                        {{ '■ ' + opt.name + ' ' + opt.code }}
                                     </option>
                                 </select>
                             </div>
 
+                            <!-- 텍스트 배경 -->
                             <div class="flex items-center justify-between gap-2">
                                 <span class="text-[10px] text-text-sub w-16">텍스트 배경</span>
                                 <select
@@ -228,8 +237,9 @@ const LayerConfigModal = {
                                         v-for="opt in colorOptions"
                                         :key="'text-bg-' + opt.value"
                                         :value="opt.value"
+                                        :style="optionStyle(opt.value)"
                                     >
-                                        {{ opt.label }}
+                                        {{ '■ ' + opt.name + ' ' + opt.code }}
                                     </option>
                                 </select>
                             </div>
@@ -237,39 +247,68 @@ const LayerConfigModal = {
                     </div>
                 </div>
 
-                <!-- 푸터 -->
+                <!-- 푸터 + 리사이즈 핸들 -->
                 <div class="px-3 py-2 border-t border-ui-border flex justify-between items-center">
                     <button
                         class="text-[11px] text-red-400 hover:text-red-300"
-                        @click="onDelete"
+                        @click.stop="onDelete"
                     >
                         레이어 삭제
                     </button>
-                    <button
-                        class="text-[11px] px-2 py-1 rounded bg-ui-accent text-white hover:bg-blue-600"
-                        @click="onClose"
-                    >
-                        닫기
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <div
+                            class="w-3 h-3 bg-bg-hover border border-ui-border cursor-se-resize"
+                            @mousedown.stop.prevent="onResizeMouseDown"
+                            title="드래그하여 창 크기 조절"
+                        ></div>
+                        <button
+                            class="text-[11px] px-2 py-1 rounded bg-ui-accent text-white hover:bg-blue-600"
+                            @click.stop="onClose"
+                        >
+                            닫기
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     `,
     data() {
         return {
-            // 모달 초기 폭: 약 320px (이전의 절반 수준)
-            windowStyle: {
-                width: '320px',
-                maxWidth: '90vw',
-                maxHeight: '80vh'
-            },
+            // 초기 크기: 이전 대비 절반 정도 폭
+            baseWidth: 320,
+            baseHeight: 420,
+            posX: 0,
+            posY: 0,
+            width: 320,
+            height: 420,
+            dragging: false,
+            dragStartMouseX: 0,
+            dragStartMouseY: 0,
+            dragStartPosX: 0,
+            dragStartPosY: 0,
+            resizing: false,
+            resizeStartMouseX: 0,
+            resizeStartMouseY: 0,
+            resizeStartW: 0,
+            resizeStartH: 0,
             textPlaceholder: '현재의 레이어에 적용할\n텍스트 스타일을 설정하세요',
-            colorOptions: (typeof COLORS !== 'undefined'
-                ? COLORS.map(c => ({ value: c, label: c }))
-                : [])
+            colorOptions: []
         };
     },
     computed: {
+        combinedWindowStyle() {
+            return {
+                position: 'absolute',
+                left: this.posX + 'px',
+                top: this.posY + 'px',
+                width: this.width + 'px',
+                height: this.height + 'px',
+                maxWidth: '90vw',
+                maxHeight: '80vh',
+                minWidth: '280px',
+                minHeight: '260px'
+            };
+        },
         isTextLayer() {
             return this.box && this.box.rowType === 'TXT';
         },
@@ -286,14 +325,52 @@ const LayerConfigModal = {
             return parts.join(' · ');
         }
     },
+    mounted() {
+        this.centerWindow();
+        this.buildColorOptions();
+        document.addEventListener('mousemove', this.onGlobalMouseMove);
+        document.addEventListener('mouseup', this.onGlobalMouseUp);
+    },
+    beforeUnmount() {
+        document.removeEventListener('mousemove', this.onGlobalMouseMove);
+        document.removeEventListener('mouseup', this.onGlobalMouseUp);
+    },
     methods: {
-        onClose() {
-            this.$emit('close');
+        centerWindow() {
+            const vw = window.innerWidth || 1280;
+            const vh = window.innerHeight || 720;
+            this.width = this.baseWidth;
+            this.height = this.baseHeight;
+            this.posX = Math.max(20, (vw - this.width) / 2);
+            this.posY = Math.max(20, (vh - this.height) / 2);
         },
-        onDelete() {
-            // 부모에서 deleteLayerFromConfig 로 처리하도록 이벤트 송출
-            this.$emit('delete');
-            this.$emit('delete-layer');
+        buildColorOptions() {
+            // COLORS: ['#RRGGBB', ...] 전제
+            if (typeof COLORS === 'undefined' || !Array.isArray(COLORS)) {
+                this.colorOptions = [];
+                return;
+            }
+            this.colorOptions = COLORS.map(c => {
+                // 이름 정보가 있는 글로벌 매핑이 있으면 활용
+                let name = c;
+                if (window.COLOR_NAMES && window.COLOR_NAMES[c]) {
+                    name = window.COLOR_NAMES[c];
+                } else if (window.COLOR_META && window.COLOR_META[c] && window.COLOR_META[c].name) {
+                    name = window.COLOR_META[c].name;
+                }
+                return {
+                    value: c,
+                    name,
+                    code: c
+                };
+            });
+        },
+        optionStyle(color) {
+            const textColor = this.getContrastingTextColor(color);
+            return {
+                backgroundColor: color,
+                color: textColor
+            };
         },
         getColLabel(colRole) {
             if (colRole === 'full') return '전체';
@@ -307,6 +384,84 @@ const LayerConfigModal = {
             if (rowType === 'TXT') return '텍스트';
             if (rowType === 'BG')  return '배경';
             return '';
+        },
+        // 헤더 드래그 시작
+        onHeaderMouseDown(e) {
+            this.dragging = true;
+            this.dragStartMouseX = e.clientX;
+            this.dragStartMouseY = e.clientY;
+            this.dragStartPosX = this.posX;
+            this.dragStartPosY = this.posY;
+        },
+        onResizeMouseDown(e) {
+            this.resizing = true;
+            this.resizeStartMouseX = e.clientX;
+            this.resizeStartMouseY = e.clientY;
+            this.resizeStartW = this.width;
+            this.resizeStartH = this.height;
+        },
+        onGlobalMouseMove(e) {
+            if (this.dragging) {
+                const dx = e.clientX - this.dragStartMouseX;
+                const dy = e.clientY - this.dragStartMouseY;
+                this.posX = this.dragStartPosX + dx;
+                this.posY = this.dragStartPosY + dy;
+            } else if (this.resizing) {
+                const dx = e.clientX - this.resizeStartMouseX;
+                const dy = e.clientY - this.resizeStartMouseY;
+                let newW = this.resizeStartW + dx;
+                let newH = this.resizeStartH + dy;
+                if (newW < 280) newW = 280;
+                if (newH < 260) newH = 260;
+                this.width = newW;
+                this.height = newH;
+            }
+        },
+        onGlobalMouseUp() {
+            this.dragging = false;
+            this.resizing = false;
+        },
+        onClose() {
+            this.$emit('close');
+        },
+        onDelete() {
+            this.$emit('delete');
+            this.$emit('delete-layer');
+        },
+
+        // 배경색에 따라 가독성 좋은 텍스트 컬러 선택(흰/검)
+        getContrastingTextColor(bgColor) {
+            const rgb = this.parseColorToRgb(bgColor);
+            if (!rgb) return '#000000';
+            const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
+            return luminance > 0.5 ? '#000000' : '#ffffff';
+        },
+        parseColorToRgb(color) {
+            if (!color || typeof color !== 'string') return null;
+            color = color.trim().toLowerCase();
+
+            if (color[0] === '#') {
+                let hex = color.slice(1);
+                if (hex.length === 3) {
+                    hex = hex.split('').map(c => c + c).join('');
+                }
+                if (hex.length !== 6) return null;
+                const num = parseInt(hex, 16);
+                return {
+                    r: (num >> 16) & 255,
+                    g: (num >> 8) & 255,
+                    b: num & 255
+                };
+            }
+
+            const rgbMatch = color.match(/rgba?\(([^)]+)\)/);
+            if (rgbMatch) {
+                const parts = rgbMatch[1].split(',').map(v => parseFloat(v.trim()));
+                if (parts.length >= 3) {
+                    return { r: parts[0], g: parts[1], b: parts[2] };
+                }
+            }
+            return null;
         }
     }
 };
