@@ -15,7 +15,7 @@ const PreviewCanvas = {
                 class="canvas-box pointer-events-auto"
                 :class="{ 'selected': selectedBoxId === box.id }"
                 :style="boxStyle(box)"
-                @mousedown.stop="$emit('select-box', box.id)"
+                @click.stop="$emit('select-box', box.id)"
                 @contextmenu.prevent="openLayerConfig(box.id)"
                 data-x="0"
                 data-y="0"
@@ -82,23 +82,23 @@ const PreviewCanvas = {
             }
         },
         initInteract() {
-            // interact.js 가 없으면 (CDN 로딩 실패 등) 그냥 종료
-            if (typeof interact === 'undefined') {
-                console.warn('[PreviewCanvas] interact.js not found');
+            const i = window.interact;
+            if (!i) {
+                console.warn('[PreviewCanvas] window.interact not found');
                 return;
             }
 
             const self = this;
 
             // 기존 바인딩 해제
-            interact('.canvas-box').unset();
+            i('.canvas-box').unset();
 
             // ---------------------------
             // 드래그 (박스 전체 영역)
             // ---------------------------
-            interact('.canvas-box').draggable({
+            i('.canvas-box').draggable({
                 modifiers: [
-                    interact.modifiers.restrictRect({
+                    i.modifiers.restrictRect({
                         restriction: 'parent',
                         endOnly: true
                     })
@@ -185,7 +185,7 @@ const PreviewCanvas = {
                 // 커서가 변에서 5px 이내일 때만 리사이즈로 인식
                 margin: 5,
                 modifiers: [
-                    interact.modifiers.restrictEdges({ outer: 'parent' })
+                    i.modifiers.restrictEdges({ outer: 'parent' })
                 ],
                 listeners: {
                     move(e) {
