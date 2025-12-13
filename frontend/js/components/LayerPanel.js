@@ -234,6 +234,39 @@ const LayerPanel = {
             );
             this.contextMenu = null;
         },
+
+        // 레이어 매트릭스 JSON 스냅샷 생성
+        buildLayerMatrixSnapshot(name) {
+            const columns = this.vm.layerCols.map((col, colIdx) => {
+                const colRole = this.getColRole(colIdx);
+                const slots = this.rows.map(row => {
+                    const slotKey = this.getSlotKey(colIdx, row.type);
+                    const used = this.vm.canvasBoxes.some(b => b.slotKey === slotKey);
+                    const zIndex = this.getZIndexForCell(colIdx, row.type);
+                    return {
+                        rowType: row.type,
+                        rowLabel: row.label,
+                        slotKey,
+                        used,
+                        zIndex
+                    };
+                });
+                return {
+                    id: col.id,
+                    name: col.name,
+                    color: col.color,
+                    colRole,
+                    slots
+                };
+            });
+
+            return {
+                templateName: name,
+                savedAt: new Date().toISOString(),
+                columns
+            };
+        },
+
         async saveLayerTemplate() {
             const { value: name } = await Swal.fire({ 
                 title: '레이어 템플릿 저장', 
@@ -245,15 +278,27 @@ const LayerPanel = {
                 color: '#fff', 
                 confirmButtonColor: '#3b82f6' 
             });
-            if (name) { 
-                this.vm.saveLayerTemplate(name); 
+            if (name) {
+                // JSON 스냅샷 생성
+                const snapshot = this.buildLayerMatrixSnapshot(name);
+                const json = JSON.stringify(snapshot, null, 2);
+
+                // AppRoot 에 템플릿 저장 (JSON 포함)
+                this.vm.saveLayerTemplate(name, json);
+
+                // 저장 버튼에 dev 데이터 기록
+                const btn = document.getElementById('panel-right-layer-save-template-btn');
+                if (btn) {
+                    btn.setAttribute('data-dev', json);
+                }
+
                 Swal.fire({
-                    icon:'success',
-                    title:'저장됨',
-                    background:'#1e1e1e',
-                    color:'#fff',
-                    confirmButtonColor:'#3b82f6'
-                }); 
+                    icon: 'success',
+                    title: '저장됨',
+                    background: '#1e1e1e',
+                    color: '#fff',
+                    confirmButtonColor: '#3b82f6'
+                });
             }
         }
     }
