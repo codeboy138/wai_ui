@@ -36,16 +36,31 @@ const PreviewCanvas = {
                 <div class="box-handle bh-bl"></div>
                 <div class="box-handle bh-br"></div>
 
-                <!-- 박스 하단 단일 레이블 바 (해당 레이어 타입만 표시) -->
+                <!-- 박스 하단 3컬럼 레이블 바 (이펙트 / 텍스트 / 배경) -->
                 <div
                     class="canvas-label-bar"
                     :style="labelBarStyle"
                 >
+                    <!-- 1컬럼: 이펙트 -->
                     <div
-                        class="canvas-label-single"
-                        :style="labelSingleStyle(box)"
+                        class="canvas-label-segment seg-effect"
+                        :style="labelSegmentStyle(box, 'EFF')"
                     >
-                        {{ layerLabelText(box) }}
+                        {{ segmentLabel(box, 'EFF') }}
+                    </div>
+                    <!-- 2컬럼: 텍스트 -->
+                    <div
+                        class="canvas-label-segment seg-text"
+                        :style="labelSegmentStyle(box, 'TXT')"
+                    >
+                        {{ segmentLabel(box, 'TXT') }}
+                    </div>
+                    <!-- 3컬럼: 배경 -->
+                    <div
+                        class="canvas-label-segment seg-bg"
+                        :style="labelSegmentStyle(box, 'BG')"
+                    >
+                        {{ segmentLabel(box, 'BG') }}
                     </div>
                 </div>
             </div>
@@ -63,14 +78,15 @@ const PreviewCanvas = {
                 left: '0',
                 right: '0',
                 bottom: '0',
-                height: '60px',               // 45px 폰트 + 여유
+                height: '64px',               // 45px 폰트 + 여유
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                alignItems: 'stretch',
+                justifyContent: 'space-between',
                 padding: '4px 6px',
                 boxSizing: 'border-box',
+                gap: '4px',
                 pointerEvents: 'none',
-                fontSize: '45px',             // <<< 라벨 텍스트 크기
+                fontSize: '45px',             // <<< 라벨 텍스트 크기 (1.5배)
                 fontWeight: '700',
                 lineHeight: '1'
             };
@@ -83,6 +99,7 @@ const PreviewCanvas = {
         this.initInteract();
     },
     methods: {
+        // 박스 기본 스타일: 점선 + 두께 2배(1px)
         boxStyle(box) {
             return {
                 display: box.isHidden ? 'none' : 'block',
@@ -92,6 +109,9 @@ const PreviewCanvas = {
                 width: box.w + 'px',
                 height: box.h + 'px',
                 borderColor: box.color,
+                borderStyle: 'dashed',
+                borderWidth: '1px',               // 0.5px → 2배 = 1px
+                boxSizing: 'border-box',
                 zIndex: box.zIndex,
                 backgroundColor: box.layerBgColor || 'rgba(255,255,255,0.05)'
             };
@@ -107,34 +127,75 @@ const PreviewCanvas = {
                 WebkitTextStrokeWidth: (ts.strokeWidth || 0) + 'px'
             };
         },
-        // 해당 레이어 박스의 레이블 텍스트 (Effect / Text / Background)
-        layerLabelText(box) {
-            if (box.rowType === 'EFF') return 'Effect';
-            if (box.rowType === 'TXT') return 'Text';
-            if (box.rowType === 'BG')  return 'Background';
-            return box.layerName || '';
+
+        // --- 라벨 텍스트 "열/행" 조합 ---
+        // 열(컬럼 역할) → 전체 / 상단 / 중단 / 하단
+        getColLabel(box) {
+            const role = box.colRole || '';
+            if (role === 'full') return '전체';
+            if (role === 'high') return '상단';
+            if (role === 'mid')  return '중단';
+            if (role === 'low')  return '하단';
+            return role || '';
         },
-        // 단일 레이블 스타일 (해당 박스 색상으로 하이라이트)
-        labelSingleStyle(box) {
-            const bg = box.color || '#facc15';
-            const textColor = this.getContrastingTextColor(bg);
-            return {
+        // 행(레이어 타입) → 이펙트 / 텍스트 / 배경
+        getRowLabel(rowType) {
+            if (rowType === 'EFF') return '이펙트';
+            if (rowType === 'TXT') return '텍스트';
+            if (rowType === 'BG')  return '배경';
+            return '';
+        },
+        // 각 컬럼에 찍을 라벨 문자열: "열/행" (예: 전체/이펙트, 상단/텍스트 ...)
+        segmentLabel(box, segType) {
+            const col = this.getColLabel(box);
+            const row = this.getRowLabel(segType);
+            if (!col && !row) return '';
+            if (!col) return row;
+            if (!row) return col;
+            return `${col}/${row}`;
+        },
+
+        // 3컬럼 레이블 각각의 스타일
+        // - 1컬럼: 이펙트
+        // - 2컬럼: 텍스트
+        // - 3컬럼: 배경
+        // → 해당 박스 타입(rowType)에 해당하는 칸만 컬러 하이라이트
+        labelSegmentStyle(box, segType) {
+            const isActive = box.rowType === segType;
+
+            const base = {
                 flex: '1 1 0',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 borderRadius: '6px',
-                border: `2px solid ${bg}`,
+                border: '2px solid rgba(255,255,255,0.35)',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 padding: '4px 8px',
                 pointerEvents: 'none',
-                backgroundColor: bg,
-                color: textColor,
-                textShadow: '0 0 4px rgba(0,0,0,0.6)'
             };
+
+            if (isActive) {
+                // 이펙트(EFF), 텍스트(TXT), 배경(BG) 모두 동일하게 컬러 하이라이트
+                const bg = box.color || '#facc15';
+                const textColor = this.getContrastingTextColor(bg);
+                return Object.assign({}, base, {
+                    backgroundColor: bg,
+                    color: textColor,
+                    borderColor: bg,
+                    textShadow: '0 0 4px rgba(0,0,0,0.6)'
+                });
+            } else {
+                // 비활성 레이블은 어두운 회색톤으로 표시
+                return Object.assign({}, base, {
+                    backgroundColor: 'rgba(0,0,0,0.55)',
+                    color: 'rgba(255,255,255,0.65)'
+                });
+            }
         },
+
         // 레이어 설정 모달 열기
         openLayerConfig(boxId) {
             if (this.$parent && typeof this.$parent.openLayerConfig === 'function') {
@@ -182,6 +243,9 @@ const PreviewCanvas = {
             return null;
         },
 
+        // ------------------------------------------------
+        // 드래그 & 리사이즈 (interact.js)
+        // ------------------------------------------------
         initInteract() {
             const i = window.interact || window.interactjs;
             if (!i) {
