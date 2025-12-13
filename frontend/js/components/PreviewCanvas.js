@@ -16,6 +16,8 @@ const PreviewCanvas = {
                 :class="{ 'selected': selectedBoxId === box.id }"
                 :style="boxStyle(box)"
                 @mousedown.stop="onBoxMouseDown($event, box)"
+                @mousemove.stop="onBoxMouseMove($event, box)"
+                @mouseleave="onBoxMouseLeave($event)"
                 @contextmenu.prevent="openLayerConfig(box.id)"
                 data-action="js:selectCanvasBox"
             >
@@ -34,7 +36,7 @@ const PreviewCanvas = {
                 <div class="box-handle bh-bl"></div>
                 <div class="box-handle bh-br"></div>
 
-                <!-- 레이어 레이블: 박스 우측 외측에 배치 -->
+                <!-- 레이어 레이블: 박스 기준 우측/좌측 바깥 또는 내부 가장자리 -->
                 <div
                     class="canvas-label-right"
                     :style="labelWrapperStyle(box)"
@@ -159,39 +161,84 @@ const PreviewCanvas = {
             return '';
         },
 
-        // 레이블 위치: 레이어 박스 기준 local 좌표
-        // - 항상 박스의 "오른쪽 바깥"에 배치 (캔버스 밖으로 나가도 허용)
-        // - EFF: 위쪽, TXT: 세로 중앙, BG: 아래쪽 근처
+        /**
+         * 레이블 위치: 레이어 박스 기준 local 좌표
+         *
+         * - 기본: 박스의 "오른쪽 바깥"에 배치
+         * - 오른쪽으로 나가서 캔버스를 벗어날 것 같으면:
+         *   - 여유가 있으면 왼쪽 바깥으로
+         *   - 양쪽 다 여유가 없으면 박스 안쪽 가장자리로 클램프
+         * - 세로 위치는 행 타입별 다르게(같은 컬럼끼리 겹치지 않도록)
+         */
         labelWrapperStyle(box) {
             const margin = 4;
-            const labelApproxWidth = 140;   // 대략적인 레이블 폭
-            const labelApproxHeight = 60;   // 대략적인 레이블 높이
+            const labelApproxWidth = 120;   // 대략적인 레이블 폭
+            const labelApproxHeight = 34;   // 대략적인 레이블 높이
 
-            // 가로 위치: 무조건 박스 오른쪽 바깥
-            let localLeft = box.w + margin;
+            const canvasSize =
+                (this.$parent && this.$parent.canvasSize) ||
+                { w: 1920, h: 1080 };
+            const canvasW = canvasSize.w;
+            const canvasH = canvasSize.h;
 
-            // 세로 위치: 행 타입별로 서로 다른 높이에 배치
-            let localTop;
+            // 박스의 월드 좌표
+            const worldBoxLeft = box.x;
+            const worldBoxRight = box.x + box.w;
+            const worldBoxTop = box.y;
+            const worldBoxBottom = box.y + box.h;
+
+            // 1) 가로: 기본은 오른쪽 바깥
+            let worldLeft = worldBoxRight + margin;
+
+            // 2) 세로: 행 타입별 기준점
+            let worldTop;
             if (box.rowType === 'EFF') {
                 // 상단 쪽
-                localTop = margin;
+                worldTop = worldBoxTop + margin;
             } else if (box.rowType === 'BG') {
                 // 하단 쪽
-                localTop = box.h - labelApproxHeight - margin;
+                worldTop = worldBoxBottom - labelApproxHeight - margin;
             } else {
                 // TXT: 세로 중앙
-                localTop = (box.h - labelApproxHeight) / 2;
+                worldTop = worldBoxTop + (box.h - labelApproxHeight) / 2;
             }
 
-            // 박스가 너무 작을 경우를 대비한 최소/최대 클램프 (박스 내부 기준)
-            if (localTop < margin) {
-                localTop = margin;
+            // 세로는 캔버스 안에서만 보이도록 클램프
+            if (worldTop < margin) {
+                worldTop = margin;
             }
-            if (localTop + labelApproxHeight > box.h - margin) {
-                localTop = Math.max(margin, box.h - labelApproxHeight - margin);
+            if (worldTop + labelApproxHeight > canvasH - margin) {
+                worldTop = Math.max(
+                    margin,
+                    canvasH - labelApproxHeight - margin
+                );
             }
 
-            // 캔버스 경계는 신경 쓰지 않음 (요구사항: 넘어가도 상관 없음)
+            // 오른쪽으로 캔버스를 벗어날 경우 처리
+            const overflowRight =
+                worldLeft + labelApproxWidth > canvasW - margin;
+
+            if (overflowRight) {
+                // 1차 시도: 왼쪽 바깥 (캔버스 안에 전부 들어오면 OK)
+                const leftOutsideCandidate =
+                    worldBoxLeft - margin - labelApproxWidth;
+                if (leftOutsideCandidate >= margin) {
+                    worldLeft = leftOutsideCandidate;
+                } else {
+                    // 2차: 캔버스 안에서만이라도 보이도록 오른쪽/왼쪽 가장자리 쪽으로 클램프
+                    const rightInside = canvasW - margin - labelApproxWidth;
+                    const attachedRight = worldBoxRight - labelApproxWidth - margin;
+                    worldLeft = Math.min(rightInside, attachedRight);
+                    if (worldLeft < margin) {
+                        worldLeft = margin;
+                    }
+                }
+            }
+
+            // 월드 → 박스 로컬 좌표로 변환
+            const localLeft = worldLeft - worldBoxLeft;
+            const localTop = worldTop - worldBoxTop;
+
             return {
                 position: 'absolute',
                 left: localLeft + 'px',
@@ -237,7 +284,8 @@ const PreviewCanvas = {
         getContrastingTextColor(bgColor) {
             const rgb = this.parseColorToRgb(bgColor);
             if (!rgb) return '#000000';
-            const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
+            const luminance =
+                (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
             return luminance > 0.5 ? '#000000' : '#ffffff';
         },
         parseColorToRgb(color) {
@@ -268,6 +316,37 @@ const PreviewCanvas = {
             return null;
         },
 
+        // ---------- 공통: 엣지 상태 계산 & 커서 결정 ----------
+        getEdgeState(e, rect) {
+            const edgeMargin = 5;
+            const offsetX = e.clientX - rect.left;
+            const offsetY = e.clientY - rect.top;
+
+            const nearLeft   = offsetX <= edgeMargin;
+            const nearRight  = rect.width  - offsetX <= edgeMargin;
+            const nearTop    = offsetY <= edgeMargin;
+            const nearBottom = rect.height - offsetY <= edgeMargin;
+
+            return { nearLeft, nearRight, nearTop, nearBottom };
+        },
+        getCursorForEdges({ nearLeft, nearRight, nearTop, nearBottom }) {
+            // 모서리 우선
+            if ((nearLeft && nearTop) || (nearRight && nearBottom)) {
+                return 'nwse-resize';
+            }
+            if ((nearRight && nearTop) || (nearLeft && nearBottom)) {
+                return 'nesw-resize';
+            }
+            if (nearLeft || nearRight) {
+                return 'ew-resize';
+            }
+            if (nearTop || nearBottom) {
+                return 'ns-resize';
+            }
+            // 그 외에는 이동 가능한 상태임을 보여주기 위해 move
+            return 'move';
+        },
+
         // ---------- 드래그 / 리사이즈 (순수 JS) ----------
         onBoxMouseDown(e, box) {
             e.preventDefault();
@@ -275,14 +354,7 @@ const PreviewCanvas = {
 
             const target = e.currentTarget;
             const rect = target.getBoundingClientRect();
-            const offsetX = e.clientX - rect.left;
-            const offsetY = e.clientY - rect.top;
-            const edgeMargin = 5; // px
-
-            const nearLeft   = offsetX <= edgeMargin;
-            const nearRight  = rect.width  - offsetX <= edgeMargin;
-            const nearTop    = offsetY <= edgeMargin;
-            const nearBottom = rect.height - offsetY <= edgeMargin;
+            const edgeState = this.getEdgeState(e, rect);
 
             const scaler = document.getElementById('preview-canvas-scaler');
             let scale = 1.0;
@@ -291,18 +363,29 @@ const PreviewCanvas = {
                 if (m) scale = parseFloat(m[1]) || 1.0;
             }
 
-            this.dragCanvasSize = (this.$parent && this.$parent.canvasSize) || { w: 1920, h: 1080 };
+            this.dragCanvasSize =
+                (this.$parent && this.$parent.canvasSize) ||
+                { w: 1920, h: 1080 };
             this.dragScale = scale;
             this.dragBoxId = box.id;
             this.dragStartMouse = { x: e.clientX, y: e.clientY };
             this.dragStartBox = { x: box.x, y: box.y, w: box.w, h: box.h };
 
+            const { nearLeft, nearRight, nearTop, nearBottom } = edgeState;
+
             if (nearLeft || nearRight || nearTop || nearBottom) {
                 this.dragMode = 'resize';
-                this.dragEdges = { left: nearLeft, right: nearRight, top: nearTop, bottom: nearBottom };
+                this.dragEdges = {
+                    left: nearLeft,
+                    right: nearRight,
+                    top: nearTop,
+                    bottom: nearBottom
+                };
+                target.style.cursor = this.getCursorForEdges(edgeState);
             } else {
                 this.dragMode = 'move';
                 this.dragEdges = { left: false, right: false, top: false, bottom: false };
+                target.style.cursor = 'grabbing';
             }
 
             if (!this._mouseMoveHandler) {
@@ -311,6 +394,25 @@ const PreviewCanvas = {
             }
             window.addEventListener('mousemove', this._mouseMoveHandler);
             window.addEventListener('mouseup', this._mouseUpHandler);
+        },
+
+        onBoxMouseMove(e, box) {
+            // 드래그 중에는 별도로 커서 처리하지 않고, mousedown 시 설정된 값 유지
+            if (this.dragMode && this.dragBoxId === box.id) return;
+
+            const target = e.currentTarget;
+            const rect = target.getBoundingClientRect();
+            const edgeState = this.getEdgeState(e, rect);
+            const cursor = this.getCursorForEdges(edgeState);
+            target.style.cursor = cursor;
+        },
+
+        onBoxMouseLeave(e) {
+            const target = e.currentTarget;
+            // 드래그 중이 아니면 기본 커서로 복원
+            if (!this.dragMode) {
+                target.style.cursor = 'default';
+            }
         },
 
         handleMouseMove(e) {
