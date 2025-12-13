@@ -156,9 +156,17 @@ const AppRoot = {
             this.updateCanvasSizeFromControls();
             this.setupPanelResizers(); 
             this.setupCanvasScaler(); 
-            this.setupInspectorMode(); 
+            this.setupInspectorMode();
+            this.setupSpinWheel();      // 모든 number 스핀박스 마우스휠 활성화
         });
         window.vm = this; 
+    },
+    beforeUnmount() {
+        // 글로벌 wheel 핸들러 정리
+        if (this._spinWheelHandler) {
+            document.removeEventListener('wheel', this._spinWheelHandler);
+            this._spinWheelHandler = null;
+        }
     },
     methods: {
         // --- System & Dev Mode ---
@@ -632,6 +640,42 @@ const AppRoot = {
             } else {
                 window.addEventListener('resize', updateScale);
             }
+        },
+
+        // --- 모든 number 스핀박스: 마우스 휠로 증감 ---
+        setupSpinWheel() {
+            const handler = (event) => {
+                const target = event.target;
+                if (!(target instanceof HTMLInputElement)) return;
+                if (target.type !== 'number') return;
+                if (target.disabled || target.readOnly) return;
+
+                // 스핀박스 위에서만 스크롤 캡처
+                event.preventDefault();
+
+                const stepAttr = target.step;
+                const step = stepAttr ? parseFloat(stepAttr) : 1;
+                const dir = event.deltaY < 0 ? 1 : -1;
+
+                let value = parseFloat(target.value);
+                if (isNaN(value)) value = 0;
+
+                const min = target.min !== '' ? parseFloat(target.min) : -Infinity;
+                const max = target.max !== '' ? parseFloat(target.max) : +Infinity;
+
+                value += dir * step;
+                if (value < min) value = min;
+                if (value > max) value = max;
+
+                target.value = value;
+
+                // v-model 갱신을 위한 input 이벤트 강제 발생
+                const evt = new Event('input', { bubbles: true });
+                target.dispatchEvent(evt);
+            };
+
+            document.addEventListener('wheel', handler, { passive: false });
+            this._spinWheelHandler = handler;
         },
 
         // --- 레이어 설정 모달 ---
