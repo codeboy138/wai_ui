@@ -36,31 +36,21 @@ const PreviewCanvas = {
                 <div class="box-handle bh-bl"></div>
                 <div class="box-handle bh-br"></div>
 
-                <!-- 박스 하단 3컬럼 레이블 바 (이펙트 / 텍스트 / 배경) -->
+                <!-- 우측 변 레이블 (해당 레이어 한 개만 표시) -->
                 <div
-                    class="canvas-label-bar"
-                    :style="labelBarStyle"
+                    class="canvas-label-right"
+                    :style="labelWrapperStyle(box)"
                 >
-                    <!-- 1컬럼: 이펙트 -->
                     <div
-                        class="canvas-label-segment seg-effect"
-                        :style="labelSegmentStyle(box, 'EFF')"
+                        class="canvas-label-chip"
+                        :style="labelChipStyle(box)"
                     >
-                        {{ segmentLabel(box, 'EFF') }}
-                    </div>
-                    <!-- 2컬럼: 텍스트 -->
-                    <div
-                        class="canvas-label-segment seg-text"
-                        :style="labelSegmentStyle(box, 'TXT')"
-                    >
-                        {{ segmentLabel(box, 'TXT') }}
-                    </div>
-                    <!-- 3컬럼: 배경 -->
-                    <div
-                        class="canvas-label-segment seg-bg"
-                        :style="labelSegmentStyle(box, 'BG')"
-                    >
-                        {{ segmentLabel(box, 'BG') }}
+                        <div class="canvas-label-line">
+                            {{ getColLabel(box) }}
+                        </div>
+                        <div class="canvas-label-line">
+                            {{ getRowLabel(box.rowType) }}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -68,29 +58,6 @@ const PreviewCanvas = {
     `,
     data() {
         return {};
-    },
-    computed: {
-        // 레이블 바 전체 스타일
-        // - 텍스트 크기: 45px (이전 30px 대비 1.5배 증가)
-        labelBarStyle() {
-            return {
-                position: 'absolute',
-                left: '0',
-                right: '0',
-                bottom: '0',
-                height: '64px',               // 45px 폰트 + 여유
-                display: 'flex',
-                alignItems: 'stretch',
-                justifyContent: 'space-between',
-                padding: '4px 6px',
-                boxSizing: 'border-box',
-                gap: '4px',
-                pointerEvents: 'none',
-                fontSize: '45px',             // 라벨 텍스트 크기
-                fontWeight: '700',
-                lineHeight: '1'
-            };
-        }
     },
     mounted() {
         this.initInteract();
@@ -110,7 +77,7 @@ const PreviewCanvas = {
             return this.defaultTextMessage();
         },
 
-        // 박스 기본 스타일: 점선 + 두께 2배(1px)
+        // 박스 스타일: 점선 + 1px (0.5px의 2배)
         boxStyle(box) {
             return {
                 display: box.isHidden ? 'none' : 'block',
@@ -121,26 +88,31 @@ const PreviewCanvas = {
                 height: box.h + 'px',
                 borderColor: box.color,
                 borderStyle: 'dashed',
-                borderWidth: '1px',               // 0.5px → 2배 = 1px
+                borderWidth: '1px',
                 boxSizing: 'border-box',
                 zIndex: box.zIndex,
                 backgroundColor: box.layerBgColor || 'rgba(255,255,255,0.05)'
             };
         },
+
+        // 텍스트 행간 겹침 방지 (lineHeight 1.2)
         textStyle(box) {
             const ts = box.textStyle || {};
+            const fontSize = ts.fontSize || 48;
             return {
                 color: ts.fillColor || '#ffffff',
                 fontFamily: ts.fontFamily || 'Pretendard, system-ui, sans-serif',
-                fontSize: (ts.fontSize || 48) + 'px',
+                fontSize: fontSize + 'px',
+                lineHeight: (ts.lineHeight || 1.2),
                 backgroundColor: ts.backgroundColor || 'transparent',
                 WebkitTextStrokeColor: ts.strokeColor || 'transparent',
                 WebkitTextStrokeWidth: (ts.strokeWidth || 0) + 'px',
-                whiteSpace: 'pre-wrap'          // 모달에서 입력한 줄바꿈 그대로 표시
+                whiteSpace: 'pre-wrap'
             };
         },
 
-        // 열(컬럼 역할) → 전체 / 상단 / 중단 / 하단
+        // --- 레이블 텍스트 (컬럼/줄 이름) ---
+        // 컬럼: 전체 / 상단 / 중단 / 하단
         getColLabel(box) {
             const role = box.colRole || '';
             if (role === 'full') return '전체';
@@ -149,58 +121,71 @@ const PreviewCanvas = {
             if (role === 'low')  return '하단';
             return role || '';
         },
-        // 행(레이어 타입) → 이펙트 / 텍스트 / 배경
+        // 줄: 이펙트 / 텍스트 / 배경
         getRowLabel(rowType) {
             if (rowType === 'EFF') return '이펙트';
             if (rowType === 'TXT') return '텍스트';
             if (rowType === 'BG')  return '배경';
             return '';
         },
-        // 각 컬럼에 찍을 라벨 문자열: "열/행" (예: 전체/이펙트, 상단/텍스트 …)
-        segmentLabel(box, segType) {
-            const col = this.getColLabel(box);
-            const row = this.getRowLabel(segType);
-            if (!col && !row) return '';
-            if (!col) return row;
-            if (!row) return col;
-            return `${col}/${row}`;
+
+        // 레이블 래퍼 위치:
+        // 기본: 박스 우측 외측 (x + w + margin)
+        // 캔버스 밖으로 나가면 → 박스 내부 우측으로 이동
+        labelWrapperStyle(box) {
+            const margin = 6;
+            const labelWidth = 120;
+            const labelHeight = 40;
+
+            const canvasSize = (this.$parent && this.$parent.canvasSize) || { w: 1920, h: 1080 };
+            const canvasW = canvasSize.w;
+            const canvasH = canvasSize.h;
+
+            // 기본: 우측 외부
+            let left = box.x + box.w + margin;
+            let top = box.y + (box.h / 2) - (labelHeight / 2);
+
+            // 우측 여유가 부족하면 → 박스 내부로 이동
+            const outsideRight = left + labelWidth > canvasW;
+            if (outsideRight) {
+                left = box.x + box.w - labelWidth - margin;
+                if (left < box.x + margin) {
+                    left = box.x + margin;
+                }
+            }
+
+            // 상/하단 캔버스 범위 보정
+            if (top < 0) top = 0;
+            if (top + labelHeight > canvasH) {
+                top = canvasH - labelHeight;
+            }
+
+            return {
+                position: 'absolute',
+                left: left + 'px',
+                top: top + 'px',
+                pointerEvents: 'none',
+                zIndex: box.zIndex + 1
+            };
         },
 
-        // 3컬럼 레이블 각각의 스타일
-        // → 해당 박스 타입(rowType)에 해당하는 칸만 컬러 하이라이트
-        labelSegmentStyle(box, segType) {
-            const isActive = box.rowType === segType;
-
-            const base = {
-                flex: '1 1 0',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+        // 레이블 칩 스타일 (2행, 텍스트 1.5배: 대략 18px)
+        labelChipStyle(box) {
+            const bg = box.color || '#facc15';
+            const textColor = this.getContrastingTextColor(bg);
+            return {
+                minWidth: '120px',
+                padding: '4px 6px',
                 borderRadius: '6px',
-                border: '2px solid rgba(255,255,255,0.35)',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                padding: '4px 8px',
-                pointerEvents: 'none'
+                border: '2px solid ' + bg,
+                backgroundColor: bg,
+                color: textColor,
+                fontSize: '18px',     // 약 1.5배 크기
+                lineHeight: '1.1',
+                textAlign: 'center',
+                boxSizing: 'border-box',
+                textShadow: '0 0 4px rgba(0,0,0,0.6)'
             };
-
-            if (isActive) {
-                // 이펙트(EFF), 텍스트(TXT), 배경(BG) 모두 동일하게 컬러 하이라이트
-                const bg = box.color || '#facc15';
-                const textColor = this.getContrastingTextColor(bg);
-                return Object.assign({}, base, {
-                    backgroundColor: bg,
-                    color: textColor,
-                    borderColor: bg,
-                    textShadow: '0 0 4px rgba(0,0,0,0.6)'
-                });
-            } else {
-                return Object.assign({}, base, {
-                    backgroundColor: 'rgba(0,0,0,0.55)',
-                    color: 'rgba(255,255,255,0.65)'
-                });
-            }
         },
 
         // 레이어 설정 모달 열기
@@ -293,33 +278,12 @@ const PreviewCanvas = {
                             let x = (parseFloat(target.getAttribute('data-x')) || 0) + (event.dx / scale);
                             let y = (parseFloat(target.getAttribute('data-y')) || 0) + (event.dy / scale);
 
-                            // 중앙 가이드 (수직) 예시 유지
-                            const guideV = document.getElementById('preview-guide-v');
-                            if (guideV) {
-                                const boxId = target.id.replace('preview-canvas-box-', '');
-                                const box = self.canvasBoxes.find(b => b.id === boxId);
-                                const canvasW = (self.$parent && self.$parent.canvasSize) ? self.$parent.canvasSize.w : 1920;
-                                const centerX = canvasW / 2;
-
-                                const baseLeft = box ? box.x : 0;
-                                const newLeft = baseLeft + x;
-                                const newWidth = box ? box.w : (event.rect.width / scale);
-                                const cx = newLeft + (newWidth / 2);
-
-                                guideV.style.display = Math.abs(cx - centerX) < 10 ? 'block' : 'none';
-                            }
-
                             target.style.transform = `translate(${x}px, ${y}px)`;
                             target.setAttribute('data-x', x);
                             target.setAttribute('data-y', y);
                         },
                         end(event) {
                             const target = event.target;
-
-                            const guideV = document.getElementById('preview-guide-v');
-                            if (guideV) {
-                                guideV.style.display = 'none';
-                            }
 
                             const scaler = document.getElementById('preview-canvas-scaler');
                             let scale = 1.0;
@@ -368,7 +332,7 @@ const PreviewCanvas = {
                 // ---------------------------
                 .resizable({
                     edges: { left: true, right: true, bottom: true, top: true },
-                    margin: 5, // 변에서 5px 이내일 때만 리사이즈
+                    margin: 5,
                     modifiers: [
                         i.modifiers.restrictEdges({ outer: 'parent' })
                     ],
@@ -376,7 +340,6 @@ const PreviewCanvas = {
                         move(event) {
                             const target = event.target;
 
-                            // 숨김 박스는 무시
                             if (target.style.display === 'none') return;
 
                             const scaler = document.getElementById('preview-canvas-scaler');
@@ -424,7 +387,6 @@ const PreviewCanvas = {
                             let newW = event.rect.width / scale;
                             let newH = event.rect.height / scale;
 
-                            // 스냅(자석) 처리
                             const snapResult = self.checkSnap(boxId, newX, newY, newW, newH);
                             newX = snapResult.x;
                             newY = snapResult.y;
@@ -455,11 +417,8 @@ const PreviewCanvas = {
                 });
         },
 
-        // -----------------------------------------
         // 캔버스/다른 박스와의 스냅 + 플래시 판정
-        // -----------------------------------------
         checkSnap(boxId, x, y, w, h) {
-            // "완전 접촉"을 위해 ±8px 이내면 스냅
             const threshold = 8;
             let snapped = false;
 
@@ -478,20 +437,17 @@ const PreviewCanvas = {
                 return Math.abs(value - target) <= threshold ? target : null;
             };
 
-            // 1) 캔버스 아웃라인 스냅
+            // 캔버스 아웃라인 스냅
             let s = snapTo(left, canvasLeft);
             if (s !== null) { left = s; right = left + w; snapped = true; }
-
             s = snapTo(right, canvasRight);
             if (s !== null) { right = s; left = right - w; snapped = true; }
-
             s = snapTo(top, canvasTop);
             if (s !== null) { top = s; bottom = top + h; snapped = true; }
-
             s = snapTo(bottom, canvasBottom);
             if (s !== null) { bottom = s; top = bottom - h; snapped = true; }
 
-            // 2) 다른 박스와의 스냅 (숨김 박스 제외)
+            // 다른 박스와의 스냅 (숨김 박스 제외)
             const boxes = (this.canvasBoxes || []).filter(b => b.id !== boxId && !b.isHidden);
             for (const b of boxes) {
                 const bLeft = b.x;
@@ -501,13 +457,10 @@ const PreviewCanvas = {
 
                 let s2 = snapTo(left, bRight);
                 if (s2 !== null) { left = s2; right = left + w; snapped = true; }
-
                 s2 = snapTo(right, bLeft);
                 if (s2 !== null) { right = s2; left = right - w; snapped = true; }
-
                 s2 = snapTo(top, bBottom);
                 if (s2 !== null) { top = s2; bottom = top + h; snapped = true; }
-
                 s2 = snapTo(bottom, bTop);
                 if (s2 !== null) { bottom = s2; top = bottom - h; snapped = true; }
             }
@@ -521,9 +474,7 @@ const PreviewCanvas = {
             };
         },
 
-        // -----------------------------------------
-        // 2px 흰색 플래시 (0.5초) – JS로 직접 구현
-        // -----------------------------------------
+        // 2px 흰색 플래시 (0.5초)
         triggerSnapFlash(target) {
             const flash = document.createElement('div');
             flash.style.position = 'absolute';
@@ -539,7 +490,6 @@ const PreviewCanvas = {
 
             target.appendChild(flash);
 
-            // 다음 프레임에서 투명하게 만들어서 fade-out 효과
             requestAnimationFrame(() => {
                 flash.style.opacity = '0';
             });
