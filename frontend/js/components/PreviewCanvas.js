@@ -1,4 +1,4 @@
-// Preview Canvas Component (no interact.js, pure mouse drag/resize)
+// Preview Canvas Component (pure JS drag/resize)
 const PreviewCanvas = {
     props: ['canvasBoxes', 'selectedBoxId'],
     template: `
@@ -28,13 +28,13 @@ const PreviewCanvas = {
                     {{ effectiveText(box) }}
                 </div>
 
-                <!-- 모서리 ㄱ자 핸들 (시각적 요소만, 실제 리사이즈는 박스 가장자리 5px 기준) -->
+                <!-- 모서리 ㄱ자 핸들 (시각용) -->
                 <div class="box-handle bh-tl"></div>
                 <div class="box-handle bh-tr"></div>
                 <div class="box-handle bh-bl"></div>
                 <div class="box-handle bh-br"></div>
 
-                <!-- 레이어 레이블: 박스 우측 외측 (행 타입별 상/중/하 위치) -->
+                <!-- 레이어 레이블: 박스 우측 내/외측 자동 배치 -->
                 <div
                     class="canvas-label-right"
                     :style="labelWrapperStyle(box)"
@@ -63,7 +63,9 @@ const PreviewCanvas = {
             dragStartBox:   { x: 0, y: 0, w: 0, h: 0 },
             dragEdges: { left: false, right: false, top: false, bottom: false },
             dragScale: 1.0,
-            dragCanvasSize: { w: 1920, h: 1080 }
+            dragCanvasSize: { w: 1920, h: 1080 },
+            _mouseMoveHandler: null,
+            _mouseUpHandler: null
         };
     },
     methods: {
@@ -78,7 +80,7 @@ const PreviewCanvas = {
             return this.defaultTextMessage();
         },
 
-        // 레이어 박스 스타일: 점선 + 2px (색상 시인성)
+        // 레이어 박스 스타일: 점선 + 2px
         boxStyle(box) {
             return {
                 display: box.isHidden ? 'none' : 'block',
@@ -96,16 +98,21 @@ const PreviewCanvas = {
             };
         },
 
-        // 텍스트 표시 영역: 레이어 전체를 사용
-        // 정렬은 box.textStyle.textAlign ('left' | 'center' | 'right')
+        // 텍스트 영역: 레이어 전체, 좌/중/우 + 상/중/하 정렬
         textStyle(box) {
             const ts = box.textStyle || {};
             const fontSize = ts.fontSize || 48;
-            const align = ts.textAlign || 'center';
+
+            const hAlign = ts.textAlign || 'center';   // left / center / right
+            const vAlign = ts.vAlign   || 'middle';    // top / middle / bottom
 
             let justifyContent = 'center';
-            if (align === 'left')  justifyContent = 'flex-start';
-            if (align === 'right') justifyContent = 'flex-end';
+            if (hAlign === 'left')  justifyContent = 'flex-start';
+            if (hAlign === 'right') justifyContent = 'flex-end';
+
+            let alignItems = 'center';
+            if (vAlign === 'top')    alignItems = 'flex-start';
+            if (vAlign === 'bottom') alignItems = 'flex-end';
 
             return {
                 position: 'absolute',
@@ -117,9 +124,9 @@ const PreviewCanvas = {
                 boxSizing: 'border-box',
 
                 display: 'flex',
-                alignItems: 'center',     // 수직 중앙
-                justifyContent,           // 수평 정렬
-                textAlign: align,
+                alignItems,
+                justifyContent,
+                textAlign: hAlign,
 
                 color: ts.fillColor || '#ffffff',
                 fontFamily: ts.fontFamily || 'Pretendard, system-ui, sans-serif',
@@ -133,7 +140,6 @@ const PreviewCanvas = {
         },
 
         // ---------- 레이블 텍스트 ----------
-        // 컬럼 이름: 전체 / 상단 / 중단 / 하단
         getColLabel(box) {
             const role = box.colRole || '';
             if (role === 'full') return '전체';
@@ -142,7 +148,6 @@ const PreviewCanvas = {
             if (role === 'low')  return '하단';
             return role || '';
         },
-        // 행 이름: 이펙트 / 텍스트 / 배경
         getRowLabel(rowType) {
             if (rowType === 'EFF') return '이펙트';
             if (rowType === 'TXT') return '텍스트';
@@ -150,48 +155,44 @@ const PreviewCanvas = {
             return '';
         },
 
-        // 레이블 위치:
-        // - 기본 기준은 "박스 안" 좌표계 (box 내부 기준)
-        // - EFF: 우측 상단 외측
-        // - TXT: 우측 중앙 외측
-        // - BG : 우측 하단 외측
-        // - 박스의 x + w + 라벨폭이 캔버스를 넘으면 → 우측 "내측"으로 이동
+        // 레이블 위치: 박스 기준 local 좌표
+        // - 기본 우측 외측, 프리뷰(캔버스) 폭에 따라 내/외측 자동
+        // - EFF: 위, TXT: 중간, BG: 아래
         labelWrapperStyle(box) {
-            const margin = 8;
-            const labelWidth = 220;
-            const labelHeight = 90; // 폰트 40 기준 여유
+            const margin = 4;
+            const labelApproxWidth = 140;  // 폭 최소화 (대략)
+            const labelApproxHeight = 60;
 
             const canvasSize = (this.$parent && this.$parent.canvasSize) || { w: 1920, h: 1080 };
             const canvasW = canvasSize.w;
 
-            // 밖으로 뺄 경우의 전역 X 좌표
-            const worldRightOutside = box.x + box.w + margin + labelWidth;
+            // 월드 좌표에서 우측 외측이 캔버스를 넘는지 체크
+            const worldRightOutside = box.x + box.w + margin + labelApproxWidth;
             const overflowRight = worldRightOutside > canvasW;
 
-            // localX: 박스 내부 기준
+            // local X: 박스 내부 기준
             let localLeft;
             if (overflowRight) {
                 // 내측
-                localLeft = box.w - labelWidth - margin;
+                localLeft = box.w - labelApproxWidth - margin;
                 if (localLeft < margin) localLeft = margin;
             } else {
                 // 외측
                 localLeft = box.w + margin;
             }
 
-            // localY: 박스 내부 기준
+            // local Y: 박스 내부 기준
             let localTop;
             if (box.rowType === 'EFF') {
-                localTop = margin;                           // 위쪽
+                localTop = margin; // 상단
             } else if (box.rowType === 'BG') {
-                localTop = box.h - labelHeight - margin;     // 아래쪽
+                localTop = box.h - labelApproxHeight - margin; // 하단
             } else {
-                // TXT 또는 기타 → 중앙
-                localTop = (box.h - labelHeight) / 2;
+                localTop = (box.h - labelApproxHeight) / 2;    // 중앙
             }
             if (localTop < margin) localTop = margin;
-            if (localTop + labelHeight > box.h - margin) {
-                localTop = Math.max(margin, box.h - labelHeight - margin);
+            if (localTop + labelApproxHeight > box.h - margin) {
+                localTop = Math.max(margin, box.h - labelApproxHeight - margin);
             }
 
             return {
@@ -203,33 +204,39 @@ const PreviewCanvas = {
             };
         },
 
-        // 레이블 칩 스타일: 폰트 40, 중앙 정렬
+        // 레이블 칩: 반투명 50%, 폭 최소화
         labelChipStyle(box) {
-            const bg = box.color || '#22c55e';
-            const textColor = this.getContrastingTextColor(bg);
+            const base = box.color || '#22c55e';
+            const rgb = this.parseColorToRgb(base);
+            const bg = rgb
+                ? `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.5)` // 50% 투명
+                : 'rgba(34, 197, 94, 0.5)';
+
+            const textColor = this.getContrastingTextColor(base);
+
             return {
-                minWidth: '220px',
-                padding: '4px 8px',
-                borderRadius: '8px',
-                border: '2px solid ' + bg,
+                display: 'inline-block',
+                minWidth: 'auto',
+                maxWidth: '240px',
+                padding: '2px 6px',
+                borderRadius: '6px',
+                border: '2px solid ' + base,
                 backgroundColor: bg,
                 color: textColor,
                 fontSize: '40px',
                 lineHeight: '1.0',
                 textAlign: 'center',
                 boxSizing: 'border-box',
-                textShadow: '0 0 6px rgba(0,0,0,0.7)'
+                textShadow: '0 0 4px rgba(0,0,0,0.7)'
             };
         },
 
-        // ---------- 모달 오픈 ----------
         openLayerConfig(boxId) {
             if (this.$parent && typeof this.$parent.openLayerConfig === 'function') {
                 this.$parent.openLayerConfig(boxId);
             }
         },
 
-        // 대비 텍스트 색
         getContrastingTextColor(bgColor) {
             const rgb = this.parseColorToRgb(bgColor);
             if (!rgb) return '#000000';
@@ -242,7 +249,9 @@ const PreviewCanvas = {
 
             if (color[0] === '#') {
                 let hex = color.slice(1);
-                if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+                if (hex.length === 3) {
+                    hex = hex.split('').map(c => c + c).join('');
+                }
                 if (hex.length !== 6) return null;
                 const num = parseInt(hex, 16);
                 return {
@@ -278,7 +287,6 @@ const PreviewCanvas = {
             const nearTop    = offsetY <= edgeMargin;
             const nearBottom = rect.height - offsetY <= edgeMargin;
 
-            // 스케일 계산
             const scaler = document.getElementById('preview-canvas-scaler');
             let scale = 1.0;
             if (scaler && scaler.style.transform) {
@@ -300,11 +308,15 @@ const PreviewCanvas = {
                 this.dragEdges = { left: false, right: false, top: false, bottom: false };
             }
 
-            window.addEventListener('mousemove', this.onMouseMove);
-            window.addEventListener('mouseup', this.onMouseUp);
+            if (!this._mouseMoveHandler) {
+                this._mouseMoveHandler = (ev) => this.handleMouseMove(ev);
+                this._mouseUpHandler   = (ev) => this.handleMouseUp(ev);
+            }
+            window.addEventListener('mousemove', this._mouseMoveHandler);
+            window.addEventListener('mouseup', this._mouseUpHandler);
         },
 
-        onMouseMove(e) {
+        handleMouseMove(e) {
             if (!this.dragMode || !this.dragBoxId) return;
 
             const dxClient = e.clientX - this.dragStartMouse.x;
@@ -323,7 +335,6 @@ const PreviewCanvas = {
                 newX = start.x + dx;
                 newY = start.y + dy;
 
-                // 캔버스 내부로 제한
                 newX = Math.max(0, Math.min(newX, canvas.w - newW));
                 newY = Math.max(0, Math.min(newY, canvas.h - newH));
             } else if (this.dragMode === 'resize') {
@@ -344,7 +355,6 @@ const PreviewCanvas = {
                     newH = start.h + dy;
                 }
 
-                // 최소 크기
                 const minW = 20;
                 const minH = 20;
                 if (newW < minW) {
@@ -356,7 +366,6 @@ const PreviewCanvas = {
                     newH = minH;
                 }
 
-                // 캔버스 범위 보정
                 if (newX < 0) {
                     newW += newX;
                     newX = 0;
@@ -374,7 +383,7 @@ const PreviewCanvas = {
             }
         },
 
-        onMouseUp() {
+        handleMouseUp() {
             if (this.dragMode && this.dragBoxId) {
                 const box = this.canvasBoxes.find(b => b.id === this.dragBoxId);
                 if (box) {
@@ -393,8 +402,8 @@ const PreviewCanvas = {
                 }
             }
 
-            window.removeEventListener('mousemove', this.onMouseMove);
-            window.removeEventListener('mouseup', this.onMouseUp);
+            window.removeEventListener('mousemove', this._mouseMoveHandler);
+            window.removeEventListener('mouseup', this._mouseUpHandler);
             this.dragMode = null;
             this.dragBoxId = null;
         },
