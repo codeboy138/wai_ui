@@ -1,3 +1,26 @@
+const COLOR_KO_NAMES = {
+    '#000000': '블랙',
+    '#ffffff': '화이트',
+    '#ff0000': '레드',
+    '#00ff00': '라임',
+    '#0000ff': '블루',
+    '#ffff00': '옐로',
+    '#00ffff': '시안',
+    '#ff00ff': '마젠타',
+    '#64748b': '슬레이트',
+    '#ef4444': '레드',
+    '#22c55e': '그린',
+    '#3b82f6': '블루',
+    '#0ea5e9': '스카이',
+    '#6366f1': '인디고',
+    '#a855f7': '퍼플',
+    '#ec4899': '핑크',
+    '#eab308': '옐로',
+    '#f97316': '오렌지',
+    '#facc15': '앰버'
+    // 필요 시 나중에 추가 확장
+};
+
 const LayerConfigModal = {
     props: ['box'],
     template: `
@@ -12,7 +35,7 @@ const LayerConfigModal = {
                 :style="combinedWindowStyle"
                 @mousedown.stop
             >
-                <!-- 헤더 (드래그 영역) -->
+                <!-- 헤더 (드래그 영역, X버튼만 사용) -->
                 <div
                     class="flex items-center justify-between px-3 py-2 border-b border-ui-border bg-bg-hover cursor-move"
                     @mousedown.stop.prevent="onHeaderMouseDown"
@@ -128,14 +151,14 @@ const LayerConfigModal = {
                                 <select
                                     class="flex-1 bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]"
                                     v-model="box.color"
+                                    :style="selectStyle(box.color)"
                                 >
                                     <option
                                         v-for="opt in colorOptions"
                                         :key="'layer-color-' + opt.value"
                                         :value="opt.value"
-                                        :style="optionStyle(opt.value)"
                                     >
-                                        {{ '■ ' + opt.name + ' ' + opt.code }}
+                                        {{ optionLabel(opt) }}
                                     </option>
                                 </select>
                             </div>
@@ -146,14 +169,14 @@ const LayerConfigModal = {
                                 <select
                                     class="flex-1 bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]"
                                     v-model="box.layerBgColor"
+                                    :style="selectStyle(box.layerBgColor)"
                                 >
                                     <option
                                         v-for="opt in colorOptions"
                                         :key="'layer-bg-' + opt.value"
                                         :value="opt.value"
-                                        :style="optionStyle(opt.value)"
                                     >
-                                        {{ '■ ' + opt.name + ' ' + opt.code }}
+                                        {{ optionLabel(opt) }}
                                     </option>
                                 </select>
                             </div>
@@ -196,14 +219,14 @@ const LayerConfigModal = {
                                 <select
                                     class="flex-1 bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]"
                                     v-model="box.textStyle.fillColor"
+                                    :style="selectStyle(box.textStyle.fillColor)"
                                 >
                                     <option
                                         v-for="opt in colorOptions"
                                         :key="'fill-' + opt.value"
                                         :value="opt.value"
-                                        :style="optionStyle(opt.value)"
                                     >
-                                        {{ '■ ' + opt.name + ' ' + opt.code }}
+                                        {{ optionLabel(opt) }}
                                     </option>
                                 </select>
                             </div>
@@ -214,14 +237,14 @@ const LayerConfigModal = {
                                 <select
                                     class="flex-1 bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]"
                                     v-model="box.textStyle.strokeColor"
+                                    :style="selectStyle(box.textStyle.strokeColor)"
                                 >
                                     <option
                                         v-for="opt in colorOptions"
                                         :key="'stroke-' + opt.value"
                                         :value="opt.value"
-                                        :style="optionStyle(opt.value)"
                                     >
-                                        {{ '■ ' + opt.name + ' ' + opt.code }}
+                                        {{ optionLabel(opt) }}
                                     </option>
                                 </select>
                             </div>
@@ -232,14 +255,14 @@ const LayerConfigModal = {
                                 <select
                                     class="flex-1 bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]"
                                     v-model="box.textStyle.backgroundColor"
+                                    :style="selectStyle(box.textStyle.backgroundColor)"
                                 >
                                     <option
                                         v-for="opt in colorOptions"
                                         :key="'text-bg-' + opt.value"
                                         :value="opt.value"
-                                        :style="optionStyle(opt.value)"
                                     >
-                                        {{ '■ ' + opt.name + ' ' + opt.code }}
+                                        {{ optionLabel(opt) }}
                                     </option>
                                 </select>
                             </div>
@@ -247,7 +270,7 @@ const LayerConfigModal = {
                     </div>
                 </div>
 
-                <!-- 푸터 + 리사이즈 핸들 -->
+                <!-- 푸터: 레이어 삭제 + 리사이즈 핸들 (닫기 버튼 제거) -->
                 <div class="px-3 py-2 border-t border-ui-border flex justify-between items-center">
                     <button
                         class="text-[11px] text-red-400 hover:text-red-300"
@@ -261,12 +284,6 @@ const LayerConfigModal = {
                             @mousedown.stop.prevent="onResizeMouseDown"
                             title="드래그하여 창 크기 조절"
                         ></div>
-                        <button
-                            class="text-[11px] px-2 py-1 rounded bg-ui-accent text-white hover:bg-blue-600"
-                            @click.stop="onClose"
-                        >
-                            닫기
-                        </button>
                     </div>
                 </div>
             </div>
@@ -274,7 +291,6 @@ const LayerConfigModal = {
     `,
     data() {
         return {
-            // 초기 크기: 이전 대비 절반 정도 폭
             baseWidth: 320,
             baseHeight: 420,
             posX: 0,
@@ -345,27 +361,30 @@ const LayerConfigModal = {
             this.posY = Math.max(20, (vh - this.height) / 2);
         },
         buildColorOptions() {
-            // COLORS: ['#RRGGBB', ...] 전제
             if (typeof COLORS === 'undefined' || !Array.isArray(COLORS)) {
                 this.colorOptions = [];
                 return;
             }
             this.colorOptions = COLORS.map(c => {
-                // 이름 정보가 있는 글로벌 매핑이 있으면 활용
-                let name = c;
-                if (window.COLOR_NAMES && window.COLOR_NAMES[c]) {
-                    name = window.COLOR_NAMES[c];
-                } else if (window.COLOR_META && window.COLOR_META[c] && window.COLOR_META[c].name) {
-                    name = window.COLOR_META[c].name;
-                }
+                const code = c.toUpperCase();
+                const koName = COLOR_KO_NAMES[c.toLowerCase()] || COLOR_KO_NAMES[code.toLowerCase()] || code;
+                // name 과 code 가 같으면 이름만 한 번 표시
                 return {
                     value: c,
-                    name,
-                    code: c
+                    name: koName,
+                    code: code
                 };
             });
         },
-        optionStyle(color) {
+        optionLabel(opt) {
+            if (!opt) return '';
+            if (opt.name && opt.name !== opt.code) {
+                return `■ ${opt.name} ${opt.code}`;
+            }
+            return `■ ${opt.code}`;
+        },
+        selectStyle(value) {
+            const color = value || '#111827';
             const textColor = this.getContrastingTextColor(color);
             return {
                 backgroundColor: color,
@@ -385,7 +404,7 @@ const LayerConfigModal = {
             if (rowType === 'BG')  return '배경';
             return '';
         },
-        // 헤더 드래그 시작
+        // 드래그
         onHeaderMouseDown(e) {
             this.dragging = true;
             this.dragStartMouseX = e.clientX;
@@ -393,6 +412,7 @@ const LayerConfigModal = {
             this.dragStartPosX = this.posX;
             this.dragStartPosY = this.posY;
         },
+        // 리사이즈
         onResizeMouseDown(e) {
             this.resizing = true;
             this.resizeStartMouseX = e.clientX;
@@ -428,8 +448,7 @@ const LayerConfigModal = {
             this.$emit('delete');
             this.$emit('delete-layer');
         },
-
-        // 배경색에 따라 가독성 좋은 텍스트 컬러 선택(흰/검)
+        // 대비 색상 계산
         getContrastingTextColor(bgColor) {
             const rgb = this.parseColorToRgb(bgColor);
             if (!rgb) return '#000000';
