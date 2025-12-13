@@ -36,6 +36,7 @@ const PreviewCanvas = {
                     텍스트
                 </div>
 
+                <!-- 모서리 ㄱ자 핸들 (선택 시 표시) -->
                 <div class="box-handle bh-tl"></div>
                 <div class="box-handle bh-tr"></div>
                 <div class="box-handle bh-bl"></div>
@@ -84,10 +85,12 @@ const PreviewCanvas = {
             const self = this;
             if (!window.interact) return;
 
-            // 한 번 초기화
+            // 기존 바인딩 해제
             window.interact('.canvas-box').unset();
 
-            // 드래그
+            // ---------------------------
+            // 드래그 (박스 전체 영역)
+            // ---------------------------
             window.interact('.canvas-box').draggable({
                 modifiers: [
                     window.interact.modifiers.restrictRect({
@@ -169,9 +172,14 @@ const PreviewCanvas = {
                     }
                 }
             })
-            // 리사이즈
+            // ---------------------------
+            // 리사이즈 (변 5px 영역만)
+            // ---------------------------
             .resizable({
+                // 네 변 모두 리사이즈 가능
                 edges: { left: true, right: true, bottom: true, top: true },
+                // 커서가 변에서 5px 이내일 때만 리사이즈로 인식
+                margin: 5,
                 modifiers: [
                     window.interact.modifiers.restrictEdges({ outer: 'parent' })
                 ],
