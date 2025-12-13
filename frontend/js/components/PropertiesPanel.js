@@ -1,4 +1,7 @@
 // Properties Panel Component
+// - 우측 패널 "속성" 콜랩스
+// - 좌표(X/Y/W/H) 표시 제거 (요청 반영)
+
 const PropertiesPanel = {
     props: ['vm'],
     template: `
@@ -77,7 +80,7 @@ const PropertiesPanel = {
                     </button>
                 </div>
                 
-                <!-- 박스 선택 -->
+                <!-- 박스 선택 (좌표 표시 제거 버전) -->
                 <div
                     v-else-if="selectedBox"
                     id="panel-right-props-box-section"
@@ -91,48 +94,8 @@ const PropertiesPanel = {
                             ({{ selectedBox.type }})
                         </div>
                     </div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <div>
-                            <label class="text-[10px] text-text-sub">X (%)</label>
-                            <input
-                                id="panel-right-props-box-x"
-                                type="text"
-                                class="w-full bg-bg-dark border border-ui-border rounded p-1 text-[10px] text-text-main"
-                                :value="formatPercent('x')"
-                                readonly
-                            />
-                        </div>
-                        <div>
-                            <label class="text-[10px] text-text-sub">Y (%)</label>
-                            <input
-                                id="panel-right-props-box-y"
-                                type="text"
-                                class="w-full bg-bg-dark border border-ui-border rounded p-1 text-[10px] text-text-main"
-                                :value="formatPercent('y')"
-                                readonly
-                            />
-                        </div>
-                        <div>
-                            <label class="text-[10px] text-text-sub">W (%)</label>
-                            <input
-                                id="panel-right-props-box-w"
-                                type="text"
-                                class="w-full bg-bg-dark border border-ui-border rounded p-1 text-[10px] text-text-main"
-                                :value="formatPercent('w')"
-                                readonly
-                            />
-                        </div>
-                        <div>
-                            <label class="text-[10px] text-text-sub">H (%)</label>
-                            <input
-                                id="panel-right-props-box-h"
-                                type="text"
-                                class="w-full bg-bg-dark border border-ui-border rounded p-1 text-[10px] text-text-main"
-                                :value="formatPercent('h')"
-                                readonly
-                            />
-                        </div>
-                    </div>
+
+                    <!-- 좌표(X/Y/W/H) 필드 없이, 삭제 버튼만 유지 -->
                     <button
                         id="panel-right-props-box-delete-btn"
                         class="w-full bg-ui-border hover:bg-ui-danger hover:text-white border border-ui-border text-text-sub py-1 rounded text-[10px] transition-colors"
@@ -145,7 +108,9 @@ const PropertiesPanel = {
             </div>
         </div>
     `,
-    data() { return { isCollapsed: false }; },
+    data() {
+        return { isCollapsed: false };
+    },
     computed: {
         selectedBox() {
             return this.vm.canvasBoxes.find(b => b.id === this.vm.selectedBoxId);
@@ -155,31 +120,8 @@ const PropertiesPanel = {
         deleteClip(id) {
             this.vm.removeClip(id);
             this.vm.selectedClip = null;
-        },
-        formatPercent(prop) {
-            const box = this.selectedBox;
-            if (!box) return '';
-            const canvas = this.vm && this.vm.canvasSize
-                ? this.vm.canvasSize
-                : { w: 1, h: 1 };
-            const cw = canvas.w || 1;
-            const ch = canvas.h || 1;
-
-            let valueRatio = 0;
-            if (prop === 'x') {
-                const nx = typeof box.nx === 'number' ? box.nx : (box.x || 0) / cw;
-                valueRatio = nx;
-            } else if (prop === 'y') {
-                const ny = typeof box.ny === 'number' ? box.ny : (box.y || 0) / ch;
-                valueRatio = ny;
-            } else if (prop === 'w') {
-                const nw = typeof box.nw === 'number' ? box.nw : (box.w || cw) / cw;
-                valueRatio = nw;
-            } else if (prop === 'h') {
-                const nh = typeof box.nh === 'number' ? box.nh : (box.h || ch) / ch;
-                valueRatio = nh;
-            }
-            return (valueRatio * 100).toFixed(2) + '%';
         }
     }
 };
+
+window.PropertiesPanel = PropertiesPanel;
