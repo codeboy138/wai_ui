@@ -24,6 +24,9 @@ const LAYER_ROW_META = {
     BG:  { name: 'bg',     zOffset: 20 }
 };
 
+// 텍스트 레이어 기본 메시지
+const DEFAULT_TEXT_MESSAGE = '현재의 레이어에 적용할\n텍스트 스타일을 설정하세요';
+
 function createDefaultTextStyle() {
     return {
         fontFamily: 'Pretendard',
@@ -63,13 +66,13 @@ const AppRoot = {
             // Core Timeline/Canvas State
             tracks: [
                 { id: 't1', name: 'Global', type: 'video', color: '#64748b' }, 
-                { id: 't2', name: 'Top', type: 'text', color: '#eab308' },
+                { id: 't2', name: 'Top', type: 'text',  color: '#eab308' },
                 { id: 't3', name: 'Middle', type: 'video', color: '#22c55e' }, 
-                { id: 't4', name: 'Bottom', type: 'text', color: '#3b82f6' },
-                { id: 't5', name: 'BGM', type: 'audio', color: '#a855f7' }
+                { id: 't4', name: 'Bottom', type: 'text',  color: '#3b82f6' },
+                { id: 't5', name: 'BGM', type: 'audio',  color: '#a855f7' }
             ],
             clips: [
-                { id: 'c1', trackId: 't1', name: 'Intro_BG.mp4', start: 0, duration: 10, type: 'video' },
+                { id: 'c1', trackId: 't1', name: 'Intro_BG.mp4',  start: 0, duration: 10, type: 'video' },
                 { id: 'c3', trackId: 't5', name: 'BGM_Main.mp3', start: 0, duration: 30, type: 'audio' }
             ],
 
@@ -122,7 +125,7 @@ const AppRoot = {
             },
 
             COLORS
-        }
+        };
     },
     computed: {
         /**
@@ -162,7 +165,6 @@ const AppRoot = {
         window.vm = this; 
     },
     beforeUnmount() {
-        // 글로벌 wheel 핸들러 정리
         if (this._spinWheelHandler) {
             document.removeEventListener('wheel', this._spinWheelHandler);
             this._spinWheelHandler = null;
@@ -436,6 +438,7 @@ const AppRoot = {
 
             if (rowType === 'TXT') {
                 box.textStyle = createDefaultTextStyle();
+                box.textContent = DEFAULT_TEXT_MESSAGE;
             }
 
             return box;
@@ -642,7 +645,7 @@ const AppRoot = {
             }
         },
 
-        // --- 모든 number 스핀박스: 마우스 휠로 증감 ---
+        // --- 모든 number 스핀박스: 마우스 휠로 증감 (기본 min=0, 음수 방지) ---
         setupSpinWheel() {
             const handler = (event) => {
                 const target = event.target;
@@ -660,7 +663,8 @@ const AppRoot = {
                 let value = parseFloat(target.value);
                 if (isNaN(value)) value = 0;
 
-                const min = target.min !== '' ? parseFloat(target.min) : -Infinity;
+                // 기본 min은 0 (음수 방지)
+                const min = target.min !== '' ? parseFloat(target.min) : 0;
                 const max = target.max !== '' ? parseFloat(target.max) : +Infinity;
 
                 value += dir * step;
@@ -734,11 +738,20 @@ const AppRoot = {
             tracks.splice(toIndex, 0, removed);
             this.tracks = tracks;
         },
-        saveLayerTemplate(name) {
-            const newTpl = { id: `tpl_${Date.now()}`, name, cols: this.layerCols }; 
+
+        // 레이어 템플릿 저장 (JSON 스냅샷 포함)
+        saveLayerTemplate(name, matrixJson) {
+            const newTpl = {
+                id: `tpl_${Date.now()}`,
+                name,
+                cols: this.layerCols.map(c => ({ ...c })),
+                matrixJson: matrixJson || null,
+                createdAt: new Date().toISOString()
+            };
             this.layerTemplates.push(newTpl);
-            this.layerMainName = name; 
+            this.layerMainName = name;
         },
+
         addClipFromDrop(fileType, trackIndex, time, assetName) {
             const trackId = this.tracks[trackIndex] ? this.tracks[trackIndex].id : null;
             if (!trackId) return;
