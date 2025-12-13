@@ -243,32 +243,32 @@ const LayerConfigModal = {
                     <!-- 좌표 -->
                     <div>
                         <label class="block text-[10px] mb-1 text-text-sub">
-                            좌표 / 크기 (캔버스 기준 px)
+                            좌표 / 크기 (캔버스 기준 %)
                         </label>
                         <div class="grid grid-cols-4 gap-1">
                             <div class="flex flex-col">
-                                <span class="text-[10px] text-text-sub mb-0.5">X</span>
-                                <input type="number" min="0" step="1"
+                                <span class="text-[10px] text-text-sub mb-0.5">X (%)</span>
+                                <input type="number" min="0" max="100" step="0.01"
                                     class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]"
-                                    v-model.number="box.x" />
+                                    v-model.number="percentX" />
                             </div>
                             <div class="flex flex-col">
-                                <span class="text-[10px] text-text-sub mb-0.5">Y</span>
-                                <input type="number" min="0" step="1"
+                                <span class="text-[10px] text-text-sub mb-0.5">Y (%)</span>
+                                <input type="number" min="0" max="100" step="0.01"
                                     class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]"
-                                    v-model.number="box.y" />
+                                    v-model.number="percentY" />
                             </div>
                             <div class="flex flex-col">
-                                <span class="text-[10px] text-text-sub mb-0.5">W</span>
-                                <input type="number" min="0" step="1"
+                                <span class="text-[10px] text-text-sub mb-0.5">W (%)</span>
+                                <input type="number" min="0" max="100" step="0.01"
                                     class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]"
-                                    v-model.number="box.w" />
+                                    v-model.number="percentW" />
                             </div>
                             <div class="flex flex-col">
-                                <span class="text-[10px] text-text-sub mb-0.5">H</span>
-                                <input type="number" min="0" step="1"
+                                <span class="text-[10px] text-text-sub mb-0.5">H (%)</span>
+                                <input type="number" min="0" max="100" step="0.01"
                                     class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]"
-                                    v-model.number="box.h" />
+                                    v-model.number="percentH" />
                             </div>
                         </div>
                     </div>
@@ -321,13 +321,13 @@ const LayerConfigModal = {
                             <!-- 크기/두께 -->
                             <div class="grid grid-cols-2 gap-1">
                                 <div class="flex flex-col">
-                                    <span class="text-[10px] text-text-sub mb-0.5">폰트 크기</span>
-                                    <input type="number" min="0" step="1"
+                                    <span class="text-[10px] text-text-sub mb-0.5">폰트 크기 (%)</span>
+                                    <input type="number" min="0" max="100" step="0.01"
                                         class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]"
-                                        v-model.number="box.textStyle.fontSize" />
+                                        v-model.number="percentFontSize" />
                                 </div>
                                 <div class="flex flex-col">
-                                    <span class="text-[10px] text-text-sub mb-0.5">테두리 두께</span>
+                                    <span class="text-[10px] text-text-sub mb-0.5">테두리 두께 (px)</span>
                                     <input type="number" min="0" step="1"
                                         class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]"
                                         v-model.number="box.textStyle.strokeWidth" />
@@ -499,6 +499,138 @@ const LayerConfigModal = {
             if (t === 'textStroke') return this.box.textStyle.strokeColor || '#000000';
             if (t === 'textBg')     return this.box.textStyle.backgroundColor || '#000000';
             return '#000000';
+        },
+
+        // --- 좌표/크기: 퍼센트(0~100, 소수 둘째 자리) ---
+        percentX: {
+            get() {
+                const box = this.box;
+                if (!box) return 0;
+                const root = this.$root;
+                const canvas = root && root.canvasSize ? root.canvasSize : { w: 1, h: 1 };
+                const cw = canvas.w || 1;
+                const rawNx = typeof box.nx === 'number' ? box.nx : (box.x || 0) / cw;
+                return +(rawNx * 100).toFixed(2);
+            },
+            set(v) {
+                const box = this.box;
+                if (!box) return;
+                const root = this.$root;
+                const canvas = root && root.canvasSize ? root.canvasSize : { w: 1, h: 1 };
+                const cw = canvas.w || 1;
+                const nw = typeof box.nw === 'number'
+                    ? box.nw
+                    : ((box.w || cw) / cw);
+                let nx = (parseFloat(v) || 0) / 100;
+                nx = Math.max(0, Math.min(nx, 1 - nw));
+                box.nx = nx;
+                box.x = nx * cw;
+            }
+        },
+        percentY: {
+            get() {
+                const box = this.box;
+                if (!box) return 0;
+                const root = this.$root;
+                const canvas = root && root.canvasSize ? root.canvasSize : { w: 1, h: 1 };
+                const ch = canvas.h || 1;
+                const rawNy = typeof box.ny === 'number' ? box.ny : (box.y || 0) / ch;
+                return +(rawNy * 100).toFixed(2);
+            },
+            set(v) {
+                const box = this.box;
+                if (!box) return;
+                const root = this.$root;
+                const canvas = root && root.canvasSize ? root.canvasSize : { w: 1, h: 1 };
+                const ch = canvas.h || 1;
+                const nh = typeof box.nh === 'number'
+                    ? box.nh
+                    : ((box.h || ch) / ch);
+                let ny = (parseFloat(v) || 0) / 100;
+                ny = Math.max(0, Math.min(ny, 1 - nh));
+                box.ny = ny;
+                box.y = ny * ch;
+            }
+        },
+        percentW: {
+            get() {
+                const box = this.box;
+                if (!box) return 0;
+                const root = this.$root;
+                const canvas = root && root.canvasSize ? root.canvasSize : { w: 1, h: 1 };
+                const cw = canvas.w || 1;
+                const rawNw = typeof box.nw === 'number'
+                    ? box.nw
+                    : ((box.w || cw) / cw);
+                return +(rawNw * 100).toFixed(2);
+            },
+            set(v) {
+                const box = this.box;
+                if (!box) return;
+                const root = this.$root;
+                const canvas = root && root.canvasSize ? root.canvasSize : { w: 1, h: 1 };
+                const cw = canvas.w || 1;
+                const nx = typeof box.nx === 'number'
+                    ? box.nx
+                    : ((box.x || 0) / cw);
+                let nw = (parseFloat(v) || 0) / 100;
+                const minNw = 10 / cw; // 최소 10px
+                nw = Math.max(minNw, Math.min(nw, 1 - nx));
+                box.nw = nw;
+                box.w = nw * cw;
+            }
+        },
+        percentH: {
+            get() {
+                const box = this.box;
+                if (!box) return 0;
+                const root = this.$root;
+                const canvas = root && root.canvasSize ? root.canvasSize : { w: 1, h: 1 };
+                const ch = canvas.h || 1;
+                const rawNh = typeof box.nh === 'number'
+                    ? box.nh
+                    : ((box.h || ch) / ch);
+                return +(rawNh * 100).toFixed(2);
+            },
+            set(v) {
+                const box = this.box;
+                if (!box) return;
+                const root = this.$root;
+                const canvas = root && root.canvasSize ? root.canvasSize : { w: 1, h: 1 };
+                const ch = canvas.h || 1;
+                const ny = typeof box.ny === 'number'
+                    ? box.ny
+                    : ((box.y || 0) / ch);
+                let nh = (parseFloat(v) || 0) / 100;
+                const minNh = 10 / ch;
+                nh = Math.max(minNh, Math.min(nh, 1 - ny));
+                box.nh = nh;
+                box.h = nh * ch;
+            }
+        },
+
+        // 폰트 크기 (%): 캔버스 높이 대비 비율
+        percentFontSize: {
+            get() {
+                if (!this.box || !this.box.textStyle) return 0;
+                const fontSize = this.box.textStyle.fontSize || 0;
+                const root = this.$root;
+                const canvas = root && root.canvasSize ? root.canvasSize : { w: 1, h: 1 };
+                const ch = canvas.h || 1;
+                const scale = ch > 0 ? fontSize / ch : 0;
+                return +(scale * 100).toFixed(2);
+            },
+            set(v) {
+                if (!this.box) return;
+                if (!this.box.textStyle) this.box.textStyle = {};
+                const root = this.$root;
+                const canvas = root && root.canvasSize ? root.canvasSize : { w: 1, h: 1 };
+                const ch = canvas.h || 1;
+                let scale = (parseFloat(v) || 0) / 100;
+                if (scale < 0) scale = 0;
+                const fontSize = scale * ch;
+                this.box.textStyle.fontSize = fontSize;
+            }
         }
     },
     mounted() {
