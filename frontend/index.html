@@ -179,21 +179,22 @@
             z-index: 1000 !important;
             border-color: #3b82f6;
         }
+
+        /* 레이어 라벨 (하단 내부) */
         .canvas-label {
             position: absolute;
-            right: 0;
-            top: -16px;
-            background: #3b82f6;
-            color: #fff;
-            padding: 0 4px;
-            font-size: 9px;
+            bottom: 0;
+            height: 16px;
+            line-height: 16px;
+            font-size: 10px;
             font-weight: bold;
-            border-radius: 2px;
             font-family: monospace;
             white-space: nowrap;
             pointer-events: none;
             text-shadow: 0 1px 2px black;
             opacity: 0.9;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .canvas-text-content {
@@ -456,9 +457,9 @@
             display: flex; flex-direction: column; overflow: hidden;
         }
 
-        /* 레이어 설정 모달 전용 크기 (옵션 길이에 맞춘 기본 크기) */
+        /* 레이어 설정 모달 전용 크기 (필드 폭에 맞춘 기본 크기) */
         .layer-config-window {
-            width: 720px;
+            width: 640px;
             height: 520px;
             max-width: 900px;
             max-height: 700px;
