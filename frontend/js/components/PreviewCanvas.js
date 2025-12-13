@@ -13,8 +13,7 @@ const PreviewCanvas = {
     >
       <!-- 레이어 박스들 -->
       <div
-        v-for="box in canvasBoxes"
-        v-if="!box.isHidden"
+        v-for="box in visibleBoxes"
         :key="box.id"
         :id="'preview-canvas-box-' + box.id"
         class="canvas-box pointer-events-auto"
@@ -70,6 +69,12 @@ const PreviewCanvas = {
   },
 
   computed: {
+    // 박스 목록 (숨김/undefined/null 제거)
+    visibleBoxes() {
+      if (!Array.isArray(this.canvasBoxes)) return [];
+      return this.canvasBoxes.filter(b => b && !b.isHidden);
+    },
+
     // 세로 중앙 가이드
     vGuideStyle() {
       const canvas = this.getCanvasSize();
@@ -264,7 +269,7 @@ const PreviewCanvas = {
         // 반투명(50%) 배경: #RRGGBB80 형태
         backgroundColor: (box.color || '#facc15') + '80',
         color: '#000000',
-        fontSize: '50px',     // 요구사항: 레이블 폰트크기 50
+        fontSize: '50px',     // 레이블 폰트크기 50
         fontWeight: '700',
         lineHeight: 1.1,
         textAlign: 'center',
@@ -568,7 +573,7 @@ const PreviewCanvas = {
       if (this.canvasBoxes && this.canvasBoxes.length > 0) {
         for (let i = 0; i < this.canvasBoxes.length; i++) {
           const b = this.canvasBoxes[i];
-          if (String(b.id) === String(boxId) || b.isHidden) continue;
+          if (!b || String(b.id) === String(boxId) || b.isHidden) continue;
 
           const bLeft = b.x;
           const bRight = b.x + b.w;
