@@ -36,28 +36,16 @@ const PreviewCanvas = {
                 <div class="box-handle bh-bl"></div>
                 <div class="box-handle bh-br"></div>
 
-                <!-- 박스 하단 1/3 레이블 바 (Effect / Text / Background) -->
+                <!-- 박스 하단 단일 레이블 바 (해당 레이어 타입만 표시) -->
                 <div
                     class="canvas-label-bar"
                     :style="labelBarStyle"
                 >
                     <div
-                        class="canvas-label-segment seg-effect"
-                        :style="labelSegmentStyle(box, 'FX')"
+                        class="canvas-label-single"
+                        :style="labelSingleStyle(box)"
                     >
-                        Effect
-                    </div>
-                    <div
-                        class="canvas-label-segment seg-text"
-                        :style="labelSegmentStyle(box, 'TXT')"
-                    >
-                        Text
-                    </div>
-                    <div
-                        class="canvas-label-segment seg-bg"
-                        :style="labelSegmentStyle(box, 'BG')"
-                    >
-                        Background
+                        {{ layerLabelText(box) }}
                     </div>
                 </div>
             </div>
@@ -67,24 +55,24 @@ const PreviewCanvas = {
         return {};
     },
     computed: {
-        // 레이블 바 전체 스타일: 글자/박스 크게 (텍스트 30px = 기존 10px 기준 3배 수준)
+        // 레이블 바 전체 스타일
+        // - 텍스트 크기: 45px (이전 30px 대비 1.5배 증가)
         labelBarStyle() {
             return {
                 position: 'absolute',
                 left: '0',
                 right: '0',
                 bottom: '0',
-                height: '40px',                // 30px 폰트 + 여유
+                height: '60px',               // 45px 폰트 + 여유
                 display: 'flex',
-                alignItems: 'stretch',
-                justifyContent: 'space-between',
+                alignItems: 'center',
+                justifyContent: 'center',
                 padding: '4px 6px',
                 boxSizing: 'border-box',
-                gap: '4px',                    // 1/3 레이블 사이 간격
-                pointerEvents: 'none',         // 라벨에 마우스 이벤트 안 먹게
-                fontSize: '30px',              // <<< 라벨 텍스트 크기 (3배)
-                fontWeight: '600',
-                lineHeight: '1'                // 30px 텍스트가 40px 높이에 잘 들어가도록
+                pointerEvents: 'none',
+                fontSize: '45px',             // <<< 라벨 텍스트 크기
+                fontWeight: '700',
+                lineHeight: '1'
             };
         }
     },
@@ -97,7 +85,7 @@ const PreviewCanvas = {
     methods: {
         boxStyle(box) {
             return {
-                display: box.hidden ? 'none' : 'block',
+                display: box.isHidden ? 'none' : 'block',
                 position: 'absolute',
                 left: box.x + 'px',
                 top: box.y + 'px',
@@ -119,44 +107,38 @@ const PreviewCanvas = {
                 WebkitTextStrokeWidth: (ts.strokeWidth || 0) + 'px'
             };
         },
-        // 레이어 설정 모달 열기
-        openLayerConfig(boxId) {
-            if (this.$parent && typeof this.$parent.openLayerConfig === 'function') {
-                this.$parent.openLayerConfig(boxId);
-            }
+        // 해당 레이어 박스의 레이블 텍스트 (Effect / Text / Background)
+        layerLabelText(box) {
+            if (box.rowType === 'EFF') return 'Effect';
+            if (box.rowType === 'TXT') return 'Text';
+            if (box.rowType === 'BG')  return 'Background';
+            return box.layerName || '';
         },
-
-        // 1/3 레이블 세그먼트 스타일 (Effect / Text / Background)
-        labelSegmentStyle(box, type) {
-            const isActive = box.rowType === type;
-
-            const base = {
+        // 단일 레이블 스타일 (해당 박스 색상으로 하이라이트)
+        labelSingleStyle(box) {
+            const bg = box.color || '#facc15';
+            const textColor = this.getContrastingTextColor(bg);
+            return {
                 flex: '1 1 0',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                borderRadius: '4px',
-                border: '1px solid rgba(255,255,255,0.35)',
+                borderRadius: '6px',
+                border: `2px solid ${bg}`,
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
-                padding: '2px 4px',
-                pointerEvents: 'none'
+                padding: '4px 8px',
+                pointerEvents: 'none',
+                backgroundColor: bg,
+                color: textColor,
+                textShadow: '0 0 4px rgba(0,0,0,0.6)'
             };
-
-            if (isActive) {
-                const bg = box.color || '#facc15';
-                const textColor = this.getContrastingTextColor(bg);
-                return Object.assign({}, base, {
-                    backgroundColor: bg,
-                    color: textColor,
-                    borderColor: bg
-                });
-            } else {
-                return Object.assign({}, base, {
-                    backgroundColor: 'rgba(0,0,0,0.55)',
-                    color: 'rgba(255,255,255,0.65)'
-                });
+        },
+        // 레이어 설정 모달 열기
+        openLayerConfig(boxId) {
+            if (this.$parent && typeof this.$parent.openLayerConfig === 'function') {
+                this.$parent.openLayerConfig(boxId);
             }
         },
 
@@ -201,7 +183,7 @@ const PreviewCanvas = {
         },
 
         initInteract() {
-            const i = window.interact;
+            const i = window.interact || window.interactjs;
             if (!i) {
                 console.warn('[PreviewCanvas] interact.js not found');
                 return;
@@ -439,7 +421,7 @@ const PreviewCanvas = {
             if (s !== null) { bottom = s; top = bottom - h; snapped = true; }
 
             // 2) 다른 박스와의 스냅 (숨김 박스 제외)
-            const boxes = (this.canvasBoxes || []).filter(b => b.id !== boxId && !b.hidden);
+            const boxes = (this.canvasBoxes || []).filter(b => b.id !== boxId && !b.isHidden);
             for (const b of boxes) {
                 const bLeft = b.x;
                 const bRight = b.x + b.w;
