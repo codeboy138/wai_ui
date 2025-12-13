@@ -77,6 +77,7 @@ const AppRoot = {
             ],
 
             // 캔바스 레이어 박스 (레이어 매트릭스 12셀과 1:1 연동) - 기본은 빈 상태
+            // 각 박스는 x/y/w/h(px) + nx/ny/nw/nh(0~1 비율) 을 함께 가진다.
             canvasBoxes: [],
 
             zoom: 20,
@@ -171,6 +172,41 @@ const AppRoot = {
         }
     },
     methods: {
+        // --- Helper: 박스 퍼센트 좌표 보정 ---
+        ensureBoxNormalized(box) {
+            const cw = this.canvasSize.w || 1;
+            const ch = this.canvasSize.h || 1;
+            if (typeof box.nx !== 'number' || typeof box.ny !== 'number' ||
+                typeof box.nw !== 'number' || typeof box.nh !== 'number') {
+                const x = typeof box.x === 'number' ? box.x : 0;
+                const y = typeof box.y === 'number' ? box.y : 0;
+                const w = typeof box.w === 'number' && box.w > 0 ? box.w : cw;
+                const h = typeof box.h === 'number' && box.h > 0 ? box.h : ch;
+                box.nx = x / cw;
+                box.ny = y / ch;
+                box.nw = w / cw;
+                box.nh = h / ch;
+            }
+        },
+        applyBoxNormalizedToPx(box) {
+            const cw = this.canvasSize.w || 1;
+            const ch = this.canvasSize.h || 1;
+            const nx = typeof box.nx === 'number' ? box.nx : 0;
+            const ny = typeof box.ny === 'number' ? box.ny : 0;
+            const nw = typeof box.nw === 'number' ? box.nw : 1;
+            const nh = typeof box.nh === 'number' ? box.nh : 1;
+            box.x = nx * cw;
+            box.y = ny * ch;
+            box.w = nw * cw;
+            box.h = nh * ch;
+        },
+        ensureAllBoxesNormalized() {
+            this.canvasBoxes.forEach(box => {
+                this.ensureBoxNormalized(box);
+                this.applyBoxNormalizedToPx(box);
+            });
+        },
+
         // --- System & Dev Mode ---
         firePython(f) {
             console.log('Py:', f);
@@ -441,6 +477,10 @@ const AppRoot = {
                 box.textContent = DEFAULT_TEXT_MESSAGE;
             }
 
+            // 퍼센트 좌표 세팅
+            this.ensureBoxNormalized(box);
+            this.applyBoxNormalizedToPx(box);
+
             return box;
         },
 
@@ -460,9 +500,10 @@ const AppRoot = {
         },
 
         // --- Preview/Canvas Logic ---
+        // 화면비율 드롭다운은 메타데이터용으로만 사용 (캔버스 크기에는 영향 X)
         setAspect(r) { 
-            this.aspectRatio = r; 
-            this.updateCanvasSizeFromControls();
+            this.aspectRatio = r;
+            // 캔버스 좌표계/크기에는 영향 주지 않음 (독립 UI)
         },
         setResolution(labelOrKey) { 
             const str = (labelOrKey || '').toString().trim();
@@ -471,20 +512,10 @@ const AppRoot = {
             this.resolution = key;
         },
         computeCanvasSize(aspectRatio) {
+            // 현재 단계에서는 16:9 고정 기반 (화면비율 드롭다운은 메타 전용)
             const longSide = BASE_CANVAS_LONG_SIDE;
-            let w, h;
-
-            if (aspectRatio === '9:16') {
-                h = longSide;
-                w = Math.round(longSide * 9 / 16);
-            } else if (aspectRatio === '1:1') {
-                const square = Math.round(longSide * 9 / 16);
-                w = square;
-                h = square;
-            } else {
-                w = longSide;
-                h = Math.round(longSide * 9 / 16);
-            }
+            const w = longSide;
+            const h = Math.round(longSide * 9 / 16);
             return { w, h };
         },
         computeResolutionSize(aspectRatio, resolutionKey) {
@@ -513,6 +544,8 @@ const AppRoot = {
         updateCanvasSizeFromControls() {
             const size = this.computeCanvasSize(this.aspectRatio);
             this.canvasSize = size;
+            // 캔버스 크기 변경 시, 퍼센트 좌표를 기준으로 px 좌표 재계산
+            this.ensureAllBoxesNormalized();
             this.recalculateCanvasScale();
         },
         recalculateCanvasScale() {
@@ -709,20 +742,69 @@ const AppRoot = {
             this.selectedBoxId = (this.selectedBoxId === id) ? null : id;
             this.selectedClip = null;
         },
-        updateBoxPosition(id, newX, newY, newW, newH) {
+        /**
+         * updateBoxPosition
+         * - PreviewCanvas 등에서 px 단위로 넘어오는 좌표를 받아
+         * - 내부 퍼센트 좌표(nx,ny,nw,nh)를 갱신하고
+         * - 다시 px 캐시(x,y,w,h)를 재계산한다.
+         * - optNorm 이 넘어오면 그 값을 우선 사용 (nx,ny,nw,nh 직접 지정)
+         */
+        updateBoxPosition(id, newX, newY, newW, newH, optNorm) {
             const index = this.canvasBoxes.findIndex(b => b.id === id);
             if (index === -1) return;
 
-            const box = this.canvasBoxes[index];
-            const updated = { ...box };
+            const oldBox = this.canvasBoxes[index];
+            const box = { ...oldBox };
 
-            if (typeof newX === 'number') updated.x = newX;
-            if (typeof newY === 'number') updated.y = newY;
-            if (typeof newW === 'number') updated.w = newW;
-            if (typeof newH === 'number') updated.h = newH;
+            const cw = this.canvasSize.w || 1;
+            const ch = this.canvasSize.h || 1;
+
+            // 퍼센트 좌표 보장
+            this.ensureBoxNormalized(box);
+
+            let nx = box.nx;
+            let ny = box.ny;
+            let nw = box.nw;
+            let nh = box.nh;
+
+            if (optNorm && typeof optNorm.nx === 'number') nx = optNorm.nx;
+            if (optNorm && typeof optNorm.ny === 'number') ny = optNorm.ny;
+            if (optNorm && typeof optNorm.nw === 'number') nw = optNorm.nw;
+            if (optNorm && typeof optNorm.nh === 'number') nh = optNorm.nh;
+
+            // optNorm 가 없으면 px 기준으로 역산
+            if (!optNorm) {
+                if (typeof newX === 'number') nx = newX / cw;
+                if (typeof newY === 'number') ny = newY / ch;
+                if (typeof newW === 'number') nw = newW / cw;
+                if (typeof newH === 'number') nh = newH / ch;
+            }
+
+            // 클램프 (0~1, 최소 크기)
+            const minNw = 10 / cw;
+            const minNh = 10 / ch;
+
+            if (nw < minNw) nw = minNw;
+            if (nh < minNh) nh = minNh;
+
+            if (nx < 0) nx = 0;
+            if (ny < 0) ny = 0;
+            if (nx + nw > 1) {
+                nx = Math.min(nx, 1 - nw);
+            }
+            if (ny + nh > 1) {
+                ny = Math.min(ny, 1 - nh);
+            }
+
+            box.nx = nx;
+            box.ny = ny;
+            box.nw = nw;
+            box.nh = nh;
+
+            this.applyBoxNormalizedToPx(box);
 
             const newBoxes = [...this.canvasBoxes];
-            newBoxes[index] = updated;
+            newBoxes[index] = box;
             this.canvasBoxes = newBoxes;
         },
         removeClip(id) {
