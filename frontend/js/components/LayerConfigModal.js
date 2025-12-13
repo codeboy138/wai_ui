@@ -20,7 +20,174 @@ const COLOR_KO_NAMES = {
     '#facc15': '앰버'
 };
 
+// 간단 컬러 유틸
+function parseColorToRgbLocal(color) {
+    if (!color || typeof color !== 'string') return null;
+    color = color.trim().toLowerCase();
+    if (color[0] === '#') {
+        let hex = color.slice(1);
+        if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+        if (hex.length !== 6) return null;
+        const num = parseInt(hex, 16);
+        return {
+            r: (num >> 16) & 255,
+            g: (num >> 8) & 255,
+            b: num & 255
+        };
+    }
+    const rgbMatch = color.match(/rgba?\(([^)]+)\)/);
+    if (rgbMatch) {
+        const parts = rgbMatch[1].split(',').map(v => parseFloat(v.trim()));
+        if (parts.length >= 3) {
+            return { r: parts[0], g: parts[1], b: parts[2] };
+        }
+    }
+    return null;
+}
+function rgbToHexLocal(r, g, b) {
+    const h = (n) => n.toString(16).padStart(2, '0');
+    return '#' + h(r) + h(g) + h(b);
+}
+function complementColorLocal(hex) {
+    const rgb = parseColorToRgbLocal(hex);
+    if (!rgb) return hex;
+    const cr = 255 - rgb.r;
+    const cg = 255 - rgb.g;
+    const cb = 255 - rgb.b;
+    return rgbToHexLocal(cr, cg, cb).toUpperCase();
+}
+
+// 컬러 팔레트 모달 컴포넌트
+const ColorPaletteModal = {
+    props: ['currentColor'],
+    emits: ['close', 'select'],
+    template: `
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60" @click.self="$emit('close')">
+            <div class="bg-bg-panel border border-ui-border rounded shadow-lg p-3 text-[11px] text-text-main w-[480px] max-w-[95vw] max-h-[90vh] overflow-auto">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-bold text-[12px]">색상 선택</span>
+                    <button class="text-[10px] text-text-sub hover:text-white" @click="$emit('close')">✕</button>
+                </div>
+
+                <!-- 현재 색상 -->
+                <div class="mb-3 flex items-center gap-2">
+                    <span class="text-[10px] text-text-sub w-16">현재 색상</span>
+                    <div class="flex items-center gap-2">
+                        <div
+                            class="w-6 h-6 border border-ui-border rounded"
+                            :style="{ backgroundColor: currentColor || '#000000' }"
+                        ></div>
+                        <span class="text-[11px]">
+                            {{ colorLabel(currentColor || '#000000') }}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- 무지개색 -->
+                <div class="mb-3">
+                    <div class="text-[10px] text-text-sub mb-1">무지개 색상</div>
+                    <div class="flex flex-wrap gap-1">
+                        <button
+                            v-for="c in rainbow"
+                            :key="'rainbow-' + c"
+                            class="w-7 h-7 rounded border border-ui-border"
+                            :style="{ backgroundColor: c }"
+                            :title="colorLabel(c)"
+                            @click="pick(c)"
+                        ></button>
+                    </div>
+                </div>
+
+                <!-- 자주 쓰는 20색 -->
+                <div class="mb-3">
+                    <div class="text-[10px] text-text-sub mb-1">자주 쓰는 색상</div>
+                    <div class="grid grid-cols-10 gap-1">
+                        <button
+                            v-for="c in popular"
+                            :key="'popular-' + c"
+                            class="w-7 h-7 rounded border border-ui-border"
+                            :style="{ backgroundColor: c }"
+                            :title="colorLabel(c)"
+                            @click="pick(c)"
+                        ></button>
+                    </div>
+                </div>
+
+                <!-- 보색 (자주 쓰는 20색의 보색) -->
+                <div class="mb-3">
+                    <div class="text-[10px] text-text-sub mb-1">보색 (자주 쓰는 색의 보색)</div>
+                    <div class="grid grid-cols-10 gap-1">
+                        <button
+                            v-for="c in popularComplements"
+                            :key="'compl-' + c"
+                            class="w-7 h-7 rounded border border-ui-border"
+                            :style="{ backgroundColor: c }"
+                            :title="colorLabel(c)"
+                            @click="pick(c)"
+                        ></button>
+                    </div>
+                </div>
+
+                <!-- 그레이/기본 팔레트 -->
+                <div>
+                    <div class="text-[10px] text-text-sub mb-1">기본 팔레트</div>
+                    <div class="flex flex-wrap gap-1">
+                        <button
+                            v-for="c in basePalette"
+                            :key="'base-' + c"
+                            class="w-7 h-7 rounded border border-ui-border"
+                            :style="{ backgroundColor: c }"
+                            :title="colorLabel(c)"
+                            @click="pick(c)"
+                        ></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `,
+    data() {
+        // rainbow 12색
+        const rainbow = [
+            '#ff0000','#ff7f00','#ffff00','#00ff00',
+            '#00ffff','#0000ff','#8b00ff','#ff1493',
+            '#ff4500','#ffd700','#7fff00','#00bfff'
+        ];
+        // popular: COLORS 상위 20개 또는 기본셋
+        let popular = [];
+        if (typeof COLORS !== 'undefined' && Array.isArray(COLORS) && COLORS.length > 0) {
+            popular = COLORS.slice(0, 20).map(c => c.toUpperCase());
+        } else {
+            popular = [
+                '#000000','#ffffff',
+                '#ef4444','#f97316','#eab308','#22c55e','#0ea5e9',
+                '#3b82f6','#6366f1','#a855f7','#ec4899','#f97316',
+                '#facc15','#4b5563','#9ca3af','#e5e7eb',
+                '#10b981','#14b8a6','#06b6d4','#2563eb'
+            ];
+        }
+        const popularComplements = popular.map(c => complementColorLocal(c));
+        const basePalette = [
+            '#000000','#111827','#4b5563','#9ca3af','#e5e7eb','#ffffff'
+        ];
+        return { rainbow, popular, popularComplements, basePalette };
+    },
+    methods: {
+        pick(c) {
+            this.$emit('select', c.toUpperCase());
+        },
+        colorLabel(c) {
+            const code = (c || '#000000').toUpperCase();
+            const name = COLOR_KO_NAMES[code.toLowerCase()] || COLOR_KO_NAMES[code] || code;
+            if (name && name !== code) return `${name} ${code}`;
+            return code;
+        }
+    }
+};
+
 const LayerConfigModal = {
+    components: {
+        'color-palette-modal': ColorPaletteModal
+    },
     props: ['box'],
     template: `
         <div
@@ -34,7 +201,7 @@ const LayerConfigModal = {
                 :style="combinedWindowStyle"
                 @mousedown.stop
             >
-                <!-- 헤더 (드래그, X버튼만 사용) -->
+                <!-- 헤더 (드래그, X만 사용) -->
                 <div
                     class="flex items-center justify-between px-3 py-2 border-b border-ui-border bg-bg-hover cursor-move"
                     @mousedown.stop.prevent="onHeaderMouseDown"
@@ -57,7 +224,7 @@ const LayerConfigModal = {
 
                 <!-- 바디 -->
                 <div class="flex-1 overflow-auto px-3 py-2 space-y-3">
-                    <!-- 텍스트 내용 입력 (텍스트 레이어 전용) -->
+                    <!-- 텍스트 내용 입력 -->
                     <div v-if="isTextLayer">
                         <label class="block text-[10px] mb-1 text-text-sub">
                             텍스트 내용
@@ -73,7 +240,7 @@ const LayerConfigModal = {
                         </p>
                     </div>
 
-                    <!-- 좌표 (X, Y, W, H) -->
+                    <!-- 좌표 -->
                     <div>
                         <label class="block text-[10px] mb-1 text-text-sub">
                             좌표 / 크기 (캔버스 기준 px)
@@ -81,226 +248,169 @@ const LayerConfigModal = {
                         <div class="grid grid-cols-4 gap-1">
                             <div class="flex flex-col">
                                 <span class="text-[10px] text-text-sub mb-0.5">X</span>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    step="1"
+                                <input type="number" min="0" step="1"
                                     class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]"
-                                    v-model.number="box.x"
-                                />
+                                    v-model.number="box.x" />
                             </div>
                             <div class="flex flex-col">
                                 <span class="text-[10px] text-text-sub mb-0.5">Y</span>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    step="1"
+                                <input type="number" min="0" step="1"
                                     class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]"
-                                    v-model.number="box.y"
-                                />
+                                    v-model.number="box.y" />
                             </div>
                             <div class="flex flex-col">
                                 <span class="text-[10px] text-text-sub mb-0.5">W</span>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    step="1"
+                                <input type="number" min="0" step="1"
                                     class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]"
-                                    v-model.number="box.w"
-                                />
+                                    v-model.number="box.w" />
                             </div>
                             <div class="flex flex-col">
                                 <span class="text-[10px] text-text-sub mb-0.5">H</span>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    step="1"
+                                <input type="number" min="0" step="1"
                                     class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]"
-                                    v-model.number="box.h"
-                                />
+                                    v-model.number="box.h" />
                             </div>
                         </div>
                     </div>
 
                     <!-- 레이어 숨김 -->
                     <div class="flex items-center gap-2">
-                        <input
-                            id="layer-config-hidden"
-                            type="checkbox"
-                            class="w-3 h-3"
-                            v-model="box.isHidden"
-                        />
-                        <label
-                            for="layer-config-hidden"
-                            class="text-[10px] text-text-sub select-none"
-                        >
+                        <input id="layer-config-hidden" type="checkbox" class="w-3 h-3" v-model="box.isHidden" />
+                        <label for="layer-config-hidden" class="text-[10px] text-text-sub select-none">
                             레이어 숨기기
                         </label>
                     </div>
 
-                    <!-- 색상 설정 -->
+                    <!-- 색상: 버튼 + 팔레트 모달 -->
                     <div>
                         <label class="block text-[10px] mb-1 text-text-sub">
                             레이어 색상 / 배경
                         </label>
                         <div class="space-y-1">
-                            <!-- 레이어 테두리/레이블 색상 -->
                             <div class="flex items-center justify-between gap-2">
                                 <span class="text-[10px] text-text-sub w-16">레이어 색상</span>
-                                <select
-                                    class="flex-1 bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]"
-                                    v-model="box.color"
-                                    :style="selectStyle(box.color)"
+                                <button
+                                    type="button"
+                                    class="flex-1 h-6 rounded border border-ui-border text-[10px] px-1"
+                                    :style="colorButtonStyle(box.color)"
+                                    @click="openColorPicker('layerColor')"
                                 >
-                                    <option
-                                        v-for="opt in colorOptions"
-                                        :key="'layer-color-' + opt.value"
-                                        :value="opt.value"
-                                    >
-                                        {{ optionLabel(opt) }}
-                                    </option>
-                                </select>
+                                    {{ colorLabel(box.color || '#000000') }}
+                                </button>
                             </div>
-
-                            <!-- 레이어 배경색 -->
                             <div class="flex items-center justify-between gap-2">
                                 <span class="text-[10px] text-text-sub w-16">레이어 배경</span>
-                                <select
-                                    class="flex-1 bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]"
-                                    v-model="box.layerBgColor"
-                                    :style="selectStyle(box.layerBgColor)"
+                                <button
+                                    type="button"
+                                    class="flex-1 h-6 rounded border border-ui-border text-[10px] px-1"
+                                    :style="colorButtonStyle(box.layerBgColor)"
+                                    @click="openColorPicker('layerBg')"
                                 >
-                                    <option
-                                        v-for="opt in colorOptions"
-                                        :key="'layer-bg-' + opt.value"
-                                        :value="opt.value"
-                                    >
-                                        {{ optionLabel(opt) }}
-                                    </option>
-                                </select>
+                                    {{ colorLabel(box.layerBgColor || '#000000') }}
+                                </button>
                             </div>
                         </div>
                     </div>
 
-                    <!-- 텍스트 스타일 (텍스트 레이어 전용) -->
+                    <!-- 텍스트 스타일 -->
                     <div v-if="isTextLayer">
                         <label class="block text-[10px] mb-1 text-text-sub">
                             텍스트 스타일
                         </label>
                         <div class="space-y-1">
-                            <!-- 폰트 크기 & 테두리 두께 -->
+                            <!-- 크기/두께 -->
                             <div class="grid grid-cols-2 gap-1">
                                 <div class="flex flex-col">
                                     <span class="text-[10px] text-text-sub mb-0.5">폰트 크기</span>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        step="1"
+                                    <input type="number" min="0" step="1"
                                         class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]"
-                                        v-model.number="box.textStyle.fontSize"
-                                    />
+                                        v-model.number="box.textStyle.fontSize" />
                                 </div>
                                 <div class="flex flex-col">
                                     <span class="text-[10px] text-text-sub mb-0.5">테두리 두께</span>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        step="1"
+                                    <input type="number" min="0" step="1"
                                         class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]"
-                                        v-model.number="box.textStyle.strokeWidth"
-                                    />
+                                        v-model.number="box.textStyle.strokeWidth" />
                                 </div>
                             </div>
 
-                            <!-- 텍스트 색상 -->
+                            <!-- 텍스트 색/테두리/배경 -->
                             <div class="flex items-center justify-between gap-2">
                                 <span class="text-[10px] text-text-sub w-16">텍스트 색상</span>
-                                <select
-                                    class="flex-1 bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]"
-                                    v-model="box.textStyle.fillColor"
-                                    :style="selectStyle(box.textStyle.fillColor)"
+                                <button
+                                    type="button"
+                                    class="flex-1 h-6 rounded border border-ui-border text-[10px] px-1"
+                                    :style="colorButtonStyle(box.textStyle.fillColor)"
+                                    @click="openColorPicker('textFill')"
                                 >
-                                    <option
-                                        v-for="opt in colorOptions"
-                                        :key="'fill-' + opt.value"
-                                        :value="opt.value"
-                                    >
-                                        {{ optionLabel(opt) }}
-                                    </option>
-                                </select>
+                                    {{ colorLabel(box.textStyle.fillColor || '#ffffff') }}
+                                </button>
                             </div>
-
-                            <!-- 테두리 색상 -->
                             <div class="flex items-center justify-between gap-2">
                                 <span class="text-[10px] text-text-sub w-16">테두리 색상</span>
-                                <select
-                                    class="flex-1 bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]"
-                                    v-model="box.textStyle.strokeColor"
-                                    :style="selectStyle(box.textStyle.strokeColor)"
+                                <button
+                                    type="button"
+                                    class="flex-1 h-6 rounded border border-ui-border text-[10px] px-1"
+                                    :style="colorButtonStyle(box.textStyle.strokeColor)"
+                                    @click="openColorPicker('textStroke')"
                                 >
-                                    <option
-                                        v-for="opt in colorOptions"
-                                        :key="'stroke-' + opt.value"
-                                        :value="opt.value"
-                                    >
-                                        {{ optionLabel(opt) }}
-                                    </option>
-                                </select>
+                                    {{ colorLabel(box.textStyle.strokeColor || '#000000') }}
+                                </button>
                             </div>
-
-                            <!-- 텍스트 배경 -->
                             <div class="flex items-center justify-between gap-2">
                                 <span class="text-[10px] text-text-sub w-16">텍스트 배경</span>
-                                <select
-                                    class="flex-1 bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]"
-                                    v-model="box.textStyle.backgroundColor"
-                                    :style="selectStyle(box.textStyle.backgroundColor)"
+                                <button
+                                    type="button"
+                                    class="flex-1 h-6 rounded border border-ui-border text-[10px] px-1"
+                                    :style="colorButtonStyle(box.textStyle.backgroundColor)"
+                                    @click="openColorPicker('textBg')"
                                 >
-                                    <option
-                                        v-for="opt in colorOptions"
-                                        :key="'text-bg-' + opt.value"
-                                        :value="opt.value"
-                                    >
-                                        {{ optionLabel(opt) }}
-                                    </option>
-                                </select>
+                                    {{ colorLabel(box.textStyle.backgroundColor || 'transparent') }}
+                                </button>
                             </div>
 
-                            <!-- 텍스트 정렬: 좌 / 중앙 / 우 -->
+                            <!-- 텍스트 정렬: 좌/중/우 -->
                             <div class="flex items-center justify-between gap-2 mt-1">
-                                <span class="text-[10px] text-text-sub w-16">정렬</span>
+                                <span class="text-[10px] text-text-sub w-16">가로 정렬</span>
                                 <div class="flex gap-1">
-                                    <button
-                                        type="button"
+                                    <button type="button"
                                         class="px-1 py-0.5 rounded border text-[10px]"
                                         :class="alignButtonClass('left')"
-                                        @click="setTextAlign('left')"
-                                    >
-                                        좌
-                                    </button>
-                                    <button
-                                        type="button"
+                                        @click="setTextAlign('left')">좌</button>
+                                    <button type="button"
                                         class="px-1 py-0.5 rounded border text-[10px]"
                                         :class="alignButtonClass('center')"
-                                        @click="setTextAlign('center')"
-                                    >
-                                        중앙
-                                    </button>
-                                    <button
-                                        type="button"
+                                        @click="setTextAlign('center')">중앙</button>
+                                    <button type="button"
                                         class="px-1 py-0.5 rounded border text-[10px]"
                                         :class="alignButtonClass('right')"
-                                        @click="setTextAlign('right')"
-                                    >
-                                        우
-                                    </button>
+                                        @click="setTextAlign('right')">우</button>
+                                </div>
+                            </div>
+
+                            <!-- 텍스트 정렬: 상/중/하 -->
+                            <div class="flex items-center justify-between gap-2 mt-1">
+                                <span class="text-[10px] text-text-sub w-16">세로 정렬</span>
+                                <div class="flex gap-1">
+                                    <button type="button"
+                                        class="px-1 py-0.5 rounded border text-[10px]"
+                                        :class="vAlignButtonClass('top')"
+                                        @click="setTextVAlign('top')">상</button>
+                                    <button type="button"
+                                        class="px-1 py-0.5 rounded border text-[10px]"
+                                        :class="vAlignButtonClass('middle')"
+                                        @click="setTextVAlign('middle')">중앙</button>
+                                    <button type="button"
+                                        class="px-1 py-0.5 rounded border text-[10px]"
+                                        :class="vAlignButtonClass('bottom')"
+                                        @click="setTextVAlign('bottom')">하</button>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- 푸터: 레이어 삭제 + 리사이즈 핸들 (닫기 버튼 없음) -->
+                <!-- 푸터: 삭제 + 리사이즈 핸들 -->
                 <div class="px-3 py-2 border-t border-ui-border flex justify-between items-center">
                     <button
                         class="text-[11px] text-red-400 hover:text-red-300"
@@ -316,6 +426,14 @@ const LayerConfigModal = {
                         ></div>
                     </div>
                 </div>
+
+                <!-- 컬러 팔레트 모달 -->
+                <color-palette-modal
+                    v-if="colorPicker.isOpen"
+                    :current-color="currentPickedColor"
+                    @close="colorPicker.isOpen = false"
+                    @select="onColorPicked"
+                />
             </div>
         </div>
     `,
@@ -338,7 +456,10 @@ const LayerConfigModal = {
             resizeStartW: 0,
             resizeStartH: 0,
             textPlaceholder: '현재의 레이어에 적용할\n텍스트 스타일을 설정하세요',
-            colorOptions: []
+            colorPicker: {
+                isOpen: false,
+                target: null   // 'layerColor' | 'layerBg' | 'textFill' | 'textStroke' | 'textBg'
+            }
         };
     },
     computed: {
@@ -365,15 +486,23 @@ const LayerConfigModal = {
             const name = this.box.layerName || '';
             const parts = [];
             if (name) parts.push(name);
-            if (colLabel && rowLabel) {
-                parts.push(`${colLabel}/${rowLabel}`);
-            }
+            if (colLabel && rowLabel) parts.push(`${colLabel}/${rowLabel}`);
             return parts.join(' · ');
+        },
+        currentPickedColor() {
+            if (!this.box) return '#000000';
+            const t = this.colorPicker.target;
+            if (t === 'layerColor') return this.box.color || '#000000';
+            if (t === 'layerBg')    return this.box.layerBgColor || '#000000';
+            if (!this.box.textStyle) return '#000000';
+            if (t === 'textFill')   return this.box.textStyle.fillColor || '#ffffff';
+            if (t === 'textStroke') return this.box.textStyle.strokeColor || '#000000';
+            if (t === 'textBg')     return this.box.textStyle.backgroundColor || '#000000';
+            return '#000000';
         }
     },
     mounted() {
         this.centerWindow();
-        this.buildColorOptions();
         document.addEventListener('mousemove', this.onGlobalMouseMove);
         document.addEventListener('mouseup', this.onGlobalMouseUp);
     },
@@ -390,71 +519,8 @@ const LayerConfigModal = {
             this.posX = Math.max(20, (vw - this.width) / 2);
             this.posY = Math.max(20, (vh - this.height) / 2);
         },
-        buildColorOptions() {
-            if (typeof COLORS === 'undefined' || !Array.isArray(COLORS)) {
-                this.colorOptions = [];
-                return;
-            }
-            this.colorOptions = COLORS.map(c => {
-                const code = c.toUpperCase();
-                const koName =
-                    COLOR_KO_NAMES[c.toLowerCase()] ||
-                    COLOR_KO_NAMES[code.toLowerCase()] ||
-                    code;
-                return {
-                    value: c,
-                    name: koName,
-                    code: code
-                };
-            });
-        },
-        optionLabel(opt) {
-            if (!opt) return '';
-            if (opt.name && opt.name !== opt.code) {
-                return `■ ${opt.name} ${opt.code}`;
-            }
-            return `■ ${opt.code}`;
-        },
-        selectStyle(value) {
-            const color = value || '#111827';
-            const textColor = this.getContrastingTextColor(color);
-            return {
-                backgroundColor: color,
-                color: textColor
-            };
-        },
-        getColLabel(colRole) {
-            if (colRole === 'full') return '전체';
-            if (colRole === 'high') return '상단';
-            if (colRole === 'mid')  return '중단';
-            if (colRole === 'low')  return '하단';
-            return colRole || '';
-        },
-        getRowLabel(rowType) {
-            if (rowType === 'EFF') return '이펙트';
-            if (rowType === 'TXT') return '텍스트';
-            if (rowType === 'BG')  return '배경';
-            return '';
-        },
 
-        // 텍스트 정렬 버튼 스타일 / 설정
-        alignButtonClass(targetAlign) {
-            const current = (this.box && this.box.textStyle && this.box.textStyle.textAlign) || 'center';
-            const active = current === targetAlign;
-            return active
-                ? 'bg-ui-accent text-white border-ui-accent'
-                : 'bg-bg-input text-text-sub border-ui-border';
-        },
-        setTextAlign(align) {
-            if (!this.box) return;
-            if (!this.box.textStyle) this.box.textStyle = {};
-            this.box.textStyle = {
-                ...this.box.textStyle,
-                textAlign: align
-            };
-        },
-
-        // 드래그
+        // 드래그/리사이즈
         onHeaderMouseDown(e) {
             this.dragging = true;
             this.dragStartMouseX = e.clientX;
@@ -462,7 +528,6 @@ const LayerConfigModal = {
             this.dragStartPosX = this.posX;
             this.dragStartPosY = this.posY;
         },
-        // 리사이즈
         onResizeMouseDown(e) {
             this.resizing = true;
             this.resizeStartMouseX = e.clientX;
@@ -499,38 +564,99 @@ const LayerConfigModal = {
             this.$emit('delete-layer');
         },
 
-        getContrastingTextColor(bgColor) {
-            const rgb = this.parseColorToRgb(bgColor);
-            if (!rgb) return '#000000';
-            const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
-            return luminance > 0.5 ? '#000000' : '#ffffff';
+        // 컬러 버튼/레이블/팔레트
+        colorLabel(c) {
+            if (!c || c === 'transparent') return '투명';
+            const code = c.toUpperCase();
+            const name = COLOR_KO_NAMES[code.toLowerCase()] || COLOR_KO_NAMES[code] || code;
+            if (name && name !== code) return `${name} ${code}`;
+            return code;
         },
-        parseColorToRgb(color) {
-            if (!color || typeof color !== 'string') return null;
-            color = color.trim().toLowerCase();
-
-            if (color[0] === '#') {
-                let hex = color.slice(1);
-                if (hex.length === 3) {
-                    hex = hex.split('').map(c => c + c).join('');
-                }
-                if (hex.length !== 6) return null;
-                const num = parseInt(hex, 16);
+        colorButtonStyle(c) {
+            if (!c || c === 'transparent') {
                 return {
-                    r: (num >> 16) & 255,
-                    g: (num >> 8) & 255,
-                    b: num & 255
+                    backgroundColor: 'transparent',
+                    color: '#ffffff'
                 };
             }
-
-            const rgbMatch = color.match(/rgba?\(([^)]+)\)/);
-            if (rgbMatch) {
-                const parts = rgbMatch[1].split(',').map(v => parseFloat(v.trim()));
-                if (parts.length >= 3) {
-                    return { r: parts[0], g: parts[1], b: parts[2] };
-                }
+            const rgb = parseColorToRgbLocal(c);
+            let textColor = '#000000';
+            if (rgb) {
+                const lum = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
+                textColor = lum > 0.5 ? '#000000' : '#ffffff';
             }
-            return null;
+            return {
+                backgroundColor: c,
+                color: textColor
+            };
+        },
+        openColorPicker(target) {
+            this.colorPicker.target = target;
+            this.colorPicker.isOpen = true;
+        },
+        onColorPicked(color) {
+            if (!this.box) return;
+            const t = this.colorPicker.target;
+            if (t === 'layerColor') {
+                this.box.color = color;
+            } else if (t === 'layerBg') {
+                this.box.layerBgColor = color;
+            } else {
+                if (!this.box.textStyle) this.box.textStyle = {};
+                if (t === 'textFill')   this.box.textStyle.fillColor = color;
+                if (t === 'textStroke') this.box.textStyle.strokeColor = color;
+                if (t === 'textBg')     this.box.textStyle.backgroundColor = color;
+            }
+            this.colorPicker.isOpen = false;
+        },
+
+        // 텍스트 정렬 버튼
+        alignButtonClass(targetAlign) {
+            const current = (this.box && this.box.textStyle && this.box.textStyle.textAlign) || 'center';
+            const active = current === targetAlign;
+            return active
+                ? 'bg-ui-accent text-white border-ui-accent'
+                : 'bg-bg-input text-text-sub border-ui-border';
+        },
+        setTextAlign(align) {
+            if (!this.box) return;
+            if (!this.box.textStyle) this.box.textStyle = {};
+            this.box.textStyle.textAlign = align;
+        },
+
+        vAlignButtonClass(targetAlign) {
+            const current = (this.box && this.box.textStyle && this.box.textStyle.vAlign) || 'middle';
+            const active = current === targetAlign;
+            return active
+                ? 'bg-ui-accent text-white border-ui-accent'
+                : 'bg-bg-input text-text-sub border-ui-border';
+        },
+        setTextVAlign(align) {
+            if (!this.box) return;
+            if (!this.box.textStyle) this.box.textStyle = {};
+            this.box.textStyle.vAlign = align;  // 'top' | 'middle' | 'bottom'
+        },
+
+        // 라벨용
+        getColLabel(colRole) {
+            if (colRole === 'full') return '전체';
+            if (colRole === 'high') return '상단';
+            if (colRole === 'mid')  return '중단';
+            if (colRole === 'low')  return '하단';
+            return colRole || '';
+        },
+        getRowLabel(rowType) {
+            if (rowType === 'EFF') return '이펙트';
+            if (rowType === 'TXT') return '텍스트';
+            if (rowType === 'BG')  return '배경';
+            return '';
+        },
+
+        getContrastingTextColor(bgColor) {
+            const rgb = parseColorToRgbLocal(bgColor);
+            if (!rgb) return '#000000';
+            const lum = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
+            return lum > 0.5 ? '#000000' : '#ffffff';
         }
     }
 };
