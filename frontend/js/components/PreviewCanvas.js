@@ -34,7 +34,7 @@ const PreviewCanvas = {
                 <div class="box-handle bh-bl"></div>
                 <div class="box-handle bh-br"></div>
 
-                <!-- 레이어 레이블: 박스 우측 내/외측 자동 배치 -->
+                <!-- 레이어 레이블: 박스 우측 외측에 배치 -->
                 <div
                     class="canvas-label-right"
                     :style="labelWrapperStyle(box)"
@@ -159,46 +159,39 @@ const PreviewCanvas = {
             return '';
         },
 
-        // 레이블 위치: 박스 기준 local 좌표
-        // - 기본 우측 외측, 프리뷰(캔버스) 폭에 따라 내/외측 자동
-        // - EFF: 위, TXT: 중간, BG: 아래
+        // 레이블 위치: 레이어 박스 기준 local 좌표
+        // - 항상 박스의 "오른쪽 바깥"에 배치 (캔버스 밖으로 나가도 허용)
+        // - EFF: 위쪽, TXT: 세로 중앙, BG: 아래쪽 근처
         labelWrapperStyle(box) {
             const margin = 4;
-            const labelApproxWidth = 140;  // 폭 최소화 (대략)
-            const labelApproxHeight = 60;
+            const labelApproxWidth = 140;   // 대략적인 레이블 폭
+            const labelApproxHeight = 60;   // 대략적인 레이블 높이
 
-            const canvasSize = (this.$parent && this.$parent.canvasSize) || { w: 1920, h: 1080 };
-            const canvasW = canvasSize.w;
+            // 가로 위치: 무조건 박스 오른쪽 바깥
+            let localLeft = box.w + margin;
 
-            // 월드 좌표에서 우측 외측이 캔버스를 넘는지 체크
-            const worldRightOutside = box.x + box.w + margin + labelApproxWidth;
-            const overflowRight = worldRightOutside > canvasW;
-
-            // local X: 박스 내부 기준
-            let localLeft;
-            if (overflowRight) {
-                // 내측
-                localLeft = box.w - labelApproxWidth - margin;
-                if (localLeft < margin) localLeft = margin;
-            } else {
-                // 외측
-                localLeft = box.w + margin;
-            }
-
-            // local Y: 박스 내부 기준
+            // 세로 위치: 행 타입별로 서로 다른 높이에 배치
             let localTop;
             if (box.rowType === 'EFF') {
-                localTop = margin; // 상단
+                // 상단 쪽
+                localTop = margin;
             } else if (box.rowType === 'BG') {
-                localTop = box.h - labelApproxHeight - margin; // 하단
+                // 하단 쪽
+                localTop = box.h - labelApproxHeight - margin;
             } else {
-                localTop = (box.h - labelApproxHeight) / 2;    // 중앙
+                // TXT: 세로 중앙
+                localTop = (box.h - labelApproxHeight) / 2;
             }
-            if (localTop < margin) localTop = margin;
+
+            // 박스가 너무 작을 경우를 대비한 최소/최대 클램프 (박스 내부 기준)
+            if (localTop < margin) {
+                localTop = margin;
+            }
             if (localTop + labelApproxHeight > box.h - margin) {
                 localTop = Math.max(margin, box.h - labelApproxHeight - margin);
             }
 
+            // 캔버스 경계는 신경 쓰지 않음 (요구사항: 넘어가도 상관 없음)
             return {
                 position: 'absolute',
                 left: localLeft + 'px',
