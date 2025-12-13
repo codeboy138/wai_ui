@@ -21,7 +21,7 @@ const PreviewCanvas = {
                 data-y="0"
                 data-action="js:selectCanvasBox"
             >
-                <!-- 텍스트 박스 내용 -->
+                <!-- 텍스트 박스 내용: 레이어 전체 영역 사용 -->
                 <div
                     v-if="box.rowType === 'TXT'"
                     class="canvas-text-content"
@@ -36,7 +36,7 @@ const PreviewCanvas = {
                 <div class="box-handle bh-bl"></div>
                 <div class="box-handle bh-br"></div>
 
-                <!-- 우측 변 외측 레이블 (행 타입별 위치 지정) -->
+                <!-- 레이어 레이블: 박스 우측 외측 (행 타입별 상/중/하 위치) -->
                 <div
                     class="canvas-label-right"
                     :style="labelWrapperStyle(box)"
@@ -57,15 +57,20 @@ const PreviewCanvas = {
         </div>
     `,
     data() {
-        return {};
+        return {
+            _interactBound: false
+        };
     },
     mounted() {
-        this.initInteract();
+        this.initInteractOnce();
     },
     updated() {
-        this.initInteract();
+        // interact.js 는 selector 기반이므로 한 번만 바인딩하면
+        // 이후에 생성되는 .canvas-box 들에도 자동 적용됨.
+        this.initInteractOnce();
     },
     methods: {
+        // 기본 안내 문구
         defaultTextMessage() {
             return '현재의 레이어에 적용할\n텍스트 스타일을 설정하세요';
         },
@@ -76,7 +81,7 @@ const PreviewCanvas = {
             return this.defaultTextMessage();
         },
 
-        // 박스 스타일: 점선 + 현재의 2배 두께 → 2px
+        // 레이어 박스 스타일: 점선 + 2px (기존 대비 2배)
         boxStyle(box) {
             return {
                 display: box.isHidden ? 'none' : 'block',
@@ -90,16 +95,38 @@ const PreviewCanvas = {
                 borderWidth: '2px',
                 boxSizing: 'border-box',
                 zIndex: box.zIndex,
-                backgroundColor: box.layerBgColor || 'rgba(255,255,255,0.05)'
+                backgroundColor: box.layerBgColor || 'rgba(0,0,0,1)'
             };
         },
-        // 행간 겹침 방지
+
+        // 텍스트 표시 영역: 레이어 전체를 덮도록 설정
+        // + 행간 1.2, 정렬은 box.textStyle.textAlign(left/center/right) 사용
         textStyle(box) {
             const ts = box.textStyle || {};
+            const fontSize = ts.fontSize || 48;
+            const align = ts.textAlign || 'center';
+
+            let justifyContent = 'center';
+            if (align === 'left') justifyContent = 'flex-start';
+            if (align === 'right') justifyContent = 'flex-end';
+
             return {
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                width: '100%',
+                height: '100%',
+                padding: '8px',
+                boxSizing: 'border-box',
+
+                display: 'flex',
+                alignItems: 'center',       // 수직 중앙 정렬
+                justifyContent,             // 수평 정렬
+                textAlign: align,
+
                 color: ts.fillColor || '#ffffff',
                 fontFamily: ts.fontFamily || 'Pretendard, system-ui, sans-serif',
-                fontSize: (ts.fontSize || 48) + 'px',
+                fontSize: fontSize + 'px',
                 lineHeight: ts.lineHeight || 1.2,
                 backgroundColor: ts.backgroundColor || 'transparent',
                 WebkitTextStrokeColor: ts.strokeColor || 'transparent',
@@ -108,7 +135,7 @@ const PreviewCanvas = {
             };
         },
 
-        // 컬럼: 전체 / 상단 / 중단 / 하단
+        // 컬럼 이름: 전체 / 상단 / 중단 / 하단
         getColLabel(box) {
             const role = box.colRole || '';
             if (role === 'full') return '전체';
@@ -117,7 +144,7 @@ const PreviewCanvas = {
             if (role === 'low')  return '하단';
             return role || '';
         },
-        // 행: 이펙트 / 텍스트 / 배경
+        // 행 이름: 이펙트 / 텍스트 / 배경
         getRowLabel(rowType) {
             if (rowType === 'EFF') return '이펙트';
             if (rowType === 'TXT') return '텍스트';
@@ -125,15 +152,16 @@ const PreviewCanvas = {
             return '';
         },
 
-        // 행 타입에 따라 우측 외측 위치:
-        // - EFF : 박스 우측 상단 외측
-        // - TXT : 박스 우측 중앙 외측
-        // - BG  : 박스 우측 하단 외측
-        // 캔버스 우측 공간 부족 시 → 박스 내부 우측으로 이동
+        // 레이블 위치 계산
+        // - 기본: 박스 우측 외측
+        // - EFF: 박스 우측 "상단" 기준
+        // - TXT: 박스 우측 "중앙" 기준
+        // - BG : 박스 우측 "하단" 기준
+        // - 우측 캔버스 밖으로 나가면 → 박스 내부 우측으로 이동
         labelWrapperStyle(box) {
             const margin = 8;
-            const labelWidth = 200;
-            const labelHeight = 80; // 폰트 50px 기준 약간 여유
+            const labelWidth = 220;
+            const labelHeight = 90; // 폰트 40px 기준 여유
 
             const canvasSize = (this.$parent && this.$parent.canvasSize) || { w: 1920, h: 1080 };
             const canvasW = canvasSize.w;
@@ -143,17 +171,15 @@ const PreviewCanvas = {
             let top;
 
             if (box.rowType === 'EFF') {
-                // 상단
-                top = box.y;
+                top = box.y; // 상단
             } else if (box.rowType === 'BG') {
-                // 하단
-                top = box.y + box.h - labelHeight;
+                top = box.y + box.h - labelHeight; // 하단
             } else {
                 // TXT 또는 기타 → 중앙
                 top = box.y + (box.h / 2) - (labelHeight / 2);
             }
 
-            // 우측 오버플로우 시 → 박스 내부 우측
+            // 우측으로 튀어나가면 박스 내부 우측으로 이동
             const overflowRight = left + labelWidth > canvasW;
             if (overflowRight) {
                 left = box.x + box.w - labelWidth - margin;
@@ -177,18 +203,18 @@ const PreviewCanvas = {
             };
         },
 
-        // 레이블 칩: 폰트 크기 50
+        // 레이블 칩 스타일: 폰트 크기 40, 중앙 정렬(양쪽 균형)
         labelChipStyle(box) {
-            const bg = box.color || '#facc15';
+            const bg = box.color || '#22c55e';
             const textColor = this.getContrastingTextColor(bg);
             return {
-                minWidth: '200px',
-                padding: '6px 8px',
+                minWidth: '220px',
+                padding: '4px 8px',
                 borderRadius: '8px',
                 border: '2px solid ' + bg,
                 backgroundColor: bg,
                 color: textColor,
-                fontSize: '50px',
+                fontSize: '40px',
                 lineHeight: '1.0',
                 textAlign: 'center',
                 boxSizing: 'border-box',
@@ -239,7 +265,9 @@ const PreviewCanvas = {
         // -------------------------------
         // 드래그 & 리사이즈 (interact.js)
         // -------------------------------
-        initInteract() {
+        initInteractOnce() {
+            if (this._interactBound) return;
+
             const i = window.interact || window.interactjs;
             if (!i) {
                 console.warn('[PreviewCanvas] interact.js not found');
@@ -249,11 +277,15 @@ const PreviewCanvas = {
             const self = this;
             const selector = '.canvas-box';
 
-            // 기존 바인딩 해제 후 다시 설정
-            i(selector).unset();
+            // 기존 바인딩이 남아 있을 수 있으므로 한 번 정리 시도
+            try {
+                i(selector).unset();
+            } catch (e) {
+                // 초기에는 아직 바인딩이 없을 수 있으므로 무시
+            }
 
             const boxesCount = document.querySelectorAll(selector).length;
-            console.log('[PreviewCanvas] interact init, boxes:', boxesCount);
+            console.log('[PreviewCanvas] interact bound, boxes:', boxesCount);
 
             i(selector)
                 .draggable({
@@ -284,6 +316,7 @@ const PreviewCanvas = {
                         },
                         end(event) {
                             const target = event.target;
+
                             const scaler = document.getElementById('preview-canvas-scaler');
                             let scale = 1.0;
                             if (scaler && scaler.style.transform) {
@@ -408,6 +441,8 @@ const PreviewCanvas = {
                         }
                     }
                 });
+
+            this._interactBound = true;
         },
 
         checkSnap(boxId, x, y, w, h) {
@@ -425,9 +460,8 @@ const PreviewCanvas = {
             const canvasRight = canvasSize.w;
             const canvasBottom = canvasSize.h;
 
-            const snapTo = (value, target) => {
-                return Math.abs(value - target) <= threshold ? target : null;
-            };
+            const snapTo = (value, target) =>
+                Math.abs(value - target) <= threshold ? target : null;
 
             let s = snapTo(left, canvasLeft);
             if (s !== null) { left = s; right = left + w; snapped = true; }
