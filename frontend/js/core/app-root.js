@@ -128,7 +128,6 @@ const AppRoot = {
         /**
          * 프리뷰 캔버스 실제 픽셀 사이즈(canvasSize) + 스케일(canvasScale)을
          * preview-canvas-wrapper 중앙에 배치하는 스타일.
-         * - transform scale 은 항상 균일(scaleX = scaleY) → 화면비율 그대로 유지
          */
         canvasScalerStyle() {
             return {
@@ -141,19 +140,12 @@ const AppRoot = {
                 left: '50%'
             };
         },
-
-        // 현재 aspectRatio 에 맞는 해상도 옵션 라벨 리스트
-        // 예: ["4K (3840 x 2160)", "3K (2880 x 1620)", ...]
         resolutionOptions() {
             return RESOLUTION_KEYS.map(key => this.getResolutionLabelFor(key));
         },
-
-        // 현재 선택된 해상도 라벨
         currentResolutionLabel() {
             return this.getResolutionLabelFor(this.resolution);
         },
-
-        // 레이어 설정 모달에서 편집 중인 박스
         layerConfigBox() {
             if (!this.layerConfig.isOpen || !this.layerConfig.boxId) return null;
             return this.canvasBoxes.find(b => b.id === this.layerConfig.boxId) || null;
@@ -161,7 +153,6 @@ const AppRoot = {
     },
     mounted() {
         this.$nextTick(() => { 
-            // 초기 비율 기준으로 canvasSize + scale 계산 (해상도와는 무관)
             this.updateCanvasSizeFromControls();
             this.setupPanelResizers(); 
             this.setupCanvasScaler(); 
@@ -180,12 +171,6 @@ const AppRoot = {
             }
         },
 
-        /**
-         * Inspect / Dev 모드 토글
-         * - active: Inspect
-         * - full: Dev
-         * 둘 중 하나만 활성화되도록 body 클래스와 함께 관리
-         */
         toggleDevMode(mode) {
             if (mode === 'active') {
                 this.isDevModeActive = !this.isDevModeActive;
@@ -204,9 +189,6 @@ const AppRoot = {
             }
         },
 
-        /**
-         * Inspector tooltip 클릭 시 현재 요소 ID를 클립보드에 복사
-         */
         copyInspectorId() {
             const id = this.inspector.id;
             if (!id) return;
@@ -244,9 +226,6 @@ const AppRoot = {
             this.ctxMenu = null;
         },
 
-        /**
-         * Inspector / Dev 모드 공통 마우스 무브 핸들러
-         */
         setupInspectorMode() {
             const self = this;
             const TOOLTIP_MARGIN = 10;
@@ -259,7 +238,6 @@ const AppRoot = {
 
                 let target = e.target;
 
-                // 오버레이 위에서 움직이는 경우 실제 요소로 재획득
                 if (target.classList.contains('dev-highlight') || target.classList.contains('dev-tooltip')) {
                     const realTarget = document.elementFromPoint(e.clientX, e.clientY);
                     if (realTarget) target = realTarget;
@@ -288,23 +266,19 @@ const AppRoot = {
                         dataDev: devInfo
                     };
 
-                    // 툴팁 위치 계산 (뷰포트 안으로 클램핑)
                     const tooltipHeight = self.isDevModeFull ? TOOLTIP_HEIGHT_DEV : TOOLTIP_HEIGHT_INSPECT;
 
                     let top = rect.top - tooltipHeight - TOOLTIP_MARGIN;
                     let left = rect.left + rect.width + TOOLTIP_MARGIN;
 
-                    // 위로 나가면 아래로
                     if (top < TOOLTIP_MARGIN) {
                         top = rect.bottom + TOOLTIP_MARGIN;
                     }
 
-                    // 아래로도 나가지 않도록 클램프
                     if (top + tooltipHeight > window.innerHeight - TOOLTIP_MARGIN) {
                         top = Math.max(TOOLTIP_MARGIN, window.innerHeight - tooltipHeight - TOOLTIP_MARGIN);
                     }
 
-                    // 오른쪽으로 나가면 왼쪽에 배치
                     if (left + TOOLTIP_WIDTH > window.innerWidth - TOOLTIP_MARGIN) {
                         left = rect.left - TOOLTIP_WIDTH - TOOLTIP_MARGIN;
                         if (left < TOOLTIP_MARGIN) {
@@ -331,9 +305,6 @@ const AppRoot = {
             });
         },
 
-        /**
-         * Dev 모드용 정보 문자열 생성
-         */
         buildDevInfo(targetEl) {
             const id = targetEl.id || '';
             const dataAction = targetEl.getAttribute('data-action') || '';
@@ -371,34 +342,27 @@ const AppRoot = {
         },
 
         // --- 레이어/슬롯 헬퍼 ---
-
         getColRole(colIdx) {
             return LAYER_COLUMN_ROLES[colIdx] || `col${colIdx}`;
         },
-
         getRowName(rowType) {
             const meta = LAYER_ROW_META[rowType];
             return meta ? meta.name : (rowType || '').toLowerCase();
         },
-
         getSlotKey(colIdx, rowType) {
             const role = this.getColRole(colIdx);
             const rowName = this.getRowName(rowType);
             return `${role}_${rowName}`;
         },
-
         getZIndexForCell(colIdx, rowType) {
             const meta = LAYER_ROW_META[rowType];
             const offset = meta ? meta.zOffset : 0;
             const base = (colIdx * 100) + 100;
             return base + offset;
         },
-
-        // 기존 getZIndex 를 사용하던 코드와의 호환용
         getZIndex(colIdx, type) {
             return this.getZIndexForCell(colIdx, type);
         },
-
         findBoxBySlot(slotKey) {
             return this.canvasBoxes.find(b => b.slotKey === slotKey) || null;
         },
@@ -440,7 +404,7 @@ const AppRoot = {
                 x = 0;
                 y = Math.round((2 * ch) / 3);
                 w = cw;
-                h = ch - y; // 합계가 정확히 ch 가 되도록
+                h = ch - y;
             }
 
             const box = {
@@ -458,7 +422,8 @@ const AppRoot = {
                 x,
                 y,
                 w,
-                h
+                h,
+                isHidden: false
             };
 
             if (rowType === 'TXT') {
@@ -468,13 +433,11 @@ const AppRoot = {
             return box;
         },
 
-        // 레이어 매트릭스 셀 클릭 → 박스 생성/선택
         addLayerBox(colIdx, rowType, color) {
             const slotKey = this.getSlotKey(colIdx, rowType);
             const existing = this.findBoxBySlot(slotKey);
 
             if (existing) {
-                // 이미 박스가 있으면 선택만
                 this.setSelectedBoxId(existing.id);
                 return;
             }
@@ -486,33 +449,21 @@ const AppRoot = {
         },
 
         // --- Preview/Canvas Logic ---
-
-        // 비율 선택 (16:9 / 9:16 / 1:1)
         setAspect(r) { 
             this.aspectRatio = r; 
             this.updateCanvasSizeFromControls();
         },
-
-        // 해상도 선택
-        // - 프리뷰 캔버스 크기/비율과는 연동하지 않고, 메타 정보/라벨만 변경
         setResolution(labelOrKey) { 
             const str = (labelOrKey || '').toString().trim();
-            const match = str.match(/^(\S+)/); // 첫 토큰만 해상도 키로 사용
+            const match = str.match(/^(\S+)/);
             const key = match ? match[1] : (str || this.resolution);
             this.resolution = key;
         },
-
-        /**
-         * 프리뷰용 기준 캔버스 크기 계산
-         * - BASE_CANVAS_LONG_SIDE (1920)를 기준으로만 계산
-         * - 해상도와 무관
-         */
         computeCanvasSize(aspectRatio) {
             const longSide = BASE_CANVAS_LONG_SIDE;
             let w, h;
 
             if (aspectRatio === '9:16') {
-                // 세로형
                 h = longSide;
                 w = Math.round(longSide * 9 / 16);
             } else if (aspectRatio === '1:1') {
@@ -520,17 +471,11 @@ const AppRoot = {
                 w = square;
                 h = square;
             } else {
-                // 기본: 16:9 가로형
                 w = longSide;
                 h = Math.round(longSide * 9 / 16);
             }
             return { w, h };
         },
-
-        /**
-         * 해상도 라벨용 픽셀 크기 계산
-         * - 실제 프리뷰 크기에는 사용하지 않고, 드롭다운 텍스트에만 사용
-         */
         computeResolutionSize(aspectRatio, resolutionKey) {
             const key = resolutionKey || '4K';
             const longSide = RESOLUTION_LONG_SIDE[key] || RESOLUTION_LONG_SIDE['4K'];
@@ -549,27 +494,16 @@ const AppRoot = {
             }
             return { w, h };
         },
-
-        // 특정 해상도 키에 대한 "4K (3840 x 2160)" 형식 라벨 생성
         getResolutionLabelFor(key) {
             const k = key || this.resolution || '4K';
             const size = this.computeResolutionSize(this.aspectRatio, k);
             return `${k} (${size.w} x ${size.h})`;
         },
-
-        // 비율(Aspect) 변경 시 프리뷰용 canvasSize + scale 갱신
         updateCanvasSizeFromControls() {
             const size = this.computeCanvasSize(this.aspectRatio);
             this.canvasSize = size;
             this.recalculateCanvasScale();
         },
-
-        /**
-         * preview-canvas-wrapper 안에서
-         * - 사방 20px 마진을 최소로 두고
-         * - 그 안을 기준으로 설정된 화면비율을 최대한 채우도록 스케일 계산
-         * 남는 여백은 그대로 비워두는(레터박스) 방식.
-         */
         recalculateCanvasScale() {
             const wrapper = document.getElementById('preview-canvas-wrapper');
             if (!wrapper) return;
@@ -591,7 +525,6 @@ const AppRoot = {
 
             this.canvasScale = (scale > 0 && Number.isFinite(scale)) ? scale : 1.0;
         },
-
         updateCanvasMouseCoord(e) {
             const wrapper = document.getElementById('preview-canvas-wrapper');
             const scaler = document.getElementById('preview-canvas-scaler');
@@ -679,13 +612,8 @@ const AppRoot = {
                 });
             };
             
-            // Left Panel (Width)
             setup('main-left-resizer-v', 'leftPanelWidth', 180, 'w', false);
-            
-            // Right Panel (Width - Reverse calculation)
             setup('main-right-resizer-v', 'rightPanelWidth', 250, 'w', true); 
-            
-            // Center Horizontal (Height)
             setup('main-center-timeline-resizer-h', 'previewContainerHeight', 100, 'h', false);
         },
         
@@ -707,18 +635,15 @@ const AppRoot = {
         },
 
         // --- 레이어 설정 모달 ---
-
         openLayerConfig(boxId) {
             this.layerConfig.isOpen = true;
             this.layerConfig.boxId = boxId;
             this.setSelectedBoxId(boxId);
         },
-
         closeLayerConfig() {
             this.layerConfig.isOpen = false;
             this.layerConfig.boxId = null;
         },
-
         deleteLayerFromConfig() {
             const box = this.layerConfigBox;
             if (box) {
@@ -732,13 +657,10 @@ const AppRoot = {
             this.canvasBoxes = this.canvasBoxes.filter(b => b.id !== id);
             if (this.selectedBoxId === id) this.selectedBoxId = null;
         },
-
         setSelectedBoxId(id) {
             this.selectedBoxId = (this.selectedBoxId === id) ? null : id;
             this.selectedClip = null;
         },
-
-        // 박스 위치/크기를 절대 좌표로 갱신
         updateBoxPosition(id, newX, newY, newW, newH) {
             const index = this.canvasBoxes.findIndex(b => b.id === id);
             if (index === -1) return;
@@ -755,29 +677,24 @@ const AppRoot = {
             newBoxes[index] = updated;
             this.canvasBoxes = newBoxes;
         },
-
         removeClip(id) {
             this.clips = this.clips.filter(c => c.id !== id);
         },
-
         setSelectedClip(clip) {
             this.selectedClip = (this.selectedClip && this.selectedClip.id === clip.id) ? null : clip;
             this.selectedBoxId = null;
         },
-
         moveTrack(fromIndex, toIndex) {
             const tracks = [...this.tracks];
             const [removed] = tracks.splice(fromIndex, 1);
             tracks.splice(toIndex, 0, removed);
             this.tracks = tracks;
         },
-
         saveLayerTemplate(name) {
             const newTpl = { id: `tpl_${Date.now()}`, name, cols: this.layerCols }; 
             this.layerTemplates.push(newTpl);
             this.layerMainName = name; 
         },
-
         addClipFromDrop(fileType, trackIndex, time, assetName) {
             const trackId = this.tracks[trackIndex] ? this.tracks[trackIndex].id : null;
             if (!trackId) return;
@@ -791,7 +708,6 @@ const AppRoot = {
             };
             this.clips.push(newClip);
         },
-
         updateClip(clipId, startChange, durationChange) {
             const index = this.clips.findIndex(c => c.id === clipId);
             if (index !== -1) {
@@ -809,7 +725,6 @@ const AppRoot = {
                 this.clips = newClips;
             }
         },
-
         moveClip(clipId, timeChange) {
             const index = this.clips.findIndex(c => c.id === clipId);
             if (index !== -1) {
@@ -825,5 +740,4 @@ const AppRoot = {
     }
 };
 
-// Vue 앱 부트스트랩 (bootstrap.js에서 할 수도 있음)
 createApp(AppRoot).mount('#app-vue-root');
