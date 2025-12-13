@@ -341,4 +341,77 @@ const LayerConfigModal = {
                         move(event) {
                             const target = event.target;
                             const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
-                            const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy
+                            const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
+                            target.style.transform = `translate(${x}px, ${y}px)`;
+                            target.setAttribute('data-x', x);
+                            target.setAttribute('data-y', y);
+                        }
+                    }
+                })
+                .resizable({
+                    edges: { left: true, right: true, bottom: true, top: true },
+                    modifiers: [
+                        window.interact.modifiers.restrictEdges({
+                            outer: 'parent'
+                        })
+                    ],
+                    listeners: {
+                        move(event) {
+                            const target = event.target;
+                            let x = (parseFloat(target.getAttribute('data-x')) || 0) + event.deltaRect.left;
+                            let y = (parseFloat(target.getAttribute('data-y')) || 0) + event.deltaRect.top;
+
+                            Object.assign(target.style, {
+                                width: `${event.rect.width}px`,
+                                height: `${event.rect.height}px`,
+                                transform: `translate(${x}px, ${y}px)`
+                            });
+
+                            target.setAttribute('data-x', x);
+                            target.setAttribute('data-y', y);
+                        }
+                    }
+                });
+        },
+        openColorPicker(target) {
+            this.activeColorTarget = target;
+        },
+        applyColor(color) {
+            if (!this.box) return;
+
+            if (this.activeColorTarget === 'border') {
+                this.box.color = color.code;
+            } else if (this.activeColorTarget === 'layerBg') {
+                this.box.layerBgColor = color.code;
+            } else if (this.activeColorTarget === 'textFill' && this.box.textStyle) {
+                this.box.textStyle.fillColor = color.code;
+            } else if (this.activeColorTarget === 'textStroke' && this.box.textStyle) {
+                this.box.textStyle.strokeColor = color.code;
+            } else if (this.activeColorTarget === 'textBg' && this.box.textStyle) {
+                this.box.textStyle.backgroundColor = color.code;
+            }
+        },
+        onHoverColor(c) {
+            this.hoverColor = c;
+        },
+        hexToComplement(hex) {
+            const cleaned = (hex || '').replace('#', '');
+            if (cleaned.length !== 6) return '#000000';
+            const r = 255 - parseInt(cleaned.slice(0, 2), 16);
+            const g = 255 - parseInt(cleaned.slice(2, 4), 16);
+            const b = 255 - parseInt(cleaned.slice(4, 6), 16);
+            const toHex = function(v) {
+                return v.toString(16).padStart(2, '0');
+            };
+            return '#' + toHex(r) + toHex(g) + toHex(b);
+        },
+        getComplementInfo(color) {
+            const compCode = this.hexToComplement(color.code);
+            const found = this.palette.find(function(p) {
+                return p.code.toLowerCase() === compCode.toLowerCase();
+            });
+            if (found) return found;
+            return { name: 'Complement', code: compCode };
+        }
+    }
+};
