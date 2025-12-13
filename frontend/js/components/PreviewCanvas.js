@@ -67,14 +67,14 @@ const PreviewCanvas = {
         return {};
     },
     computed: {
-        // 레이블 바 전체 스타일: 글자/박스 기존 대비 약 4배 크기
+        // 레이블 바 전체 스타일: 글자/박스 크게 (텍스트 30px = 기존 10px 기준 3배 수준)
         labelBarStyle() {
             return {
                 position: 'absolute',
                 left: '0',
                 right: '0',
                 bottom: '0',
-                height: '36px',                // 기존 대비 크게
+                height: '40px',                // 30px 폰트 + 여유
                 display: 'flex',
                 alignItems: 'stretch',
                 justifyContent: 'space-between',
@@ -82,9 +82,9 @@ const PreviewCanvas = {
                 boxSizing: 'border-box',
                 gap: '4px',                    // 1/3 레이블 사이 간격
                 pointerEvents: 'none',         // 라벨에 마우스 이벤트 안 먹게
-                fontSize: '16px',              // 약 4배 수준
-                fontWeight: '500',
-                lineHeight: '1.2'
+                fontSize: '30px',              // <<< 라벨 텍스트 크기 (3배)
+                fontWeight: '600',
+                lineHeight: '1'                // 30px 텍스트가 40px 높이에 잘 들어가도록
             };
         }
     },
