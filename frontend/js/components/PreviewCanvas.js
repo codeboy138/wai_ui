@@ -63,9 +63,6 @@ const PreviewCanvas = {
             dragEdges: { left: false, right: false, top: false, bottom: false },
             dragScale: 1.0,
             dragCanvasSize: { w: 1920, h: 1080 },
-            dragTargetEl: null,       // 드래그 중인 실제 DOM 엘리먼트
-            dragCurrentBox: null,     // 마지막 계산된 박스 좌표 (mouse up 에 Vue 상태 반영)
-
             _mouseMoveHandler: null,
             _mouseUpHandler: null
         };
@@ -155,7 +152,7 @@ const PreviewCanvas = {
             return role || '';
         },
         getRowLabel(rowType) {
-            if (rowType === 'EFF') return '이펙트';
+            if (rowType === 'EFF') return '텍스트';
             if (rowType === 'TXT') return '텍스트';
             if (rowType === 'BG')  return '배경';
             return rowType || '';
@@ -171,53 +168,36 @@ const PreviewCanvas = {
          * 레이블 위치: 레이어 박스 기준 local 좌표
          *
          * - 항상 "하단 내부"에 위치
-         * - 같은 컬럼 안에서 rowType 별로 좌/중/우로 나눠서 배치
+         * - rowType 별 가로 위치:
          *   - EFF : 좌측 하단
-         *   - TXT : 중앙 하단
+         *   - TXT 및 기타 : 중앙 하단
          *   - BG  : 우측 하단
-         *   - 기타 rowType: 중앙 하단 (TXT와 동일 처리)
-         * - 레이블 박스 전체가 레이어 박스 안에 들어오도록 클램프
+         * - 레이블 박스 하단 = 레이어 박스 아랫변 (bottom: 0)
+         *   → 레이블 전체가 박스 안에 100% 포함
          */
         labelWrapperStyle(box) {
             const marginX = 8;
-            const marginY = 4;
-            const labelApproxWidth = 140;
-            const labelApproxHeight = 20;
 
-            // 세로: 공통으로 아랫변 안쪽
-            let localTop = box.h - labelApproxHeight - marginY;
-            if (localTop < marginY) {
-                localTop = marginY;
-            }
-
-            // 가로: 행 타입별 위치
-            let localLeft;
-            if (box.rowType === 'EFF') {
-                // 좌측
-                localLeft = marginX;
-            } else if (box.rowType === 'BG') {
-                // 우측
-                localLeft = box.w - marginX - labelApproxWidth;
-            } else {
-                // TXT 및 그 외: 중앙
-                localLeft = (box.w - labelApproxWidth) / 2;
-            }
-
-            // 박스 내부로 클램프 (레이블 전체가 안에 있도록)
-            if (localLeft < marginX) {
-                localLeft = marginX;
-            }
-            if (localLeft + labelApproxWidth > box.w - marginX) {
-                localLeft = Math.max(marginX, box.w - marginX - labelApproxWidth);
-            }
-
-            return {
+            const style = {
                 position: 'absolute',
-                left: localLeft + 'px',
-                top: localTop + 'px',
+                bottom: '0px',              // 레이블 박스 하단 = 레이어 하단
                 pointerEvents: 'none',
                 zIndex: box.zIndex + 1
             };
+
+            if (box.rowType === 'EFF') {
+                // 좌측 하단
+                style.left = marginX + 'px';
+            } else if (box.rowType === 'BG') {
+                // 우측 하단
+                style.right = marginX + 'px';
+            } else {
+                // TXT 및 기타: 중앙 하단
+                style.left = '50%';
+                style.transform = 'translateX(-50%)';
+            }
+
+            return style;
         },
 
         // 레이블 칩: 현재 크기 유지, 캔버스 스케일에 따라 같이 확대/축소
@@ -342,8 +322,6 @@ const PreviewCanvas = {
             this.dragBoxId = box.id;
             this.dragStartMouse = { x: e.clientX, y: e.clientY };
             this.dragStartBox = { x: box.x, y: box.y, w: box.w, h: box.h };
-            this.dragTargetEl = target;
-            this.dragCurrentBox = { ...this.dragStartBox };
 
             const { nearLeft, nearRight, nearTop, nearBottom } = edgeState;
 
@@ -390,7 +368,7 @@ const PreviewCanvas = {
         },
 
         handleMouseMove(e) {
-            if (!this.dragMode || !this.dragBoxId || !this.dragTargetEl) return;
+            if (!this.dragMode || !this.dragBoxId) return;
 
             const dxClient = e.clientX - this.dragStartMouse.x;
             const dyClient = e.clientY - this.dragStartMouse.y;
@@ -451,32 +429,35 @@ const PreviewCanvas = {
                 if (newY + newH > canvas.h) newH = canvas.h - newY;
             }
 
-            // DOM 직접 업데이트 → 마우스와 박스가 즉시 따라오도록
-            const el = this.dragTargetEl;
-            el.style.left = newX + 'px';
-            el.style.top = newY + 'px';
-            el.style.width = newW + 'px';
-            el.style.height = newH + 'px';
-
-            // mouseup 에 Vue 상태 반영용으로 저장
-            this.dragCurrentBox = { x: newX, y: newY, w: newW, h: newH };
+            // Vue 상태를 바로 업데이트 → 마우스와 박스가 최대한 동시에 움직이도록
+            if (this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
+                this.$parent.updateBoxPosition(this.dragBoxId, newX, newY, newW, newH);
+            }
         },
 
         handleMouseUp() {
-            // 최종 위치를 Vue 상태에 반영
-            if (this.dragMode && this.dragBoxId && this.dragCurrentBox &&
-                this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
-                const p = this.dragCurrentBox;
-                this.$parent.updateBoxPosition(this.dragBoxId, p.x, p.y, p.w, p.h);
+            if (this.dragMode && this.dragBoxId) {
+                const box = this.canvasBoxes.find(b => b.id === this.dragBoxId);
+                if (box) {
+                    const snapResult = this.checkSnap(box.id, box.x, box.y, box.w, box.h);
+                    if (snapResult.snapped && this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
+                        this.$parent.updateBoxPosition(
+                            box.id,
+                            snapResult.x,
+                            snapResult.y,
+                            snapResult.w,
+                            snapResult.h
+                        );
+                        const target = document.getElementById('preview-canvas-box-' + box.id);
+                        if (target) this.triggerSnapFlash(target);
+                    }
+                }
             }
 
             window.removeEventListener('mousemove', this._mouseMoveHandler);
             window.removeEventListener('mouseup', this._mouseUpHandler);
-
             this.dragMode = null;
             this.dragBoxId = null;
-            this.dragTargetEl = null;
-            this.dragCurrentBox = null;
         },
 
         // ---------- 스냅 & 플래시 ----------
