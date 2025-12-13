@@ -114,6 +114,19 @@ const LayerConfigModal = {
                                 </button>
                             </div>
                         </div>
+
+                        <!-- 레이어 숨김 -->
+                        <div class="mt-1">
+                            <label class="inline-flex items-center gap-2 text-[10px] text-text-sub">
+                                <input
+                                    id="layer-config-hidden-toggle"
+                                    type="checkbox"
+                                    v-model="box.isHidden"
+                                    class="w-3 h-3 bg-bg-input border border-ui-border rounded"
+                                />
+                                <span>레이어 숨기기</span>
+                            </label>
+                        </div>
                     </section>
 
                     <!-- 좌표 설정 -->
