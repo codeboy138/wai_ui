@@ -63,6 +63,9 @@ const PreviewCanvas = {
             dragEdges: { left: false, right: false, top: false, bottom: false },
             dragScale: 1.0,
             dragCanvasSize: { w: 1920, h: 1080 },
+            dragTargetEl: null,       // 드래그 중인 실제 DOM 엘리먼트
+            dragCurrentBox: null,     // 마지막 계산된 박스 좌표 (mouse up 에 Vue 상태 반영)
+
             _mouseMoveHandler: null,
             _mouseUpHandler: null
         };
@@ -155,7 +158,7 @@ const PreviewCanvas = {
             if (rowType === 'EFF') return '이펙트';
             if (rowType === 'TXT') return '텍스트';
             if (rowType === 'BG')  return '배경';
-            return '';
+            return rowType || '';
         },
         // 1행 레이블 텍스트 (예: "중단 텍스트")
         labelText(box) {
@@ -172,6 +175,8 @@ const PreviewCanvas = {
          *   - EFF : 좌측 하단
          *   - TXT : 중앙 하단
          *   - BG  : 우측 하단
+         *   - 기타 rowType: 중앙 하단 (TXT와 동일 처리)
+         * - 레이블 박스 전체가 레이어 박스 안에 들어오도록 클램프
          */
         labelWrapperStyle(box) {
             const marginX = 8;
@@ -194,11 +199,11 @@ const PreviewCanvas = {
                 // 우측
                 localLeft = box.w - marginX - labelApproxWidth;
             } else {
-                // TXT: 중앙
+                // TXT 및 그 외: 중앙
                 localLeft = (box.w - labelApproxWidth) / 2;
             }
 
-            // 박스 내부로 클램프
+            // 박스 내부로 클램프 (레이블 전체가 안에 있도록)
             if (localLeft < marginX) {
                 localLeft = marginX;
             }
@@ -337,6 +342,8 @@ const PreviewCanvas = {
             this.dragBoxId = box.id;
             this.dragStartMouse = { x: e.clientX, y: e.clientY };
             this.dragStartBox = { x: box.x, y: box.y, w: box.w, h: box.h };
+            this.dragTargetEl = target;
+            this.dragCurrentBox = { ...this.dragStartBox };
 
             const { nearLeft, nearRight, nearTop, nearBottom } = edgeState;
 
@@ -383,7 +390,7 @@ const PreviewCanvas = {
         },
 
         handleMouseMove(e) {
-            if (!this.dragMode || !this.dragBoxId) return;
+            if (!this.dragMode || !this.dragBoxId || !this.dragTargetEl) return;
 
             const dxClient = e.clientX - this.dragStartMouse.x;
             const dyClient = e.clientY - this.dragStartMouse.y;
@@ -444,34 +451,32 @@ const PreviewCanvas = {
                 if (newY + newH > canvas.h) newH = canvas.h - newY;
             }
 
-            if (this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
-                this.$parent.updateBoxPosition(this.dragBoxId, newX, newY, newW, newH);
-            }
+            // DOM 직접 업데이트 → 마우스와 박스가 즉시 따라오도록
+            const el = this.dragTargetEl;
+            el.style.left = newX + 'px';
+            el.style.top = newY + 'px';
+            el.style.width = newW + 'px';
+            el.style.height = newH + 'px';
+
+            // mouseup 에 Vue 상태 반영용으로 저장
+            this.dragCurrentBox = { x: newX, y: newY, w: newW, h: newH };
         },
 
         handleMouseUp() {
-            if (this.dragMode && this.dragBoxId) {
-                const box = this.canvasBoxes.find(b => b.id === this.dragBoxId);
-                if (box) {
-                    const snapResult = this.checkSnap(box.id, box.x, box.y, box.w, box.h);
-                    if (snapResult.snapped && this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
-                        this.$parent.updateBoxPosition(
-                            box.id,
-                            snapResult.x,
-                            snapResult.y,
-                            snapResult.w,
-                            snapResult.h
-                        );
-                        const target = document.getElementById('preview-canvas-box-' + box.id);
-                        if (target) this.triggerSnapFlash(target);
-                    }
-                }
+            // 최종 위치를 Vue 상태에 반영
+            if (this.dragMode && this.dragBoxId && this.dragCurrentBox &&
+                this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
+                const p = this.dragCurrentBox;
+                this.$parent.updateBoxPosition(this.dragBoxId, p.x, p.y, p.w, p.h);
             }
 
             window.removeEventListener('mousemove', this._mouseMoveHandler);
             window.removeEventListener('mouseup', this._mouseUpHandler);
+
             this.dragMode = null;
             this.dragBoxId = null;
+            this.dragTargetEl = null;
+            this.dragCurrentBox = null;
         },
 
         // ---------- 스냅 & 플래시 ----------
