@@ -50,12 +50,11 @@ const LayerPanel = {
                     </button>
                 </div>
 
-                <!-- 컬럼 헤더 + 셀 매트릭스 -->
+                <!-- 컬럼 헤더 행 -->
                 <div
                     id="panel-right-layer-matrix-container"
                     class="overflow-x-auto pb-2"
                 >
-                    <!-- 컬럼 헤더 행 -->
                     <div class="flex gap-1 mb-1 min-w-max">
                         <div class="w-10 shrink-0"></div>
                         <div
@@ -190,7 +189,8 @@ const LayerPanel = {
         cellStyle(colIdx, rowType, colColor) {
             const active = this.isActive(colIdx, rowType);
             return {
-                backgroundColor: '#27272a',
+                // 사용중인 셀 → 배경 회색
+                backgroundColor: active ? '#4b5563' : '#27272a',
                 borderColor: active ? colColor : '#27272a'
             };
         },
