@@ -18,7 +18,6 @@ const COLOR_KO_NAMES = {
     '#eab308': '옐로',
     '#f97316': '오렌지',
     '#facc15': '앰버'
-    // 필요 시 나중에 추가 확장
 };
 
 const LayerConfigModal = {
@@ -35,7 +34,7 @@ const LayerConfigModal = {
                 :style="combinedWindowStyle"
                 @mousedown.stop
             >
-                <!-- 헤더 (드래그 영역, X버튼만 사용) -->
+                <!-- 헤더 (드래그, X버튼만 사용) -->
                 <div
                     class="flex items-center justify-between px-3 py-2 border-b border-ui-border bg-bg-hover cursor-move"
                     @mousedown.stop.prevent="onHeaderMouseDown"
@@ -266,11 +265,42 @@ const LayerConfigModal = {
                                     </option>
                                 </select>
                             </div>
+
+                            <!-- 텍스트 정렬: 좌 / 중앙 / 우 -->
+                            <div class="flex items-center justify-between gap-2 mt-1">
+                                <span class="text-[10px] text-text-sub w-16">정렬</span>
+                                <div class="flex gap-1">
+                                    <button
+                                        type="button"
+                                        class="px-1 py-0.5 rounded border text-[10px]"
+                                        :class="alignButtonClass('left')"
+                                        @click="setTextAlign('left')"
+                                    >
+                                        좌
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="px-1 py-0.5 rounded border text-[10px]"
+                                        :class="alignButtonClass('center')"
+                                        @click="setTextAlign('center')"
+                                    >
+                                        중앙
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="px-1 py-0.5 rounded border text-[10px]"
+                                        :class="alignButtonClass('right')"
+                                        @click="setTextAlign('right')"
+                                    >
+                                        우
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- 푸터: 레이어 삭제 + 리사이즈 핸들 (닫기 버튼 제거) -->
+                <!-- 푸터: 레이어 삭제 + 리사이즈 핸들 (닫기 버튼 없음) -->
                 <div class="px-3 py-2 border-t border-ui-border flex justify-between items-center">
                     <button
                         class="text-[11px] text-red-400 hover:text-red-300"
@@ -367,8 +397,10 @@ const LayerConfigModal = {
             }
             this.colorOptions = COLORS.map(c => {
                 const code = c.toUpperCase();
-                const koName = COLOR_KO_NAMES[c.toLowerCase()] || COLOR_KO_NAMES[code.toLowerCase()] || code;
-                // name 과 code 가 같으면 이름만 한 번 표시
+                const koName =
+                    COLOR_KO_NAMES[c.toLowerCase()] ||
+                    COLOR_KO_NAMES[code.toLowerCase()] ||
+                    code;
                 return {
                     value: c,
                     name: koName,
@@ -404,6 +436,24 @@ const LayerConfigModal = {
             if (rowType === 'BG')  return '배경';
             return '';
         },
+
+        // 텍스트 정렬 버튼 스타일 / 설정
+        alignButtonClass(targetAlign) {
+            const current = (this.box && this.box.textStyle && this.box.textStyle.textAlign) || 'center';
+            const active = current === targetAlign;
+            return active
+                ? 'bg-ui-accent text-white border-ui-accent'
+                : 'bg-bg-input text-text-sub border-ui-border';
+        },
+        setTextAlign(align) {
+            if (!this.box) return;
+            if (!this.box.textStyle) this.box.textStyle = {};
+            this.box.textStyle = {
+                ...this.box.textStyle,
+                textAlign: align
+            };
+        },
+
         // 드래그
         onHeaderMouseDown(e) {
             this.dragging = true;
@@ -448,7 +498,7 @@ const LayerConfigModal = {
             this.$emit('delete');
             this.$emit('delete-layer');
         },
-        // 대비 색상 계산
+
         getContrastingTextColor(bgColor) {
             const rgb = this.parseColorToRgb(bgColor);
             if (!rgb) return '#000000';
@@ -485,5 +535,4 @@ const LayerConfigModal = {
     }
 };
 
-// 전역 등록용
 window.LayerConfigModal = LayerConfigModal;
