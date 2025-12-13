@@ -21,7 +21,7 @@ const PreviewCanvas = {
                 data-y="0"
                 data-action="js:selectCanvasBox"
             >
-                <!-- 텍스트 박스 내용 (모달 상단 입력필드와 연동) -->
+                <!-- 텍스트 박스 내용 -->
                 <div
                     v-if="box.rowType === 'TXT'"
                     class="canvas-text-content"
@@ -30,13 +30,13 @@ const PreviewCanvas = {
                     {{ effectiveText(box) }}
                 </div>
 
-                <!-- 모서리 ㄱ자 핸들 (선택 시 표시) -->
+                <!-- 모서리 ㄱ자 핸들 -->
                 <div class="box-handle bh-tl"></div>
                 <div class="box-handle bh-tr"></div>
                 <div class="box-handle bh-bl"></div>
                 <div class="box-handle bh-br"></div>
 
-                <!-- 우측 변 레이블 (해당 레이어 한 개만 표시) -->
+                <!-- 우측 변 외측 레이블 (행 타입별 위치 지정) -->
                 <div
                     class="canvas-label-right"
                     :style="labelWrapperStyle(box)"
@@ -66,7 +66,6 @@ const PreviewCanvas = {
         this.initInteract();
     },
     methods: {
-        // 텍스트 기본 문구 (box.textContent 없을 때)
         defaultTextMessage() {
             return '현재의 레이어에 적용할\n텍스트 스타일을 설정하세요';
         },
@@ -77,7 +76,7 @@ const PreviewCanvas = {
             return this.defaultTextMessage();
         },
 
-        // 박스 스타일: 점선 + 1px (0.5px의 2배)
+        // 박스 스타일: 점선 + 현재의 2배 두께 → 2px
         boxStyle(box) {
             return {
                 display: box.isHidden ? 'none' : 'block',
@@ -88,22 +87,20 @@ const PreviewCanvas = {
                 height: box.h + 'px',
                 borderColor: box.color,
                 borderStyle: 'dashed',
-                borderWidth: '1px',
+                borderWidth: '2px',
                 boxSizing: 'border-box',
                 zIndex: box.zIndex,
                 backgroundColor: box.layerBgColor || 'rgba(255,255,255,0.05)'
             };
         },
-
-        // 텍스트 행간 겹침 방지 (lineHeight 1.2)
+        // 행간 겹침 방지
         textStyle(box) {
             const ts = box.textStyle || {};
-            const fontSize = ts.fontSize || 48;
             return {
                 color: ts.fillColor || '#ffffff',
                 fontFamily: ts.fontFamily || 'Pretendard, system-ui, sans-serif',
-                fontSize: fontSize + 'px',
-                lineHeight: (ts.lineHeight || 1.2),
+                fontSize: (ts.fontSize || 48) + 'px',
+                lineHeight: ts.lineHeight || 1.2,
                 backgroundColor: ts.backgroundColor || 'transparent',
                 WebkitTextStrokeColor: ts.strokeColor || 'transparent',
                 WebkitTextStrokeWidth: (ts.strokeWidth || 0) + 'px',
@@ -111,7 +108,6 @@ const PreviewCanvas = {
             };
         },
 
-        // --- 레이블 텍스트 (컬럼/줄 이름) ---
         // 컬럼: 전체 / 상단 / 중단 / 하단
         getColLabel(box) {
             const role = box.colRole || '';
@@ -121,7 +117,7 @@ const PreviewCanvas = {
             if (role === 'low')  return '하단';
             return role || '';
         },
-        // 줄: 이펙트 / 텍스트 / 배경
+        // 행: 이펙트 / 텍스트 / 배경
         getRowLabel(rowType) {
             if (rowType === 'EFF') return '이펙트';
             if (rowType === 'TXT') return '텍스트';
@@ -129,25 +125,37 @@ const PreviewCanvas = {
             return '';
         },
 
-        // 레이블 래퍼 위치:
-        // 기본: 박스 우측 외측 (x + w + margin)
-        // 캔버스 밖으로 나가면 → 박스 내부 우측으로 이동
+        // 행 타입에 따라 우측 외측 위치:
+        // - EFF : 박스 우측 상단 외측
+        // - TXT : 박스 우측 중앙 외측
+        // - BG  : 박스 우측 하단 외측
+        // 캔버스 우측 공간 부족 시 → 박스 내부 우측으로 이동
         labelWrapperStyle(box) {
-            const margin = 6;
-            const labelWidth = 120;
-            const labelHeight = 40;
+            const margin = 8;
+            const labelWidth = 200;
+            const labelHeight = 80; // 폰트 50px 기준 약간 여유
 
             const canvasSize = (this.$parent && this.$parent.canvasSize) || { w: 1920, h: 1080 };
             const canvasW = canvasSize.w;
             const canvasH = canvasSize.h;
 
-            // 기본: 우측 외부
             let left = box.x + box.w + margin;
-            let top = box.y + (box.h / 2) - (labelHeight / 2);
+            let top;
 
-            // 우측 여유가 부족하면 → 박스 내부로 이동
-            const outsideRight = left + labelWidth > canvasW;
-            if (outsideRight) {
+            if (box.rowType === 'EFF') {
+                // 상단
+                top = box.y;
+            } else if (box.rowType === 'BG') {
+                // 하단
+                top = box.y + box.h - labelHeight;
+            } else {
+                // TXT 또는 기타 → 중앙
+                top = box.y + (box.h / 2) - (labelHeight / 2);
+            }
+
+            // 우측 오버플로우 시 → 박스 내부 우측
+            const overflowRight = left + labelWidth > canvasW;
+            if (overflowRight) {
                 left = box.x + box.w - labelWidth - margin;
                 if (left < box.x + margin) {
                     left = box.x + margin;
@@ -169,46 +177,41 @@ const PreviewCanvas = {
             };
         },
 
-        // 레이블 칩 스타일 (2행, 텍스트 1.5배: 대략 18px)
+        // 레이블 칩: 폰트 크기 50
         labelChipStyle(box) {
             const bg = box.color || '#facc15';
             const textColor = this.getContrastingTextColor(bg);
             return {
-                minWidth: '120px',
-                padding: '4px 6px',
-                borderRadius: '6px',
+                minWidth: '200px',
+                padding: '6px 8px',
+                borderRadius: '8px',
                 border: '2px solid ' + bg,
                 backgroundColor: bg,
                 color: textColor,
-                fontSize: '18px',     // 약 1.5배 크기
-                lineHeight: '1.1',
+                fontSize: '50px',
+                lineHeight: '1.0',
                 textAlign: 'center',
                 boxSizing: 'border-box',
-                textShadow: '0 0 4px rgba(0,0,0,0.6)'
+                textShadow: '0 0 6px rgba(0,0,0,0.7)'
             };
         },
 
-        // 레이어 설정 모달 열기
         openLayerConfig(boxId) {
             if (this.$parent && typeof this.$parent.openLayerConfig === 'function') {
                 this.$parent.openLayerConfig(boxId);
             }
         },
 
-        // 배경색에 따라 가독성 좋은 텍스트 컬러 선택(흰/검)
         getContrastingTextColor(bgColor) {
             const rgb = this.parseColorToRgb(bgColor);
             if (!rgb) return '#000000';
             const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
             return luminance > 0.5 ? '#000000' : '#ffffff';
         },
-
-        // #RRGGBB / rgb() / rgba() 를 {r,g,b} 로 변환
         parseColorToRgb(color) {
             if (!color || typeof color !== 'string') return null;
             color = color.trim().toLowerCase();
 
-            // #rgb, #rrggbb
             if (color[0] === '#') {
                 let hex = color.slice(1);
                 if (hex.length === 3) {
@@ -223,7 +226,6 @@ const PreviewCanvas = {
                 };
             }
 
-            // rgb(...) or rgba(...)
             const rgbMatch = color.match(/rgba?\(([^)]+)\)/);
             if (rgbMatch) {
                 const parts = rgbMatch[1].split(',').map(v => parseFloat(v.trim()));
@@ -231,13 +233,12 @@ const PreviewCanvas = {
                     return { r: parts[0], g: parts[1], b: parts[2] };
                 }
             }
-
             return null;
         },
 
-        // ------------------------------------------------
+        // -------------------------------
         // 드래그 & 리사이즈 (interact.js)
-        // ------------------------------------------------
+        // -------------------------------
         initInteract() {
             const i = window.interact || window.interactjs;
             if (!i) {
@@ -246,14 +247,15 @@ const PreviewCanvas = {
             }
 
             const self = this;
+            const selector = '.canvas-box';
 
             // 기존 바인딩 해제 후 다시 설정
-            i('.canvas-box').unset();
+            i(selector).unset();
 
-            // ---------------------------
-            // 드래그 (박스 내부 전체 영역)
-            // ---------------------------
-            i('.canvas-box')
+            const boxesCount = document.querySelectorAll(selector).length;
+            console.log('[PreviewCanvas] interact init, boxes:', boxesCount);
+
+            i(selector)
                 .draggable({
                     modifiers: [
                         i.modifiers.restrictRect({
@@ -264,8 +266,6 @@ const PreviewCanvas = {
                     listeners: {
                         move(event) {
                             const target = event.target;
-
-                            // 숨김 박스는 무시
                             if (target.style.display === 'none') return;
 
                             const scaler = document.getElementById('preview-canvas-scaler');
@@ -284,7 +284,6 @@ const PreviewCanvas = {
                         },
                         end(event) {
                             const target = event.target;
-
                             const scaler = document.getElementById('preview-canvas-scaler');
                             let scale = 1.0;
                             if (scaler && scaler.style.transform) {
@@ -307,7 +306,6 @@ const PreviewCanvas = {
                             let newX = box.x + dx;
                             let newY = box.y + dy;
 
-                            // 스냅(자석) 처리
                             const snapResult = self.checkSnap(boxId, newX, newY, box.w, box.h);
                             newX = snapResult.x;
                             newY = snapResult.y;
@@ -326,10 +324,6 @@ const PreviewCanvas = {
                         }
                     }
                 })
-
-                // ---------------------------
-                // 리사이즈 (변 5px 영역만)
-                // ---------------------------
                 .resizable({
                     edges: { left: true, right: true, bottom: true, top: true },
                     margin: 5,
@@ -339,7 +333,6 @@ const PreviewCanvas = {
                     listeners: {
                         move(event) {
                             const target = event.target;
-
                             if (target.style.display === 'none') return;
 
                             const scaler = document.getElementById('preview-canvas-scaler');
@@ -417,7 +410,6 @@ const PreviewCanvas = {
                 });
         },
 
-        // 캔버스/다른 박스와의 스냅 + 플래시 판정
         checkSnap(boxId, x, y, w, h) {
             const threshold = 8;
             let snapped = false;
@@ -437,7 +429,6 @@ const PreviewCanvas = {
                 return Math.abs(value - target) <= threshold ? target : null;
             };
 
-            // 캔버스 아웃라인 스냅
             let s = snapTo(left, canvasLeft);
             if (s !== null) { left = s; right = left + w; snapped = true; }
             s = snapTo(right, canvasRight);
@@ -447,7 +438,6 @@ const PreviewCanvas = {
             s = snapTo(bottom, canvasBottom);
             if (s !== null) { bottom = s; top = bottom - h; snapped = true; }
 
-            // 다른 박스와의 스냅 (숨김 박스 제외)
             const boxes = (this.canvasBoxes || []).filter(b => b.id !== boxId && !b.isHidden);
             for (const b of boxes) {
                 const bLeft = b.x;
@@ -474,7 +464,6 @@ const PreviewCanvas = {
             };
         },
 
-        // 2px 흰색 플래시 (0.5초)
         triggerSnapFlash(target) {
             const flash = document.createElement('div');
             flash.style.position = 'absolute';
@@ -503,5 +492,4 @@ const PreviewCanvas = {
     }
 };
 
-// 전역 등록용
 window.PreviewCanvas = PreviewCanvas;
