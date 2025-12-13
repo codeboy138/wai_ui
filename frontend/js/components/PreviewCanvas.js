@@ -59,11 +59,9 @@ const PreviewCanvas = {
             dragMode: null,       // 'move' | 'resize' | null
             dragBoxId: null,
             dragStartMouse: { x: 0, y: 0 },
-            dragStartBox:   { x: 0, y: 0, w: 0, h: 0 },
+            dragStartBoxNorm: { nx: 0, ny: 0, nw: 0, nh: 0 }, // 0~1
             dragEdges: { left: false, right: false, top: false, bottom: false },
-            dragCanvasSize: { w: 1920, h: 1080 }, // 논리 캔버스 크기 (클램프 용)
-            dragScaleX: 1.0,      // 화면좌표 → 캔버스좌표 변환 비율
-            dragScaleY: 1.0,
+            dragScalerRect: null,
             _mouseMoveHandler: null,
             _mouseUpHandler: null
         };
@@ -173,7 +171,6 @@ const PreviewCanvas = {
          *   - EFF : 좌측 하단
          *   - TXT 및 기타 : 중앙 하단
          *   - BG  : 우측 하단
-         * - 레이블 박스 하단 = 레이어 박스 아랫변 (bottom: 0)
          */
         labelWrapperStyle(box) {
             const marginX = 8;
@@ -314,7 +311,7 @@ const PreviewCanvas = {
             return 'move';
         },
 
-        // ---------- 드래그 / 리사이즈 (순수 JS) ----------
+        // ---------- 드래그 / 리사이즈 (순수 JS, 퍼센트 좌표 기반) ----------
         onBoxMouseDown(e, box) {
             e.preventDefault();
             this.$emit('select-box', box.id);
@@ -323,30 +320,24 @@ const PreviewCanvas = {
             const rect = target.getBoundingClientRect();
             const edgeState = this.getEdgeState(e, rect);
 
-            // 스케일은 DOM 기준으로 정확히 계산
             const scaler = document.getElementById('preview-canvas-scaler');
-            let logicalW = 1920;
-            let logicalH = 1080;
+            this.dragScalerRect = scaler ? scaler.getBoundingClientRect() : null;
 
-            if (scaler) {
-                // transform 적용 전(논리) 크기
-                logicalW = scaler.offsetWidth  || logicalW;
-                logicalH = scaler.offsetHeight || logicalH;
+            // 논리 캔버스 크기
+            const parent = this.$parent;
+            const canvasSize = parent && parent.canvasSize ? parent.canvasSize : { w: 1920, h: 1080 };
+            const cw = canvasSize.w || 1;
+            const ch = canvasSize.h || 1;
 
-                const sRect = scaler.getBoundingClientRect();
-                this.dragScaleX = sRect.width  / logicalW || 1.0;
-                this.dragScaleY = sRect.height / logicalH || 1.0;
-            } else {
-                this.dragScaleX = 1.0;
-                this.dragScaleY = 1.0;
-            }
-
-            // 클램프용 논리 캔버스 크기
-            this.dragCanvasSize = { w: logicalW, h: logicalH };
+            // 시작 비율 (0~1) – box.nx 가 없으면 px 기반으로 환산
+            const startNx = (typeof box.nx === 'number') ? box.nx : (box.x || 0) / cw;
+            const startNy = (typeof box.ny === 'number') ? box.ny : (box.y || 0) / ch;
+            const startNw = (typeof box.nw === 'number') ? box.nw : (box.w || cw) / cw;
+            const startNh = (typeof box.nh === 'number') ? box.nh : (box.h || ch) / ch;
 
             this.dragBoxId = box.id;
             this.dragStartMouse = { x: e.clientX, y: e.clientY };
-            this.dragStartBox = { x: box.x, y: box.y, w: box.w, h: box.h };
+            this.dragStartBoxNorm = { nx: startNx, ny: startNy, nw: startNw, nh: startNh };
 
             const { nearLeft, nearRight, nearTop, nearBottom } = edgeState;
 
@@ -395,70 +386,76 @@ const PreviewCanvas = {
         handleMouseMove(e) {
             if (!this.dragMode || !this.dragBoxId) return;
 
-            const scaleX = this.dragScaleX || 1.0;
-            const scaleY = this.dragScaleY || 1.0;
+            const scalerRect = this.dragScalerRect ||
+                document.getElementById('preview-canvas-scaler')?.getBoundingClientRect();
+            if (!scalerRect || scalerRect.width === 0 || scalerRect.height === 0) return;
 
-            // 화면 픽셀 → 논리 캔버스 좌표 (변환)
-            const dxCanvas = (e.clientX - this.dragStartMouse.x) / scaleX;
-            const dyCanvas = (e.clientY - this.dragStartMouse.y) / scaleY;
+            // 화면 픽셀 → 비율(0~1) 변화량
+            const dxNorm = (e.clientX - this.dragStartMouse.x) / scalerRect.width;
+            const dyNorm = (e.clientY - this.dragStartMouse.y) / scalerRect.height;
 
-            const start = this.dragStartBox;
-            const canvas = this.dragCanvasSize;
-            let newX = start.x;
-            let newY = start.y;
-            let newW = start.w;
-            let newH = start.h;
+            const start = this.dragStartBoxNorm;
+            const canvas = this.$parent && this.$parent.canvasSize
+                ? this.$parent.canvasSize
+                : { w: 1920, h: 1080 };
+            const cw = canvas.w || 1;
+            const ch = canvas.h || 1;
+
+            let nx = start.nx;
+            let ny = start.ny;
+            let nw = start.nw;
+            let nh = start.nh;
 
             if (this.dragMode === 'move') {
-                newX = start.x + dxCanvas;
-                newY = start.y + dyCanvas;
-
-                newX = Math.max(0, Math.min(newX, canvas.w - newW));
-                newY = Math.max(0, Math.min(newY, canvas.h - newH));
+                nx = start.nx + dxNorm;
+                ny = start.ny + dyNorm;
             } else if (this.dragMode === 'resize') {
                 const edges = this.dragEdges;
 
                 if (edges.left) {
-                    newX = start.x + dxCanvas;
-                    newW = start.w - dxCanvas;
+                    nx = start.nx + dxNorm;
+                    nw = start.nw - dxNorm;
                 }
                 if (edges.right) {
-                    newW = start.w + dxCanvas;
+                    nw = start.nw + dxNorm;
                 }
                 if (edges.top) {
-                    newY = start.y + dyCanvas;
-                    newH = start.h - dyCanvas;
+                    ny = start.ny + dyNorm;
+                    nh = start.nh - dyNorm;
                 }
                 if (edges.bottom) {
-                    newH = start.h + dyCanvas;
+                    nh = start.nh + dyNorm;
                 }
-
-                const minW = 10;
-                const minH = 10;
-                if (newW < minW) {
-                    if (edges.left) newX -= (minW - newW);
-                    newW = minW;
-                }
-                if (newH < minH) {
-                    if (edges.top) newY -= (minH - newH);
-                    newH = minH;
-                }
-
-                if (newX < 0) {
-                    newW += newX;
-                    newX = 0;
-                }
-                if (newY < 0) {
-                    newH += newY;
-                    newY = 0;
-                }
-                if (newX + newW > canvas.w) newW = canvas.w - newX;
-                if (newY + newH > canvas.h) newH = canvas.h - newY;
             }
 
-            // 매 이벤트마다 Vue 상태를 바로 업데이트 → 마우스와 박스가 1:1 로 움직이도록
+            // 클램프 (0~1 범위 + 최소 크기)
+            const minNw = 10 / cw; // 최소 10px
+            const minNh = 10 / ch;
+
+            if (nw < minNw) nw = minNw;
+            if (nh < minNh) nh = minNh;
+
+            if (nx < 0) nx = 0;
+            if (ny < 0) ny = 0;
+            if (nx + nw > 1) {
+                if (this.dragMode === 'move') nx = 1 - nw;
+                else nw = 1 - nx;
+            }
+            if (ny + nh > 1) {
+                if (this.dragMode === 'move') ny = 1 - nh;
+                else nh = 1 - ny;
+            }
+
+            // 비율 → px 로 변환해서 상위로 전달
+            const newX = nx * cw;
+            const newY = ny * ch;
+            const newW = nw * cw;
+            const newH = nh * ch;
+
             if (this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
-                this.$parent.updateBoxPosition(this.dragBoxId, newX, newY, newW, newH);
+                this.$parent.updateBoxPosition(this.dragBoxId, newX, newY, newW, newH, {
+                    nx, ny, nw, nh
+                });
             }
         },
 
@@ -485,6 +482,7 @@ const PreviewCanvas = {
             window.removeEventListener('mouseup', this._mouseUpHandler);
             this.dragMode = null;
             this.dragBoxId = null;
+            this.dragScalerRect = null;
         },
 
         // ---------- 스냅 & 플래시 ----------
@@ -497,11 +495,13 @@ const PreviewCanvas = {
             let right = x + w;
             let bottom = y + h;
 
-            const canvasSize = this.dragCanvasSize || { w: 1920, h: 1080 };
+            const canvas = this.$parent && this.$parent.canvasSize
+                ? this.$parent.canvasSize
+                : { w: 1920, h: 1080 };
             const canvasLeft = 0;
             const canvasTop = 0;
-            const canvasRight = canvasSize.w;
-            const canvasBottom = canvasSize.h;
+            const canvasRight = canvas.w;
+            const canvasBottom = canvas.h;
 
             const snapTo = (value, target) =>
                 Math.abs(value - target) <= threshold ? target : null;
