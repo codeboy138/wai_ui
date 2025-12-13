@@ -73,27 +73,8 @@ const AppRoot = {
                 { id: 'c3', trackId: 't5', name: 'BGM_Main.mp3', start: 0, duration: 30, type: 'audio' }
             ],
 
-            // 캔바스 레이어 박스 (레이어 매트릭스 12셀과 1:1 연동)
-            canvasBoxes: [
-                {
-                    id: 'box_init',
-                    colIdx: 1,
-                    colId: 'c2',
-                    colRole: 'high',
-                    rowType: 'TXT',
-                    rowName: 'text',
-                    slotKey: 'high_text',
-                    layerName: '상단',
-                    zIndex: 240,
-                    color: '#eab308',
-                    layerBgColor: 'rgba(255,255,255,0.02)',
-                    textStyle: createDefaultTextStyle(),
-                    x: 860,
-                    y: 490,
-                    w: 400,
-                    h: 200
-                }
-            ],
+            // 캔바스 레이어 박스 (레이어 매트릭스 12셀과 1:1 연동) - 기본은 빈 상태
+            canvasBoxes: [],
 
             zoom: 20,
             selectedClip: null,
@@ -512,7 +493,8 @@ const AppRoot = {
             this.updateCanvasSizeFromControls();
         },
 
-        // 해상도 선택 (프리뷰와는 연동하지 않고 라벨만 변경)
+        // 해상도 선택
+        // - 프리뷰 캔버스 크기/비율과는 연동하지 않고, 메타 정보/라벨만 변경
         setResolution(labelOrKey) { 
             const str = (labelOrKey || '').toString().trim();
             const match = str.match(/^(\S+)/); // 첫 토큰만 해상도 키로 사용
