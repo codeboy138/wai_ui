@@ -36,7 +36,7 @@ const PreviewCanvas = {
                 <div class="box-handle bh-bl"></div>
                 <div class="box-handle bh-br"></div>
 
-                <!-- 레이어 레이블: 박스 기준 우측/좌측 바깥 또는 내부 가장자리 -->
+                <!-- 레이어 레이블: 레이어 박스 하단 내부, 행별 높이 다르게 -->
                 <div
                     class="canvas-label-right"
                     :style="labelWrapperStyle(box)"
@@ -67,7 +67,11 @@ const PreviewCanvas = {
             dragScale: 1.0,
             dragCanvasSize: { w: 1920, h: 1080 },
             _mouseMoveHandler: null,
-            _mouseUpHandler: null
+            _mouseUpHandler: null,
+
+            // rAF 기반 드래그 스무딩
+            _dragRafId: null,
+            _dragPending: null
         };
     },
     methods: {
@@ -164,80 +168,36 @@ const PreviewCanvas = {
         /**
          * 레이블 위치: 레이어 박스 기준 local 좌표
          *
-         * - 기본: 박스의 "오른쪽 바깥"에 배치
-         * - 오른쪽으로 나가서 캔버스를 벗어날 것 같으면:
-         *   - 여유가 있으면 왼쪽 바깥으로
-         *   - 양쪽 다 여유가 없으면 박스 안쪽 가장자리로 클램프
-         * - 세로 위치는 행 타입별 다르게(같은 컬럼끼리 겹치지 않도록)
+         * - 항상 "하단 내부"에 위치
+         * - 같은 컬럼 안에서 rowType 별로 서로 다른 높이로 배치 (EFF/TXT/BG 순서)
+         * - 가로는 박스 안쪽 우측에 붙이되, 너무 작을 경우 안에서 클램프
+         * - 캔버스가 스케일되면 레이블도 함께 스케일됨 (canvas-scaler 내부이므로)
          */
         labelWrapperStyle(box) {
-            const margin = 4;
-            const labelApproxWidth = 120;   // 대략적인 레이블 폭
-            const labelApproxHeight = 34;   // 대략적인 레이블 높이
+            const marginX = 4;
+            const marginY = 2;
+            const labelApproxWidth = 140;  // 현재 크기 기준
+            const labelApproxHeight = 20;  // 한 줄 높이 기준
 
-            const canvasSize =
-                (this.$parent && this.$parent.canvasSize) ||
-                { w: 1920, h: 1080 };
-            const canvasW = canvasSize.w;
-            const canvasH = canvasSize.h;
+            // 1) 행별 스택 순서: 같은 컬럼에서 서로 다른 높이
+            //    BG (0) : 가장 아래, TXT (1) : 그 위, EFF (2) : 가장 위
+            let stackIndex = 0;
+            if (box.rowType === 'TXT') stackIndex = 1;
+            else if (box.rowType === 'EFF') stackIndex = 2;
 
-            // 박스의 월드 좌표
-            const worldBoxLeft = box.x;
-            const worldBoxRight = box.x + box.w;
-            const worldBoxTop = box.y;
-            const worldBoxBottom = box.y + box.h;
+            // 하단 기준으로 위로 쌓기
+            const baseBottom = box.h - marginY;
+            let localTop = baseBottom - labelApproxHeight * (stackIndex + 1);
 
-            // 1) 가로: 기본은 오른쪽 바깥
-            let worldLeft = worldBoxRight + margin;
-
-            // 2) 세로: 행 타입별 기준점
-            let worldTop;
-            if (box.rowType === 'EFF') {
-                // 상단 쪽
-                worldTop = worldBoxTop + margin;
-            } else if (box.rowType === 'BG') {
-                // 하단 쪽
-                worldTop = worldBoxBottom - labelApproxHeight - margin;
-            } else {
-                // TXT: 세로 중앙
-                worldTop = worldBoxTop + (box.h - labelApproxHeight) / 2;
+            if (localTop < marginY) {
+                localTop = marginY;
             }
 
-            // 세로는 캔버스 안에서만 보이도록 클램프
-            if (worldTop < margin) {
-                worldTop = margin;
+            // 2) 가로 위치: 기본은 박스 내부 우측 정렬
+            let localLeft = box.w - marginX - labelApproxWidth;
+            if (localLeft < marginX) {
+                localLeft = marginX;
             }
-            if (worldTop + labelApproxHeight > canvasH - margin) {
-                worldTop = Math.max(
-                    margin,
-                    canvasH - labelApproxHeight - margin
-                );
-            }
-
-            // 오른쪽으로 캔버스를 벗어날 경우 처리
-            const overflowRight =
-                worldLeft + labelApproxWidth > canvasW - margin;
-
-            if (overflowRight) {
-                // 1차 시도: 왼쪽 바깥 (캔버스 안에 전부 들어오면 OK)
-                const leftOutsideCandidate =
-                    worldBoxLeft - margin - labelApproxWidth;
-                if (leftOutsideCandidate >= margin) {
-                    worldLeft = leftOutsideCandidate;
-                } else {
-                    // 2차: 캔버스 안에서만이라도 보이도록 오른쪽/왼쪽 가장자리 쪽으로 클램프
-                    const rightInside = canvasW - margin - labelApproxWidth;
-                    const attachedRight = worldBoxRight - labelApproxWidth - margin;
-                    worldLeft = Math.min(rightInside, attachedRight);
-                    if (worldLeft < margin) {
-                        worldLeft = margin;
-                    }
-                }
-            }
-
-            // 월드 → 박스 로컬 좌표로 변환
-            const localLeft = worldLeft - worldBoxLeft;
-            const localTop = worldTop - worldBoxTop;
 
             return {
                 position: 'absolute',
@@ -248,7 +208,7 @@ const PreviewCanvas = {
             };
         },
 
-        // 레이블 칩: 반투명 50%, 폭 최소화
+        // 레이블 칩: 현재 크기(느낌) 유지, 캔버스 스케일에 따라 같이 확대/축소
         labelChipStyle(box) {
             const base = box.color || '#22c55e';
             const rgb = this.parseColorToRgb(base);
@@ -267,7 +227,7 @@ const PreviewCanvas = {
                 border: '2px solid ' + base,
                 backgroundColor: bg,
                 color: textColor,
-                fontSize: '40px',
+                fontSize: '40px',       // 현재 사용 중인 크기 그대로 유지
                 lineHeight: '1.0',
                 textAlign: 'center',
                 boxSizing: 'border-box',
@@ -477,12 +437,41 @@ const PreviewCanvas = {
                 if (newY + newH > canvas.h) newH = canvas.h - newY;
             }
 
-            if (this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
-                this.$parent.updateBoxPosition(this.dragBoxId, newX, newY, newW, newH);
+            // rAF 기반으로 한 프레임에 한 번만 실제 업데이트
+            const pending = {
+                id: this.dragBoxId,
+                x: newX,
+                y: newY,
+                w: newW,
+                h: newH
+            };
+            this._dragPending = pending;
+
+            if (!this._dragRafId) {
+                this._dragRafId = requestAnimationFrame(() => {
+                    this._dragRafId = null;
+                    const p = this._dragPending;
+                    this._dragPending = null;
+                    if (!p) return;
+                    if (this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
+                        this.$parent.updateBoxPosition(p.id, p.x, p.y, p.w, p.h);
+                    }
+                });
             }
         },
 
         handleMouseUp() {
+            // 남아 있는 pending 위치가 있으면 바로 반영
+            if (this._dragPending && this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
+                const p = this._dragPending;
+                this.$parent.updateBoxPosition(p.id, p.x, p.y, p.w, p.h);
+            }
+            this._dragPending = null;
+            if (this._dragRafId) {
+                cancelAnimationFrame(this._dragRafId);
+                this._dragRafId = null;
+            }
+
             if (this.dragMode && this.dragBoxId) {
                 const box = this.canvasBoxes.find(b => b.id === this.dragBoxId);
                 if (box) {
