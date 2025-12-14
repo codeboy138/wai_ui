@@ -157,17 +157,14 @@ const AppRoot = {
     },
     watch: {
         /**
-         * canvasSize 변경 시(예: 향후 화면비율/해상도 로직과 연결될 때),
-         * PreviewRenderer 에 논리 캔버스 크기와 박스 정보를 함께 전달합니다.
+         * canvasSize 변경 시 PreviewRenderer 의 논리 캔버스 크기만 갱신.
+         * (박스 동기화는 canvasBoxes watcher / initPreviewRenderer 에서 처리)
          */
         canvasSize: {
             handler(newSize) {
                 try {
                     if (window.PreviewRenderer && typeof window.PreviewRenderer.setCanvasSize === 'function') {
                         window.PreviewRenderer.setCanvasSize(newSize);
-                    }
-                    if (window.PreviewRenderer && typeof window.PreviewRenderer.syncBoxes === 'function') {
-                        window.PreviewRenderer.syncBoxes(this.canvasBoxes, newSize);
                     }
                 } catch (err) {
                     console.warn('[Preview] canvasSize watcher failed:', err);
@@ -176,16 +173,16 @@ const AppRoot = {
             deep: true
         },
         /**
-         * canvasBoxes 내용이 바뀔 때마다(Pixi 렌더와 동기화):
-         * - LayerPanel 에서 새 박스 추가
-         * - PreviewCanvas 드래그/리사이즈 종료
-         * - LayerConfigModal 에서 좌표/스타일 변경
+         * canvasBoxes 내용이 바뀔 때마다 Pixi 와 동기화.
+         * - LayerPanel: 새 박스 추가/삭제
+         * - PreviewCanvas: 드래그/리사이즈 종료
+         * - LayerConfigModal: 좌표/스타일 변경
          */
         canvasBoxes: {
             handler(newBoxes) {
                 try {
                     if (window.PreviewRenderer && typeof window.PreviewRenderer.syncBoxes === 'function') {
-                        window.PreviewRenderer.syncBoxes(newBoxes, this.canvasSize);
+                        window.PreviewRenderer.syncBoxes(newBoxes);
                     }
                 } catch (err) {
                     console.warn('[Preview] canvasBoxes watcher failed:', err);
@@ -256,12 +253,12 @@ const AppRoot = {
                 }
                 // PixiJS / Canvas2D 렌더러 비동기 초기화 (Promise 반환 가능)
                 window.PreviewRenderer.init(canvas, this);
-                // 초기 상태도 한 번 동기화 시도 (init 이 끝나면 내부에서 안전하게 무시/처리)
+                // 초기 상태를 한 번 동기화 (init 내부에서 아직 준비 안 된 경우는 조용히 무시)
                 if (typeof window.PreviewRenderer.setCanvasSize === 'function') {
                     window.PreviewRenderer.setCanvasSize(this.canvasSize);
                 }
                 if (typeof window.PreviewRenderer.syncBoxes === 'function') {
-                    window.PreviewRenderer.syncBoxes(this.canvasBoxes, this.canvasSize);
+                    window.PreviewRenderer.syncBoxes(this.canvasBoxes);
                 }
             } catch (err) {
                 console.warn('[PreviewRenderer] init failed:', err);
