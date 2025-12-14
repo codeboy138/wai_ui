@@ -146,7 +146,7 @@ const PreviewCanvas = {
                 boxSizing: 'border-box',
                 zIndex: box.zIndex,
                 backgroundColor: box.layerBgColor || '#000000',
-                cursor: 'move';
+                cursor: 'move'
             };
         },
 
