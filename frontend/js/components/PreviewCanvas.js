@@ -1,12 +1,14 @@
-// Preview Canvas Component - DOM 절대 좌표 기반 구현
-// - 마우스 위치(e.clientX/Y)와 실제 박스 DOM 위치(getBoundingClientRect)를 그대로 사용
-// - 이동(move): (startBoxRect + 마우스 dx/dy)
-// - 리사이즈(resize): startBoxRect 의 각 엣지를 dx/dy 로 조정
-// - 마지막에 preview-canvas-scaler 기준 좌표로 변환해서
+// Preview Canvas Component - DOM 직접 제어 기반 구현
+// - 드래그/리사이즈 동안에는 Vue 상태를 건드리지 않고, 박스 DOM 스타일(px)을 바로 수정
+// - 마우스 좌표: e.clientX / e.clientY (뷰포트 기준)
+// - 시작 박스 위치: getBoundingClientRect() (뷰포트 기준)
+// - 이동(move): startRect + (dx, dy)
+// - 리사이즈(resize): startRect 의 각 엣지를 dx/dy 로 조정 (TL/TR/BL/BR 별 분기)
+// - 마지막 mouseup 에서만 preview-canvas-scaler 기준 좌표로 변환해
 //   AppRoot.updateBoxPosition(id, x, y, w, h) 호출
-//   → AppRoot 가 nx,ny,nw,nh(0~1)까지 동시에 갱신
+//   → AppRoot 가 nx,ny,nw,nh(0~1)까지 갱신
 
-console.log('[PreviewCanvas] script loaded (absolute-coord)');
+console.log('[PreviewCanvas] script loaded (dom-direct)');
 
 const PreviewCanvas = {
     props: ['canvasBoxes', 'selectedBoxId'],
@@ -86,11 +88,17 @@ const PreviewCanvas = {
             // mousedown 시점 마우스(client) 좌표
             dragStartMouse: { x: 0, y: 0 },
 
-            // mousedown 시점 박스의 DOM 좌표 (viewport 기준)
+            // mousedown 시점 박스 DOM 좌표 (뷰포트 기준)
             dragStartDom: { left: 0, top: 0, width: 0, height: 0 },
 
-            // 어느 코너를 잡았는지
+            // 어떤 코너를 잡았는지
             resizeHandlePos: null, // 'tl' | 'tr' | 'bl' | 'br'
+
+            // 드래그 중 실제 조작할 DOM 요소 (박스 div)
+            activeBoxEl: null,
+
+            // 마지막으로 계산한 "캔버스 내부 좌표계" 값 (px)
+            lastCanvasRect: { x: 0, y: 0, w: 0, h: 0 },
 
             _mouseMoveHandler: null,
             _mouseUpHandler: null
@@ -404,6 +412,7 @@ const PreviewCanvas = {
             this.dragBoxId = box.id;
             this.dragMode = 'move';
             this.resizeHandlePos = null;
+            this.activeBoxEl = boxEl;
 
             document.body.style.cursor = 'move';
             this.startGlobalDragListeners();
@@ -433,6 +442,7 @@ const PreviewCanvas = {
             this.dragBoxId = box.id;
             this.dragMode = 'resize';
             this.resizeHandlePos = pos;
+            this.activeBoxEl = boxEl;
 
             if (pos === 'tl' || pos === 'br') {
                 document.body.style.cursor = 'nwse-resize';
@@ -451,9 +461,9 @@ const PreviewCanvas = {
             // nothing
         },
 
-        // ---------- 실제 이동/리사이즈 처리 (DOM 기준) ----------
+        // ---------- 실제 이동/리사이즈 처리 (DOM 직접 제어) ----------
         handleMouseMove(e) {
-            if (!this.dragMode || !this.dragBoxId) return;
+            if (!this.dragMode || !this.dragBoxId || !this.activeBoxEl) return;
 
             const parent = this.$parent;
             if (!parent || typeof parent.updateBoxPosition !== 'function') return;
@@ -472,11 +482,13 @@ const PreviewCanvas = {
             let bottom = s.top + s.height;
 
             if (this.dragMode === 'move') {
+                // 박스 전체 이동: 시작 위치 + 마우스 이동량
                 left = s.left + dx;
                 top  = s.top  + dy;
                 right = left + s.width;
                 bottom = top + s.height;
             } else if (this.dragMode === 'resize') {
+                // 코너별로 엣지 조정
                 switch (this.resizeHandlePos) {
                     case 'tl':
                         left = s.left + dx;
@@ -506,24 +518,40 @@ const PreviewCanvas = {
             if (w < minW) w = minW;
             if (h < minH) h = minH;
 
-            // 스케일러(left, top)를 기준으로 프리뷰 내부 좌표계(px)로 변환
+            // 프리뷰 캔버스 내부 좌표(x,y) = 스케일러 기준
             const xCanvas = left - scalerRect.left;
             const yCanvas = top  - scalerRect.top;
 
-            parent.updateBoxPosition(this.dragBoxId, xCanvas, yCanvas, w, h);
+            // DOM 스타일을 직접 갱신 → 즉시 반영
+            const el = this.activeBoxEl;
+            el.style.left = xCanvas + 'px';
+            el.style.top  = yCanvas + 'px';
+            el.style.width  = w + 'px';
+            el.style.height = h + 'px';
+
+            // mouseup 시 AppRoot 에 커밋할 값 저장
+            this.lastCanvasRect = { x: xCanvas, y: yCanvas, w, h };
         },
 
         handleMouseUp() {
             this.stopGlobalDragListeners();
             document.body.style.cursor = '';
 
-            if (this.$parent) {
-                this.$parent.isBoxDragging = false;
+            const parent = this.$parent;
+            if (parent) {
+                parent.isBoxDragging = false;
+            }
+
+            // 마지막 위치/크기를 AppRoot 에 1회 커밋 (정규화 포함)
+            if (this.dragBoxId && parent && typeof parent.updateBoxPosition === 'function') {
+                const r = this.lastCanvasRect || { x: 0, y: 0, w: 0, h: 0 };
+                parent.updateBoxPosition(this.dragBoxId, r.x, r.y, r.w, r.h);
             }
 
             this.dragMode = null;
             this.dragBoxId = null;
             this.resizeHandlePos = null;
+            this.activeBoxEl = null;
         }
     }
 };
