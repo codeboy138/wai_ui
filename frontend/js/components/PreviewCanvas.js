@@ -1,7 +1,8 @@
 // Preview Canvas Component (퍼센트(0~1) 좌표 기반 드래그/리사이즈)
 // - 박스 내부 드래그: 이동(move)
 // - 모서리 ㄱ자 핸들 드래그: 리사이즈(resize)
-// - 퍼센트 좌표(nx,ny,nw,nh)를 기준으로 계산하고, AppRoot.updateBoxPositionNormalized 로 반영
+// - 마우스 이동(px) → 논리 좌표(px)로 환산할 때는 parent.canvasScale 로 나눠서 사용
+// - 최종 값은 퍼센트 좌표(nx,ny,nw,nh)로 변환해 AppRoot.updateBoxPositionNormalized 로 반영
 
 console.log('[PreviewCanvas] script loaded');
 
@@ -80,11 +81,12 @@ const PreviewCanvas = {
             // 드래그/리사이즈 상태
             dragMode: null,       // 'move' | 'resize' | null
             dragBoxId: null,
-            dragStartMouse: { x: 0, y: 0 },
-            dragStartNorm: { nx: 0, ny: 0, nw: 0, nh: 0 }, // 0~1 기준
+            dragStartMouse: { x: 0, y: 0 },          // 화면 좌표(px)
+            dragStartNorm: { nx: 0, ny: 0, nw: 0, nh: 0 }, // 0~1 기준(로그용)
+            dragStartBoxPx: { x: 0, y: 0, w: 0, h: 0 },    // 논리 캔버스(px) 기준 시작 박스
             dragEdges: { left: false, right: false, top: false, bottom: false },
 
-            dragCanvasRect: null, // 프리뷰 실제 DOM 영역 (scaler)
+            dragCanvasRect: null, // 필요시 참조용(현재는 직접 사용 X)
 
             _mouseMoveHandler: null,
             _mouseUpHandler: null
@@ -106,7 +108,7 @@ const PreviewCanvas = {
             window.addEventListener('mousemove', this._mouseMoveHandler);
             window.addEventListener('mouseup', this._mouseUpHandler);
 
-            console.log('[PreviewCanvas] startGlobalDragListeners: attached mousemove/mouseup');
+            // console.log('[PreviewCanvas] startGlobalDragListeners: attached mousemove/mouseup');
         },
         stopGlobalDragListeners() {
             if (this._mouseMoveHandler) {
@@ -117,7 +119,7 @@ const PreviewCanvas = {
                 window.removeEventListener('mouseup', this._mouseUpHandler);
                 this._mouseUpHandler = null;
             }
-            console.log('[PreviewCanvas] stopGlobalDragListeners: removed mousemove/mouseup');
+            // console.log('[PreviewCanvas] stopGlobalDragListeners: removed mousemove/mouseup');
         },
 
         // ---------- 텍스트 표시 ----------
@@ -194,7 +196,7 @@ const PreviewCanvas = {
         },
 
         // ---------- 모서리 ㄱ자 핸들 스타일 ----------
-        // → 디버깅을 위해 항상 보이게(display:block), 크기 키움, 배경 반투명 처리
+        // → 디버깅 편의를 위해 항상 보이게, 크기 크게
         handleStyle(box, pos) {
             const size = 16;       // 핸들 전체 크기 (px)
             const thickness = 3;   // 선 두께
@@ -365,25 +367,25 @@ const PreviewCanvas = {
 
             parent.isBoxDragging = true;
 
-            const scaler = document.getElementById('preview-canvas-scaler');
-            if (!scaler) {
-                console.warn('[PreviewCanvas] onBoxMouseDown: scaler not found');
-                return;
-            }
-            const canvasRect = scaler.getBoundingClientRect();
-            this.dragCanvasRect = canvasRect;
+            // 시작 시점 박스(px 기준) 저장
+            this.dragStartBoxPx = {
+                x: box.x || 0,
+                y: box.y || 0,
+                w: box.w || 0,
+                h: box.h || 0
+            };
 
+            // 정규화 값도 기록(디버그용)
             const cw = parent.canvasSize.w || 1;
             const ch = parent.canvasSize.h || 1;
-
             const nx = (typeof box.nx === 'number') ? box.nx : (box.x || 0) / cw;
             const ny = (typeof box.ny === 'number') ? box.ny : (box.y || 0) / ch;
             const nw = (typeof box.nw === 'number') ? box.nw : (box.w || cw) / cw;
             const nh = (typeof box.nh === 'number') ? box.nh : (box.h || ch) / ch;
+            this.dragStartNorm = { nx, ny, nw, nh };
 
             this.dragBoxId = box.id;
             this.dragStartMouse = { x: e.clientX, y: e.clientY };
-            this.dragStartNorm = { nx, ny, nw, nh };
 
             this.dragMode = 'move';
             this.dragEdges = { left: false, right: false, top: false, bottom: false };
@@ -405,25 +407,25 @@ const PreviewCanvas = {
 
             parent.isBoxDragging = true;
 
-            const scaler = document.getElementById('preview-canvas-scaler');
-            if (!scaler) {
-                console.warn('[PreviewCanvas] onHandleMouseDown: scaler not found');
-                return;
-            }
-            const canvasRect = scaler.getBoundingClientRect();
-            this.dragCanvasRect = canvasRect;
+            // 시작 시점 박스(px 기준) 저장
+            this.dragStartBoxPx = {
+                x: box.x || 0,
+                y: box.y || 0,
+                w: box.w || 0,
+                h: box.h || 0
+            };
 
+            // 정규화 값 기록(디버그용)
             const cw = parent.canvasSize.w || 1;
             const ch = parent.canvasSize.h || 1;
-
             const nx = (typeof box.nx === 'number') ? box.nx : (box.x || 0) / cw;
             const ny = (typeof box.ny === 'number') ? box.ny : (box.y || 0) / ch;
             const nw = (typeof box.nw === 'number') ? box.nw : (box.w || cw) / cw;
             const nh = (typeof box.nh === 'number') ? box.nh : (box.h || ch) / ch;
+            this.dragStartNorm = { nx, ny, nw, nh };
 
             this.dragBoxId = box.id;
             this.dragStartMouse = { x: e.clientX, y: e.clientY };
-            this.dragStartNorm = { nx, ny, nw, nh };
 
             this.dragMode = 'resize';
             this.dragEdges = {
@@ -445,67 +447,79 @@ const PreviewCanvas = {
             // nothing
         },
 
-        // ---------- 실제 드래그 처리 (퍼센트 좌표) ----------
+        // ---------- 실제 드래그 처리 (논리 px → 퍼센트 좌표) ----------
         handleMouseMove(e) {
             if (!this.dragMode || !this.dragBoxId) return;
-            if (!this.dragCanvasRect) return;
             const parent = this.$parent;
             if (!parent || typeof parent.updateBoxPositionNormalized !== 'function') {
                 console.warn('[PreviewCanvas] handleMouseMove: no parent or updateBoxPositionNormalized not found');
                 return;
             }
 
-            const rect = this.dragCanvasRect;
-            if (rect.width <= 0 || rect.height <= 0) return;
+            const cw = parent.canvasSize.w || 1;
+            const ch = parent.canvasSize.h || 1;
+            const scale = parent.canvasScale || 1.0;
 
-            const dxNorm = (e.clientX - this.dragStartMouse.x) / rect.width;
-            const dyNorm = (e.clientY - this.dragStartMouse.y) / rect.height;
+            // 화면(px) 이동량 → 논리 캔버스(px) 이동량
+            const dxLogical = (e.clientX - this.dragStartMouse.x) / (scale || 1.0);
+            const dyLogical = (e.clientY - this.dragStartMouse.y) / (scale || 1.0);
 
-            let { nx, ny, nw, nh } = this.dragStartNorm;
+            let { x, y, w, h } = this.dragStartBoxPx;
 
             if (this.dragMode === 'move') {
-                nx += dxNorm;
-                ny += dyNorm;
+                x = this.dragStartBoxPx.x + dxLogical;
+                y = this.dragStartBoxPx.y + dyLogical;
             } else if (this.dragMode === 'resize') {
                 const edges = this.dragEdges;
 
                 if (edges.left) {
-                    nx += dxNorm;
-                    nw -= dxNorm;
+                    x = this.dragStartBoxPx.x + dxLogical;
+                    w = this.dragStartBoxPx.w - dxLogical;
                 }
                 if (edges.right) {
-                    nw += dxNorm;
+                    w = this.dragStartBoxPx.w + dxLogical;
                 }
                 if (edges.top) {
-                    ny += dyNorm;
-                    nh -= dyNorm;
+                    y = this.dragStartBoxPx.y + dyLogical;
+                    h = this.dragStartBoxPx.h - dyLogical;
                 }
                 if (edges.bottom) {
-                    nh += dyNorm;
+                    h = this.dragStartBoxPx.h + dyLogical;
                 }
             }
 
-            // 최소 크기: 프리뷰 상 10px 기준 → 정규화
-            const minNw = 10 / rect.width;
-            const minNh = 10 / rect.height;
+            // 최소 크기(px)
+            const minW = 10;
+            const minH = 10;
+            if (w < minW) w = minW;
+            if (h < minH) h = minH;
 
-            if (nw < minNw) nw = minNw;
-            if (nh < minNh) nh = minNh;
+            // 캔버스 경계 내로 제한
+            if (x < 0) x = 0;
+            if (y < 0) y = 0;
+            if (x + w > cw) x = Math.max(0, cw - w);
+            if (y + h > ch) y = Math.max(0, ch - h);
 
-            // 화면 밖으로 나가지 않게 클램프
-            if (nx < 0) nx = 0;
-            if (ny < 0) ny = 0;
-            if (nx + nw > 1) nx = Math.max(0, 1 - nw);
-            if (ny + nh > 1) ny = Math.max(0, 1 - nh);
+            // 퍼센트(정규화)로 변환
+            const nx = x / cw;
+            const ny = y / ch;
+            const nw = w / cw;
+            const nh = h / ch;
 
+            // 디버그 로그
             console.log(
                 '[PreviewCanvas] handleMouseMove',
                 'mode=', this.dragMode,
                 'boxId=', this.dragBoxId,
+                'x=', x.toFixed(1),
+                'y=', y.toFixed(1),
+                'w=', w.toFixed(1),
+                'h=', h.toFixed(1),
                 'nx=', nx.toFixed(3),
                 'ny=', ny.toFixed(3),
                 'nw=', nw.toFixed(3),
-                'nh=', nh.toFixed(3)
+                'nh=', nh.toFixed(3),
+                'scale=', scale.toFixed(3)
             );
 
             parent.updateBoxPositionNormalized(this.dragBoxId, nx, ny, nw, nh);
