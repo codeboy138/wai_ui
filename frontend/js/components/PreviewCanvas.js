@@ -1,13 +1,20 @@
-// Preview Canvas Component - 하드 리셋 버전
+// Preview Canvas Component - 완전 리셋 버전
 //
-// 목적:
-// 1) 마우스 이동(px) ↔ 박스 이동/리사이즈(px)가 1:1 로 직관적으로 맞게
-// 2) 드래그 모드('move')와 리사이즈 모드('resize')가 중간에 절대 뒤섞이지 않게
-// 3) 커서 모양도 모드에 맞게 고정 (move / nwse-resize / nesw-resize)
-// 4) 좌표 계산은 "논리 캔버스 px" 기준으로만 하고, 마지막에 AppRoot.updateBoxPosition(px 기반)만 호출
-//    → AppRoot 쪽에서 정규화 / 캔버스 경계 / 최소 크기 다 처리
+// 설계 방향 (이 컴포넌트 하나에 집중):
+// 1) 좌표계 단순화
+//    - 드래그/리사이즈 계산은 **논리 캔버스 px (box.x, box.y, box.w, box.h)** 기준만 사용
+//    - 화면상의 마우스 이동(px) → 논리 px = (화면이동 / vm.canvasScale)
+//    - 정규화(0~1) / 경계 / 최소 크기 처리는 AppRoot.updateBoxPosition 에 맡김
+// 2) 모드 고정
+//    - 박스 내부에서 시작 => dragMode='move'
+//    - 모서리 핸들에서 시작 => dragMode='resize'
+//    - 드래그 중에는 dragMode가 절대 바뀌지 않음
+// 3) 커서 고정
+//    - 드래그 시작: document.body.style.cursor 를 move / nwse-resize / nesw-resize 로 설정
+//    - 드래그 끝: document.body.style.cursor = '' 로 원복
+//    - 박스/핸들 자체 cursor 는 단순 참고용(hover)일 뿐, 모드 전환에 영향 없음
 
-console.log('[PreviewCanvas] script loaded (hard reset)');
+console.log('[PreviewCanvas] script loaded (reset)');
 
 const PreviewCanvas = {
     props: ['canvasBoxes', 'selectedBoxId'],
@@ -31,7 +38,7 @@ const PreviewCanvas = {
                 @contextmenu.prevent="openLayerConfig(box.id)"
                 data-action="js:selectCanvasBox"
             >
-                <!-- 텍스트 박스 내용: 레이어 전체 영역 사용 -->
+                <!-- 텍스트 박스 -->
                 <div
                     v-if="box.rowType === 'TXT'"
                     class="canvas-text-content"
@@ -40,7 +47,7 @@ const PreviewCanvas = {
                     {{ effectiveText(box) }}
                 </div>
 
-                <!-- 모서리 ㄱ자 핸들 (리사이즈용) -->
+                <!-- 모서리 ㄱ자 핸들 (리사이즈) -->
                 <div
                     class="box-handle bh-tl"
                     :style="handleStyle(box, 'tl')"
@@ -62,7 +69,7 @@ const PreviewCanvas = {
                     @mousedown.stop="onHandleMouseDown($event, box, 'br')"
                 ></div>
 
-                <!-- 레이어 레이블: 레이어 박스 하단 내부 (행별 좌/중/우 배치) -->
+                <!-- 레이블 -->
                 <div
                     class="canvas-label-right"
                     :style="labelWrapperStyle(box)"
@@ -83,8 +90,8 @@ const PreviewCanvas = {
         return {
             dragMode: null,       // 'move' | 'resize' | null
             dragBoxId: null,
-            dragStartMouse: { x: 0, y: 0 },      // 화면 좌표(px)
-            dragStartBoxPx: { x: 0, y: 0, w: 0, h: 0 }, // 논리 캔버스 기준 박스(px)
+            dragStartMouse: { x: 0, y: 0 },          // 화면(client) 좌표
+            dragStartBoxPx: { x: 0, y: 0, w: 0, h: 0 }, // 논리 캔버스(px)
             dragEdges: { left: false, right: false, top: false, bottom: false },
 
             _mouseMoveHandler: null,
@@ -96,7 +103,7 @@ const PreviewCanvas = {
         document.body.style.cursor = '';
     },
     methods: {
-        // -------- 공통 전역 드래그 리스너 --------
+        // ---------- 전역 드래그 리스너 ----------
         startGlobalDragListeners() {
             this.stopGlobalDragListeners();
             this._mouseMoveHandler = (ev) => this.handleMouseMove(ev);
@@ -115,7 +122,7 @@ const PreviewCanvas = {
             }
         },
 
-        // -------- 텍스트 처리 --------
+        // ---------- 텍스트 ----------
         defaultTextMessage() {
             return '현재의 레이어에 적용할\n텍스트 스타일을 설정하세요';
         },
@@ -126,7 +133,7 @@ const PreviewCanvas = {
             return this.defaultTextMessage();
         },
 
-        // -------- 박스 스타일 (px 기준) --------
+        // ---------- 박스 스타일 ----------
         boxStyle(box) {
             return {
                 display: box.isHidden ? 'none' : 'block',
@@ -141,7 +148,7 @@ const PreviewCanvas = {
                 boxSizing: 'border-box',
                 zIndex: box.zIndex,
                 backgroundColor: box.layerBgColor || '#000000',
-                cursor: 'inherit'
+                cursor: 'inherit'  // 실제 커서는 body 에서 mode 기반으로 제어
             };
         },
 
@@ -187,7 +194,7 @@ const PreviewCanvas = {
             };
         },
 
-        // -------- 리사이즈 핸들 스타일 --------
+        // ---------- 리사이즈 핸들 ----------
         handleStyle(box, pos) {
             const size = 16;
             const thickness = 3;
@@ -233,7 +240,7 @@ const PreviewCanvas = {
             return style;
         },
 
-        // -------- 레이블 --------
+        // ---------- 레이블 ----------
         getColLabel(box) {
             const role = box.colRole || '';
             if (role === 'full') return '전체';
@@ -326,6 +333,7 @@ const PreviewCanvas = {
                 }
                 if (hex.length !== 6) return null;
                 const num = parseInt(hex, 16);
+                if (isNaN(num)) return null;
                 return {
                     r: (num >> 16) & 255,
                     g: (num >> 8) & 255,
@@ -343,10 +351,11 @@ const PreviewCanvas = {
             return null;
         },
 
-        // -------- 드래그(이동) 시작 --------
+        // ---------- 드래그 시작 (박스 내부: move) ----------
         onBoxMouseDown(e, box) {
             e.preventDefault();
             this.$emit('select-box', box.id);
+
             const parent = this.$parent;
             if (!parent) return;
 
@@ -369,10 +378,11 @@ const PreviewCanvas = {
             this.startGlobalDragListeners();
         },
 
-        // -------- 리사이즈 시작 --------
+        // ---------- 드래그 시작 (모서리 핸들: resize) ----------
         onHandleMouseDown(e, box, pos) {
             e.preventDefault();
             this.$emit('select-box', box.id);
+
             const parent = this.$parent;
             if (!parent) return;
 
@@ -406,54 +416,49 @@ const PreviewCanvas = {
         },
 
         onBoxMouseMove(e, box) {
-            // 박스 위 hover 시에는 커서 기본값(arrow) 유지
+            // hover 시 커서 변경은 body 커스에 맡김 (여기선 아무 것도 안 함)
         },
 
         onBoxMouseLeave(e) {
             // nothing
         },
 
-        // -------- 실제 이동/리사이즈 처리 (px 기반) --------
+        // ---------- 실제 이동/리사이즈 처리 (px 기반) ----------
         handleMouseMove(e) {
             if (!this.dragMode || !this.dragBoxId) return;
 
             const parent = this.$parent;
             if (!parent || typeof parent.updateBoxPosition !== 'function') return;
 
-            const cw = parent.canvasSize.w || 1;
-            const ch = parent.canvasSize.h || 1;
             const scale = parent.canvasScale || 1.0;
-
-            const dxLogical = (e.clientX - this.dragStartMouse.x) / (scale || 1.0);
-            const dyLogical = (e.clientY - this.dragStartMouse.y) / (scale || 1.0);
+            const dx = (e.clientX - this.dragStartMouse.x) / (scale || 1.0);
+            const dy = (e.clientY - this.dragStartMouse.y) / (scale || 1.0);
 
             let { x, y, w, h } = this.dragStartBoxPx;
 
             if (this.dragMode === 'move') {
-                x = this.dragStartBoxPx.x + dxLogical;
-                y = this.dragStartBoxPx.y + dyLogical;
+                x = this.dragStartBoxPx.x + dx;
+                y = this.dragStartBoxPx.y + dy;
             } else if (this.dragMode === 'resize') {
                 const edges = this.dragEdges;
 
                 if (edges.left) {
-                    x = this.dragStartBoxPx.x + dxLogical;
-                    w = this.dragStartBoxPx.w - dxLogical;
+                    x = this.dragStartBoxPx.x + dx;
+                    w = this.dragStartBoxPx.w - dx;
                 }
                 if (edges.right) {
-                    w = this.dragStartBoxPx.w + dxLogical;
+                    w = this.dragStartBoxPx.w + dx;
                 }
                 if (edges.top) {
-                    y = this.dragStartBoxPx.y + dyLogical;
-                    h = this.dragStartBoxPx.h - dyLogical;
+                    y = this.dragStartBoxPx.y + dy;
+                    h = this.dragStartBoxPx.h - dy;
                 }
                 if (edges.bottom) {
-                    h = this.dragStartBoxPx.h + dyLogical;
+                    h = this.dragStartBoxPx.h + dy;
                 }
             }
 
-            // 여기서는 최소 크기 / 경계 클램프를 강하게 하지 않고,
-            // AppRoot.updateBoxPosition(px) 에 맡김.
-            // (다만 극단적인 NaN/Infinity만 방지)
+            // NaN/Infinity 방지, 나머지(최소 크기/경계)는 AppRoot.updateBoxPosition 에 맡김
             if (!Number.isFinite(x)) x = this.dragStartBoxPx.x;
             if (!Number.isFinite(y)) y = this.dragStartBoxPx.y;
             if (!Number.isFinite(w) || w <= 0) w = this.dragStartBoxPx.w;
