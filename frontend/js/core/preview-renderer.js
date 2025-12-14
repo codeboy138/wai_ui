@@ -217,9 +217,13 @@
             if (!size) return;
             const w = size.w || size.width || this.logicalCanvasSize.w;
             const h = size.h || size.height || this.logicalCanvasSize.h;
-            this.logicalCanvasSize = { w, h };
 
-            // 논리 크기 변경 시, 기존 박스도 다시 반영
+            // 값이 변하지 않으면 아무 것도 하지 않음 (불필요한 재동기화 방지)
+            if (this.logicalCanvasSize.w === w && this.logicalCanvasSize.h === h) {
+                return;
+            }
+
+            this.logicalCanvasSize = { w, h };
             this._resyncBoxesAfterResize();
         },
 
@@ -231,7 +235,6 @@
             if (!Array.isArray(boxes)) {
                 this._lastBoxes = [];
             } else {
-                // 얕은 복사로 참조 보존
                 this._lastBoxes = boxes.slice();
             }
 
@@ -271,9 +274,10 @@
         },
 
         _resyncBoxesAfterResize() {
-            if (this._lastBoxes && this._lastBoxes.length) {
-                this.syncBoxes(this._lastBoxes, this.logicalCanvasSize);
-            }
+            if (!this._lastBoxes || this._lastBoxes.length === 0) return;
+            // 여기서는 logicalCanvasSize 는 이미 최신이므로,
+            // 다시 setCanvasSize 를 호출하지 않도록 canvasSize 인자를 넘기지 않는다.
+            this.syncBoxes(this._lastBoxes);
         },
 
         // 현재 Pixi 스테이지 크기(뷰 좌표 기준)
@@ -358,7 +362,6 @@
             const align = ts.textAlign || 'center';       // 'left' | 'center' | 'right'
             const vAlign = ts.vAlign || 'middle';         // 'top' | 'middle' | 'bottom'
 
-            // Pixi TextStyle 옵션
             const style = new PIXI.TextStyle({
                 fill: fillColor,
                 fontFamily: ts.fontFamily || 'Pretendard, system-ui, sans-serif',
@@ -372,7 +375,6 @@
                 breakWords: true
             });
 
-            // 수직 정렬은 컨테이너에서 text.position 으로 처리하므로 여기서는 보관만
             style._wai_vAlign = vAlign;
 
             return style;
@@ -394,7 +396,6 @@
             let nw = (typeof box.nw === 'number') ? box.nw : (box.w || baseW) / baseW;
             let nh = (typeof box.nh === 'number') ? box.nh : (box.h || baseH) / baseH;
 
-            // 0~1 클램프
             nx = Math.max(0, Math.min(1, nx));
             ny = Math.max(0, Math.min(1, ny));
             nw = Math.max(0, Math.min(1, nw));
@@ -409,7 +410,6 @@
             container.zIndex = typeof box.zIndex === 'number' ? box.zIndex : 0;
             container.visible = !box.isHidden;
 
-            // 색상
             const colors = this._getBoxColors(box);
             const borderColor = colors.borderColor;
             const bgColor = colors.bgColor;
@@ -434,7 +434,6 @@
                 border.drawRect(0, 0, w, h);
             }
 
-            // 텍스트 레이어
             if (box.rowType === 'TXT') {
                 const PIXI = global.PIXI;
 
@@ -454,12 +453,9 @@
                     text.style = this._createTextStyle(box, stageH);
                     text.visible = true;
 
-                    // 기본은 박스 중앙
                     let offsetX = w / 2;
                     let offsetY = h / 2;
 
-                    // 수평 정렬은 TextStyle.align + anchor 로 어느 정도 해결
-                    // 수직 정렬은 vAlign 보조
                     const vAlign = text.style._wai_vAlign || 'middle';
                     if (vAlign === 'top') {
                         offsetY = h * 0.25;
@@ -475,14 +471,12 @@
         },
 
         _getBoxColors(box) {
-            // 테두리 색: box.color
             const borderParsed = this._parseColorWithAlpha(
                 box && box.color,
                 0x22c55e,
                 1.0
             );
 
-            // 배경 색: box.layerBgColor (기본 rgba(255,255,255,0.02))
             const bgParsed = this._parseColorWithAlpha(
                 box && box.layerBgColor,
                 0xffffff,
@@ -506,7 +500,6 @@
                 return { color: defaultColor, alpha: 0 };
             }
 
-            // rgba(...) / rgb(...)
             const rgbaMatch = trimmed.match(/rgba?\(([^)]+)\)/);
             if (rgbaMatch) {
                 const parts = rgbaMatch[1].split(',').map(v => parseFloat(v.trim()));
@@ -519,7 +512,6 @@
                 return { color: hex, alpha: a };
             }
 
-            // hex (#rgb / #rrggbb)
             if (trimmed[0] === '#') {
                 let hexStr = trimmed.slice(1);
                 if (hexStr.length === 3) {
@@ -533,7 +525,6 @@
                 }
             }
 
-            // 그 외: 기본 값
             return { color: defaultColor, alpha: defaultAlpha };
         },
 
@@ -591,13 +582,11 @@
             const midX = w / 2 + 0.5;
             const midY = h / 2 + 0.5;
 
-            // 수평선
             ctx.beginPath();
             ctx.moveTo(0, midY);
             ctx.lineTo(w, midY);
             ctx.stroke();
 
-            // 수직선
             ctx.beginPath();
             ctx.moveTo(midX, 0);
             ctx.lineTo(midX, h);
