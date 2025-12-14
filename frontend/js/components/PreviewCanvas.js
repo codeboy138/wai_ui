@@ -1,11 +1,13 @@
-// Preview Canvas Component - 단일 Composition(px) 좌표계 기반 구현 (델타 방식 리사이즈)
+// Preview Canvas Component - 단일 Composition(px) 좌표계 기반 구현 (델타 방식 리사이즈, 내부 진입 허용)
 // - 상호작용 기준: #preview-canvas-scaler 내부 DOM 픽셀 좌표만 사용
 // - 이동(move): 시작 박스(x0,y0) + (마우스 이동량 dx,dy)
-// - 리사이즈(resize): 시작 박스(x0,y0,w0,h0) + dx,dy 를 사분면/앵커 없이 직접 적용
+// - 리사이즈(resize): 시작 박스(x0,y0,w0,h0) + dx,dy 직접 적용
+// - 최소 크기 보정은 w,h 만 clamp 하고 x,y 는 건드리지 않음
+//   → 모서리가 박스 안쪽으로도 들어갈 수 있음 (센터/반대편까지 뒤집을 필요는 없음)
 // - move 시마다 AppRoot.updateBoxPosition(id, x, y, w, h) 호출
 //   → AppRoot 가 0~1 ratio(nx,ny,nw,nh)까지 갱신
 
-console.log('[PreviewCanvas] script loaded (composition-px delta)');
+console.log('[PreviewCanvas] script loaded (composition-px delta v2)');
 
 const PreviewCanvas = {
     props: ['canvasBoxes', 'selectedBoxId'],
@@ -461,7 +463,7 @@ const PreviewCanvas = {
             // nothing
         },
 
-        // ---------- 실제 이동/리사이즈 처리 (델타 방식) ----------
+        // ---------- 실제 이동/리사이즈 처리 (델타 방식, 내부 진입 허용) ----------
         handleMouseMove(e) {
             if (!this.dragMode || !this.dragBoxId) return;
 
@@ -517,24 +519,11 @@ const PreviewCanvas = {
                         break;
                 }
 
-                // 최소 크기 보정 (핸들 위치를 기준으로 반대 엣지 고정)
+                // 최소 크기: w,h 값만 clamp (x,y는 건드리지 않음 → 모서리가 안쪽까지 들어갈 수 있음)
                 const minW = 10;
                 const minH = 10;
-
-                if (w < minW) {
-                    if (this.resizeHandlePos === 'tl' || this.resizeHandlePos === 'bl') {
-                        // 왼쪽 엣지를 움직였으므로, 오른쪽 엣지 고정
-                        x = x0 + (w0 - minW);
-                    }
-                    w = minW;
-                }
-                if (h < minH) {
-                    if (this.resizeHandlePos === 'tl' || this.resizeHandlePos === 'tr') {
-                        // 위쪽 엣지를 움직였으므로, 아래 엣지 고정
-                        y = y0 + (h0 - minH);
-                    }
-                    h = minH;
-                }
+                if (w < minW) w = minW;
+                if (h < minH) h = minH;
             }
 
             if (!Number.isFinite(x) || !Number.isFinite(y) ||
@@ -542,7 +531,7 @@ const PreviewCanvas = {
                 return;
             }
 
-            // 캔버스 경계/정규화는 AppRoot.updateBoxPosition 에서 처리
+            // 캔버스 경계 및 0~1 정규화는 AppRoot.updateBoxPosition 에서 처리
             parent.updateBoxPosition(this.dragBoxId, x, y, w, h);
         },
 
