@@ -36,7 +36,7 @@ const PreviewCanvas = {
                     {{ effectiveText(box) }}
                 </div>
 
-                <!-- 모서리 ㄱ자 핸들 (시각용 + 리사이즈 입력) -->
+                <!-- 모서리 ㄱ자 핸들 (리사이즈용) -->
                 <div
                     class="box-handle bh-tl"
                     :style="handleStyle(box, 'tl')"
@@ -194,8 +194,9 @@ const PreviewCanvas = {
         },
 
         // ---------- 모서리 ㄱ자 핸들 스타일 ----------
+        // → 디버깅을 위해 항상 보이게(display:block), 크기 키움, 배경 반투명 처리
         handleStyle(box, pos) {
-            const size = 12;       // 핸들 전체 크기 (px)
+            const size = 16;       // 핸들 전체 크기 (px)
             const thickness = 3;   // 선 두께
             const color = box.color || '#ffffff';
 
@@ -205,32 +206,34 @@ const PreviewCanvas = {
                 height: size + 'px',
                 boxSizing: 'border-box',
                 borderColor: color,
-                pointerEvents: 'auto',  // 핸들에서만 리사이즈
+                pointerEvents: 'auto',                // 핸들에서만 리사이즈
                 zIndex: (box.zIndex || 0) + 3,
-                cursor: 'nwse-resize'
+                cursor: 'nwse-resize',
+                display: 'block',                     // 선택 여부와 무관하게 항상 보이도록
+                backgroundColor: 'rgba(0,0,0,0.35)'   // 눈에 잘 보이게
             };
 
             if (pos === 'tl') {
-                style.left = '-2px';
-                style.top = '-2px';
+                style.left = '-4px';
+                style.top = '-4px';
                 style.borderLeft = thickness + 'px solid ' + color;
                 style.borderTop = thickness + 'px solid ' + color;
                 style.cursor = 'nwse-resize';
             } else if (pos === 'tr') {
-                style.right = '-2px';
-                style.top = '-2px';
+                style.right = '-4px';
+                style.top = '-4px';
                 style.borderRight = thickness + 'px solid ' + color;
                 style.borderTop = thickness + 'px solid ' + color;
                 style.cursor = 'nesw-resize';
             } else if (pos === 'bl') {
-                style.left = '-2px';
-                style.bottom = '-2px';
+                style.left = '-4px';
+                style.bottom = '-4px';
                 style.borderLeft = thickness + 'px solid ' + color;
                 style.borderBottom = thickness + 'px solid ' + color;
                 style.cursor = 'nesw-resize';
             } else if (pos === 'br') {
-                style.right = '-2px';
-                style.bottom = '-2px';
+                style.right = '-4px';
+                style.bottom = '-4px';
                 style.borderRight = thickness + 'px solid ' + color;
                 style.borderBottom = thickness + 'px solid ' + color;
                 style.cursor = 'nwse-resize';
