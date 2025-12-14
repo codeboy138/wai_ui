@@ -3,6 +3,8 @@
 // - 모서리 ㄱ자 핸들 드래그: 리사이즈(resize)
 // - 퍼센트 좌표(nx,ny,nw,nh)를 기준으로 계산하고, AppRoot.updateBoxPositionNormalized 로 반영
 
+console.log('[PreviewCanvas] script loaded');
+
 const PreviewCanvas = {
     props: ['canvasBoxes', 'selectedBoxId'],
     template: `
@@ -103,6 +105,8 @@ const PreviewCanvas = {
 
             window.addEventListener('mousemove', this._mouseMoveHandler);
             window.addEventListener('mouseup', this._mouseUpHandler);
+
+            console.log('[PreviewCanvas] startGlobalDragListeners: attached mousemove/mouseup');
         },
         stopGlobalDragListeners() {
             if (this._mouseMoveHandler) {
@@ -113,6 +117,7 @@ const PreviewCanvas = {
                 window.removeEventListener('mouseup', this._mouseUpHandler);
                 this._mouseUpHandler = null;
             }
+            console.log('[PreviewCanvas] stopGlobalDragListeners: removed mousemove/mouseup');
         },
 
         // ---------- 텍스트 표시 ----------
@@ -141,7 +146,7 @@ const PreviewCanvas = {
                 boxSizing: 'border-box',
                 zIndex: box.zIndex,
                 backgroundColor: box.layerBgColor || '#000000',
-                cursor: 'move'
+                cursor: 'move';
             };
         },
 
@@ -347,14 +352,21 @@ const PreviewCanvas = {
         // ---------- 박스 내부 드래그: 이동 ----------
         onBoxMouseDown(e, box) {
             e.preventDefault();
+            console.log('[PreviewCanvas] onBoxMouseDown', box.id);
             this.$emit('select-box', box.id);
             const parent = this.$parent;
-            if (!parent) return;
+            if (!parent) {
+                console.warn('[PreviewCanvas] onBoxMouseDown: no parent');
+                return;
+            }
 
             parent.isBoxDragging = true;
 
             const scaler = document.getElementById('preview-canvas-scaler');
-            if (!scaler) return;
+            if (!scaler) {
+                console.warn('[PreviewCanvas] onBoxMouseDown: scaler not found');
+                return;
+            }
             const canvasRect = scaler.getBoundingClientRect();
             this.dragCanvasRect = canvasRect;
 
@@ -380,14 +392,21 @@ const PreviewCanvas = {
         // ---------- ㄱ자 핸들 드래그: 리사이즈 ----------
         onHandleMouseDown(e, box, pos) {
             e.preventDefault();
+            console.log('[PreviewCanvas] onHandleMouseDown', box.id, pos);
             this.$emit('select-box', box.id);
             const parent = this.$parent;
-            if (!parent) return;
+            if (!parent) {
+                console.warn('[PreviewCanvas] onHandleMouseDown: no parent');
+                return;
+            }
 
             parent.isBoxDragging = true;
 
             const scaler = document.getElementById('preview-canvas-scaler');
-            if (!scaler) return;
+            if (!scaler) {
+                console.warn('[PreviewCanvas] onHandleMouseDown: scaler not found');
+                return;
+            }
             const canvasRect = scaler.getBoundingClientRect();
             this.dragCanvasRect = canvasRect;
 
@@ -428,7 +447,10 @@ const PreviewCanvas = {
             if (!this.dragMode || !this.dragBoxId) return;
             if (!this.dragCanvasRect) return;
             const parent = this.$parent;
-            if (!parent || typeof parent.updateBoxPositionNormalized !== 'function') return;
+            if (!parent || typeof parent.updateBoxPositionNormalized !== 'function') {
+                console.warn('[PreviewCanvas] handleMouseMove: no parent or updateBoxPositionNormalized not found');
+                return;
+            }
 
             const rect = this.dragCanvasRect;
             if (rect.width <= 0 || rect.height <= 0) return;
@@ -473,10 +495,22 @@ const PreviewCanvas = {
             if (nx + nw > 1) nx = Math.max(0, 1 - nw);
             if (ny + nh > 1) ny = Math.max(0, 1 - nh);
 
+            console.log(
+                '[PreviewCanvas] handleMouseMove',
+                'mode=', this.dragMode,
+                'boxId=', this.dragBoxId,
+                'nx=', nx.toFixed(3),
+                'ny=', ny.toFixed(3),
+                'nw=', nw.toFixed(3),
+                'nh=', nh.toFixed(3)
+            );
+
             parent.updateBoxPositionNormalized(this.dragBoxId, nx, ny, nw, nh);
         },
 
         handleMouseUp() {
+            console.log('[PreviewCanvas] handleMouseUp', 'mode=', this.dragMode, 'boxId=', this.dragBoxId);
+
             // 전역 드래그 리스너 제거
             this.stopGlobalDragListeners();
 
