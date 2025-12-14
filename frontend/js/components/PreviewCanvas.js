@@ -62,6 +62,7 @@ const PreviewCanvas = {
             dragStartBoxNorm: { nx: 0, ny: 0, nw: 0, nh: 0 }, // 0~1
             dragEdges: { left: false, right: false, top: false, bottom: false },
             dragScalerRect: null,
+            dragCurrentPx: null, // { x, y, w, h } – 드래그 중 DOM에 적용한 마지막 px 값
             _mouseMoveHandler: null,
             _mouseUpHandler: null
         };
@@ -311,7 +312,7 @@ const PreviewCanvas = {
             return 'move';
         },
 
-        // ---------- 드래그 / 리사이즈 (순수 JS, 퍼센트 좌표 기반) ----------
+        // ---------- 드래그 / 리사이즈 (퍼센트 좌표 기반, DOM 직접 업데이트) ----------
         onBoxMouseDown(e, box) {
             e.preventDefault();
             this.$emit('select-box', box.id);
@@ -338,6 +339,7 @@ const PreviewCanvas = {
             this.dragBoxId = box.id;
             this.dragStartMouse = { x: e.clientX, y: e.clientY };
             this.dragStartBoxNorm = { nx: startNx, ny: startNy, nw: startNw, nh: startNh };
+            this.dragCurrentPx = { x: box.x, y: box.y, w: box.w, h: box.h };
 
             const { nearLeft, nearRight, nearTop, nearBottom } = edgeState;
 
@@ -446,34 +448,65 @@ const PreviewCanvas = {
                 else nh = 1 - ny;
             }
 
-            // 비율 → px 로 변환해서 상위로 전달
+            // 비율 → px 로 변환
             const newX = nx * cw;
             const newY = ny * ch;
             const newW = nw * cw;
             const newH = nh * ch;
 
-            if (this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
-                this.$parent.updateBoxPosition(this.dragBoxId, newX, newY, newW, newH, {
-                    nx, ny, nw, nh
-                });
+            // DOM 직접 갱신 (Vue 상태는 mouseup 에서만 업데이트)
+            const el = document.getElementById('preview-canvas-box-' + this.dragBoxId);
+            if (el) {
+                el.style.left = newX + 'px';
+                el.style.top = newY + 'px';
+                el.style.width = newW + 'px';
+                el.style.height = newH + 'px';
             }
+
+            this.dragCurrentPx = { x: newX, y: newY, w: newW, h: newH };
         },
 
         handleMouseUp() {
             if (this.dragMode && this.dragBoxId) {
-                const box = this.canvasBoxes.find(b => b.id === this.dragBoxId);
-                if (box) {
-                    const snapResult = this.checkSnap(box.id, box.x, box.y, box.w, box.h);
-                    if (snapResult.snapped && this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
+                const boxId = this.dragBoxId;
+                let x, y, w, h;
+
+                if (this.dragCurrentPx) {
+                    x = this.dragCurrentPx.x;
+                    y = this.dragCurrentPx.y;
+                    w = this.dragCurrentPx.w;
+                    h = this.dragCurrentPx.h;
+                } else {
+                    const box = this.canvasBoxes.find(b => b.id === boxId);
+                    if (box) {
+                        x = box.x;
+                        y = box.y;
+                        w = box.w;
+                        h = box.h;
+                    }
+                }
+
+                if (x != null && y != null && w != null && h != null) {
+                    const snapResult = this.checkSnap(boxId, x, y, w, h);
+                    const finalX = snapResult.x;
+                    const finalY = snapResult.y;
+                    const finalW = snapResult.w;
+                    const finalH = snapResult.h;
+
+                    if (this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
+                        // mouseup 시 한 번만 Vue 상태 업데이트 (퍼센트 좌표는 AppRoot 쪽에서 역산)
                         this.$parent.updateBoxPosition(
-                            box.id,
-                            snapResult.x,
-                            snapResult.y,
-                            snapResult.w,
-                            snapResult.h
+                            boxId,
+                            finalX,
+                            finalY,
+                            finalW,
+                            finalH
                         );
-                        const target = document.getElementById('preview-canvas-box-' + box.id);
-                        if (target) this.triggerSnapFlash(target);
+
+                        const target = document.getElementById('preview-canvas-box-' + boxId);
+                        if (target && snapResult.snapped) {
+                            this.triggerSnapFlash(target);
+                        }
                     }
                 }
             }
@@ -483,6 +516,7 @@ const PreviewCanvas = {
             this.dragMode = null;
             this.dragBoxId = null;
             this.dragScalerRect = null;
+            this.dragCurrentPx = null;
         },
 
         // ---------- 스냅 & 플래시 ----------
