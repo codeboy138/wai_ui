@@ -60,8 +60,11 @@ const PreviewCanvas = {
             dragBoxId: null,
             dragStartMouse: { x: 0, y: 0 },
             dragStartBoxPx: { x: 0, y: 0, w: 0, h: 0 }, // px 기준
+            dragCurrentBoxPx: null,                     // 드래그 중 최신 px
             dragEdges: { left: false, right: false, top: false, bottom: false },
             dragScale: 1.0,       // AppRoot.canvasScale
+            dragDomEl: null,      // 드래그 중인 DOM 요소
+
             _mouseMoveHandler: null,
             _mouseUpHandler: null
         };
@@ -145,7 +148,7 @@ const PreviewCanvas = {
             if (role === 'full') return '전체';
             if (role === 'high') return '상단';
             if (role === 'mid')  return '중단';
-            if (role === 'low') return '하단';
+            if (role === 'low')  return '하단';
             return role || '';
         },
         getRowLabel(rowType) {
@@ -292,7 +295,7 @@ const PreviewCanvas = {
             return 'move';
         },
 
-        // ---------- 드래그 / 리사이즈 (px + canvasScale) ----------
+        // ---------- 드래그 / 리사이즈 (px + canvasScale, DOM 실시간 반영) ----------
         onBoxMouseDown(e, box) {
             e.preventDefault();
             this.$emit('select-box', box.id);
@@ -310,6 +313,8 @@ const PreviewCanvas = {
             this.dragBoxId = box.id;
             this.dragStartMouse = { x: e.clientX, y: e.clientY };
             this.dragStartBoxPx = { x: box.x, y: box.y, w: box.w, h: box.h };
+            this.dragCurrentBoxPx = { ...this.dragStartBoxPx };
+            this.dragDomEl = target;
 
             const { nearLeft, nearRight, nearTop, nearBottom } = edgeState;
 
@@ -420,35 +425,71 @@ const PreviewCanvas = {
                 if (newY + newH > ch) newH = ch - newY;
             }
 
-            // 매 이동마다 Vue 상태 업데이트 → DOM은 Vue가 관리
-            if (this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
-                this.$parent.updateBoxPosition(this.dragBoxId, newX, newY, newW, newH);
+            // 최신 값 저장
+            this.dragCurrentBoxPx = { x: newX, y: newY, w: newW, h: newH };
+
+            // Vue 상태는 건드리지 않고, DOM 스타일만 직접 업데이트 (지연 최소화)
+            const el = this.dragDomEl || document.getElementById('preview-canvas-box-' + this.dragBoxId);
+            this.dragDomEl = el;
+            if (el) {
+                el.style.left = newX + 'px';
+                el.style.top = newY + 'px';
+                el.style.width = newW + 'px';
+                el.style.height = newH + 'px';
             }
         },
 
         handleMouseUp() {
-            if (this.dragMode && this.dragBoxId) {
-                const box = this.canvasBoxes.find(b => b.id === this.dragBoxId);
-                if (box) {
-                    const snapResult = this.checkSnap(box.id, box.x, box.y, box.w, box.h);
-                    if (snapResult.snapped && this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
-                        this.$parent.updateBoxPosition(
-                            box.id,
-                            snapResult.x,
-                            snapResult.y,
-                            snapResult.w,
-                            snapResult.h
-                        );
-                        const target = document.getElementById('preview-canvas-box-' + box.id);
-                        if (target) this.triggerSnapFlash(target);
-                    }
-                }
-            }
+            const boxId = this.dragBoxId;
+            const mode = this.dragMode;
 
             window.removeEventListener('mousemove', this._mouseMoveHandler);
             window.removeEventListener('mouseup', this._mouseUpHandler);
+
+            if (!mode || !boxId) {
+                this.dragMode = null;
+                this.dragBoxId = null;
+                this.dragDomEl = null;
+                this.dragCurrentBoxPx = null;
+                return;
+            }
+
+            // 최종 좌표 (드래그 중 갱신된 값 or 시작 값)
+            let finalPx = this.dragCurrentBoxPx || this.dragStartBoxPx;
+            let { x, y, w, h } = finalPx;
+
+            // 스냅 계산
+            const snapResult = this.checkSnap(boxId, x, y, w, h);
+            if (snapResult.snapped) {
+                x = snapResult.x;
+                y = snapResult.y;
+                w = snapResult.w;
+                h = snapResult.h;
+            }
+
+            // Vue 상태에 최종 결과 1회 반영
+            if (this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
+                this.$parent.updateBoxPosition(boxId, x, y, w, h);
+            }
+
+            // DOM에도 스냅 적용 + 플래시
+            const target = this.dragDomEl || document.getElementById('preview-canvas-box-' + boxId);
+            if (target) {
+                target.style.left = x + 'px';
+                target.style.top = y + 'px';
+                target.style.width = w + 'px';
+                target.style.height = h + 'px';
+
+                if (snapResult.snapped) {
+                    this.triggerSnapFlash(target);
+                }
+            }
+
+            // 상태 정리
             this.dragMode = null;
             this.dragBoxId = null;
+            this.dragDomEl = null;
+            this.dragCurrentBoxPx = null;
         },
 
         // ---------- 스냅 & 플래시 ----------
