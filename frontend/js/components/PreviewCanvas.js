@@ -1,13 +1,13 @@
-// Preview Canvas Component - 단일 Composition(px) 좌표계 기반 구현 (델타 방식 리사이즈, 내부 진입 허용)
+// Preview Canvas Component - 단일 Composition(px) 좌표계 기반 구현
 // - 상호작용 기준: #preview-canvas-scaler 내부 DOM 픽셀 좌표만 사용
 // - 이동(move): 시작 박스(x0,y0) + (마우스 이동량 dx,dy)
-// - 리사이즈(resize): 시작 박스(x0,y0,w0,h0) + dx,dy 직접 적용
-// - 최소 크기 보정은 w,h 만 clamp 하고 x,y 는 건드리지 않음
-//   → 모서리가 박스 안쪽으로도 들어갈 수 있음 (센터/반대편까지 뒤집을 필요는 없음)
-// - move 시마다 AppRoot.updateBoxPosition(id, x, y, w, h) 호출
-//   → AppRoot 가 0~1 ratio(nx,ny,nw,nh)까지 갱신
+// - 리사이즈(resize): 시작 박스(x0,y0,w0,h0) + dx,dy 직접 적용 (사분면/앵커 락 없음)
+// - 최소 크기 보정은 w,h 만 clamp, x,y는 건드리지 않음
+//   → 모서리를 레이어 박스 안쪽으로 끌고 들어갈 수 있음
+// - 모든 업데이트는 AppRoot.updateBoxPosition(id, x, y, w, h)에 px 기준으로 전달
+//   → AppRoot가 내부에서 0~1 ratio(nx,ny,nw,nh) 갱신
 
-console.log('[PreviewCanvas] script loaded (composition-px delta v2)');
+console.log('[PreviewCanvas] script loaded (composition-px final)');
 
 const PreviewCanvas = {
     props: ['canvasBoxes', 'selectedBoxId'],
@@ -491,7 +491,6 @@ const PreviewCanvas = {
                 x = x0 + dx;
                 y = y0 + dy;
             } else if (this.dragMode === 'resize') {
-                // 핸들별로 델타 적용
                 switch (this.resizeHandlePos) {
                     case 'tl':
                         x = x0 + dx;
@@ -531,7 +530,6 @@ const PreviewCanvas = {
                 return;
             }
 
-            // 캔버스 경계 및 0~1 정규화는 AppRoot.updateBoxPosition 에서 처리
             parent.updateBoxPosition(this.dragBoxId, x, y, w, h);
         },
 
