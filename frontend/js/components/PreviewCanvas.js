@@ -154,9 +154,19 @@ const PreviewCanvas = {
             };
         },
 
+        // 캔버스 크기에 비례해서 텍스트 크기 스케일링
         textStyle(box) {
             const ts = box.textStyle || {};
-            const fontSize = ts.fontSize || 48;
+            const parent = this.$parent;
+            const baseH = 1080;
+            let scale = 1;
+            if (parent && parent.canvasSize && parent.canvasSize.h) {
+                scale = parent.canvasSize.h / baseH;
+                if (!Number.isFinite(scale) || scale <= 0) scale = 1;
+            }
+
+            const baseFont = ts.fontSize || 48;
+            const fontSize = baseFont * scale;
 
             const hAlign = ts.textAlign || 'center';
             const vAlign = ts.vAlign   || 'middle';
@@ -175,7 +185,7 @@ const PreviewCanvas = {
                 top: 0,
                 width: '100%',
                 height: '100%',
-                padding: '8px',
+                padding: '4px',
                 boxSizing: 'border-box',
 
                 display: 'flex',
@@ -188,11 +198,12 @@ const PreviewCanvas = {
                 color: ts.fillColor || '#ffffff',
                 fontFamily: ts.fontFamily || 'Pretendard, system-ui, sans-serif',
                 fontSize: fontSize + 'px',
-                lineHeight: ts.lineHeight || 1.2,
+                lineHeight: (ts.lineHeight || 1.2),
                 backgroundColor: ts.backgroundColor || 'transparent',
                 WebkitTextStrokeColor: ts.strokeColor || 'transparent',
-                WebkitTextStrokeWidth: (ts.strokeWidth || 0) + 'px',
-                whiteSpace: 'pre-wrap'
+                WebkitTextStrokeWidth: ((ts.strokeWidth || 0) * scale) + 'px',
+                whiteSpace: 'pre-wrap',
+                overflow: 'hidden'
             };
         },
 
@@ -264,27 +275,31 @@ const PreviewCanvas = {
         },
 
         labelWrapperStyle(box) {
-            const marginX = 8;
+            const marginX = 4;
 
             const style = {
                 position: 'absolute',
                 bottom: '0px',
                 pointerEvents: 'none',
-                zIndex: box.zIndex + 1
+                zIndex: box.zIndex + 1,
+                width: '100%',
+                textAlign: 'center'
             };
 
             if (box.rowType === 'EFF') {
+                style.textAlign = 'left';
                 style.left = marginX + 'px';
             } else if (box.rowType === 'BG') {
+                style.textAlign = 'right';
                 style.right = marginX + 'px';
             } else {
-                style.left = '50%';
-                style.transform = 'translateX(-50%)';
+                style.left = '0px';
             }
 
             return style;
         },
 
+        // 레이블도 캔버스 크기에 비례해서 스케일링 + 박스 폭 안으로 제한
         labelChipStyle(box) {
             const base = box.color || '#22c55e';
             const rgb = this.parseColorToRgb(base);
@@ -294,20 +309,35 @@ const PreviewCanvas = {
 
             const textColor = this.getContrastingTextColor(base);
 
+            const parent = this.$parent;
+            const baseH = 1080;
+            let scale = 1;
+            if (parent && parent.canvasSize && parent.canvasSize.h) {
+                scale = parent.canvasSize.h / baseH;
+                if (!Number.isFinite(scale) || scale <= 0) scale = 1;
+            }
+
+            const fontSize = Math.max(10, 16 * scale); // 예: 기본 16px, 스케일 적용
+            const maxWidthPx = Math.max(40, Math.min(180 * scale, (box.w || 9999) - 4));
+
             return {
                 display: 'inline-block',
                 minWidth: 'auto',
-                maxWidth: '240px',
-                padding: '2px 6px',
-                borderRadius: '6px',
-                border: '2px solid ' + base,
+                maxWidth: maxWidthPx + 'px',
+                padding: '2px 4px',
+                borderRadius: '4px',
+                border: '1px solid ' + base,
                 backgroundColor: bg,
                 color: textColor,
-                fontSize: '40px',
+                fontSize: fontSize + 'px',
                 lineHeight: '1.0',
                 textAlign: 'center',
                 boxSizing: 'border-box',
-                textShadow: '0 0 4px rgba(0,0,0,0.7)'
+                textShadow: '0 0 4px rgba(0,0,0,0.7)',
+                overflow: 'hidden',
+                whiteSpace: 'nowrap',
+                textOverflow: 'ellipsis',
+                margin: '0 auto 2px auto'
             };
         },
 
