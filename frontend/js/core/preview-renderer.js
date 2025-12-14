@@ -2,9 +2,10 @@
 // - 퍼센트 좌표(0~1)를 사용하는 프리뷰 렌더러 진입점
 // - 기본: PixiJS(WebGL 2D) 기반으로 레이어 박스/텍스트를 렌더링
 // - 폴백: Pixi 사용 불가 시 Canvas2D 로 중앙 십자 가이드만 렌더
-// - 이번 단계:
-//   - 드래그/리사이즈를 Pixi 쪽에서 처리 (스냅 제외)
-//   - DOM PreviewCanvas 는 더 이상 드래그/리사이즈를 담당하지 않음
+// - 현재 단계(Lv.A):
+//   - Pixi 는 렌더 전용 엔진으로 사용 (박스/텍스트/가이드만 그림)
+//   - 드래그/리사이즈/선택/컨텍스트 메뉴는 DOM PreviewCanvas 가 담당
+//   - PreviewRenderer.updateBoxDuringDrag(...) 은 DOM 드래그 시 실시간 반영용 헬퍼로만 사용
 
 (function (global) {
     const DEFAULT_TEXT_MESSAGE = '현재의 레이어에 적용할\n텍스트 스타일을 설정하세요';
@@ -34,7 +35,7 @@
         boxEntries: new Map(),  // id -> { container, bg, border, text }
         _lastBoxes: [],
 
-        // 드래그/리사이즈 상태 (Pixi 기준)
+        // 드래그/리사이즈 상태 (Pixi 기준, 현재 단계에서는 사용하지 않음)
         dragMode: null,          // 'move' | 'resize' | null
         dragBoxId: null,
         dragStartMouse: { x: 0, y: 0 },  // stage 좌표
@@ -286,8 +287,9 @@
         },
 
         // ----------------------
-        // 외부 API: 드래그 중 박스 임시 업데이트 (DOM 용도로 남겨 둠)
-        // 현재 Pixi 내부 드래그에서는 직접 _updateBoxGraphics 를 사용
+        // 외부 API: 드래그 중 박스 임시 업데이트 (DOM 드래그용)
+        // - PreviewCanvas 가 드래그 중에만 호출
+        // - vm.updateBoxPosition 을 호출하지 않고, Pixi 그림만 바꾼다.
         // ----------------------
         updateBoxDuringDrag(id, newX, newY, newW, newH) {
             if (this.mode !== 'pixi' || !this.layersContainer || !this.boxEntries) return;
@@ -322,7 +324,8 @@
         },
 
         // ----------------------
-        // Pixi 드래그/리사이즈: 헬퍼 (엣지 판단)
+        // (참고) Pixi 드래그/리사이즈 헬퍼
+        // 현재 단계에서는 pointer 이벤트를 연결하지 않으므로 사용되지 않는다.
         // ----------------------
         _getEdgeState(globalPos, rect) {
             const edgeMargin = 8;
@@ -368,7 +371,8 @@
         },
 
         // ----------------------
-        // Pixi 드래그/리사이즈: 포인터 이벤트 처리
+        // (참고) Pixi 드래그/리사이즈 포인터 이벤트
+        // 현재 단계에서는 컨테이너에 pointerdown 을 연결하지 않으므로 호출되지 않는다.
         // ----------------------
         _onBoxPointerDown(event, boxId) {
             if (!this.app || !this.layersContainer || !boxId) return;
@@ -440,6 +444,8 @@
                 this._boundPointerUp = this._onStagePointerUp.bind(this);
             }
 
+            // 현재 단계에서는 pointerdown 자체를 연결하지 않으므로,
+            // 실제로 이 구간이 실행될 일은 없다.
             this.app.stage.on('pointermove', this._boundPointerMove);
             this.app.stage.on('pointerup', this._boundPointerUp);
             this.app.stage.on('pointerupoutside', this._boundPointerUp);
@@ -619,14 +625,13 @@
                     container.addChild(text);
                 }
 
-                // 인터랙션: Pixi 컨테이너에 pointer 이벤트 부여
-                container.eventMode = 'static';
-                container.cursor = 'move';
+                // 메타 정보만 기록. 현재 단계에서는 Pixi 상호작용(클릭/드래그)을 사용하지 않는다.
+                container.eventMode = 'none';
+                container.cursor = 'default';
                 container._waiBoxId = box.id;
 
-                container.on('pointerdown', (e) => {
-                    this._onBoxPointerDown(e, box.id);
-                });
+                // ★ 중요: pointerdown 등 포인터 이벤트는 연결하지 않는다.
+                //   드래그/리사이즈/선택/컨텍스트 메뉴는 DOM PreviewCanvas 가 담당.
 
                 this.layersContainer.addChild(container);
                 entry = { container, bg, border, text };
@@ -827,73 +832,6 @@
             }
 
             return { color: defaultColor, alpha: defaultAlpha };
-        },
-
-        // ----------------------
-        // Pixi 중앙 십자 가이드
-        // ----------------------
-        _recreateGuides() {
-            if (!this.app || !this.guidesContainer) return;
-
-            const PIXI = global.PIXI;
-            const stageSize = this._getStageSize();
-            const w = Math.max(1, stageSize.w || 1);
-            const h = Math.max(1, stageSize.h || 1);
-
-            if (this.guideGraphics && this.guideGraphics.parent) {
-                this.guideGraphics.parent.removeChild(this.guideGraphics);
-            }
-
-            const g = new PIXI.Graphics();
-            g.clear();
-
-            const color = 0x94a3b8; // #94a3b8
-            const alpha = 0.35;
-
-            g.lineStyle({ width: 1, color, alpha });
-
-            const midY = h / 2;
-            g.moveTo(0, midY);
-            g.lineTo(w, midY);
-
-            const midX = w / 2;
-            g.moveTo(midX, 0);
-            g.lineTo(midX, h);
-
-            this.guidesContainer.addChild(g);
-            this.guideGraphics = g;
-        },
-
-        // ----------------------
-        // Canvas2D 십자 가이드 렌더
-        // ----------------------
-        _renderCanvas2D(wCss, hCss) {
-            const ctx = this.ctx2d;
-            if (!ctx) return;
-
-            const w = wCss;
-            const h = hCss;
-
-            ctx.clearRect(0, 0, w, h);
-
-            ctx.save();
-            ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)'; // #94a3b8, 반투명
-            ctx.lineWidth = 1;
-
-            const midX = w / 2 + 0.5;
-            const midY = h / 2 + 0.5;
-
-            ctx.beginPath();
-            ctx.moveTo(0, midY);
-            ctx.lineTo(w, midY);
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.moveTo(midX, 0);
-            ctx.lineTo(midX, h);
-            ctx.stroke();
-
-            ctx.restore();
         },
 
         // ----------------------
