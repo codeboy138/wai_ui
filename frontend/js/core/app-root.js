@@ -784,7 +784,9 @@ const AppRoot = {
             if (this.selectedBoxId === id) this.selectedBoxId = null;
         },
         setSelectedBoxId(id) {
-            this.selectedBoxId = (this.selectedBoxId === id) ? null : id;
+            // 토글이 아니라 "해당 id로 선택"만 수행
+            // 선택 해제는 PreviewCanvas 바깥 클릭(@select-box="null")에서만 일어남
+            this.selectedBoxId = id;
             this.selectedClip = null;
         },
 
