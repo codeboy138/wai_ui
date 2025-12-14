@@ -75,8 +75,7 @@ const AppRoot = {
                 { id: 'c3', trackId: 't5', name: 'BGM_Main.mp3', start: 0, duration: 30, type: 'audio' }
             ],
 
-            // 캔바스 레이어 박스 (레이어 매트릭스 12셀과 1:1 연동)
-            // 각 박스는 x/y/w/h(px) + nx/ny/nw/nh(0~1 비율) 를 함께 가진다.
+            // 캔바스 레이어 박스
             canvasBoxes: [],
 
             zoom: 20,
@@ -93,10 +92,7 @@ const AppRoot = {
             
             // Preview Toolbar State
             aspectRatio: '16:9',
-            // 해상도 키(내부 값): '8K' / '6K' / '4K' / '3K' / '2K'
-            // ※ 프로젝트 메타/표시용
             resolution: '4K',
-            // 프리뷰용 기준 픽셀 사이즈 (aspectRatio 반영, 해상도와 무관)
             canvasSize: { w: 1920, h: 1080 }, 
             mouseCoord: { x: 0, y: 0 }, 
             isMouseOverCanvas: false,
@@ -131,10 +127,6 @@ const AppRoot = {
         };
     },
     computed: {
-        /**
-         * 프리뷰 캔버스 실제 픽셀 사이즈(canvasSize) + 스케일(canvasScale)을
-         * preview-canvas-wrapper 중앙에 배치하는 스타일.
-         */
         canvasScalerStyle() {
             return {
                 width: this.canvasSize.w + 'px',
@@ -158,10 +150,6 @@ const AppRoot = {
         }
     },
     watch: {
-        /**
-         * canvasSize 변경 시 PreviewRenderer 의 논리 캔버스 크기만 갱신.
-         * (박스 동기화는 canvasBoxes watcher / initPreviewRenderer 에서 처리)
-         */
         canvasSize: {
             handler(newSize) {
                 try {
@@ -174,12 +162,6 @@ const AppRoot = {
             },
             deep: true
         },
-        /**
-         * canvasBoxes 내용이 바뀔 때마다 Pixi 와 동기화.
-         * - LayerPanel: 새 박스 추가/삭제
-         * - PreviewCanvas: 드래그/리사이즈
-         * - LayerConfigModal: 좌표/스타일 변경
-         */
         canvasBoxes: {
             handler(newBoxes) {
                 try {
@@ -199,8 +181,8 @@ const AppRoot = {
             this.setupPanelResizers(); 
             this.setupCanvasScaler(); 
             this.setupInspectorMode();
-            this.setupSpinWheel();      // 모든 number 스핀박스 마우스휠 활성화
-            this.initPreviewRenderer(); // PixiJS / Canvas2D 프리뷰 렌더러 초기화
+            this.setupSpinWheel();
+            this.initPreviewRenderer();
         });
         window.vm = this; 
     },
@@ -535,7 +517,6 @@ const AppRoot = {
                 box.textContent = DEFAULT_TEXT_MESSAGE;
             }
 
-            // 퍼센트 좌표 세팅
             this.ensureBoxNormalized(box);
             this.applyBoxNormalizedToPx(box);
 
@@ -558,7 +539,6 @@ const AppRoot = {
         },
 
         // --- Preview/Canvas Logic ---
-        // 화면비율 드롭다운: 실제 캔버스 비율 변경 (퍼센트 좌표 구조 유지)
         setAspect(r) { 
             this.aspectRatio = r;
             this.updateCanvasSizeFromControls();
@@ -574,14 +554,12 @@ const AppRoot = {
             let w, h;
 
             if (aspectRatio === '9:16') {
-                // 세로형: 높이 기준
                 h = longSide;
                 w = Math.round(longSide * 9 / 16);
             } else if (aspectRatio === '1:1') {
                 w = longSide;
                 h = longSide;
             } else {
-                // 기본 16:9 가로형
                 w = longSide;
                 h = Math.round(longSide * 9 / 16);
             }
@@ -613,7 +591,6 @@ const AppRoot = {
         updateCanvasSizeFromControls() {
             const size = this.computeCanvasSize(this.aspectRatio);
             this.canvasSize = size;
-            // 캔버스 크기 변경 시, 퍼센트 좌표를 기반으로 px 좌표 재계산
             this.ensureAllBoxesNormalized();
             this.recalculateCanvasScale();
         },
@@ -639,7 +616,6 @@ const AppRoot = {
             this.canvasScale = (scale > 0 && Number.isFinite(scale)) ? scale : 1.0;
         },
         updateCanvasMouseCoord(e) {
-            // 박스 드래그 중에는 마우스 좌표 UI 업데이트를 생략 (프레임 드랍 방지)
             if (this.isBoxDragging) return;
 
             const wrapper = document.getElementById('preview-canvas-wrapper');
@@ -750,7 +726,7 @@ const AppRoot = {
             }
         },
 
-        // --- 모든 number 스핀박스: 마우스 휠로 증감 (기본 min=0, 음수 방지) ---
+        // --- 모든 number 스핀박스: 마우스 휠로 증감 ---
         setupSpinWheel() {
             const handler = (event) => {
                 const target = event.target;
@@ -784,7 +760,7 @@ const AppRoot = {
             this._spinWheelHandler = handler;
         },
 
-        // --- 레이어 설정 모달 ---
+            // --- 레이어 설정 모달 ---
         openLayerConfig(boxId) {
             this.layerConfig.isOpen = true;
             this.layerConfig.boxId = boxId;
@@ -811,12 +787,48 @@ const AppRoot = {
             this.selectedBoxId = (this.selectedBoxId === id) ? null : id;
             this.selectedClip = null;
         },
+
         /**
-         * updateBoxPosition (드래그/리사이즈용)
-         * - px 좌표(x,y,w,h)를 1차 기준으로 처리하고
-         * - 경계/최소 크기를 px 기준으로 클램프한 뒤
-         * - 퍼센트 좌표(nx,ny,nw,nh)를 2차로 계산한다.
-         * - optNorm 이 넘어오면 퍼센트 좌표를 1차 기준으로 사용하는 특수 케이스
+         * 퍼센트(0~1) 좌표 기반 업데이트 (PreviewCanvas 드래그 전용)
+         */
+        updateBoxPositionNormalized(id, nx, ny, nw, nh) {
+            const index = this.canvasBoxes.findIndex(b => b.id === id);
+            if (index === -1) return;
+
+            const cw = this.canvasSize.w || 1;
+            const ch = this.canvasSize.h || 1;
+
+            // 최소 크기: 논리 캔버스 기준 10px
+            const minNw = 10 / cw;
+            const minNh = 10 / ch;
+
+            if (nw < minNw) nw = minNw;
+            if (nh < minNh) nh = minNh;
+
+            if (nx < 0) nx = 0;
+            if (ny < 0) ny = 0;
+            if (nx + nw > 1) nx = Math.max(0, 1 - nw);
+            if (ny + nh > 1) ny = Math.max(0, 1 - nh);
+
+            const x = nx * cw;
+            const y = ny * ch;
+            const w = nw * cw;
+            const h = nh * ch;
+
+            const oldBox = this.canvasBoxes[index];
+            const box = {
+                ...oldBox,
+                x, y, w, h,
+                nx, ny, nw, nh
+            };
+
+            const newBoxes = [...this.canvasBoxes];
+            newBoxes[index] = box;
+            this.canvasBoxes = newBoxes;
+        },
+
+        /**
+         * 기존 px 기반 업데이트 (레이어 설정 모달/기타용)
          */
         updateBoxPosition(id, newX, newY, newW, newH, optNorm) {
             const index = this.canvasBoxes.findIndex(b => b.id === id);
@@ -829,7 +841,6 @@ const AppRoot = {
             let x, y, w, h;
             let nx, ny, nw, nh;
 
-            // --- 1) 퍼센트 좌표가 직접 들어온 경우(optNorm) ---
             if (optNorm && typeof optNorm === 'object') {
                 nx = (typeof optNorm.nx === 'number')
                     ? optNorm.nx
@@ -859,9 +870,7 @@ const AppRoot = {
                 y = ny * ch;
                 w = nw * cw;
                 h = nh * ch;
-            }
-            // --- 2) 일반 드래그/리사이즈: px 좌표를 1차 기준으로 처리 ---
-            else {
+            } else {
                 x = (typeof newX === 'number')
                     ? newX
                     : (typeof oldBox.x === 'number' ? oldBox.x : 0);
@@ -902,6 +911,7 @@ const AppRoot = {
             newBoxes[index] = box;
             this.canvasBoxes = newBoxes;
         },
+
         removeClip(id) {
             this.clips = this.clips.filter(c => c.id !== id);
         },
@@ -916,7 +926,6 @@ const AppRoot = {
             this.tracks = tracks;
         },
 
-        // 레이어 템플릿 저장 (JSON 스냅샷 포함)
         saveLayerTemplate(name, matrixJson) {
             const newTpl = {
                 id: `tpl_${Date.now()}`,
