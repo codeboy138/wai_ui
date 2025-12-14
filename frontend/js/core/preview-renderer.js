@@ -176,7 +176,7 @@
                 const cssWidth = Math.max(1, rect.width || 1);
                 this._renderCanvas2D(cssWidth, cssHeight);
             }
-            // Pixi 모드는 Application 이 자동 렌더
+            // Pixi 모드는 Application 이 stage 를 자동 렌더
         },
 
         _loop2d() {
@@ -278,6 +278,42 @@
             // 여기서는 logicalCanvasSize 는 이미 최신이므로,
             // 다시 setCanvasSize 를 호출하지 않도록 canvasSize 인자를 넘기지 않는다.
             this.syncBoxes(this._lastBoxes);
+        },
+
+        // ----------------------
+        // 외부 API: 드래그 중 박스 실시간 업데이트 (데이터 모델은 유지)
+        // ----------------------
+        updateBoxDuringDrag(id, newX, newY, newW, newH) {
+            if (this.mode !== 'pixi' || !this.layersContainer || !this.boxEntries) return;
+            if (!id) return;
+
+            const entry = this.boxEntries.get(id);
+            if (!entry) return;
+
+            // 마지막 동기화된 box 상태를 기준으로, 좌표만 임시로 바꿔서 렌더
+            const baseBox = Array.isArray(this._lastBoxes)
+                ? this._lastBoxes.find(b => b && b.id === id)
+                : null;
+            if (!baseBox) return;
+
+            const logical = this.logicalCanvasSize || { w: 1920, h: 1080 };
+            const cw = logical.w || 1;
+            const ch = logical.h || 1;
+
+            const tempBox = {
+                ...baseBox,
+                x: newX,
+                y: newY,
+                w: newW,
+                h: newH,
+                nx: newX / cw,
+                ny: newY / ch,
+                nw: newW / cw,
+                nh: newH / ch
+            };
+
+            const stageSize = this._getStageSize();
+            this._updateBoxGraphics(entry, tempBox, stageSize.w, stageSize.h);
         },
 
         // 현재 Pixi 스테이지 크기(뷰 좌표 기준)
