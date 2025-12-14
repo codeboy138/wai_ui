@@ -835,6 +835,73 @@
         },
 
         // ----------------------
+        // Pixi 중앙 십자 가이드
+        // ----------------------
+        _recreateGuides() {
+            if (!this.app || !this.guidesContainer) return;
+
+            const PIXI = global.PIXI;
+            const stageSize = this._getStageSize();
+            const w = Math.max(1, stageSize.w || 1);
+            const h = Math.max(1, stageSize.h || 1);
+
+            if (this.guideGraphics && this.guideGraphics.parent) {
+                this.guideGraphics.parent.removeChild(this.guideGraphics);
+            }
+
+            const g = new PIXI.Graphics();
+            g.clear();
+
+            const color = 0x94a3b8; // #94a3b8
+            const alpha = 0.35;
+
+            g.lineStyle({ width: 1, color, alpha });
+
+            const midY = h / 2;
+            g.moveTo(0, midY);
+            g.lineTo(w, midY);
+
+            const midX = w / 2;
+            g.moveTo(midX, 0);
+            g.lineTo(midX, h);
+
+            this.guidesContainer.addChild(g);
+            this.guideGraphics = g;
+        },
+
+        // ----------------------
+        // Canvas2D 십자 가이드 렌더
+        // ----------------------
+        _renderCanvas2D(wCss, hCss) {
+            const ctx = this.ctx2d;
+            if (!ctx) return;
+
+            const w = wCss;
+            const h = hCss;
+
+            ctx.clearRect(0, 0, w, h);
+
+            ctx.save();
+            ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)'; // #94a3b8, 반투명
+            ctx.lineWidth = 1;
+
+            const midX = w / 2 + 0.5;
+            const midY = h / 2 + 0.5;
+
+            ctx.beginPath();
+            ctx.moveTo(0, midY);
+            ctx.lineTo(w, midY);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(midX, 0);
+            ctx.lineTo(midX, h);
+            ctx.stroke();
+
+            ctx.restore();
+        },
+
+        // ----------------------
         // 색상 파서 (hex / rgba)
         // ----------------------
         parseColorToRgb(color) {
