@@ -88,7 +88,33 @@ const PreviewCanvas = {
             _mouseUpHandler: null
         };
     },
+    beforeUnmount() {
+        // 컴포넌트가 사라질 때 혹시 남아있을지 모르는 전역 리스너 정리
+        this.stopGlobalDragListeners();
+    },
     methods: {
+        // ---------- 공통: 전역 드래그 리스너 관리 ----------
+        startGlobalDragListeners() {
+            // 혹시 이전 드래그 리스너가 남아 있으면 정리
+            this.stopGlobalDragListeners();
+
+            this._mouseMoveHandler = (ev) => this.handleMouseMove(ev);
+            this._mouseUpHandler = (ev) => this.handleMouseUp(ev);
+
+            window.addEventListener('mousemove', this._mouseMoveHandler);
+            window.addEventListener('mouseup', this._mouseUpHandler);
+        },
+        stopGlobalDragListeners() {
+            if (this._mouseMoveHandler) {
+                window.removeEventListener('mousemove', this._mouseMoveHandler);
+                this._mouseMoveHandler = null;
+            }
+            if (this._mouseUpHandler) {
+                window.removeEventListener('mouseup', this._mouseUpHandler);
+                this._mouseUpHandler = null;
+            }
+        },
+
         // ---------- 텍스트 표시 ----------
         defaultTextMessage() {
             return '현재의 레이어에 적용할\n텍스트 스타일을 설정하세요';
@@ -346,6 +372,9 @@ const PreviewCanvas = {
 
             this.dragMode = 'move';
             this.dragEdges = { left: false, right: false, top: false, bottom: false };
+
+            // 전역 드래그 리스너 시작
+            this.startGlobalDragListeners();
         },
 
         // ---------- ㄱ자 핸들 드래그: 리사이즈 ----------
@@ -381,10 +410,13 @@ const PreviewCanvas = {
                 top:    (pos === 'tl' || pos === 'tr'),
                 bottom: (pos === 'bl' || pos === 'br')
             };
+
+            // 전역 드래그 리스너 시작
+            this.startGlobalDragListeners();
         },
 
         onBoxMouseMove(e, box) {
-            // 박스 안에서 커서는 move 유지
+            // 박스 안에서 커서는 move 유지 (추가 동작 없음)
         },
 
         onBoxMouseLeave(e) {
@@ -445,8 +477,8 @@ const PreviewCanvas = {
         },
 
         handleMouseUp() {
-            window.removeEventListener('mousemove', this._mouseMoveHandler);
-            window.removeEventListener('mouseup', this._mouseUpHandler);
+            // 전역 드래그 리스너 제거
+            this.stopGlobalDragListeners();
 
             if (this.$parent) {
                 this.$parent.isBoxDragging = false;
