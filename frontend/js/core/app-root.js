@@ -1,6 +1,7 @@
 const { createApp, reactive, ref, onMounted, computed, nextTick } = Vue;
 
-// 프리뷰 캔버스 기준 긴 변 픽셀 (해상도와 무관, 프리뷰 전용)
+// 프리뷰 캔버스 기준 긴 변 픽셀 (해상도와 무관, 프리뷰 전용 메타값)
+// ※ 실제 프리뷰 좌표계는 wrapper 크기에 맞춰 동적으로 결정된다.
 const BASE_CANVAS_LONG_SIDE = 1920;
 
 // 해상도별 기준 긴 변 픽셀 (레이블용, 프리뷰 스케일과는 무관)
@@ -93,9 +94,11 @@ const AppRoot = {
             // Preview Toolbar State
             aspectRatio: '16:9',
             resolution: '4K',
+            // canvasSize: 실제 프리뷰 px (wrapper 크기 기준, aspectRatio 유지)
             canvasSize: { w: 1920, h: 1080 }, 
             mouseCoord: { x: 0, y: 0 }, 
             isMouseOverCanvas: false,
+            // canvasScale: transform:scale 대신 항상 1.0 유지 (좌표계 = 실제 px)
             canvasScale: 1.0,
 
             // 박스 드래그 중 여부 (PreviewCanvas에서 제어)
@@ -127,15 +130,16 @@ const AppRoot = {
         };
     },
     computed: {
+        // 프리뷰 스케일러: transform scale 제거, translate만 사용 (좌표계 = 실제 px)
         canvasScalerStyle() {
             return {
                 width: this.canvasSize.w + 'px',
                 height: this.canvasSize.h + 'px',
                 backgroundColor: '#000',
-                transform: `translate(-50%, -50%) scale(${this.canvasScale})`,
                 position: 'absolute',
                 top: '50%',
-                left: '50%'
+                left: '50%',
+                transform: 'translate(-50%, -50%)'
             };
         },
         resolutionOptions() {
@@ -549,22 +553,8 @@ const AppRoot = {
             const key = match ? match[1] : (str || this.resolution);
             this.resolution = key;
         },
-        computeCanvasSize(aspectRatio) {
-            const longSide = BASE_CANVAS_LONG_SIDE;
-            let w, h;
 
-            if (aspectRatio === '9:16') {
-                h = longSide;
-                w = Math.round(longSide * 9 / 16);
-            } else if (aspectRatio === '1:1') {
-                w = longSide;
-                h = longSide;
-            } else {
-                w = longSide;
-                h = Math.round(longSide * 9 / 16);
-            }
-            return { w, h };
-        },
+        // 해상도 레이블 계산용 (프리뷰 좌표계와는 별개, 메타정보)
         computeResolutionSize(aspectRatio, resolutionKey) {
             const key = resolutionKey || '4K';
             const longSide = RESOLUTION_LONG_SIDE[key] || RESOLUTION_LONG_SIDE['4K'];
@@ -588,33 +578,56 @@ const AppRoot = {
             const size = this.computeResolutionSize(this.aspectRatio, k);
             return `${k} (${size.w} x ${size.h})`;
         },
-        updateCanvasSizeFromControls() {
-            const size = this.computeCanvasSize(this.aspectRatio);
-            this.canvasSize = size;
-            this.ensureAllBoxesNormalized();
-            this.recalculateCanvasScale();
-        },
-        recalculateCanvasScale() {
+
+        // wrapper 크기 + aspectRatio 기반으로 실제 canvasSize(px) 재계산
+        recalculateCanvasSizeFromWrapper() {
             const wrapper = document.getElementById('preview-canvas-wrapper');
             if (!wrapper) return;
 
             const PADDING = 20;
-
             const innerW = wrapper.clientWidth - PADDING * 2;
             const innerH = wrapper.clientHeight - PADDING * 2;
 
-            if (innerW <= 0 || innerH <= 0 || this.canvasSize.w <= 0 || this.canvasSize.h <= 0) {
-                this.canvasScale = 1.0;
-                return;
+            if (innerW <= 0 || innerH <= 0) return;
+
+            let arW = 16;
+            let arH = 9;
+            const parts = (this.aspectRatio || '16:9').split(':');
+            const pw = parseFloat(parts[0]);
+            const ph = parseFloat(parts[1]);
+            if (pw > 0 && ph > 0) {
+                arW = pw;
+                arH = ph;
+            }
+            const targetRatio = arW / arH;
+            const wrapperRatio = innerW / innerH;
+
+            let w, h;
+            if (wrapperRatio > targetRatio) {
+                // wrapper가 더 넓음 → 높이에 맞추고 좌우 레터박스
+                h = innerH;
+                w = Math.round(h * targetRatio);
+            } else {
+                // wrapper가 더 좁음 → 너비에 맞추고 상하 레터박스
+                w = innerW;
+                h = Math.round(w / targetRatio);
             }
 
-            const scale = Math.min(
-                innerW / this.canvasSize.w,
-                innerH / this.canvasSize.h
-            );
-
-            this.canvasScale = (scale > 0 && Number.isFinite(scale)) ? scale : 1.0;
+            this.canvasSize = { w, h };
+            this.canvasScale = 1.0; // 좌표계 = 실제 px
         },
+
+        updateCanvasSizeFromControls() {
+            // 해상도/비율 변경 시, wrapper 기준으로 실제 canvasSize를 다시 계산
+            this.recalculateCanvasSizeFromWrapper();
+            this.ensureAllBoxesNormalized();
+        },
+
+        // 기존 recalculateCanvasScale 은 canvasSize 재계산을 래핑하는 역할만 하도록 단순화
+        recalculateCanvasScale() {
+            this.recalculateCanvasSizeFromWrapper();
+        },
+
         updateCanvasMouseCoord(e) {
             if (this.isBoxDragging) return;
 
@@ -647,7 +660,7 @@ const AppRoot = {
 
             const canvasX = e.clientX - sRect.left;
             const canvasY = e.clientY - sRect.top;
-            const scale = this.canvasScale || 1.0;
+            const scale = this.canvasScale || 1.0; // 현재는 항상 1.0 이지만 안전용
 
             const realX = canvasX / scale;
             const realY = canvasY / scale;
@@ -686,6 +699,7 @@ const AppRoot = {
                     }
 
                     self.recalculateCanvasScale();
+                    self.ensureAllBoxesNormalized();
                 };
                 
                 const onUp = () => {
@@ -713,16 +727,17 @@ const AppRoot = {
             const wrapper = document.getElementById('preview-canvas-wrapper');
             if (!wrapper) return;
             
-            const updateScale = () => {
+            const updateLayout = () => {
                 this.recalculateCanvasScale();
+                this.ensureAllBoxesNormalized();
             };
 
-            updateScale();
+            updateLayout();
 
             if (window.ResizeObserver) {
-                new ResizeObserver(updateScale).observe(wrapper);
+                new ResizeObserver(updateLayout).observe(wrapper);
             } else {
-                window.addEventListener('resize', updateScale);
+                window.addEventListener('resize', updateLayout);
             }
         },
 
@@ -760,7 +775,7 @@ const AppRoot = {
             this._spinWheelHandler = handler;
         },
 
-            // --- 레이어 설정 모달 ---
+        // --- 레이어 설정 모달 ---
         openLayerConfig(boxId) {
             this.layerConfig.isOpen = true;
             this.layerConfig.boxId = boxId;
@@ -830,7 +845,8 @@ const AppRoot = {
         },
 
         /**
-         * 기존 px 기반 업데이트 (레이어 설정 모달/기타용)
+         * px 기반 업데이트 (PreviewCanvas, 레이어 설정 모달 등에서 사용)
+         * → 항상 nx,ny,nw,nh(0~1)를 함께 갱신
          */
         updateBoxPosition(id, newX, newY, newW, newH, optNorm) {
             const index = this.canvasBoxes.findIndex(b => b.id === id);
