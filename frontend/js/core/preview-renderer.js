@@ -197,7 +197,7 @@
             }
         },
 
-        // -------- WebGL 렌더 (박스 라인) --------
+        // -------- WebGL 렌더 (박스 라인 + 가이드) --------
         renderWebGL(cw, ch) {
             const gl = this.gl;
             if (!gl || !this.glProgram) return;
@@ -207,24 +207,58 @@
             gl.clear(gl.COLOR_BUFFER_BIT);
 
             const boxes = this.vm.canvasBoxes || [];
-            if (!boxes.length) return;
+            if (!boxes.length) {
+                // 박스가 없어도 중앙 가이드는 그려준다
+                this.drawGuideLines(gl);
+                return;
+            }
 
             const selectedId = this.vm.selectedBoxId || null;
 
-            // 1) 일반 박스 먼저 렌더
+            // 1) 중앙 가이드 라인 (십자선) 먼저 렌더
+            this.drawGuideLines(gl);
+
+            // 2) 일반 박스 렌더
             for (const box of boxes) {
                 if (!box || box.isHidden) continue;
                 if (selectedId && box.id === selectedId) continue;
                 this.drawBoxOutline(gl, box, cw, ch, false);
             }
 
-            // 2) 선택된 박스를 마지막에, 더 강한 색으로 렌더
+            // 3) 선택된 박스를 마지막에, 더 강한 색으로 렌더
             if (selectedId) {
                 const selBox = boxes.find(b => b && !b.isHidden && b.id === selectedId);
                 if (selBox) {
                     this.drawBoxOutline(gl, selBox, cw, ch, true);
                 }
             }
+        },
+
+        /**
+         * 중앙 가이드 라인 (수평/수직 십자선) 렌더링
+         * - 전체 캔버스 기준 중앙에 가이드 표시
+         */
+        drawGuideLines(gl) {
+            // NDC 기준: 수평(-1,0 ~ 1,0), 수직(0,-1 ~ 0,1)
+            const positions = new Float32Array([
+                -1.0,  0.0,   1.0,  0.0,   // 수평
+                 0.0, -1.0,   0.0,  1.0    // 수직
+            ]);
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.glBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STREAM_DRAW);
+
+            gl.enableVertexAttribArray(this.aPositionLoc);
+            gl.vertexAttribPointer(this.aPositionLoc, 2, gl.FLOAT, false, 0, 0);
+
+            // 살짝 옅은 회색/파랑 톤
+            const r = 148 / 255;  // #94a3b8
+            const g = 163 / 255;
+            const b = 184 / 255;
+            const a = 0.35;       // 너무 튀지 않게 반투명
+
+            gl.uniform4f(this.uColorLoc, r, g, b, a);
+            gl.drawArrays(gl.LINES, 0, positions.length / 2);
         },
 
         /**
@@ -268,7 +302,7 @@
             let alpha = 0.9;
 
             if (isSelected) {
-                // 선택 박스는 흰색 또는 강조색으로 더 또렷하게
+                // 선택 박스는 흰색으로 또렷하게
                 baseColor = '#ffffff';
                 alpha = 1.0;
             }
@@ -286,8 +320,32 @@
         renderCanvas2D(wPix, hPix) {
             const ctx = this.ctx2d;
             if (!ctx) return;
-            // 현재는 캔버스만 지우고, 박스는 DOM(PreviewCanvas)에서만 표현
+
+            // 캔버스 지우기
             ctx.clearRect(0, 0, wPix, hPix);
+
+            // 중앙 가이드 라인 (십자선) 그리기
+            ctx.save();
+            ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)'; // #94a3b8, 반투명
+            ctx.lineWidth = 1;
+
+            // 0.5 offset으로 안티앨리어싱 줄이기 (픽셀 스냅)
+            const midX = wPix / 2 + 0.5;
+            const midY = hPix / 2 + 0.5;
+
+            // 수평선
+            ctx.beginPath();
+            ctx.moveTo(0, midY);
+            ctx.lineTo(wPix, midY);
+            ctx.stroke();
+
+            // 수직선
+            ctx.beginPath();
+            ctx.moveTo(midX, 0);
+            ctx.lineTo(midX, hPix);
+            ctx.stroke();
+
+            ctx.restore();
         },
 
         // -------- 색상 파서 (hex / rgba) --------
