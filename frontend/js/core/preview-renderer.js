@@ -209,47 +209,77 @@
             const boxes = this.vm.canvasBoxes || [];
             if (!boxes.length) return;
 
+            const selectedId = this.vm.selectedBoxId || null;
+
+            // 1) 일반 박스 먼저 렌더
             for (const box of boxes) {
                 if (!box || box.isHidden) continue;
-
-                const x = box.x || 0;
-                const y = box.y || 0;
-                const w = box.w || 0;
-                const h = box.h || 0;
-
-                if (w <= 0 || h <= 0) continue;
-
-                // 논리 좌표(0~cw, 0~ch) → 클립좌표(-1~1, -1~1)
-                const left   = (x / cw) * 2 - 1;
-                const right  = ((x + w) / cw) * 2 - 1;
-                const top    = 1 - (y / ch) * 2;
-                const bottom = 1 - ((y + h) / ch) * 2;
-
-                // 사각형 외곽선 4개 라인 (GL_LINES)
-                const positions = new Float32Array([
-                    left,  top,    right, top,    // 상
-                    right, top,    right, bottom, // 우
-                    right, bottom, left,  bottom, // 하
-                    left,  bottom, left,  top     // 좌
-                ]);
-
-                gl.bindBuffer(gl.ARRAY_BUFFER, this.glBuffer);
-                gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STREAM_DRAW);
-
-                gl.enableVertexAttribArray(this.aPositionLoc);
-                gl.vertexAttribPointer(this.aPositionLoc, 2, gl.FLOAT, false, 0, 0);
-
-                // 색상: box.color 사용 (hex → RGB)
-                const rgb = this.parseColorToRgb(box.color || '#22c55e') || { r: 34, g: 197, b: 94 };
-                const r = rgb.r / 255;
-                const g = rgb.g / 255;
-                const b = rgb.b / 255;
-                const a = 0.9; // 약간 투명
-
-                gl.uniform4f(this.uColorLoc, r, g, b, a);
-
-                gl.drawArrays(gl.LINES, 0, positions.length / 2);
+                if (selectedId && box.id === selectedId) continue;
+                this.drawBoxOutline(gl, box, cw, ch, false);
             }
+
+            // 2) 선택된 박스를 마지막에, 더 강한 색으로 렌더
+            if (selectedId) {
+                const selBox = boxes.find(b => b && !b.isHidden && b.id === selectedId);
+                if (selBox) {
+                    this.drawBoxOutline(gl, selBox, cw, ch, true);
+                }
+            }
+        },
+
+        /**
+         * 단일 박스 외곽선 렌더링
+         * @param {WebGLRenderingContext} gl
+         * @param {Object} box
+         * @param {number} cw - 캔버스 논리 width
+         * @param {number} ch - 캔버스 논리 height
+         * @param {boolean} isSelected - 선택 박스 여부
+         */
+        drawBoxOutline(gl, box, cw, ch, isSelected) {
+            const x = box.x || 0;
+            const y = box.y || 0;
+            const w = box.w || 0;
+            const h = box.h || 0;
+
+            if (w <= 0 || h <= 0) return;
+
+            // 논리 좌표(0~cw, 0~ch) → 클립좌표(-1~1, -1~1)
+            const left   = (x / cw) * 2 - 1;
+            const right  = ((x + w) / cw) * 2 - 1;
+            const top    = 1 - (y / ch) * 2;
+            const bottom = 1 - ((y + h) / ch) * 2;
+
+            // 사각형 외곽선 4개 라인 (GL_LINES)
+            const positions = new Float32Array([
+                left,  top,    right, top,    // 상
+                right, top,    right, bottom, // 우
+                right, bottom, left,  bottom, // 하
+                left,  bottom, left,  top     // 좌
+            ]);
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.glBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STREAM_DRAW);
+
+            gl.enableVertexAttribArray(this.aPositionLoc);
+            gl.vertexAttribPointer(this.aPositionLoc, 2, gl.FLOAT, false, 0, 0);
+
+            // 색상: 일반 박스는 box.color, 선택 박스는 더 강한 색
+            let baseColor = box.color || '#22c55e';
+            let alpha = 0.9;
+
+            if (isSelected) {
+                // 선택 박스는 흰색 또는 강조색으로 더 또렷하게
+                baseColor = '#ffffff';
+                alpha = 1.0;
+            }
+
+            const rgb = this.parseColorToRgb(baseColor) || { r: 255, g: 255, b: 255 };
+            const r = rgb.r / 255;
+            const g = rgb.g / 255;
+            const b = rgb.b / 255;
+
+            gl.uniform4f(this.uColorLoc, r, g, b, alpha);
+            gl.drawArrays(gl.LINES, 0, positions.length / 2);
         },
 
         // -------- Canvas2D 렌더 (폴백) --------
