@@ -295,7 +295,7 @@ const PreviewCanvas = {
             return 'move';
         },
 
-        // ---------- 드래그 / 리사이즈 (px + canvasScale, DOM 실시간 반영) ----------
+        // ---------- 드래그 / 리사이즈 (px + canvasScale, DOM + Pixi 동기) ----------
         onBoxMouseDown(e, box) {
             e.preventDefault();
             this.$emit('select-box', box.id);
@@ -304,7 +304,6 @@ const PreviewCanvas = {
             const rect = target.getBoundingClientRect();
             const edgeState = this.getEdgeState(e, rect);
 
-            // 프리뷰 전체 스케일 (AppRoot.canvasScale)
             const parent = this.$parent;
             this.dragScale = (parent && typeof parent.canvasScale === 'number')
                 ? parent.canvasScale
@@ -425,10 +424,8 @@ const PreviewCanvas = {
                 if (newY + newH > ch) newH = ch - newY;
             }
 
-            // 최신 값 저장
             this.dragCurrentBoxPx = { x: newX, y: newY, w: newW, h: newH };
 
-            // Vue 상태는 건드리지 않고, DOM 스타일만 직접 업데이트 (지연 최소화)
             const el = this.dragDomEl || document.getElementById('preview-canvas-box-' + this.dragBoxId);
             this.dragDomEl = el;
             if (el) {
@@ -436,6 +433,11 @@ const PreviewCanvas = {
                 el.style.top = newY + 'px';
                 el.style.width = newW + 'px';
                 el.style.height = newH + 'px';
+            }
+
+            // --- PixiJS 쪽에도 드래그 중 실시간 반영 (데이터 모델은 그대로) ---
+            if (window.PreviewRenderer && typeof window.PreviewRenderer.updateBoxDuringDrag === 'function') {
+                window.PreviewRenderer.updateBoxDuringDrag(this.dragBoxId, newX, newY, newW, newH);
             }
         },
 
@@ -454,7 +456,6 @@ const PreviewCanvas = {
                 return;
             }
 
-            // 최종 좌표 (드래그 중 갱신된 값 or 시작 값)
             let finalPx = this.dragCurrentBoxPx || this.dragStartBoxPx;
             let { x, y, w, h } = finalPx;
 
@@ -485,7 +486,6 @@ const PreviewCanvas = {
                 }
             }
 
-            // 상태 정리
             this.dragMode = null;
             this.dragBoxId = null;
             this.dragDomEl = null;
