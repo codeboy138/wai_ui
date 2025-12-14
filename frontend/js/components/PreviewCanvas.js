@@ -94,7 +94,7 @@ const PreviewCanvas = {
             // resize 모드: 고정(anchor) 코너 (논리 px)
             resizeAnchorPx: { x: 0, y: 0 },
 
-            // 어떤 엣지를 움직이는지 (좌/우, 상/하)
+            // 어떤 엣지를 움직이는지 (좌/우, 상/하) - 현재 구현에서는 참고용
             dragEdges: { left: false, right: false, top: false, bottom: false },
 
             _mouseMoveHandler: null,
@@ -526,6 +526,7 @@ const PreviewCanvas = {
             let x, y, w, h;
 
             if (this.dragMode === 'move') {
+                // --- 이동: 항상 1:1 로 따라오게 ---
                 x = mouseCanvas.x - this.dragOffset.x;
                 y = mouseCanvas.y - this.dragOffset.y;
 
@@ -535,6 +536,7 @@ const PreviewCanvas = {
                 h = this.dragStartBoxPx.h;
 
             } else if (this.dragMode === 'resize') {
+                // --- 리사이즈: 앵커 + min/max 방식 (센터 방향/센터 넘어가기도 허용) ---
                 const minW = 10;
                 const minH = 10;
 
@@ -551,56 +553,26 @@ const PreviewCanvas = {
                 const ax = this.resizeAnchorPx.x;
                 const ay = this.resizeAnchorPx.y;
 
-                const edges = this.dragEdges || {};
+                // 앵커와 마우스를 잇는 두 점으로 사각형 생성
+                let left   = Math.min(ax, mx);
+                let right  = Math.max(ax, mx);
+                let top    = Math.min(ay, my);
+                let bottom = Math.max(ay, my);
 
-                let left, right, top, bottom;
-
-                if (edges.left && edges.top) {          // TL 핸들: left, top 이동. right/bottom 고정
-                    right = ax;
-                    bottom = ay;
-                    let newLeft = mx;
-                    let newTop  = my;
-                    if (newLeft > right - minW) newLeft = right - minW;
-                    if (newTop  > bottom - minH) newTop = bottom - minH;
-                    left = newLeft;
-                    top  = newTop;
-
-                } else if (edges.right && edges.top) {  // TR 핸들: right, top 이동. left/bottom 고정
-                    left = ax;
-                    bottom = ay;
-                    let newRight = mx;
-                    let newTop   = my;
-                    if (newRight < left + minW)  newRight = left + minW;
-                    if (newTop   > bottom - minH) newTop  = bottom - minH;
-                    right = newRight;
-                    top   = newTop;
-
-                } else if (edges.left && edges.bottom) { // BL 핸들: left, bottom 이동. right/top 고정
-                    right = ax;
-                    top   = ay;
-                    let newLeft   = mx;
-                    let newBottom = my;
-                    if (newLeft   > right - minW) newLeft   = right - minW;
-                    if (newBottom < top + minH)  newBottom = top + minH;
-                    left   = newLeft;
-                    bottom = newBottom;
-
-                } else if (edges.right && edges.bottom) { // BR 핸들: right, bottom 이동. left/top 고정
-                    left = ax;
-                    top  = ay;
-                    let newRight  = mx;
-                    let newBottom = my;
-                    if (newRight  < left + minW)  newRight  = left + minW;
-                    if (newBottom < top + minH)   newBottom = top + minH;
-                    right  = newRight;
-                    bottom = newBottom;
-
-                } else {
-                    // 혹시라도 엣지가 안 잡힌 경우: 이전 방식으로 fallback
-                    left   = Math.min(ax, mx);
-                    top    = Math.min(ay, my);
-                    right  = Math.max(ax, mx);
-                    bottom = Math.max(ay, my);
+                // 최소 크기 보장 (앵커 기준으로 조정)
+                if (right - left < minW) {
+                    if (mx >= ax) {
+                        right = left + minW;
+                    } else {
+                        left = right - minW;
+                    }
+                }
+                if (bottom - top < minH) {
+                    if (my >= ay) {
+                        bottom = top + minH;
+                    } else {
+                        top = bottom - minH;
+                    }
                 }
 
                 x = left;
