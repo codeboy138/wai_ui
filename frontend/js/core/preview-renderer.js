@@ -2,7 +2,9 @@
 // - 퍼센트 좌표(0~1)를 사용하는 프리뷰 렌더러 진입점
 // - 기본: PixiJS(WebGL 2D) 기반으로 레이어 박스/텍스트를 렌더링
 // - 폴백: Pixi 사용 불가 시 Canvas2D 로 중앙 십자 가이드만 렌더
-// - DOM(PreviewCanvas) 쪽 드래그/리사이즈/레이블 동작은 그대로 유지
+// - 이번 단계:
+//   - 드래그/리사이즈를 Pixi 쪽에서 처리 (스냅 제외)
+//   - DOM PreviewCanvas 는 더 이상 드래그/리사이즈를 담당하지 않음
 
 (function (global) {
     const DEFAULT_TEXT_MESSAGE = '현재의 레이어에 적용할\n텍스트 스타일을 설정하세요';
@@ -31,6 +33,16 @@
         // 박스 → Pixi 오브젝트 매핑
         boxEntries: new Map(),  // id -> { container, bg, border, text }
         _lastBoxes: [],
+
+        // 드래그/리사이즈 상태 (Pixi 기준)
+        dragMode: null,          // 'move' | 'resize' | null
+        dragBoxId: null,
+        dragStartMouse: { x: 0, y: 0 },  // stage 좌표
+        dragStartNorm: { nx: 0, ny: 0, nw: 0, nh: 0 }, // 0~1
+        dragCurrentNorm: null,           // 마지막 노멀라이즈 상태
+        dragEdges: { left: false, right: false, top: false, bottom: false },
+        _boundPointerMove: null,
+        _boundPointerUp: null,
 
         /**
          * 초기화
@@ -176,7 +188,6 @@
                 const cssWidth = Math.max(1, rect.width || 1);
                 this._renderCanvas2D(cssWidth, cssHeight);
             }
-            // Pixi 모드는 Application 이 stage 를 자동 렌더
         },
 
         _loop2d() {
@@ -218,7 +229,6 @@
             const w = size.w || size.width || this.logicalCanvasSize.w;
             const h = size.h || size.height || this.logicalCanvasSize.h;
 
-            // 값이 변하지 않으면 아무 것도 하지 않음 (불필요한 재동기화 방지)
             if (this.logicalCanvasSize.w === w && this.logicalCanvasSize.h === h) {
                 return;
             }
@@ -229,7 +239,6 @@
 
         // ----------------------
         // 외부 API: 박스 동기화
-        // canvasBoxes + canvasSize 를 받아 Pixi 레이어로 반영
         // ----------------------
         syncBoxes(boxes, canvasSize) {
             if (!Array.isArray(boxes)) {
@@ -243,7 +252,6 @@
             }
 
             if (this.mode !== 'pixi' || !this.app || !this.layersContainer) {
-                // Pixi 가 아직 준비되지 않았으면 조용히 패스
                 return;
             }
 
@@ -263,7 +271,6 @@
                 existingIds.delete(box.id);
             }
 
-            // 더 이상 존재하지 않는 박스 제거
             for (const id of existingIds) {
                 const entry = this.boxEntries.get(id);
                 if (entry && entry.container && entry.container.parent) {
@@ -275,13 +282,12 @@
 
         _resyncBoxesAfterResize() {
             if (!this._lastBoxes || this._lastBoxes.length === 0) return;
-            // 여기서는 logicalCanvasSize 는 이미 최신이므로,
-            // 다시 setCanvasSize 를 호출하지 않도록 canvasSize 인자를 넘기지 않는다.
             this.syncBoxes(this._lastBoxes);
         },
 
         // ----------------------
-        // 외부 API: 드래그 중 박스 실시간 업데이트 (데이터 모델은 유지)
+        // 외부 API: 드래그 중 박스 임시 업데이트 (DOM 용도로 남겨 둠)
+        // 현재 Pixi 내부 드래그에서는 직접 _updateBoxGraphics 를 사용
         // ----------------------
         updateBoxDuringDrag(id, newX, newY, newW, newH) {
             if (this.mode !== 'pixi' || !this.layersContainer || !this.boxEntries) return;
@@ -290,7 +296,6 @@
             const entry = this.boxEntries.get(id);
             if (!entry) return;
 
-            // 마지막 동기화된 box 상태를 기준으로, 좌표만 임시로 바꿔서 렌더
             const baseBox = Array.isArray(this._lastBoxes)
                 ? this._lastBoxes.find(b => b && b.id === id)
                 : null;
@@ -314,6 +319,257 @@
 
             const stageSize = this._getStageSize();
             this._updateBoxGraphics(entry, tempBox, stageSize.w, stageSize.h);
+        },
+
+        // ----------------------
+        // Pixi 드래그/리사이즈: 헬퍼 (엣지 판단)
+        // ----------------------
+        _getEdgeState(globalPos, rect) {
+            const edgeMargin = 8;
+            const offsetX = globalPos.x - rect.x;
+            const offsetY = globalPos.y - rect.y;
+
+            const distLeft   = offsetX;
+            const distRight  = rect.width  - offsetX;
+            const distTop    = offsetY;
+            const distBottom = rect.height - offsetY;
+
+            let nearLeft   = distLeft   <= edgeMargin;
+            let nearRight  = distRight  <= edgeMargin;
+            let nearTop    = distTop    <= edgeMargin;
+            let nearBottom = distBottom <= edgeMargin;
+
+            if (nearLeft && nearRight) {
+                if (distLeft <= distRight) nearRight = false;
+                else nearLeft = false;
+            }
+            if (nearTop && nearBottom) {
+                if (distTop <= distBottom) nearBottom = false;
+                else nearTop = false;
+            }
+
+            return { nearLeft, nearRight, nearTop, nearBottom };
+        },
+
+        _getCursorForEdges({ nearLeft, nearRight, nearTop, nearBottom }) {
+            if ((nearLeft && nearTop) || (nearRight && nearBottom)) {
+                return 'nwse-resize';
+            }
+            if ((nearRight && nearTop) || (nearLeft && nearBottom)) {
+                return 'nesw-resize';
+            }
+            if (nearLeft || nearRight) {
+                return 'ew-resize';
+            }
+            if (nearTop || nearBottom) {
+                return 'ns-resize';
+            }
+            return 'move';
+        },
+
+        // ----------------------
+        // Pixi 드래그/리사이즈: 포인터 이벤트 처리
+        // ----------------------
+        _onBoxPointerDown(event, boxId) {
+            if (!this.app || !this.layersContainer || !boxId) return;
+
+            event.stopPropagation?.();
+
+            // 우클릭: 레이어 설정 모달
+            if (event.button === 2) {
+                if (this.vm && typeof this.vm.openLayerConfig === 'function') {
+                    this.vm.openLayerConfig(boxId);
+                }
+                return;
+            }
+
+            // 좌클릭: 선택 + 드래그 시작
+            if (this.vm && typeof this.vm.setSelectedBoxId === 'function') {
+                this.vm.setSelectedBoxId(boxId);
+            }
+
+            const entry = this.boxEntries.get(boxId);
+            if (!entry || !entry.container) return;
+
+            const baseBox = Array.isArray(this._lastBoxes)
+                ? this._lastBoxes.find(b => b && b.id === boxId)
+                : null;
+            if (!baseBox) return;
+
+            const stageSize = this._getStageSize();
+            const stageW = stageSize.w;
+            const stageH = stageSize.h;
+
+            const globalPos = event.global;
+            const rect = entry.container.getBounds();
+
+            const edgeState = this._getEdgeState(globalPos, rect);
+            const cursor = this._getCursorForEdges(edgeState);
+            entry.container.cursor = cursor;
+
+            this.dragMode =
+                edgeState.nearLeft || edgeState.nearRight || edgeState.nearTop || edgeState.nearBottom
+                    ? 'resize'
+                    : 'move';
+
+            this.dragBoxId = boxId;
+            this.dragStartMouse = { x: globalPos.x, y: globalPos.y };
+
+            const logical = this.logicalCanvasSize || { w: 1920, h: 1080 };
+            const cw = logical.w || 1;
+            const ch = logical.h || 1;
+
+            const baseNx = (typeof baseBox.nx === 'number') ? baseBox.nx : (baseBox.x || 0) / cw;
+            const baseNy = (typeof baseBox.ny === 'number') ? baseBox.ny : (baseBox.y || 0) / ch;
+            const baseNw = (typeof baseBox.nw === 'number') ? baseBox.nw : (baseBox.w || cw) / cw;
+            const baseNh = (typeof baseBox.nh === 'number') ? baseBox.nh : (baseBox.h || ch) / ch;
+
+            this.dragStartNorm = { nx: baseNx, ny: baseNy, nw: baseNw, nh: baseNh };
+            this.dragCurrentNorm = { ...this.dragStartNorm };
+            this.dragEdges = {
+                left: edgeState.nearLeft,
+                right: edgeState.nearRight,
+                top: edgeState.nearTop,
+                bottom: edgeState.nearBottom
+            };
+
+            if (!this._boundPointerMove) {
+                this._boundPointerMove = this._onStagePointerMove.bind(this);
+            }
+            if (!this._boundPointerUp) {
+                this._boundPointerUp = this._onStagePointerUp.bind(this);
+            }
+
+            this.app.stage.on('pointermove', this._boundPointerMove);
+            this.app.stage.on('pointerup', this._boundPointerUp);
+            this.app.stage.on('pointerupoutside', this._boundPointerUp);
+        },
+
+        _onStagePointerMove(event) {
+            if (!this.dragMode || !this.dragBoxId) return;
+            if (!this.app || !this.layersContainer || !this.boxEntries) return;
+
+            const entry = this.boxEntries.get(this.dragBoxId);
+            if (!entry) return;
+
+            const globalPos = event.global;
+            const stageSize = this._getStageSize();
+            const stageW = stageSize.w || 1;
+            const stageH = stageSize.h || 1;
+
+            const dxStage = globalPos.x - this.dragStartMouse.x;
+            const dyStage = globalPos.y - this.dragStartMouse.y;
+
+            let { nx, ny, nw, nh } = this.dragStartNorm;
+
+            const dxNorm = dxStage / stageW;
+            const dyNorm = dyStage / stageH;
+
+            if (this.dragMode === 'move') {
+                nx += dxNorm;
+                ny += dyNorm;
+            } else if (this.dragMode === 'resize') {
+                const edges = this.dragEdges;
+
+                if (edges.left) {
+                    nx += dxNorm;
+                    nw -= dxNorm;
+                }
+                if (edges.right) {
+                    nw += dxNorm;
+                }
+                if (edges.top) {
+                    ny += dyNorm;
+                    nh -= dyNorm;
+                }
+                if (edges.bottom) {
+                    nh += dyNorm;
+                }
+            }
+
+            const logical = this.logicalCanvasSize || { w: 1920, h: 1080 };
+            const cw = logical.w || 1;
+            const ch = logical.h || 1;
+
+            const minNw = 10 / cw;
+            const minNh = 10 / ch;
+
+            if (nw < minNw) nw = minNw;
+            if (nh < minNh) nh = minNh;
+
+            if (nx < 0) nx = 0;
+            if (ny < 0) ny = 0;
+            if (nx + nw > 1) nx = Math.max(0, 1 - nw);
+            if (ny + nh > 1) ny = Math.max(0, 1 - nh);
+
+            this.dragCurrentNorm = { nx, ny, nw, nh };
+
+            const tempBox = this._buildTempBoxFromNorm(this.dragBoxId, nx, ny, nw, nh);
+            if (!tempBox) return;
+
+            this._updateBoxGraphics(entry, tempBox, stageW, stageH);
+        },
+
+        _onStagePointerUp() {
+            if (!this.dragMode || !this.dragBoxId) {
+                this._clearDragListeners();
+                return;
+            }
+
+            const norm = this.dragCurrentNorm || this.dragStartNorm;
+            const { nx, ny, nw, nh } = norm;
+
+            const logical = this.logicalCanvasSize || { w: 1920, h: 1080 };
+            const cw = logical.w || 1;
+            const ch = logical.h || 1;
+
+            const x = nx * cw;
+            const y = ny * ch;
+            const w = nw * cw;
+            const h = nh * ch;
+
+            if (this.vm && typeof this.vm.updateBoxPosition === 'function') {
+                this.vm.updateBoxPosition(this.dragBoxId, x, y, w, h, { nx, ny, nw, nh });
+            }
+
+            this.dragMode = null;
+            this.dragBoxId = null;
+            this.dragCurrentNorm = null;
+            this._clearDragListeners();
+        },
+
+        _clearDragListeners() {
+            if (!this.app || !this.app.stage) return;
+            if (this._boundPointerMove) {
+                this.app.stage.off('pointermove', this._boundPointerMove);
+            }
+            if (this._boundPointerUp) {
+                this.app.stage.off('pointerup', this._boundPointerUp);
+                this.app.stage.off('pointerupoutside', this._boundPointerUp);
+            }
+        },
+
+        _buildTempBoxFromNorm(boxId, nx, ny, nw, nh) {
+            const baseBox = Array.isArray(this._lastBoxes)
+                ? this._lastBoxes.find(b => b && b.id === boxId)
+                : null;
+            if (!baseBox) return null;
+
+            const logical = this.logicalCanvasSize || { w: 1920, h: 1080 };
+            const cw = logical.w || 1;
+            const ch = logical.h || 1;
+
+            return {
+                ...baseBox,
+                nx,
+                ny,
+                nw,
+                nh,
+                x: nx * cw,
+                y: ny * ch,
+                w: nw * cw,
+                h: nh * ch
+            };
         },
 
         // 현재 Pixi 스테이지 크기(뷰 좌표 기준)
@@ -362,6 +618,15 @@
                     text.anchor.set(0.5);
                     container.addChild(text);
                 }
+
+                // 인터랙션: Pixi 컨테이너에 pointer 이벤트 부여
+                container.eventMode = 'static';
+                container.cursor = 'move';
+                container._waiBoxId = box.id;
+
+                container.on('pointerdown', (e) => {
+                    this._onBoxPointerDown(e, box.id);
+                });
 
                 this.layersContainer.addChild(container);
                 entry = { container, bg, border, text };
