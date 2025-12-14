@@ -1,164 +1,193 @@
 // PreviewRenderer
-// - 퍼센트 좌표(0~1)를 사용하는 프리뷰 전용 렌더러
-// - WebGL(가능 시) + Canvas2D(폴백) 구조
-// - 현재는 중앙 가이드라인(십자선)과 화면 배율(%)만 표시하며,
-//   박스 외곽선은 DOM(PreviewCanvas)의 박스 테두리만 사용합니다.
+// - 퍼센트 좌표(0~1)를 사용하는 프리뷰 전용 렌더러 진입점
+// - 기본: PixiJS(WebGL 2D) 기반
+// - 폴백: Pixi 사용 불가 시 Canvas2D 로 중앙 십자 가이드만 렌더
+// - DOM / Vue 상태(AppRoot.canvasSize 등) 구조는 그대로 사용
 
 (function (global) {
     const PreviewRenderer = {
+        // 공통
         canvas: null,
         vm: null,
-
-        // 모드: 'webgl' | '2d' | null
-        mode: null,
-
-        // WebGL 관련
-        gl: null,
-        glProgram: null,
-        glBuffer: null,
-        aPositionLoc: null,
-        uColorLoc: null,
-
-        // Canvas2D 관련 (폴백용)
-        ctx2d: null,
-
         dpr: global.devicePixelRatio || 1,
         handleResize: null,
 
+        // Pixi 모드
+        app: null,              // PIXI.Application
+        rootContainer: null,    // stage 하위 루트 컨테이너
+        guidesContainer: null,  // 중앙 가이드 전용 컨테이너
+        guideGraphics: null,    // 가이드 라인 Graphics
+
+        // Canvas2D 폴백 모드
+        ctx2d: null,
+
+        // 현재 모드: 'pixi' | '2d' | null
+        mode: null,
+
+        /**
+         * 초기화
+         * @param {HTMLCanvasElement} canvasEl
+         * @param {VueComponent} vm - AppRoot 인스턴스
+         */
         init(canvasEl, vm) {
             this.canvas = canvasEl;
             this.vm = vm;
             this.dpr = global.devicePixelRatio || 1;
+            this.mode = null;
 
-            // 1) WebGL 시도
-            if (this.initWebGL()) {
-                this.mode = 'webgl';
-                console.log('[PreviewRenderer] WebGL mode enabled');
-            } else {
-                // 2) 실패 시 Canvas2D 폴백
-                this.ctx2d = canvasEl.getContext('2d');
-                if (this.ctx2d) {
-                    this.mode = '2d';
-                    console.log('[PreviewRenderer] Canvas2D fallback mode');
-                } else {
-                    this.mode = null;
-                    console.warn('[PreviewRenderer] No rendering context available');
-                    return;
-                }
+            if (!this.canvas) {
+                console.warn('[PreviewRenderer] canvas element not provided');
+                return;
             }
 
+            // 1) PixiJS 시도
+            if (global.PIXI && global.PIXI.Application) {
+                try {
+                    this._initPixi();
+                    this.mode = 'pixi';
+                    console.log('[PreviewRenderer] PixiJS mode enabled');
+                } catch (err) {
+                    console.warn('[PreviewRenderer] Pixi init failed, fallback to Canvas2D:', err);
+                    this._initCanvas2D();
+                }
+            } else {
+                // 2) Pixi 사용 불가 → Canvas2D 폴백
+                this._initCanvas2D();
+            }
+
+            if (!this.mode) {
+                console.warn('[PreviewRenderer] No rendering mode available');
+                return;
+            }
+
+            // 리사이즈 이벤트
             this.handleResize = this.resize.bind(this);
             global.addEventListener('resize', this.handleResize);
 
+            // 초기 리사이즈 & 루프 시작
             this.resize();
-            this.loop();
-        },
 
-        // -------- WebGL 초기화 --------
-        initWebGL() {
-            const canvas = this.canvas;
-            if (!canvas) return false;
-
-            const gl =
-                canvas.getContext('webgl2', { antialias: true }) ||
-                canvas.getContext('webgl', { antialias: true });
-
-            if (!gl) return false;
-
-            this.gl = gl;
-
-            const vsSource = `
-                attribute vec2 a_position;
-                void main() {
-                    gl_Position = vec4(a_position, 0.0, 1.0);
-                }
-            `;
-
-            const fsSource = `
-                precision mediump float;
-                uniform vec4 u_color;
-                void main() {
-                    gl_FragColor = u_color;
-                }
-            `;
-
-            const vs = this._createShader(gl, gl.VERTEX_SHADER, vsSource);
-            const fs = this._createShader(gl, gl.FRAGMENT_SHADER, fsSource);
-            if (!vs || !fs) return false;
-
-            const program = this._createProgram(gl, vs, fs);
-            if (!program) return false;
-
-            this.glProgram = program;
-            gl.useProgram(program);
-
-            this.aPositionLoc = gl.getAttribLocation(program, 'a_position');
-            this.uColorLoc = gl.getUniformLocation(program, 'u_color');
-
-            this.glBuffer = gl.createBuffer();
-            gl.bindBuffer(gl.ARRAY_BUFFER, this.glBuffer);
-            gl.enableVertexAttribArray(this.aPositionLoc);
-            gl.vertexAttribPointer(this.aPositionLoc, 2, gl.FLOAT, false, 0, 0);
-
-            return true;
-        },
-
-        _createShader(gl, type, source) {
-            const shader = gl.createShader(type);
-            gl.shaderSource(shader, source);
-            gl.compileShader(shader);
-            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-                console.warn('[PreviewRenderer] Shader compile error:', gl.getShaderInfoLog(shader));
-                gl.deleteShader(shader);
-                return null;
+            if (this.mode === 'pixi' && this.app && this.app.ticker) {
+                this.app.ticker.add(this.render, this);
+            } else if (this.mode === '2d') {
+                this._loop2d();
             }
-            return shader;
         },
 
-        _createProgram(gl, vs, fs) {
-            const program = gl.createProgram();
-            gl.attachShader(program, vs);
-            gl.attachShader(program, fs);
-            gl.linkProgram(program);
-            if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-                console.warn('[PreviewRenderer] Program link error:', gl.getProgramInfoLog(program));
-                gl.deleteProgram(program);
-                return null;
+        // ----------------------
+        // Pixi 초기화
+        // ----------------------
+        _initPixi() {
+            const PIXI = global.PIXI;
+            const rect = this.canvas.getBoundingClientRect();
+            const width = Math.max(1, rect.width || 1);
+            const height = Math.max(1, rect.height || 1);
+
+            const app = new PIXI.Application({
+                view: this.canvas,
+                width,
+                height,
+                antialias: true,
+                resolution: this.dpr,
+                autoDensity: true,
+                backgroundAlpha: 0
+            });
+
+            this.app = app;
+
+            // 루트 컨테이너
+            this.rootContainer = new PIXI.Container();
+            app.stage.addChild(this.rootContainer);
+
+            // 가이드 컨테이너
+            this.guidesContainer = new PIXI.Container();
+            this.rootContainer.addChild(this.guidesContainer);
+
+            // 초기 가이드 생성
+            this._recreateGuides();
+        },
+
+        // ----------------------
+        // Canvas2D 폴백 초기화
+        // ----------------------
+        _initCanvas2D() {
+            const ctx = this.canvas.getContext('2d');
+            if (!ctx) {
+                console.warn('[PreviewRenderer] Canvas2D context not available');
+                this.mode = null;
+                return;
             }
-            return program;
+            this.ctx2d = ctx;
+            this.mode = '2d';
+            console.log('[PreviewRenderer] Canvas2D fallback mode enabled');
         },
 
-        // -------- 리사이즈 --------
+        // ----------------------
+        // 리사이즈 처리
+        // ----------------------
         resize() {
             if (!this.canvas) return;
 
             const rect = this.canvas.getBoundingClientRect();
             const dpr = this.dpr || 1;
+            const cssWidth = Math.max(1, rect.width || 1);
+            const cssHeight = Math.max(1, rect.height || 1);
 
-            const w = Math.max(1, rect.width * dpr);
-            const h = Math.max(1, rect.height * dpr);
-
-            this.canvas.width = w;
-            this.canvas.height = h;
-
-            // WebGL은 viewport 설정
-            if (this.mode === 'webgl' && this.gl) {
-                this.gl.viewport(0, 0, w, h);
-            }
-            // Canvas2D 는 좌표계를 CSS px 기준으로 맞춤
-            if (this.mode === '2d' && this.ctx2d) {
+            if (this.mode === 'pixi' && this.app) {
+                // Pixi 렌더러 리사이즈 (CSS px 기준)
+                this.app.renderer.resolution = dpr;
+                this.app.renderer.resize(cssWidth, cssHeight);
+                this._recreateGuides();
+            } else if (this.mode === '2d' && this.ctx2d) {
+                // 내부 버퍼 크기 = CSS * DPR
+                const w = cssWidth * dpr;
+                const h = cssHeight * dpr;
+                this.canvas.width = w;
+                this.canvas.height = h;
                 this.ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+                this._renderCanvas2D(cssWidth, cssHeight);
             }
 
-            this.render();
+            // 리사이즈 시 한 번 배율 갱신
+            this._updateZoomIndicatorFromCanvasSize(cssHeight);
         },
 
-        loop() {
-            this.render();
-            global.requestAnimationFrame(this.loop.bind(this));
+        // ----------------------
+        // 메인 렌더 루프 (Pixi ticker / rAF)
+        // ----------------------
+        render() {
+            if (!this.canvas || !this.vm) return;
+
+            const rect = this.canvas.getBoundingClientRect();
+            const cssHeight = Math.max(1, rect.height || 1);
+
+            this._updateZoomIndicatorFromCanvasSize(cssHeight);
+
+            // Pixi 모드는 stage 가 자동 렌더되므로 여기서 별도 draw 없음
+            if (this.mode === '2d') {
+                const cssWidth = Math.max(1, rect.width || 1);
+                this._renderCanvas2D(cssWidth, cssHeight);
+            }
         },
 
-        // -------- 화면 배율 표시 --------
+        _loop2d() {
+            if (this.mode !== '2d') return;
+            this.render();
+            global.requestAnimationFrame(this._loop2d.bind(this));
+        },
+
+        // ----------------------
+        // 화면 배율 UI 갱신
+        // ----------------------
+        _updateZoomIndicatorFromCanvasSize(cssHeight) {
+            const state = this.vm;
+            const canvasSize = (state && state.canvasSize) ? state.canvasSize : { w: 1920, h: 1080 };
+            const ch = canvasSize.h || 1;
+
+            const scaleY = ch ? (cssHeight / ch) : 1;
+            this.updateZoomIndicator(scaleY);
+        },
+
         updateZoomIndicator(scale) {
             const valueEl = global.document.getElementById('preview-zoom-indicator-value');
             if (!valueEl) return;
@@ -172,101 +201,81 @@
             valueEl.textContent = pct.toFixed(0) + '%';
         },
 
-        // -------- 메인 렌더 --------
-        render() {
-            if (!this.canvas || !this.vm || !this.mode) return;
+        // ----------------------
+        // Pixi 중앙 십자 가이드
+        // ----------------------
+        _recreateGuides() {
+            if (!this.app || !this.guidesContainer) return;
 
-            const state = this.vm;
-            const canvasSize = state.canvasSize || { w: 1920, h: 1080 };
-            const cw = canvasSize.w || 1;
-            const ch = canvasSize.h || 1;
+            const PIXI = global.PIXI;
+            const renderer = this.app.renderer;
+            const w = Math.max(1, renderer.width || 1);
+            const h = Math.max(1, renderer.height || 1);
 
-            const rect = this.canvas.getBoundingClientRect();
-            const wPix = rect.width || 1;
-            const hPix = rect.height || 1;
-
-            // 화면 배율 표시 갱신 (논리 높이 대비 실제 렌더 높이)
-            const scaleY = ch ? (hPix / ch) : 1;
-            this.updateZoomIndicator(scaleY);
-
-            if (this.mode === 'webgl') {
-                this.renderWebGL();
-            } else if (this.mode === '2d') {
-                this.renderCanvas2D(wPix, hPix);
+            // 이전 가이드 제거
+            if (this.guideGraphics && this.guideGraphics.parent) {
+                this.guideGraphics.parent.removeChild(this.guideGraphics);
             }
+
+            const g = new PIXI.Graphics();
+            g.clear();
+
+            const color = 0x94a3b8; // #94a3b8
+            const alpha = 0.35;
+
+            g.lineStyle({ width: 1, color, alpha });
+
+            // 수평선
+            const midY = h / 2;
+            g.moveTo(0, midY);
+            g.lineTo(w, midY);
+
+            // 수직선
+            const midX = w / 2;
+            g.moveTo(midX, 0);
+            g.lineTo(midX, h);
+
+            this.guidesContainer.addChild(g);
+            this.guideGraphics = g;
         },
 
-        // -------- WebGL 렌더 (가이드라인만) --------
-        renderWebGL() {
-            const gl = this.gl;
-            if (!gl || !this.glProgram) return;
-
-            gl.useProgram(this.glProgram);
-            gl.clearColor(0.0, 0.0, 0.0, 0.0);
-            gl.clear(gl.COLOR_BUFFER_BIT);
-
-            // 중앙 가이드 라인 (십자선)만 렌더
-            this.drawGuideLines(gl);
-        },
-
-        /**
-         * 중앙 가이드 라인 (수평/수직 십자선) 렌더링
-         */
-        drawGuideLines(gl) {
-            // NDC 기준: 수평(-1,0 ~ 1,0), 수직(0,-1 ~ 0,1)
-            const positions = new Float32Array([
-                -1.0,  0.0,   1.0,  0.0,   // 수평
-                 0.0, -1.0,   0.0,  1.0    // 수직
-            ]);
-
-            gl.bindBuffer(gl.ARRAY_BUFFER, this.glBuffer);
-            gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STREAM_DRAW);
-
-            gl.enableVertexAttribArray(this.aPositionLoc);
-            gl.vertexAttribPointer(this.aPositionLoc, 2, gl.FLOAT, false, 0, 0);
-
-            // 옅은 회색/파랑 톤
-            const r = 148 / 255;  // #94a3b8
-            const g = 163 / 255;
-            const b = 184 / 255;
-            const a = 0.35;       // 반투명
-
-            gl.uniform4f(this.uColorLoc, r, g, b, a);
-            gl.drawArrays(gl.LINES, 0, positions.length / 2);
-        },
-
-        // -------- Canvas2D 렌더 (가이드라인만) --------
-        renderCanvas2D(wPix, hPix) {
+        // ----------------------
+        // Canvas2D 십자 가이드 렌더
+        // ----------------------
+        _renderCanvas2D(wCss, hCss) {
             const ctx = this.ctx2d;
             if (!ctx) return;
 
-            // 캔버스 지우기
-            ctx.clearRect(0, 0, wPix, hPix);
+            const w = wCss;
+            const h = hCss;
 
-            // 중앙 가이드 라인 (십자선)
+            ctx.clearRect(0, 0, w, h);
+
             ctx.save();
             ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)'; // #94a3b8, 반투명
             ctx.lineWidth = 1;
 
-            const midX = wPix / 2 + 0.5;
-            const midY = hPix / 2 + 0.5;
+            const midX = w / 2 + 0.5;
+            const midY = h / 2 + 0.5;
 
             // 수평선
             ctx.beginPath();
             ctx.moveTo(0, midY);
-            ctx.lineTo(wPix, midY);
+            ctx.lineTo(w, midY);
             ctx.stroke();
 
             // 수직선
             ctx.beginPath();
             ctx.moveTo(midX, 0);
-            ctx.lineTo(midX, hPix);
+            ctx.lineTo(midX, h);
             ctx.stroke();
 
             ctx.restore();
         },
 
-        // -------- 색상 파서 (hex / rgba) --------
+        // ----------------------
+        // 색상 파서 (현재는 사용하지 않지만, 향후 용도 대비 유지)
+        // ----------------------
         parseColorToRgb(color) {
             if (!color || typeof color !== 'string') return null;
             color = color.trim().toLowerCase();
