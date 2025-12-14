@@ -63,7 +63,7 @@ const PreviewCanvas = {
             dragCurrentBoxPx: null,                     // 드래그 중 최신 px
             dragEdges: { left: false, right: false, top: false, bottom: false },
             dragScale: 1.0,       // AppRoot.canvasScale
-            dragDomEl: null,      // 드래그 중인 DOM 요소
+            dragDomEl: null,      // (현재는 사용하지 않지만 남겨둠)
 
             _mouseMoveHandler: null,
             _mouseUpHandler: null
@@ -144,8 +144,8 @@ const PreviewCanvas = {
 
         // ---------- 모서리 ㄱ자 핸들 스타일 ----------
         handleStyle(box, pos) {
-            const size = 12; // 핸들 전체 크기 (px)
-            const thickness = 3; // 선 두께
+            const size = 12;       // 핸들 전체 크기 (px)
+            const thickness = 3;   // 선 두께
             const color = box.color || '#ffffff';
 
             const style = {
@@ -158,7 +158,6 @@ const PreviewCanvas = {
                 zIndex: (box.zIndex || 0) + 2
             };
 
-            // 각 코너별로 두 변만 살려서 ㄱ자 모양 만들기
             if (pos === 'tl') {
                 style.left = '-2px';
                 style.top = '-2px';
@@ -337,7 +336,7 @@ const PreviewCanvas = {
             return 'move';
         },
 
-        // ---------- 드래그 / 리사이즈 (px + canvasScale, DOM 실시간 반영) ----------
+        // ---------- 드래그 / 리사이즈 (px + canvasScale, Vue 상태 기반) ----------
         onBoxMouseDown(e, box) {
             e.preventDefault();
             this.$emit('select-box', box.id);
@@ -422,9 +421,6 @@ const PreviewCanvas = {
             if (this.dragMode === 'move') {
                 newX = start.x + dxCanvas;
                 newY = start.y + dyCanvas;
-
-                newX = Math.max(0, Math.min(newX, cw - newW));
-                newY = Math.max(0, Math.min(newY, ch - newH));
             } else if (this.dragMode === 'resize') {
                 const edges = this.dragEdges;
 
@@ -453,77 +449,29 @@ const PreviewCanvas = {
                     if (edges.top) newY -= (minH - newH);
                     newH = minH;
                 }
-
-                if (newX < 0) {
-                    newW += newX;
-                    newX = 0;
-                }
-                if (newY < 0) {
-                    newH += newY;
-                    newY = 0;
-                }
-                if (newX + newW > cw) newW = cw - newX;
-                if (newY + newH > ch) newH = ch - newY;
             }
 
             this.dragCurrentBoxPx = { x: newX, y: newY, w: newW, h: newH };
 
-            // Vue 상태는 건드리지 않고, DOM 스타일만 직접 업데이트
-            const el = this.dragDomEl || document.getElementById('preview-canvas-box-' + this.dragBoxId);
-            this.dragDomEl = el;
-            if (el) {
-                el.style.left = newX + 'px';
-                el.style.top = newY + 'px';
-                el.style.width = newW + 'px';
-                el.style.height = newH + 'px';
-            }
-
-            // Pixi 쪽 실시간 반영은 현재 단계에서는 비활성화되어 있음
-            if (window.PreviewRenderer && typeof window.PreviewRenderer.updateBoxDuringDrag === 'function') {
-                window.PreviewRenderer.updateBoxDuringDrag(this.dragBoxId, newX, newY, newW, newH);
+            // ★ DOM 직접 수정 대신, Vue 상태(canvasBoxes)를 업데이트
+            if (parent && typeof parent.updateBoxPosition === 'function') {
+                parent.updateBoxPosition(this.dragBoxId, newX, newY, newW, newH);
             }
         },
 
         handleMouseUp() {
-            const boxId = this.dragBoxId;
-            const mode = this.dragMode;
-
             window.removeEventListener('mousemove', this._mouseMoveHandler);
             window.removeEventListener('mouseup', this._mouseUpHandler);
 
-            if (!mode || !boxId) {
-                this.dragMode = null;
-                this.dragBoxId = null;
-                this.dragDomEl = null;
-                this.dragCurrentBoxPx = null;
-                return;
-            }
-
-            // 최종 위치/크기: 스냅 없이 그대로 사용 (조작감 우선)
-            const finalPx = this.dragCurrentBoxPx || this.dragStartBoxPx;
-            let { x, y, w, h } = finalPx;
-
-            // Vue 상태에 최종 결과 1회 반영 (퍼센트 좌표까지 내부에서 처리)
-            if (this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
-                this.$parent.updateBoxPosition(boxId, x, y, w, h);
-            }
-
-            // DOM에도 최종 위치/크기 적용
-            const target = this.dragDomEl || document.getElementById('preview-canvas-box-' + boxId);
-            if (target) {
-                target.style.left = x + 'px';
-                target.style.top = y + 'px';
-                target.style.width = w + 'px';
-                target.style.height = h + 'px';
-            }
-
+            // 드래그 동안 이미 계속 updateBoxPosition으로 상태를 반영했으므로
+            // 여기서는 상태를 다시 건드리지 않고 플래그만 초기화
             this.dragMode = null;
             this.dragBoxId = null;
             this.dragDomEl = null;
             this.dragCurrentBoxPx = null;
         },
 
-        // ---------- (미사용) 스냅 & 플래시 ----------
+        // ---------- (현재 미사용) 스냅 & 플래시 ----------
         checkSnap(boxId, x, y, w, h) {
             const threshold = 8;
             let snapped = false;
