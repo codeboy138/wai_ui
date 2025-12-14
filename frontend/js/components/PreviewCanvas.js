@@ -145,7 +145,7 @@ const PreviewCanvas = {
             if (role === 'full') return '전체';
             if (role === 'high') return '상단';
             if (role === 'mid')  return '중단';
-            if (role === 'low')  return '하단';
+            if (role === 'low') return '하단';
             return role || '';
         },
         getRowLabel(rowType) {
