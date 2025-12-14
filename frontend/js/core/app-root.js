@@ -75,7 +75,8 @@ const AppRoot = {
                 { id: 'c3', trackId: 't5', name: 'BGM_Main.mp3', start: 0, duration: 30, type: 'audio' }
             ],
 
-            // 캔바스 레이어 박스
+            // 캔바스 레이어 박스 (레이어 매트릭스 12셀과 1:1 연동)
+            // 각 박스는 x/y/w/h(px) + nx/ny/nw/nh(0~1 비율) 를 함께 가진다.
             canvasBoxes: [],
 
             zoom: 20,
@@ -92,13 +93,16 @@ const AppRoot = {
             
             // Preview Toolbar State
             aspectRatio: '16:9',
+            // 해상도 키(내부 값): '8K' / '6K' / '4K' / '3K' / '2K'
+            // ※ 프로젝트 메타/표시용
             resolution: '4K',
+            // 프리뷰용 기준 픽셀 사이즈 (aspectRatio 반영, 해상도와 무관)
             canvasSize: { w: 1920, h: 1080 }, 
             mouseCoord: { x: 0, y: 0 }, 
             isMouseOverCanvas: false,
-            canvasScale: 1.0, 
+            canvasScale: 1.0,
 
-            // 박스 드래그 중 여부
+            // 박스 드래그 중 여부 (PreviewCanvas에서 제어)
             isBoxDragging: false,
             
             // Inspector / Dev Overlay State
@@ -123,12 +127,14 @@ const AppRoot = {
                 boxId: null
             },
 
-            COLORS,
-
-            _debugUpdateCount: 0
+            COLORS
         };
     },
     computed: {
+        /**
+         * 프리뷰 캔버스 실제 픽셀 사이즈(canvasSize) + 스케일(canvasScale)을
+         * preview-canvas-wrapper 중앙에 배치하는 스타일.
+         */
         canvasScalerStyle() {
             return {
                 width: this.canvasSize.w + 'px',
@@ -152,6 +158,10 @@ const AppRoot = {
         }
     },
     watch: {
+        /**
+         * canvasSize 변경 시 PreviewRenderer 의 논리 캔버스 크기만 갱신.
+         * (박스 동기화는 canvasBoxes watcher / initPreviewRenderer 에서 처리)
+         */
         canvasSize: {
             handler(newSize) {
                 try {
@@ -164,6 +174,12 @@ const AppRoot = {
             },
             deep: true
         },
+        /**
+         * canvasBoxes 내용이 바뀔 때마다 Pixi 와 동기화.
+         * - LayerPanel: 새 박스 추가/삭제
+         * - PreviewCanvas: 드래그/리사이즈
+         * - LayerConfigModal: 좌표/스타일 변경
+         */
         canvasBoxes: {
             handler(newBoxes) {
                 try {
@@ -183,8 +199,8 @@ const AppRoot = {
             this.setupPanelResizers(); 
             this.setupCanvasScaler(); 
             this.setupInspectorMode();
-            this.setupSpinWheel();
-            this.initPreviewRenderer();
+            this.setupSpinWheel();      // 모든 number 스핀박스 마우스휠 활성화
+            this.initPreviewRenderer(); // PixiJS / Canvas2D 프리뷰 렌더러 초기화
         });
         window.vm = this; 
     },
@@ -195,7 +211,596 @@ const AppRoot = {
         }
     },
     methods: {
-        // ... (생략 없이 나머지 메서드는 그대로, updateCanvasMouseCoord 포함) ...
+        // --- Helper: 박스 퍼센트 좌표 보정 ---
+        ensureBoxNormalized(box) {
+            const cw = this.canvasSize.w || 1;
+            const ch = this.canvasSize.h || 1;
+            if (typeof box.nx !== 'number' || typeof box.ny !== 'number' ||
+                typeof box.nw !== 'number' || typeof box.nh !== 'number') {
+                const x = typeof box.x === 'number' ? box.x : 0;
+                const y = typeof box.y === 'number' ? box.y : 0;
+                const w = typeof box.w === 'number' && box.w > 0 ? box.w : cw;
+                const h = typeof box.h === 'number' && box.h > 0 ? box.h : ch;
+                box.nx = x / cw;
+                box.ny = y / ch;
+                box.nw = w / cw;
+                box.nh = h / ch;
+            }
+        },
+        applyBoxNormalizedToPx(box) {
+            const cw = this.canvasSize.w || 1;
+            const ch = this.canvasSize.h || 1;
+            const nx = typeof box.nx === 'number' ? box.nx : 0;
+            const ny = typeof box.ny === 'number' ? box.ny : 0;
+            const nw = typeof box.nw === 'number' ? box.nw : 1;
+            const nh = typeof box.nh === 'number' ? box.nh : 1;
+            box.x = nx * cw;
+            box.y = ny * ch;
+            box.w = nw * cw;
+            box.h = nh * ch;
+        },
+        ensureAllBoxesNormalized() {
+            this.canvasBoxes.forEach(box => {
+                this.ensureBoxNormalized(box);
+                this.applyBoxNormalizedToPx(box);
+            });
+        },
+
+        // --- Preview Renderer 초기화 ---
+        initPreviewRenderer() {
+            try {
+                const canvas = document.getElementById('preview-render-canvas');
+                if (!canvas || !window.PreviewRenderer || typeof window.PreviewRenderer.init !== 'function') {
+                    return;
+                }
+                window.PreviewRenderer.init(canvas, this);
+                if (typeof window.PreviewRenderer.setCanvasSize === 'function') {
+                    window.PreviewRenderer.setCanvasSize(this.canvasSize);
+                }
+                if (typeof window.PreviewRenderer.syncBoxes === 'function') {
+                    window.PreviewRenderer.syncBoxes(this.canvasBoxes);
+                }
+            } catch (err) {
+                console.warn('[PreviewRenderer] init failed:', err);
+            }
+        },
+
+        // --- System & Dev Mode ---
+        firePython(f) {
+            console.log('Py:', f);
+            if (window.backend && window.backend[f]) {
+                window.backend[f]();
+            } else {
+                console.log(`[DUMMY] Python call: ${f}`);
+            }
+        },
+
+        toggleDevMode(mode) {
+            if (mode === 'active') {
+                this.isDevModeActive = !this.isDevModeActive;
+                document.body.classList.toggle('dev-mode-active', this.isDevModeActive);
+                if (this.isDevModeActive) {
+                    this.isDevModeFull = false;
+                    document.body.classList.remove('dev-mode-full');
+                }
+            } else if (mode === 'full') {
+                this.isDevModeFull = !this.isDevModeFull;
+                document.body.classList.toggle('dev-mode-full', this.isDevModeFull);
+                if (this.isDevModeFull) {
+                    this.isDevModeActive = false;
+                    document.body.classList.remove('dev-mode-active');
+                }
+            }
+        },
+
+        copyInspectorId() {
+            const id = this.inspector.id;
+            if (!id) return;
+
+            const text = id.toString();
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).catch(err => {
+                    console.warn('[Inspector] clipboard write failed', err);
+                });
+            } else {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.left = '-9999px';
+                document.body.appendChild(ta);
+                ta.select();
+                try {
+                    document.execCommand('copy');
+                } catch (err) {
+                    console.warn('[Inspector] execCommand copy failed', err);
+                }
+                document.body.removeChild(ta);
+            }
+        },
+
+        addCol() { 
+            this.layerCols.push({ id: `lc_${Date.now()}`, name: 'New', color: '#333' }); 
+        },
+        openCtx(e, id) { 
+            this.ctxMenu = { x: e.clientX, y: e.clientY, id }; 
+        },
+        setColColor(c) { 
+            const col = this.layerCols.find(x => x.id === this.ctxMenu?.id);
+            if (col) col.color = c;
+            this.ctxMenu = null;
+        },
+
+        setupInspectorMode() {
+            const self = this;
+            const TOOLTIP_MARGIN = 10;
+            const TOOLTIP_WIDTH = 260;
+            const TOOLTIP_HEIGHT_INSPECT = 80;
+            const TOOLTIP_HEIGHT_DEV = 150;
+
+            document.addEventListener('mousemove', (e) => {
+                if (!self.isDevModeActive && !self.isDevModeFull) return;
+
+                let target = e.target;
+
+                if (target.classList.contains('dev-highlight') || target.classList.contains('dev-tooltip')) {
+                    const realTarget = document.elementFromPoint(e.clientX, e.clientY);
+                    if (realTarget) target = realTarget;
+                }
+
+                if (target && target.tagName !== 'HTML' && target.tagName !== 'BODY') {
+                    const rect = target.getBoundingClientRect();
+
+                    self.highlightStyle = {
+                        width: `${rect.width}px`,
+                        height: `${rect.height}px`,
+                        top: `${rect.top}px`,
+                        left: `${rect.left}px`,
+                    };
+
+                    const devInfo = self.isDevModeFull ? self.buildDevInfo(target) : '';
+
+                    self.inspector = {
+                        tag: target.tagName,
+                        id: target.id,
+                        className: target.className,
+                        x: Math.round(rect.left),
+                        y: Math.round(rect.top),
+                        w: Math.round(rect.width),
+                        h: Math.round(rect.height),
+                        dataDev: devInfo
+                    };
+
+                    const tooltipHeight = self.isDevModeFull ? TOOLTIP_HEIGHT_DEV : TOOLTIP_HEIGHT_INSPECT;
+
+                    let top = rect.top - tooltipHeight - TOOLTIP_MARGIN;
+                    let left = rect.left + rect.width + TOOLTIP_MARGIN;
+
+                    if (top < TOOLTIP_MARGIN) {
+                        top = rect.bottom + TOOLTIP_MARGIN;
+                    }
+
+                    if (top + tooltipHeight > window.innerHeight - TOOLTIP_MARGIN) {
+                        top = Math.max(TOOLTIP_MARGIN, window.innerHeight - tooltipHeight - TOOLTIP_MARGIN);
+                    }
+
+                    if (left + TOOLTIP_WIDTH > window.innerWidth - TOOLTIP_MARGIN) {
+                        left = rect.left - TOOLTIP_WIDTH - TOOLTIP_MARGIN;
+                        if (left < TOOLTIP_MARGIN) {
+                            left = Math.max(TOOLTIP_MARGIN, window.innerWidth - TOOLTIP_WIDTH - TOOLTIP_MARGIN);
+                        }
+                    }
+
+                    self.tooltipStyle = {
+                        top: `${top}px`,
+                        left: `${left}px`
+                    };
+                } else {
+                    self.inspector = { 
+                        tag: '', 
+                        id: '', 
+                        className: '', 
+                        x: 0, 
+                        y: 0, 
+                        w: 0, 
+                        h: 0, 
+                        dataDev: '' 
+                    };
+                }
+            });
+        },
+
+        buildDevInfo(targetEl) {
+            const id = targetEl.id || '';
+            const dataAction = targetEl.getAttribute('data-action') || '';
+
+            let spec = null;
+            try {
+                if (typeof window !== 'undefined' && typeof window.WAI_getElementSpec === 'function' && id) {
+                    spec = window.WAI_getElementSpec(id);
+                }
+            } catch (err) {
+                console.warn('[DEV] element spec lookup error for id=', id, err);
+            }
+
+            const lines = [];
+
+            if (spec) {
+                if (spec.module) {
+                    lines.push(`module: ${spec.module}`);
+                }
+                if (spec.py_func) {
+                    lines.push(`py: ${spec.py_func}`);
+                }
+                if (spec.js_action) {
+                    lines.push(`js: ${spec.js_action}`);
+                }
+            } else {
+                lines.push('Spec: NOT FOUND');
+            }
+
+            if (dataAction) {
+                lines.push(`data-action: ${dataAction}`);
+            }
+
+            return lines.join('\n');
+        },
+
+        // --- 레이어/슬롯 헬퍼 ---
+        getColRole(colIdx) {
+            return LAYER_COLUMN_ROLES[colIdx] || `col${colIdx}`;
+        },
+        getRowName(rowType) {
+            const meta = LAYER_ROW_META[rowType];
+            return meta ? meta.name : (rowType || '').toLowerCase();
+        },
+        getSlotKey(colIdx, rowType) {
+            const role = this.getColRole(colIdx);
+            const rowName = this.getRowName(rowType);
+            return `${role}_${rowName}`;
+        },
+        getZIndexForCell(colIdx, rowType) {
+            const meta = LAYER_ROW_META[rowType];
+            const offset = meta ? meta.zOffset : 0;
+            const base = (colIdx * 100) + 100;
+            return base + offset;
+        },
+        getZIndex(colIdx, type) {
+            return this.getZIndexForCell(colIdx, type);
+        },
+        findBoxBySlot(slotKey) {
+            return this.canvasBoxes.find(b => b.slotKey === slotKey) || null;
+        },
+
+        createBoxForSlot(colIdx, rowType, color) {
+            const colRole = this.getColRole(colIdx);
+            const rowName = this.getRowName(rowType);
+            const slotKey = this.getSlotKey(colIdx, rowType);
+            const zIndex = this.getZIndexForCell(colIdx, rowType);
+
+            const col = this.layerCols[colIdx] || null;
+            const layerName = col ? col.name : `Layer ${colIdx + 1}`;
+            const boxColor = color || (col && col.color) || '#ffffff';
+
+            const cw = this.canvasSize.w;
+            const ch = this.canvasSize.h;
+
+            let x = 0;
+            let y = 0;
+            let w = cw;
+            let h = ch;
+
+            if (colRole === 'full') {
+                x = 0;
+                y = 0;
+                w = cw;
+                h = ch;
+            } else if (colRole === 'high') {
+                x = 0;
+                y = 0;
+                w = cw;
+                h = Math.round(ch / 3);
+            } else if (colRole === 'mid') {
+                x = 0;
+                y = Math.round(ch / 3);
+                w = cw;
+                h = Math.round(ch / 3);
+            } else if (colRole === 'low') {
+                x = 0;
+                y = Math.round((2 * ch) / 3);
+                w = cw;
+                h = ch - y;
+            }
+
+            const box = {
+                id: `box_${slotKey}_${Date.now()}`,
+                colIdx,
+                colId: col ? col.id : null,
+                colRole,
+                rowType,
+                rowName,
+                slotKey,
+                layerName,
+                color: boxColor,
+                zIndex,
+                layerBgColor: 'rgba(255,255,255,0.02)',
+                x,
+                y,
+                w,
+                h,
+                isHidden: false
+            };
+
+            if (rowType === 'TXT') {
+                box.textStyle = createDefaultTextStyle();
+                box.textContent = DEFAULT_TEXT_MESSAGE;
+            }
+
+            // 퍼센트 좌표 세팅
+            this.ensureBoxNormalized(box);
+            this.applyBoxNormalizedToPx(box);
+
+            return box;
+        },
+
+        addLayerBox(colIdx, rowType, color) {
+            const slotKey = this.getSlotKey(colIdx, rowType);
+            const existing = this.findBoxBySlot(slotKey);
+
+            if (existing) {
+                this.setSelectedBoxId(existing.id);
+                return;
+            }
+
+            const newBox = this.createBoxForSlot(colIdx, rowType, color);
+            this.canvasBoxes = [...this.canvasBoxes, newBox];
+            this.selectedBoxId = newBox.id;
+            this.selectedClip = null;
+        },
+
+        // --- Preview/Canvas Logic ---
+        // 화면비율 드롭다운: 실제 캔버스 비율 변경 (퍼센트 좌표 구조 유지)
+        setAspect(r) { 
+            this.aspectRatio = r;
+            this.updateCanvasSizeFromControls();
+        },
+        setResolution(labelOrKey) { 
+            const str = (labelOrKey || '').toString().trim();
+            const match = str.match(/^(\S+)/);
+            const key = match ? match[1] : (str || this.resolution);
+            this.resolution = key;
+        },
+        computeCanvasSize(aspectRatio) {
+            const longSide = BASE_CANVAS_LONG_SIDE;
+            let w, h;
+
+            if (aspectRatio === '9:16') {
+                // 세로형: 높이 기준
+                h = longSide;
+                w = Math.round(longSide * 9 / 16);
+            } else if (aspectRatio === '1:1') {
+                w = longSide;
+                h = longSide;
+            } else {
+                // 기본 16:9 가로형
+                w = longSide;
+                h = Math.round(longSide * 9 / 16);
+            }
+            return { w, h };
+        },
+        computeResolutionSize(aspectRatio, resolutionKey) {
+            const key = resolutionKey || '4K';
+            const longSide = RESOLUTION_LONG_SIDE[key] || RESOLUTION_LONG_SIDE['4K'];
+            let w, h;
+
+            if (aspectRatio === '9:16') {
+                h = longSide;
+                w = Math.round(longSide * 9 / 16);
+            } else if (aspectRatio === '1:1') {
+                const square = Math.round(longSide * 9 / 16);
+                w = square;
+                h = square;
+            } else {
+                w = longSide;
+                h = Math.round(longSide * 9 / 16);
+            }
+            return { w, h };
+        },
+        getResolutionLabelFor(key) {
+            const k = key || this.resolution || '4K';
+            const size = this.computeResolutionSize(this.aspectRatio, k);
+            return `${k} (${size.w} x ${size.h})`;
+        },
+        updateCanvasSizeFromControls() {
+            const size = this.computeCanvasSize(this.aspectRatio);
+            this.canvasSize = size;
+            // 캔버스 크기 변경 시, 퍼센트 좌표를 기반으로 px 좌표 재계산
+            this.ensureAllBoxesNormalized();
+            this.recalculateCanvasScale();
+        },
+        recalculateCanvasScale() {
+            const wrapper = document.getElementById('preview-canvas-wrapper');
+            if (!wrapper) return;
+
+            const PADDING = 20;
+
+            const innerW = wrapper.clientWidth - PADDING * 2;
+            const innerH = wrapper.clientHeight - PADDING * 2;
+
+            if (innerW <= 0 || innerH <= 0 || this.canvasSize.w <= 0 || this.canvasSize.h <= 0) {
+                this.canvasScale = 1.0;
+                return;
+            }
+
+            const scale = Math.min(
+                innerW / this.canvasSize.w,
+                innerH / this.canvasSize.h
+            );
+
+            this.canvasScale = (scale > 0 && Number.isFinite(scale)) ? scale : 1.0;
+        },
+        updateCanvasMouseCoord(e) {
+            // 박스 드래그 중에는 마우스 좌표 UI 업데이트를 생략 (프레임 드랍 방지)
+            if (this.isBoxDragging) return;
+
+            const wrapper = document.getElementById('preview-canvas-wrapper');
+            const scaler = document.getElementById('preview-canvas-scaler');
+            if (!wrapper || !scaler) return;
+
+            const wRect = wrapper.getBoundingClientRect();
+            const sRect = scaler.getBoundingClientRect();
+            const PADDING = 20;
+
+            const mouseXInWrapper = e.clientX - wRect.left;
+            const mouseYInWrapper = e.clientY - wRect.top;
+
+            const innerLeft = PADDING;
+            const innerTop = PADDING;
+            const innerRight = wRect.width - PADDING;
+            const innerBottom = wRect.height - PADDING;
+
+            this.isMouseOverCanvas =
+                mouseXInWrapper >= innerLeft &&
+                mouseXInWrapper <= innerRight &&
+                mouseYInWrapper >= innerTop &&
+                mouseYInWrapper <= innerBottom;
+
+            this.mouseMarkerPos = {
+                x: mouseXInWrapper,
+                y: mouseYInWrapper
+            };
+
+            const canvasX = e.clientX - sRect.left;
+            const canvasY = e.clientY - sRect.top;
+            const scale = this.canvasScale || 1.0;
+
+            const realX = canvasX / scale;
+            const realY = canvasY / scale;
+
+            this.mouseCoord = { 
+                x: Math.min(this.canvasSize.w, Math.max(0, realX)), 
+                y: Math.min(this.canvasSize.h, Math.max(0, realY))
+            };
+        },
+        
+        // --- Layout Resizer Handlers ---
+        setupPanelResizers() {
+            const setup = (rid, stateKey, minSize, dir, isReverse = false) => {
+                const r = document.getElementById(rid);
+                if (!r) return;
+                
+                let startS, startP;
+                const self = this;
+
+                const onMove = (ev) => {
+                    const diff = (dir === 'w' ? ev.clientX : ev.clientY) - startP;
+                    let newSize;
+                    
+                    if (dir === 'w') {
+                        newSize = isReverse ? startS - diff : startS + diff;
+                        self[stateKey] = Math.max(minSize, newSize);
+                    } else { 
+                        const headerHeight = 48; 
+                        const targetHeight = ev.clientY - headerHeight - 2; 
+                        
+                        newSize = targetHeight;
+                        const effectiveHeight = Math.max(minSize, newSize);
+
+                        self.previewContainerHeight = `${effectiveHeight}px`;
+                        self.timelineContainerHeight = `calc(100% - ${effectiveHeight}px)`;
+                    }
+
+                    self.recalculateCanvasScale();
+                };
+                
+                const onUp = () => {
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                };
+
+                r.addEventListener('mousedown', e => {
+                    e.preventDefault(); 
+                    startS = dir === 'w' ? self[stateKey] : 
+                             (rid === 'main-center-timeline-resizer-h' ? document.getElementById('preview-main-container').offsetHeight : 0);
+                    startP = dir === 'w' ? e.clientX : e.clientY;
+
+                    document.addEventListener('mousemove', onMove); 
+                    document.addEventListener('mouseup', onUp);
+                });
+            };
+            
+            setup('main-left-resizer-v', 'leftPanelWidth', 180, 'w', false);
+            setup('main-right-resizer-v', 'rightPanelWidth', 250, 'w', true); 
+            setup('main-center-timeline-resizer-h', 'previewContainerHeight', 100, 'h', false);
+        },
+        
+        setupCanvasScaler() {
+            const wrapper = document.getElementById('preview-canvas-wrapper');
+            if (!wrapper) return;
+            
+            const updateScale = () => {
+                this.recalculateCanvasScale();
+            };
+
+            updateScale();
+
+            if (window.ResizeObserver) {
+                new ResizeObserver(updateScale).observe(wrapper);
+            } else {
+                window.addEventListener('resize', updateScale);
+            }
+        },
+
+        // --- 모든 number 스핀박스: 마우스 휠로 증감 (기본 min=0, 음수 방지) ---
+        setupSpinWheel() {
+            const handler = (event) => {
+                const target = event.target;
+                if (!(target instanceof HTMLInputElement)) return;
+                if (target.type !== 'number') return;
+                if (target.disabled || target.readOnly) return;
+
+                event.preventDefault();
+
+                const stepAttr = target.step;
+                const step = stepAttr ? parseFloat(stepAttr) : 1;
+                const dir = event.deltaY < 0 ? 1 : -1;
+
+                let value = parseFloat(target.value);
+                if (isNaN(value)) value = 0;
+
+                const min = target.min !== '' ? parseFloat(target.min) : 0;
+                const max = target.max !== '' ? parseFloat(target.max) : +Infinity;
+
+                value += dir * step;
+                if (value < min) value = min;
+                if (value > max) value = max;
+
+                target.value = value;
+
+                const evt = new Event('input', { bubbles: true });
+                target.dispatchEvent(evt);
+            };
+
+            document.addEventListener('wheel', handler, { passive: false });
+            this._spinWheelHandler = handler;
+        },
+
+        // --- 레이어 설정 모달 ---
+        openLayerConfig(boxId) {
+            this.layerConfig.isOpen = true;
+            this.layerConfig.boxId = boxId;
+            this.setSelectedBoxId(boxId);
+        },
+        closeLayerConfig() {
+            this.layerConfig.isOpen = false;
+            this.layerConfig.boxId = null;
+        },
+        deleteLayerFromConfig() {
+            const box = this.layerConfigBox;
+            if (box) {
+                this.removeBox(box.id);
+            }
+            this.closeLayerConfig();
+        },
 
         // --- Core Model Methods (Clips/Boxes) ---
         removeBox(id) {
@@ -206,6 +811,13 @@ const AppRoot = {
             this.selectedBoxId = (this.selectedBoxId === id) ? null : id;
             this.selectedClip = null;
         },
+        /**
+         * updateBoxPosition (드래그/리사이즈용)
+         * - px 좌표(x,y,w,h)를 1차 기준으로 처리하고
+         * - 경계/최소 크기를 px 기준으로 클램프한 뒤
+         * - 퍼센트 좌표(nx,ny,nw,nh)를 2차로 계산한다.
+         * - optNorm 이 넘어오면 퍼센트 좌표를 1차 기준으로 사용하는 특수 케이스
+         */
         updateBoxPosition(id, newX, newY, newW, newH, optNorm) {
             const index = this.canvasBoxes.findIndex(b => b.id === id);
             if (index === -1) return;
@@ -217,6 +829,7 @@ const AppRoot = {
             let x, y, w, h;
             let nx, ny, nw, nh;
 
+            // --- 1) 퍼센트 좌표가 직접 들어온 경우(optNorm) ---
             if (optNorm && typeof optNorm === 'object') {
                 nx = (typeof optNorm.nx === 'number')
                     ? optNorm.nx
@@ -246,7 +859,9 @@ const AppRoot = {
                 y = ny * ch;
                 w = nw * cw;
                 h = nh * ch;
-            } else {
+            }
+            // --- 2) 일반 드래그/리사이즈: px 좌표를 1차 기준으로 처리 ---
+            else {
                 x = (typeof newX === 'number')
                     ? newX
                     : (typeof oldBox.x === 'number' ? oldBox.x : 0);
@@ -277,17 +892,6 @@ const AppRoot = {
                 nh = h / ch;
             }
 
-            this._debugUpdateCount++;
-            if (this._debugUpdateCount % 10 === 0) {
-                console.log(
-                    '[AppRoot] updateBoxPosition', id,
-                    'x=', x.toFixed(1),
-                    'y=', y.toFixed(1),
-                    'w=', w.toFixed(1),
-                    'h=', h.toFixed(1)
-                );
-            }
-
             const box = {
                 ...oldBox,
                 x, y, w, h,
@@ -298,8 +902,75 @@ const AppRoot = {
             newBoxes[index] = box;
             this.canvasBoxes = newBoxes;
         },
+        removeClip(id) {
+            this.clips = this.clips.filter(c => c.id !== id);
+        },
+        setSelectedClip(clip) {
+            this.selectedClip = (this.selectedClip && this.selectedClip.id === clip.id) ? null : clip;
+            this.selectedBoxId = null;
+        },
+        moveTrack(fromIndex, toIndex) {
+            const tracks = [...this.tracks];
+            const [removed] = tracks.splice(fromIndex, 1);
+            tracks.splice(toIndex, 0, removed);
+            this.tracks = tracks;
+        },
 
-        // ... (나머지 removeClip / setSelectedClip / moveTrack / saveLayerTemplate 등은 그대로) ...
+        // 레이어 템플릿 저장 (JSON 스냅샷 포함)
+        saveLayerTemplate(name, matrixJson) {
+            const newTpl = {
+                id: `tpl_${Date.now()}`,
+                name,
+                cols: this.layerCols.map(c => ({ ...c })),
+                matrixJson: matrixJson || null,
+                createdAt: new Date().toISOString()
+            };
+            this.layerTemplates.push(newTpl);
+            this.layerMainName = name;
+        },
+
+        addClipFromDrop(fileType, trackIndex, time, assetName) {
+            const trackId = this.tracks[trackIndex] ? this.tracks[trackIndex].id : null;
+            if (!trackId) return;
+            const newClip = {
+                id: `c_${Date.now()}`, 
+                trackId, 
+                name: assetName, 
+                start: time, 
+                duration: 10, 
+                type: fileType
+            };
+            this.clips.push(newClip);
+        },
+        updateClip(clipId, startChange, durationChange) {
+            const index = this.clips.findIndex(c => c.id === clipId);
+            if (index !== -1) {
+                const clip = this.clips[index];
+                const newClips = [...this.clips];
+                
+                const newStart = Math.max(0, clip.start + startChange); 
+                const newDuration = Math.max(0.1, clip.duration + durationChange - (newStart - clip.start));
+                
+                newClips[index] = {
+                    ...clip,
+                    start: newStart,
+                    duration: newDuration
+                };
+                this.clips = newClips;
+            }
+        },
+        moveClip(clipId, timeChange) {
+            const index = this.clips.findIndex(c => c.id === clipId);
+            if (index !== -1) {
+                const clip = this.clips[index];
+                const newClips = [...this.clips];
+                newClips[index] = {
+                    ...clip,
+                    start: Math.max(0, clip.start + timeChange)
+                };
+                this.clips = newClips;
+            }
+        }
     }
 };
 
