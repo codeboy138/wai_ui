@@ -101,6 +101,9 @@ const AppRoot = {
             mouseCoord: { x: 0, y: 0 }, 
             isMouseOverCanvas: false,
             canvasScale: 1.0, 
+
+            // 박스 드래그 중 여부 (PreviewCanvas에서 제어)
+            isBoxDragging: false,
             
             // Inspector / Dev Overlay State
             inspector: { tag: '', id: '', className: '', x: 0, y: 0, w: 0, h: 0, dataDev: '' },
@@ -636,6 +639,9 @@ const AppRoot = {
             this.canvasScale = (scale > 0 && Number.isFinite(scale)) ? scale : 1.0;
         },
         updateCanvasMouseCoord(e) {
+            // 박스 드래그 중에는 마우스 좌표 UI 업데이트를 생략 (프레임 드랍 방지)
+            if (this.isBoxDragging) return;
+
             const wrapper = document.getElementById('preview-canvas-wrapper');
             const scaler = document.getElementById('preview-canvas-scaler');
             if (!wrapper || !scaler) return;
