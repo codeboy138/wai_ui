@@ -2,13 +2,18 @@
 // - 퍼센트 좌표(0~1)를 사용하는 프리뷰 렌더러 진입점
 // - 기본: PixiJS(WebGL 2D) 기반으로 레이어 박스/텍스트를 렌더링
 // - 폴백: Pixi 사용 불가 시 Canvas2D 로 중앙 십자 가이드만 렌더
-// - 현재 단계(Lv.A):
-//   - Pixi 는 렌더 전용 엔진으로 사용 (박스/텍스트/가이드만 그림)
-//   - 드래그/리사이즈/선택/컨텍스트 메뉴는 DOM PreviewCanvas 가 담당
-//   - PreviewRenderer.updateBoxDuringDrag(...) 은 DOM 드래그 시 실시간 반영용 헬퍼로만 사용
+// - 현재 단계(Lv.A, DOM-only UX):
+//   - Pixi 는 렌더 엔진 + 십자선/줌 표시만 담당
+//   - 프리뷰 박스(점선/ㄱ자 핸들/드래그/리사이즈/우클릭 메뉴)는 전부 DOM PreviewCanvas 가 담당
+//   - Pixi 박스 렌더/드래그는 일시적으로 비활성화 (토글 상수로 나중에 재활성화 가능)
 
 (function (global) {
     const DEFAULT_TEXT_MESSAGE = '현재의 레이어에 적용할\n텍스트 스타일을 설정하세요';
+
+    // ★ Pixi 박스 렌더링/드래그 토글
+    //   - false: 박스를 Pixi로 그리지 않음 (DOM-only UX, 현재 단계)
+    //   - true : 박스를 Pixi로 그리도록 나중에 재활성화 가능
+    const PIXI_BOX_RENDERING_ENABLED = false;
 
     const PreviewRenderer = {
         // 공통 정보
@@ -252,6 +257,11 @@
                 this.setCanvasSize(canvasSize);
             }
 
+            // ★ 현재 단계: Pixi 박스 렌더링 비활성화
+            if (!PIXI_BOX_RENDERING_ENABLED) {
+                return;
+            }
+
             if (this.mode !== 'pixi' || !this.app || !this.layersContainer) {
                 return;
             }
@@ -288,10 +298,11 @@
 
         // ----------------------
         // 외부 API: 드래그 중 박스 임시 업데이트 (DOM 드래그용)
-        // - PreviewCanvas 가 드래그 중에만 호출
-        // - vm.updateBoxPosition 을 호출하지 않고, Pixi 그림만 바꾼다.
+        // - 현재 단계에서는 Pixi 박스 렌더링이 꺼져 있으므로, 완전 no-op
         // ----------------------
         updateBoxDuringDrag(id, newX, newY, newW, newH) {
+            if (!PIXI_BOX_RENDERING_ENABLED) return;
+
             if (this.mode !== 'pixi' || !this.layersContainer || !this.boxEntries) return;
             if (!id) return;
 
@@ -596,7 +607,7 @@
         },
 
         // ----------------------
-        // 박스 생성/업데이트
+        // 박스 생성/업데이트 (현재 단계에선 호출되지 않음: PIXI_BOX_RENDERING_ENABLED=false)
         // ----------------------
         _upsertBox(box, stageW, stageH) {
             if (!this.boxEntries) {
@@ -629,9 +640,6 @@
                 container.eventMode = 'none';
                 container.cursor = 'default';
                 container._waiBoxId = box.id;
-
-                // ★ 중요: pointerdown 등 포인터 이벤트는 연결하지 않는다.
-                //   드래그/리사이즈/선택/컨텍스트 메뉴는 DOM PreviewCanvas 가 담당.
 
                 this.layersContainer.addChild(container);
                 entry = { container, bg, border, text };
