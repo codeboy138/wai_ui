@@ -341,6 +341,11 @@ const PreviewCanvas = {
             e.preventDefault();
             this.$emit('select-box', box.id);
 
+            // 드래그 시작 플래그 (AppRoot에 신호)
+            if (this.$parent) {
+                this.$parent.isBoxDragging = true;
+            }
+
             const target = e.currentTarget;
             const rect = target.getBoundingClientRect();
             const edgeState = this.getEdgeState(e, rect);
@@ -453,7 +458,7 @@ const PreviewCanvas = {
 
             this.dragCurrentBoxPx = { x: newX, y: newY, w: newW, h: newH };
 
-            // ★ DOM 직접 수정 대신, Vue 상태(canvasBoxes)를 업데이트
+            // Vue 상태(canvasBoxes)만 업데이트 (DOM 직접 수정 없음)
             if (parent && typeof parent.updateBoxPosition === 'function') {
                 parent.updateBoxPosition(this.dragBoxId, newX, newY, newW, newH);
             }
@@ -462,6 +467,11 @@ const PreviewCanvas = {
         handleMouseUp() {
             window.removeEventListener('mousemove', this._mouseMoveHandler);
             window.removeEventListener('mouseup', this._mouseUpHandler);
+
+            // 드래그 종료 플래그 (AppRoot에 신호)
+            if (this.$parent) {
+                this.$parent.isBoxDragging = false;
+            }
 
             // 드래그 동안 이미 계속 updateBoxPosition으로 상태를 반영했으므로
             // 여기서는 상태를 다시 건드리지 않고 플래그만 초기화
