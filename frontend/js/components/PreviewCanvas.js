@@ -1,11 +1,11 @@
-// Preview Canvas Component - 단일 Composition(px) 좌표계 기반 구현
-// - 상호작용 기준: #preview-canvas-scaler 내부 DOM 픽셀 좌표만 사용
-// - 이동(move): 시작 박스(x0,y0) + (마우스 이동량 dx,dy)
+// Preview Canvas Component - 단일 Composition(px) 좌표계 기반 구현 (최종본)
+// - 기준 좌표: #preview-canvas-scaler 내부 DOM 픽셀 (Composition Space)
+// - 이동(move): 시작 박스(x0,y0) + 마우스 델타(dx,dy)
 // - 리사이즈(resize): 시작 박스(x0,y0,w0,h0) + dx,dy 직접 적용 (사분면/앵커 락 없음)
-// - 최소 크기 보정은 w,h 만 clamp, x,y는 건드리지 않음
-//   → 모서리를 레이어 박스 안쪽으로 끌고 들어갈 수 있음
-// - 모든 업데이트는 AppRoot.updateBoxPosition(id, x, y, w, h)에 px 기준으로 전달
-//   → AppRoot가 내부에서 0~1 ratio(nx,ny,nw,nh) 갱신
+//   - 최소 크기 보정은 w,h 에만 적용 (x,y는 건드리지 않음)
+//   - → 모서리를 레이어 박스 안쪽으로 끌어갈 수 있음 (센터/반대편까지 뒤집힐 필요 없음)
+// - updateBoxPosition(id, x, y, w, h) 에 px 기준으로만 전달
+//   → AppRoot 가 내부에서 캔버스 경계 clamp + 0~1 ratio(nx,ny,nw,nh) 갱신
 
 console.log('[PreviewCanvas] script loaded (composition-px final)');
 
@@ -62,19 +62,12 @@ const PreviewCanvas = {
                     @mousedown.stop="onHandleMouseDown($event, box, 'br')"
                 ></div>
 
-                <!-- 레이블 -->
+                <!-- 레이어 레이블 (index.html 의 .canvas-label 사용) -->
                 <div
-                    class="canvas-label-right"
-                    :style="labelWrapperStyle(box)"
+                    class="canvas-label"
+                    :style="labelStyle(box)"
                 >
-                    <div
-                        class="canvas-label-chip"
-                        :style="labelChipStyle(box)"
-                    >
-                        <div class="canvas-label-line">
-                            {{ labelText(box) }}
-                        </div>
-                    </div>
+                    {{ labelText(box) }}
                 </div>
             </div>
         </div>
@@ -282,71 +275,13 @@ const PreviewCanvas = {
             const row = this.getRowLabel(box.rowType);
             return `${col || ''} ${row || ''}`.trim();
         },
-
-        labelWrapperStyle(box) {
-            const marginX = 4;
-
-            const style = {
-                position: 'absolute',
-                bottom: '0px',
-                pointerEvents: 'none',
-                zIndex: box.zIndex + 1,
-                width: '100%',
-                textAlign: 'center'
-            };
-
-            if (box.rowType === 'EFF') {
-                style.textAlign = 'left';
-                style.left = marginX + 'px';
-            } else if (box.rowType === 'BG') {
-                style.textAlign = 'right';
-                style.right = marginX + 'px';
-            } else {
-                style.left = '0px';
-            }
-
-            return style;
-        },
-
-        labelChipStyle(box) {
-            const base = box.color || '#22c55e';
-            const rgb = this.parseColorToRgb(base);
-            const bg = rgb
-                ? `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.5)`
-                : 'rgba(34, 197, 94, 0.5)';
-
-            const textColor = this.getContrastingTextColor(base);
-
-            const parent = this.$parent;
-            const baseH = 1080;
-            let scale = 1;
-            if (parent && parent.canvasSize && parent.canvasSize.h) {
-                scale = parent.canvasSize.h / baseH;
-                if (!Number.isFinite(scale) || scale <= 0) scale = 1;
-            }
-
-            const fontSize = Math.max(10, 14 * scale);
-            const boxWidth = (typeof box.w === 'number' ? box.w : 9999);
-            const maxWidthPx = Math.max(40, boxWidth - 8);
-
+        labelStyle(box) {
             return {
-                display: 'inline-block',
-                minWidth: 'auto',
-                maxWidth: maxWidthPx + 'px',
-                padding: '2px 4px',
-                borderRadius: '4px',
-                border: '1px solid ' + base,
-                backgroundColor: bg,
-                color: textColor,
-                fontSize: fontSize + 'px',
-                lineHeight: '1.0',
-                textAlign: 'center',
-                boxSizing: 'border-box',
-                textShadow: '0 0 4px rgba(0,0,0,0.7)',
-                overflow: 'hidden',
-                whiteSpace: 'nowrap',
-                textOverflow: 'ellipsis',
-                margin: '0 auto 2px auto'
+                backgroundColor: box.color || '#22c55e',
+                color: '#ffffff',
+                left: '0',
+                right: '0',
+                textAlign: 'center'
             };
         },
 
@@ -518,7 +453,7 @@ const PreviewCanvas = {
                         break;
                 }
 
-                // 최소 크기: w,h 값만 clamp (x,y는 건드리지 않음 → 모서리가 안쪽까지 들어갈 수 있음)
+                // 최소 크기: w,h 값만 clamp (x,y는 건드리지 않음 → 모서리가 안쪽까지 따라올 수 있음)
                 const minW = 10;
                 const minH = 10;
                 if (w < minW) w = minW;
@@ -530,6 +465,7 @@ const PreviewCanvas = {
                 return;
             }
 
+            // 캔버스 경계 및 0~1 정규화는 AppRoot.updateBoxPosition 에서 처리
             parent.updateBoxPosition(this.dragBoxId, x, y, w, h);
         },
 
