@@ -155,6 +155,45 @@ const AppRoot = {
             return this.canvasBoxes.find(b => b.id === this.layerConfig.boxId) || null;
         }
     },
+    watch: {
+        /**
+         * canvasSize 변경 시(예: 향후 화면비율/해상도 로직과 연결될 때),
+         * PreviewRenderer 에 논리 캔버스 크기와 박스 정보를 함께 전달합니다.
+         */
+        canvasSize: {
+            handler(newSize) {
+                try {
+                    if (window.PreviewRenderer && typeof window.PreviewRenderer.setCanvasSize === 'function') {
+                        window.PreviewRenderer.setCanvasSize(newSize);
+                    }
+                    if (window.PreviewRenderer && typeof window.PreviewRenderer.syncBoxes === 'function') {
+                        window.PreviewRenderer.syncBoxes(this.canvasBoxes, newSize);
+                    }
+                } catch (err) {
+                    console.warn('[Preview] canvasSize watcher failed:', err);
+                }
+            },
+            deep: true
+        },
+        /**
+         * canvasBoxes 내용이 바뀔 때마다(Pixi 렌더와 동기화):
+         * - LayerPanel 에서 새 박스 추가
+         * - PreviewCanvas 드래그/리사이즈 종료
+         * - LayerConfigModal 에서 좌표/스타일 변경
+         */
+        canvasBoxes: {
+            handler(newBoxes) {
+                try {
+                    if (window.PreviewRenderer && typeof window.PreviewRenderer.syncBoxes === 'function') {
+                        window.PreviewRenderer.syncBoxes(newBoxes, this.canvasSize);
+                    }
+                } catch (err) {
+                    console.warn('[Preview] canvasBoxes watcher failed:', err);
+                }
+            },
+            deep: true
+        }
+    },
     mounted() {
         this.$nextTick(() => { 
             this.updateCanvasSizeFromControls();
@@ -162,7 +201,7 @@ const AppRoot = {
             this.setupCanvasScaler(); 
             this.setupInspectorMode();
             this.setupSpinWheel();      // 모든 number 스핀박스 마우스휠 활성화
-            this.initPreviewRenderer(); // Canvas2D / WebGL 프리뷰 렌더러 초기화
+            this.initPreviewRenderer(); // Canvas2D / WebGL / PixiJS 프리뷰 렌더러 초기화
         });
         window.vm = this; 
     },
@@ -215,7 +254,15 @@ const AppRoot = {
                 if (!canvas || !window.PreviewRenderer || typeof window.PreviewRenderer.init !== 'function') {
                     return;
                 }
+                // PixiJS / Canvas2D 렌더러 비동기 초기화 (Promise 반환 가능)
                 window.PreviewRenderer.init(canvas, this);
+                // 초기 상태도 한 번 동기화 시도 (init 이 끝나면 내부에서 안전하게 무시/처리)
+                if (typeof window.PreviewRenderer.setCanvasSize === 'function') {
+                    window.PreviewRenderer.setCanvasSize(this.canvasSize);
+                }
+                if (typeof window.PreviewRenderer.syncBoxes === 'function') {
+                    window.PreviewRenderer.syncBoxes(this.canvasBoxes, this.canvasSize);
+                }
             } catch (err) {
                 console.warn('[PreviewRenderer] init failed:', err);
             }
