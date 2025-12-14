@@ -1,9 +1,8 @@
 // PreviewRenderer
 // - 퍼센트 좌표(0~1)를 사용하는 프리뷰 전용 렌더러
 // - WebGL(가능 시) + Canvas2D(폴백) 구조
-// - 현재는 레이어 박스를 WebGL로 선(라인)으로만 그리며,
-//   화면 배율(%)을 상단 UI에 표시합니다.
-// - DOM 박스(PreviewCanvas)는 그대로 유지되어 드래그/리사이즈/레이블 UI를 담당합니다.
+// - 현재는 중앙 가이드라인(십자선)과 화면 배율(%)만 표시하며,
+//   박스 외곽선은 DOM(PreviewCanvas)의 박스 테두리만 사용합니다.
 
 (function (global) {
     const PreviewRenderer = {
@@ -191,14 +190,14 @@
             this.updateZoomIndicator(scaleY);
 
             if (this.mode === 'webgl') {
-                this.renderWebGL(cw, ch);
+                this.renderWebGL();
             } else if (this.mode === '2d') {
                 this.renderCanvas2D(wPix, hPix);
             }
         },
 
-        // -------- WebGL 렌더 (박스 라인 + 가이드) --------
-        renderWebGL(cw, ch) {
+        // -------- WebGL 렌더 (가이드라인만) --------
+        renderWebGL() {
             const gl = this.gl;
             if (!gl || !this.glProgram) return;
 
@@ -206,37 +205,12 @@
             gl.clearColor(0.0, 0.0, 0.0, 0.0);
             gl.clear(gl.COLOR_BUFFER_BIT);
 
-            const boxes = this.vm.canvasBoxes || [];
-            if (!boxes.length) {
-                // 박스가 없어도 중앙 가이드는 그려준다
-                this.drawGuideLines(gl);
-                return;
-            }
-
-            const selectedId = this.vm.selectedBoxId || null;
-
-            // 1) 중앙 가이드 라인 (십자선) 먼저 렌더
+            // 중앙 가이드 라인 (십자선)만 렌더
             this.drawGuideLines(gl);
-
-            // 2) 일반 박스 렌더
-            for (const box of boxes) {
-                if (!box || box.isHidden) continue;
-                if (selectedId && box.id === selectedId) continue;
-                this.drawBoxOutline(gl, box, cw, ch, false);
-            }
-
-            // 3) 선택된 박스를 마지막에, 더 강한 색으로 렌더
-            if (selectedId) {
-                const selBox = boxes.find(b => b && !b.isHidden && b.id === selectedId);
-                if (selBox) {
-                    this.drawBoxOutline(gl, selBox, cw, ch, true);
-                }
-            }
         },
 
         /**
          * 중앙 가이드 라인 (수평/수직 십자선) 렌더링
-         * - 전체 캔버스 기준 중앙에 가이드 표시
          */
         drawGuideLines(gl) {
             // NDC 기준: 수평(-1,0 ~ 1,0), 수직(0,-1 ~ 0,1)
@@ -251,72 +225,17 @@
             gl.enableVertexAttribArray(this.aPositionLoc);
             gl.vertexAttribPointer(this.aPositionLoc, 2, gl.FLOAT, false, 0, 0);
 
-            // 살짝 옅은 회색/파랑 톤
+            // 옅은 회색/파랑 톤
             const r = 148 / 255;  // #94a3b8
             const g = 163 / 255;
             const b = 184 / 255;
-            const a = 0.35;       // 너무 튀지 않게 반투명
+            const a = 0.35;       // 반투명
 
             gl.uniform4f(this.uColorLoc, r, g, b, a);
             gl.drawArrays(gl.LINES, 0, positions.length / 2);
         },
 
-        /**
-         * 단일 박스 외곽선 렌더링
-         * @param {WebGLRenderingContext} gl
-         * @param {Object} box
-         * @param {number} cw - 캔버스 논리 width
-         * @param {number} ch - 캔버스 논리 height
-         * @param {boolean} isSelected - 선택 박스 여부
-         */
-        drawBoxOutline(gl, box, cw, ch, isSelected) {
-            const x = box.x || 0;
-            const y = box.y || 0;
-            const w = box.w || 0;
-            const h = box.h || 0;
-
-            if (w <= 0 || h <= 0) return;
-
-            // 논리 좌표(0~cw, 0~ch) → 클립좌표(-1~1, -1~1)
-            const left   = (x / cw) * 2 - 1;
-            const right  = ((x + w) / cw) * 2 - 1;
-            const top    = 1 - (y / ch) * 2;
-            const bottom = 1 - ((y + h) / ch) * 2;
-
-            // 사각형 외곽선 4개 라인 (GL_LINES)
-            const positions = new Float32Array([
-                left,  top,    right, top,    // 상
-                right, top,    right, bottom, // 우
-                right, bottom, left,  bottom, // 하
-                left,  bottom, left,  top     // 좌
-            ]);
-
-            gl.bindBuffer(gl.ARRAY_BUFFER, this.glBuffer);
-            gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STREAM_DRAW);
-
-            gl.enableVertexAttribArray(this.aPositionLoc);
-            gl.vertexAttribPointer(this.aPositionLoc, 2, gl.FLOAT, false, 0, 0);
-
-            // 색상: 일반 박스는 box.color, 선택 박스는 더 강한 색
-            let baseColor = box.color || '#22c55e';
-            let alpha = 0.9;
-
-            if (isSelected) {
-                // 선택 박스는 흰색으로 또렷하게
-                baseColor = '#ffffff';
-                alpha = 1.0;
-            }
-
-            const rgb = this.parseColorToRgb(baseColor) || { r: 255, g: 255, b: 255 };
-            const r = rgb.r / 255;
-            const g = rgb.g / 255;
-            const b = rgb.b / 255;
-
-            gl.uniform4f(this.uColorLoc, r, g, b, alpha);
-            gl.drawArrays(gl.LINES, 0, positions.length / 2);
-        },
-
-        // -------- Canvas2D 렌더 (폴백) --------
+        // -------- Canvas2D 렌더 (가이드라인만) --------
         renderCanvas2D(wPix, hPix) {
             const ctx = this.ctx2d;
             if (!ctx) return;
@@ -324,12 +243,11 @@
             // 캔버스 지우기
             ctx.clearRect(0, 0, wPix, hPix);
 
-            // 중앙 가이드 라인 (십자선) 그리기
+            // 중앙 가이드 라인 (십자선)
             ctx.save();
             ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)'; // #94a3b8, 반투명
             ctx.lineWidth = 1;
 
-            // 0.5 offset으로 안티앨리어싱 줄이기 (픽셀 스냅)
             const midX = wPix / 2 + 0.5;
             const midY = hPix / 2 + 0.5;
 
