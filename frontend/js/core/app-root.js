@@ -1,7 +1,6 @@
 const { createApp, reactive, ref, onMounted, computed, nextTick } = Vue;
 
 // 프리뷰 캔버스 기준 긴 변 픽셀 (해상도와 무관, 프리뷰 전용)
-// - 16:9 가로형 기준 1920 x 1080
 const BASE_CANVAS_LONG_SIDE = 1920;
 
 // 해상도별 기준 긴 변 픽셀 (레이블용, 프리뷰 스케일과는 무관)
@@ -76,8 +75,8 @@ const AppRoot = {
                 { id: 'c3', trackId: 't5', name: 'BGM_Main.mp3', start: 0, duration: 30, type: 'audio' }
             ],
 
-            // 캔바스 레이어 박스 (레이어 매트릭스 12셀과 1:1 연동) - 기본은 빈 상태
-            // 각 박스는 x/y/w/h(px) + nx/ny/nw/nh(0~1 비율) 을 함께 가진다.
+            // 캔바스 레이어 박스 (레이어 매트릭스 12셀과 1:1 연동)
+            // 각 박스는 x/y/w/h(px) + nx/ny/nw/nh(0~1 비율) 를 함께 가진다.
             canvasBoxes: [],
 
             zoom: 20,
@@ -95,9 +94,9 @@ const AppRoot = {
             // Preview Toolbar State
             aspectRatio: '16:9',
             // 해상도 키(내부 값): '8K' / '6K' / '4K' / '3K' / '2K'
-            // ※ 프리뷰 캔버스 크기와는 연동하지 않고, 프로젝트 메타/라벨 용도만 사용
+            // ※ 프로젝트 메타/표시용
             resolution: '4K',
-            // 프리뷰용 기준 픽셀 사이즈 (aspectRatio 만 반영, 해상도와 무관)
+            // 프리뷰용 기준 픽셀 사이즈 (aspectRatio 반영, 해상도와 무관)
             canvasSize: { w: 1920, h: 1080 }, 
             mouseCoord: { x: 0, y: 0 }, 
             isMouseOverCanvas: false,
@@ -198,7 +197,7 @@ const AppRoot = {
             this.setupCanvasScaler(); 
             this.setupInspectorMode();
             this.setupSpinWheel();      // 모든 number 스핀박스 마우스휠 활성화
-            this.initPreviewRenderer(); // Canvas2D / WebGL / PixiJS 프리뷰 렌더러 초기화
+            this.initPreviewRenderer(); // PixiJS / Canvas2D 프리뷰 렌더러 초기화
         });
         window.vm = this; 
     },
@@ -251,9 +250,7 @@ const AppRoot = {
                 if (!canvas || !window.PreviewRenderer || typeof window.PreviewRenderer.init !== 'function') {
                     return;
                 }
-                // PixiJS / Canvas2D 렌더러 비동기 초기화 (Promise 반환 가능)
                 window.PreviewRenderer.init(canvas, this);
-                // 초기 상태를 한 번 동기화 (init 내부에서 아직 준비 안 된 경우는 조용히 무시)
                 if (typeof window.PreviewRenderer.setCanvasSize === 'function') {
                     window.PreviewRenderer.setCanvasSize(this.canvasSize);
                 }
@@ -558,10 +555,10 @@ const AppRoot = {
         },
 
         // --- Preview/Canvas Logic ---
-        // 화면비율 드롭다운은 메타데이터용으로만 사용 (캔버스 크기에는 영향 X)
+        // 화면비율 드롭다운: 실제 캔버스 비율 변경 (퍼센트 좌표 구조 유지)
         setAspect(r) { 
             this.aspectRatio = r;
-            // 캔버스 좌표계/크기에는 영향 주지 않음 (독립 UI)
+            this.updateCanvasSizeFromControls();
         },
         setResolution(labelOrKey) { 
             const str = (labelOrKey || '').toString().trim();
@@ -570,10 +567,21 @@ const AppRoot = {
             this.resolution = key;
         },
         computeCanvasSize(aspectRatio) {
-            // 현재 단계에서는 16:9 고정 기반 (화면비율 드롭다운은 메타 전용)
             const longSide = BASE_CANVAS_LONG_SIDE;
-            const w = longSide;
-            const h = Math.round(longSide * 9 / 16);
+            let w, h;
+
+            if (aspectRatio === '9:16') {
+                // 세로형: 높이 기준
+                h = longSide;
+                w = Math.round(longSide * 9 / 16);
+            } else if (aspectRatio === '1:1') {
+                w = longSide;
+                h = longSide;
+            } else {
+                // 기본 16:9 가로형
+                w = longSide;
+                h = Math.round(longSide * 9 / 16);
+            }
             return { w, h };
         },
         computeResolutionSize(aspectRatio, resolutionKey) {
@@ -602,7 +610,7 @@ const AppRoot = {
         updateCanvasSizeFromControls() {
             const size = this.computeCanvasSize(this.aspectRatio);
             this.canvasSize = size;
-            // 캔버스 크기 변경 시, 퍼센트 좌표를 기준으로 px 좌표 재계산
+            // 캔버스 크기 변경 시, 퍼센트 좌표를 기반으로 px 좌표 재계산
             this.ensureAllBoxesNormalized();
             this.recalculateCanvasScale();
         },
@@ -744,7 +752,6 @@ const AppRoot = {
                 if (target.type !== 'number') return;
                 if (target.disabled || target.readOnly) return;
 
-                // 스핀박스 위에서만 스크롤 캡처
                 event.preventDefault();
 
                 const stepAttr = target.step;
@@ -754,7 +761,6 @@ const AppRoot = {
                 let value = parseFloat(target.value);
                 if (isNaN(value)) value = 0;
 
-                // 기본 min은 0 (음수 방지)
                 const min = target.min !== '' ? parseFloat(target.min) : 0;
                 const max = target.max !== '' ? parseFloat(target.max) : +Infinity;
 
@@ -764,7 +770,6 @@ const AppRoot = {
 
                 target.value = value;
 
-                // v-model 갱신을 위한 input 이벤트 강제 발생
                 const evt = new Event('input', { bubbles: true });
                 target.dispatchEvent(evt);
             };
@@ -817,7 +822,6 @@ const AppRoot = {
             const cw = this.canvasSize.w || 1;
             const ch = this.canvasSize.h || 1;
 
-            // 퍼센트 좌표 보장
             this.ensureBoxNormalized(box);
 
             let nx = box.nx;
@@ -830,7 +834,6 @@ const AppRoot = {
             if (optNorm && typeof optNorm.nw === 'number') nw = optNorm.nw;
             if (optNorm && typeof optNorm.nh === 'number') nh = optNorm.nh;
 
-            // optNorm 가 없으면 px 기준으로 역산
             if (!optNorm) {
                 if (typeof newX === 'number') nx = newX / cw;
                 if (typeof newY === 'number') ny = newY / ch;
@@ -838,7 +841,6 @@ const AppRoot = {
                 if (typeof newH === 'number') nh = newH / ch;
             }
 
-            // 클램프 (0~1, 최소 크기)
             const minNw = 10 / cw;
             const minNh = 10 / ch;
 
