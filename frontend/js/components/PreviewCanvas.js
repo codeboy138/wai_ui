@@ -30,11 +30,11 @@ const PreviewCanvas = {
                     {{ effectiveText(box) }}
                 </div>
 
-                <!-- 모서리 ㄱ자 핸들 (시각용) -->
-                <div class="box-handle bh-tl"></div>
-                <div class="box-handle bh-tr"></div>
-                <div class="box-handle bh-bl"></div>
-                <div class="box-handle bh-br"></div>
+                <!-- 모서리 ㄱ자 핸들 (시각용) - 인라인 스타일로 강제 표시 -->
+                <div class="box-handle bh-tl" :style="handleStyle(box, 'tl')"></div>
+                <div class="box-handle bh-tr" :style="handleStyle(box, 'tr')"></div>
+                <div class="box-handle bh-bl" :style="handleStyle(box, 'bl')"></div>
+                <div class="box-handle bh-br" :style="handleStyle(box, 'br')"></div>
 
                 <!-- 레이어 레이블: 레이어 박스 하단 내부 (행별 좌/중/우 배치) -->
                 <div
@@ -140,6 +140,48 @@ const PreviewCanvas = {
                 WebkitTextStrokeWidth: (ts.strokeWidth || 0) + 'px',
                 whiteSpace: 'pre-wrap'
             };
+        },
+
+        // ---------- 모서리 ㄱ자 핸들 스타일 ----------
+        handleStyle(box, pos) {
+            const size = 12; // 핸들 전체 크기 (px)
+            const thickness = 3; // 선 두께
+            const color = box.color || '#ffffff';
+
+            const style = {
+                position: 'absolute',
+                width: size + 'px',
+                height: size + 'px',
+                boxSizing: 'border-box',
+                borderColor: color,
+                pointerEvents: 'none',  // 드래그는 박스 전체에서 처리
+                zIndex: (box.zIndex || 0) + 2
+            };
+
+            // 각 코너별로 두 변만 살려서 ㄱ자 모양 만들기
+            if (pos === 'tl') {
+                style.left = '-2px';
+                style.top = '-2px';
+                style.borderLeft = thickness + 'px solid ' + color;
+                style.borderTop = thickness + 'px solid ' + color;
+            } else if (pos === 'tr') {
+                style.right = '-2px';
+                style.top = '-2px';
+                style.borderRight = thickness + 'px solid ' + color;
+                style.borderTop = thickness + 'px solid ' + color;
+            } else if (pos === 'bl') {
+                style.left = '-2px';
+                style.bottom = '-2px';
+                style.borderLeft = thickness + 'px solid ' + color;
+                style.borderBottom = thickness + 'px solid ' + color;
+            } else if (pos === 'br') {
+                style.right = '-2px';
+                style.bottom = '-2px';
+                style.borderRight = thickness + 'px solid ' + color;
+                style.borderBottom = thickness + 'px solid ' + color;
+            }
+
+            return style;
         },
 
         // ---------- 레이블 텍스트 ----------
@@ -436,7 +478,7 @@ const PreviewCanvas = {
                 el.style.height = newH + 'px';
             }
 
-            // Pixi 쪽에도 드래그 중 실시간 반영 (있으면)
+            // Pixi 쪽 실시간 반영은 현재 단계에서는 비활성화되어 있음
             if (window.PreviewRenderer && typeof window.PreviewRenderer.updateBoxDuringDrag === 'function') {
                 window.PreviewRenderer.updateBoxDuringDrag(this.dragBoxId, newX, newY, newW, newH);
             }
@@ -457,34 +499,22 @@ const PreviewCanvas = {
                 return;
             }
 
-            let finalPx = this.dragCurrentBoxPx || this.dragStartBoxPx;
+            // 최종 위치/크기: 스냅 없이 그대로 사용 (조작감 우선)
+            const finalPx = this.dragCurrentBoxPx || this.dragStartBoxPx;
             let { x, y, w, h } = finalPx;
 
-            // 스냅 계산
-            const snapResult = this.checkSnap(boxId, x, y, w, h);
-            if (snapResult.snapped) {
-                x = snapResult.x;
-                y = snapResult.y;
-                w = snapResult.w;
-                h = snapResult.h;
-            }
-
-            // Vue 상태에 최종 결과 1회 반영
+            // Vue 상태에 최종 결과 1회 반영 (퍼센트 좌표까지 내부에서 처리)
             if (this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
                 this.$parent.updateBoxPosition(boxId, x, y, w, h);
             }
 
-            // DOM에도 스냅 적용 + 플래시
+            // DOM에도 최종 위치/크기 적용
             const target = this.dragDomEl || document.getElementById('preview-canvas-box-' + boxId);
             if (target) {
                 target.style.left = x + 'px';
                 target.style.top = y + 'px';
                 target.style.width = w + 'px';
                 target.style.height = h + 'px';
-
-                if (snapResult.snapped) {
-                    this.triggerSnapFlash(target);
-                }
             }
 
             this.dragMode = null;
@@ -493,7 +523,7 @@ const PreviewCanvas = {
             this.dragCurrentBoxPx = null;
         },
 
-        // ---------- 스냅 & 플래시 ----------
+        // ---------- (미사용) 스냅 & 플래시 ----------
         checkSnap(boxId, x, y, w, h) {
             const threshold = 8;
             let snapped = false;
