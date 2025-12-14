@@ -10,7 +10,12 @@
         ctx: null,
         vm: null,
         dpr: global.devicePixelRatio || 1,
+        handleResize: null,
 
+        /**
+         * AppRoot.mounted() 에서 명시적으로 호출:
+         *   PreviewRenderer.init(canvasEl, vm)
+         */
         init(canvasEl, vm) {
             this.canvas = canvasEl;
             this.ctx = canvasEl.getContext('2d');
@@ -18,12 +23,17 @@
 
             if (!this.ctx || !this.vm) return;
 
+            // 윈도우 리사이즈 시 캔버스 내부 해상도 재조정
             this.handleResize = this.resize.bind(this);
             global.addEventListener('resize', this.handleResize);
+
             this.resize();
             this.loop();
         },
 
+        /**
+         * Canvas 엘리먼트의 CSS 크기에 맞춰 내부 픽셀 해상도(DPR 반영)를 조정
+         */
         resize() {
             if (!this.canvas || !this.ctx) return;
 
@@ -40,6 +50,10 @@
             this.render();
         },
 
+        /**
+         * 간단한 렌더 루프 (선형 업데이트)
+         * - 추후 필요 시 조건부/이벤트 기반 렌더링으로 변경 가능
+         */
         loop() {
             this.render();
             global.requestAnimationFrame(this.loop.bind(this));
@@ -63,6 +77,11 @@
             valueEl.textContent = pct.toFixed(0) + '%';
         },
 
+        /**
+         * 메인 렌더링:
+         * - vm.canvasSize (논리 해상도) + vm.canvasBoxes (0~1 좌표 기반) 를 사용
+         * - 현재는 점선 박스만 표시
+         */
         render() {
             if (!this.ctx || !this.vm) return;
             const state = this.vm;
@@ -108,17 +127,6 @@
         }
     };
 
-    function waitForVmAndCanvas() {
-        const vm = global.vm;
-        const canvas = document.getElementById('preview-render-canvas');
-
-        if (vm && canvas) {
-            PreviewRenderer.init(canvas, vm);
-        } else {
-            global.requestAnimationFrame(waitForVmAndCanvas);
-        }
-    }
-
+    // 전역에 렌더러 노출 (Vue AppRoot 에서 init 호출)
     global.PreviewRenderer = PreviewRenderer;
-    waitForVmAndCanvas();
 })(window);
