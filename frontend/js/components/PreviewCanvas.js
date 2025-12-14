@@ -501,4 +501,74 @@ const PreviewCanvas = {
             let left = x;
             let top = y;
             let right = x + w;
-            let bottom =
+            let bottom = y + h;
+
+            const canvas = this.$parent && this.$parent.canvasSize
+                ? this.$parent.canvasSize
+                : { w: 1920, h: 1080 };
+            const canvasLeft = 0;
+            const canvasTop = 0;
+            const canvasRight = canvas.w;
+            const canvasBottom = canvas.h;
+
+            const snapTo = (value, target) =>
+                Math.abs(value - target) <= threshold ? target : null;
+
+            let s = snapTo(left, canvasLeft);
+            if (s !== null) { left = s; right = left + w; snapped = true; }
+            s = snapTo(right, canvasRight);
+            if (s !== null) { right = s; left = right - w; snapped = true; }
+            s = snapTo(top, canvasTop);
+            if (s !== null) { top = s; bottom = top + h; snapped = true; }
+            s = snapTo(bottom, canvasBottom);
+            if (s !== null) { bottom = s; top = bottom - h; snapped = true; }
+
+            const boxes = (this.canvasBoxes || []).filter(b => b.id !== boxId && !b.isHidden);
+            for (const b of boxes) {
+                const bLeft = b.x;
+                const bRight = b.x + b.w;
+                const bTop = b.y;
+                const bBottom = b.y + b.h;
+
+                let s2 = snapTo(left, bRight);
+                if (s2 !== null) { left = s2; right = left + w; snapped = true; }
+                s2 = snapTo(right, bLeft);
+                if (s2 !== null) { right = s2; left = right - w; snapped = true; }
+                s2 = snapTo(top, bBottom);
+                if (s2 !== null) { top = s2; bottom = top + h; snapped = true; }
+                s2 = snapTo(bottom, bTop);
+                if (s2 !== null) { bottom = s2; top = bottom - h; snapped = true; }
+            }
+
+            return {
+                x: left,
+                y: top,
+                w: right - left,
+                h: bottom - top,
+                snapped
+            };
+        },
+
+        triggerSnapFlash(target) {
+            const flash = document.createElement('div');
+            flash.style.position = 'absolute';
+            flash.style.left = '-2px';
+            flash.style.top = '-2px';
+            flash.style.right = '-2px';
+            flash.style.bottom = '-2px';
+            flash.style.border = '2px solid #ffffff';
+            flash.style.boxSizing = 'border-box';
+            flash.style.pointerEvents = 'none';
+            flash.style.opacity = '1';
+            flash.style.transition = 'opacity 0.5s ease-out';
+
+            target.appendChild(flash);
+            requestAnimationFrame(() => { flash.style.opacity = '0'; });
+            setTimeout(() => {
+                if (flash.parentNode === target) target.removeChild(flash);
+            }, 500);
+        }
+    }
+};
+
+window.PreviewCanvas = PreviewCanvas;
