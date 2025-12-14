@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WAI Studio - Professional Editor (Full Version)</title>
+
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- interact.js -->
+    <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bg: {
+                            dark: '#09090b',
+                            panel: '#18181b',
+                            hover: '#27272a',
+                            input: '#202023'
+                        },
+                        ui: {
+                            border: '#27272a',
+                            selected: '#3f3f46',
+                            accent: '#3b82f6',
+                            danger: '#ef4444',
+                            success: '#22c55e'
+                        },
+                        text: {
+                            main: '#f4f4f5',
+                            sub: '#a1a1aa',
+                            inv: '#18181b'
+                        }
+                    },
+                    fontSize: {
+                        'xxs': '10px'
+                    },
+                    spacing: {
+                        '15px': '15px'
+                    },
+                    cursor: {
+                        'ew-resize': 'ew-resize',
+                        'ns-resize': 'ns-resize',
+                        'row-resize': 'row-resize',
+                        'col-resize': 'col-resize'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* 전역 설정 */
+        body {
+            background-color: #09090b;
+            color: #f4f4f5;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+        }
+
+        /* 스크롤바 */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #18181b; }
+        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #52525b; }
+
+        /* 타임라인 그리드 */
+        .timeline-grid {
+            display: grid;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .sticky-corner { position: sticky; top: 0; left: 0; z-index: 50; background: #18181b; border-bottom: 1px solid #27272a; border-right: 1px solid #27272a; }
+        .sticky-ruler  { position: sticky; top: 0; z-index: 40; background: #09090b; border-bottom: 1px solid #27272a; }
+        .sticky-col    { position: sticky; left: 0; z-index: 30; background: #18181b; border-right: 1px solid #27272a; }
+
+        /* 클립 */
+        .clip {
+            position: absolute;
+            top: 4px;
+            height: 32px;
+            border-radius: 4px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.1);
+            cursor: pointer;
+            transition: box-shadow 0.1s, border-color 0.1s;
+            touch-action: none;
+        }
+        .clip:hover {
+            filter: brightness(1.1);
+            z-index: 10;
+            border-color: rgba(255,255,255,0.5);
+        }
+        .clip.selected {
+            border: 2px solid #fff;
+            z-index: 20;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+        }
+        .clip.dragging {
+            opacity: 0.8;
+            z-index: 100 !important;
+            cursor: grabbing;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+        .clip-label {
+            pointer-events: none;
+            text-shadow: 0 1px 2px black;
+            font-size: 10px;
+            padding: 2px 6px;
+            font-weight: bold;
+            color: white;
+            position: relative;
+            z-index: 2;
+        }
+
+        /* 오디오 파형/볼륨 라인 */
+        .waveform {
+            position: absolute; top: 50%; left: 0; width: 100%; height: 100%;
+            transform: translateY(-50%); opacity: 0.6; pointer-events: none;
+        }
+        .volume-line {
+            position: absolute; top: 30%; left: 0; width: 100%; height: 2px;
+            background: rgba(255,255,255,0.8); cursor: ns-resize; z-index: 5;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+        .volume-line:hover { background: #3b82f6; height: 3px; }
+
+        /* 프리뷰 뷰포트: 패널 안에서 실제 화면을 가운데 정렬 */
+        #preview-canvas-viewport {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* 프리뷰 캔버스 박스(실제 화면 역할) - 비율은 JS에서 width/height 로 관리 */
+        .canvas-scaler {
+            position: relative;
+            background-color: #000;
+            border-radius: 0;
+            border: 2px solid #ffffff;
+            box-shadow: 0 0 40px rgba(0,0,0,0.7);
+            overflow: hidden;
+        }
+
+        /* 비율별 aspect-ratio (향후 용도, 현재는 JS width/height 가 우선) */
+        .canvas-ar-16-9 { aspect-ratio: 16 / 9; }
+        .canvas-ar-9-16 { aspect-ratio: 9 / 16; }
+        .canvas-ar-1-1  { aspect-ratio: 1 / 1; }
+
+        .canvas-box {
+            position: absolute;
+            border: 0.5px dashed rgba(255,255,255,0.6);
+            background: rgba(255,255,255,0.05);
+            display: flex;
+            align-items: flex-start;
+            justify-content: flex-end;
+            touch-action: none;
+            box-sizing: border-box;
+        }
+        .canvas-box.selected {
+            border-style: solid;
+            box-shadow: 0 0 0 1px #fff, 0 0 10px rgba(0,0,0,0.5);
+            z-index: 1000 !important;
+            border-color: #3b82f6;
+        }
+
+        /* 레이어 라벨 (하단 내부) */
+        .canvas-label {
+            position: absolute;
+            bottom: 0;
+            height: 16px;
+            line-height: 16px;
+            font-size: 10px;
+            font-weight: bold;
+            font-family: monospace;
+            white-space: nowrap;
+            pointer-events: none;
+            text-shadow: 0 1px 2px black;
+            opacity: 0.9;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .canvas-text-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 2px 6px;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+
+        /* 박스 핸들 (모서리 ㄱ자) */
+        .box-handle {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: transparent;
+            border: 2px solid #ffffff;
+            z-index: 20;
+            display: none;
+            box-sizing: border-box;
+        }
+        .canvas-box.selected .box-handle { display: block; }
+        .bh-tl {
+            top: -1px;
+            left: -1px;
+            border-right: none;
+            border-bottom: none;
+            cursor: nwse-resize;
+        }
+        .bh-tr {
+            top: -1px;
+            right: -1px;
+            border-left: none;
+            border-bottom: none;
+            cursor: nesw-resize;
+        }
+        .bh-bl {
+            bottom: -1px;
+            left: -1px;
+            border-right: none;
+            border-top: none;
+            cursor: nesw-resize;
+        }
+        .bh-br {
+            bottom: -1px;
+            right: -1px;
+            border-left: none;
+            border-top: none;
+            cursor: nwse-resize;
+        }
+
+        /* 프리뷰 렌더 캔버스 (Canvas2D/WebGL 용) */
+        #preview-render-canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        /* 스냅 플래시 */
+        @keyframes flash {
+            0%   { opacity: 1; }
+            100% { opacity: 0; }
+        }
+        .snap-flash {
+            box-shadow: 0 0 0 2px #ffffff;
+            animation: flash 0.5s ease-out;
+        }
+
+        /* 가이드라인 */
+        .guide-line-h {
+            position: absolute; left: 0; right: 0; height: 1px;
+            background-color: #3b82f6; border-top: 1px dashed #3b82f6;
+            display: none; pointer-events: none; z-index: 9999; opacity: 0.8;
+        }
+        .guide-line-v {
+            position: absolute; top: 0; bottom: 0; width: 1px;
+            background-color: #3b82f6; border-left: 1px dashed #3b82f6;
+            display: none; pointer-events: none; z-index: 9999; opacity: 0.8;
+        }
+
+        /* 패널 리사이저 */
+        .panel-resizer-v {
+            position: absolute; top: 0; bottom: 0; width: 4px;
+            cursor: col-resize; z-index: 100; transition: background 0.2s;
+        }
+        .panel-resizer-v:hover { background: #3b82f6; }
+
+        .panel-resizer-h {
+            width: 100%; height: 4px; background: #18181b;
+            cursor: row-resize; z-index: 100; transition: background 0.2s;
+            border-top: 1px solid #27272a; border-bottom: 1px solid #27272a;
+        }
+        .panel-resizer-h:hover { background: #3b82f6; }
+
+        /* 트랙 리사이저 */
+        .resizer-w {
+            position: absolute; top: 0; right: 0; width: 5px; height: 100%;
+            cursor: col-resize; z-index: 60;
+        }
+        .resizer-h {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 5px;
+            cursor: row-resize; z-index: 60;
+        }
+        .resizer-h:hover, .resizer-w:hover { background-color: #3b82f6; }
+
+        /* 공통 버튼 (Tailwind @apply는 빌드 환경에서 처리된다고 가정) */
+        .tool-btn {
+            @apply p-1 rounded text-text-sub hover:text-text-main hover:bg-bg-hover transition-colors text-xs flex items-center justify-center w-6 h-6;
+        }
+        .tool-btn.active { @apply text-ui-accent bg-bg-hover; }
+
+        .nav-btn {
+            @apply px-3 py-1 text-xs text-text-sub hover:text-text-main hover:bg-ui-selected rounded transition-colors cursor-pointer h-full flex items-center;
+        }
+        .nav-btn.active { @apply text-text-main font-bold bg-bg-hover; }
+
+        .win-btn {
+            @apply w-10 h-full flex items-center justify-center text-text-sub hover:bg-bg-hover hover:text-text-main transition-colors text-xs;
+        }
+        .win-btn.close:hover { @apply bg-ui-danger text-white; }
+
+        /* 커스텀 드롭다운 */
+        .c-dropdown {
+            @apply relative inline-flex items-center px-2 h-full bg-bg-input rounded text-[10px] text-text-sub cursor-pointer hover:bg-bg-hover hover:text-text-main border border-ui-border select-none;
+        }
+
+        .c-dropdown-menu {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            margin-top: 0;
+            background-color: #18181b;
+            border: 1px solid #27272a;
+            border-radius: 0 0 4px 4px;
+            flex-direction: column;
+            z-index: 2000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+
+        .c-dropdown.open .c-dropdown-menu {
+            display: flex;
+        }
+
+        .c-dropdown-item {
+            @apply p-2 text-center hover:bg-ui-accent hover:text-white transition-colors;
+        }
+
+        .c-dropdown-item-selected {
+            border: 1px solid #71717a;
+            border-radius: 4px;
+        }
+
+        .wai-dropdown {
+            position: relative;
+            border: none;
+        }
+
+        .wai-dropdown-trigger {
+            width: 100%;
+            height: 100%;
+            border-radius: 4px;
+            border: 1px solid #27272a;
+            background-color: transparent;
+        }
+
+        .wai-dropdown--open .wai-dropdown-trigger {
+            border-bottom-left-radius: 0;
+            border-bottom-right-radius: 0;
+            border-bottom-color: transparent;
+        }
+
+        .wai-dropdown-menu {
+            border-top-width: 0;
+        }
+
+        .c-dropdown.locked {
+            cursor: not-allowed; opacity: 0.7; border-color: #333; background: #1a1a1a;
+        }
+        .c-dropdown.locked:hover { background: #1a1a1a; color: #a1a1aa; }
+        .c-dropdown.locked:hover .c-dropdown-menu { display: none; }
+
+        /* Dev / Inspect Overlay */
+        .dev-overlay {
+            pointer-events: none; position: fixed; inset: 0; z-index: 9999; display: none;
+        }
+        body.dev-mode-active .dev-overlay,
+        body.dev-mode-full .dev-overlay {
+            display: block;
+        }
+
+        .dev-highlight {
+            position: absolute;
+            border: 1px solid #3b82f6;
+            background: rgba(255, 255, 255, 0.1);
+            transition: all 0.05s ease-out;
+            pointer-events: none;
+        }
+
+        .dev-tooltip {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.9);
+            color: #000000;
+            padding: 4px 8px;
+            font-size: 12px;
+            border-radius: 2px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            z-index: 10000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+            pointer-events: auto;
+            max-width: 280px;
+        }
+
+        .dev-tooltip-header { font-weight: bold; margin-bottom: 2px; }
+        .dev-tooltip-meta { color: #333; }
+        .dev-tooltip-hint { margin-top: 2px; color: #555; }
+        .dev-tooltip-devinfo {
+            margin-top: 4px;
+            padding-top: 4px;
+            border-top: 1px solid #999;
+            background: rgba(255, 255, 255, 0.9);
+            color: #111;
+            white-space: pre-wrap;
+        }
+
+        /* 컨텍스트 메뉴 (레이어 컬러 등) */
+        .context-menu {
+            position: fixed; background: #1e1e1e; border: 1px solid #333;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 5000; border-radius: 4px;
+            padding: 4px 0; min-width: 120px;
+        }
+        .ctx-item {
+            padding: 4px 12px; font-size: 11px; color: #eee; cursor: pointer;
+            display: flex; justify-content: space-between; gap: 10px;
+        }
+        .ctx-item:hover { background: #3b82f6; color: white; }
+
+        .color-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding: 4px; }
+        .color-swatch { width: 16px; height: 16px; border-radius: 2px; cursor: pointer; border: 1px solid #333; }
+        .color-swatch:hover { border-color: white; transform: scale(1.1); }
+
+        .timeline-drag-over { box-shadow: inset 0 0 0 2px #3b82f6; background-color: rgba(59, 130, 246, 0.1); }
+
+        /* 플레이헤드 */
+        .playhead-line {
+            position: absolute; top: 0; bottom: 0; width: 1px; background: #ef4444;
+            z-index: 40; pointer-events: none;
+        }
+        .playhead-handle {
+            position: absolute; top: 0; width: 11px; height: 12px; background: #ef4444;
+            transform: translateX(-50%); clip-path: polygon(0 0, 100% 0, 50% 100%);
+            cursor: ew-resize; pointer-events: auto; z-index: 50;
+        }
+
+        /* Modal (공통) */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.7); display: flex;
+            justify-content: center; align-items: center; z-index: 5000;
+        }
+        .modal-window {
+            background: #18181b; border: 1px solid #27272a; border-radius: 8px;
+            width: 80%; height: 80%; max-width: 1000px; max-height: 700px;
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+
+        /* 레이어 설정 모달 전용 크기 (필드 폭에 맞춘 기본 크기) */
+        .layer-config-window {
+            width: 640px;
+            height: 520px;
+            max-width: 900px;
+            max-height: 700px;
+        }
+
+        .animate-fade-in { animation: fadeIn 0.2s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* 프리뷰 툴바를 상위 레이어로 올려 드롭다운이 가려지지 않도록 */
+        #preview-toolbar-panel {
+            position: relative;
+            z-index: 40;
+        }
+    </style>
+</head>
+
+<body id="app-root-container" class="flex flex-col text-xs">
+    <div id="app-vue-root" class="flex flex-col h-screen">
+
+        <!-- 헤더 -->
+        <header id="header-main-panel" class="h-12 bg-bg-panel border-b border-ui-border flex items-center justify-between shrink-0 select-none px-[15px]">
+            <div class="flex items-center h-full gap-[15px]">
+                <div id="header-main-logo-label" class="font-bold text-lg tracking-tighter text-text-main" title="WAI Studio 홈">WAI</div>
+
+                <div id="header-main-menu-container" class="relative group h-full flex items-center">
+                    <button class="text-lg text-text-sub hover:text-text-main" title="메인 메뉴 (준비 중)"><i class="fa-solid fa-bars"></i></button>
+                </div>
+
+                <nav id="header-nav-container" class="flex items-center gap-[15px] h-full">
+                    <button
+                        id="header-nav-explore-btn"
+                        class="nav-btn hover:text-white text-text-sub"
+                        @click="firePython('nav_explore')"
+                        data-action="py:nav_explore"
+                        title="프로젝트 탐색 열기"
+                    >
+                        탐색
+                    </button>
+
+                    <button
+                        id="header-nav-create-btn"
+                        class="nav-btn active hover:text-white text-text-sub"
+                        @click="isProjectModalOpen = true"
+                        data-action="js:openProjectModal"
+                        title="새 프로젝트 생성"
+                    >
+                        제작
+                    </button>
+
+                    <div id="header-nav-assets-group" class="relative group h-full flex items-center">
+                        <button
+                            id="header-nav-assets-btn"
+                            class="nav-btn hover:text-white text-text-sub"
+                            title="자산 패널 열기"
+                        >
+                            자산
+                        </button>
+                        <div class="absolute top-full left-0 w-32 bg-bg-panel border border-ui-border shadow-xl rounded-b hidden group-hover:block z-50">
+                            <button
+                                id="header-menu-assets-manage-item"
+                                class="w-full text-left px-4 py-2 hover:bg-bg-hover text-xs text-text-main"
+                                @click="firePython('open_asset_manager')"
+                                data-action="py:open_asset_manager"
+                                title="자산 관리 창 열기"
+                            >
+                                자산 관리
+                            </button>
+                        </div>
+                    </div>
+
+                    <button
+                        id="header-nav-settings-btn"
+                        class="nav-btn hover:text-white text-text-sub"
+                        @click="firePython('nav_settings')"
+                        data-action="py:nav_settings"
+                        title="설정 패널 열기"
+                    >
+                        설정
+                    </button>
+
+                    <button
+                        id="header-nav-research-btn"
+                        class="nav-btn hover:text-white text-text-sub"
+                        @click="firePython('nav_research')"
+                        data-action="py:nav_research"
+                        title="연구 패널 열기"
+                    >
+                        연구
+                    </button>
+                </nav>
+            </div>
+
+            <div class="flex items-center h-full gap-0">
+                <button
+                    id="header-dev-inspect-btn"
+                    class="h-6 px-3 border border-ui-border rounded-l text-text-sub hover:text-white hover:bg-bg-hover flex items-center gap-1 transition-colors"
+                    :class="{'bg-ui-selected text-text-main': isDevModeActive}"
+                    @click="toggleDevMode('active')"
+                    data-action="js:toggleDevModeActive"
+                    title="Inspect 모드 토글"
+                >
+                    <i class="fa-solid fa-magnifying-glass"></i> Inspect
+                </button>
+
+                <button
+                    id="header-dev-mode-btn"
+                    class="h-6 px-3 border border-ui-border border-l-0 rounded-r text-text-sub hover:text-white hover:bg-bg-hover flex items-center gap-1 mr-4 transition-colors"
+                    :class="{'bg-ui-selected text-text-main': isDevModeFull}"
+                    @click="toggleDevMode('full')"
+                    data-action="js:toggleDevModeFull"
+                    title="개발자 모드 토글"
+                >
+                    <i class="fa-solid fa-code"></i> Dev
+                </button>
+
+                <div id="header-window-controls-container" class="flex items-center h-full ml-[15px] gap-0 border-l border-ui-border pl-2">
+                    <button
+                        id="header-window-min-btn"
+                        class="win-btn"
+                        @click="firePython('win_min')"
+                        data-action="py:win_min"
+                        title="창 최소화"
+                    >
+                        <i class="fa-solid fa-minus text-[10px]"></i>
+                    </button>
+                    <button
+                        id="header-window-max-btn"
+                        class="win-btn"
+                        @click="firePython('win_max')"
+                        data-action="py:win_max"
+                        title="창 최대화/복원"
+                    >
+                        <i class="fa-regular fa-square text-[10px]"></i>
+                    </button>
+                    <button
+                        id="header-window-close-btn"
+                        class="win-btn close"
+                        @click="firePython('win_close')"
+                        data-action="py:win_close"
+                        title="앱 종료"
+                    >
+                        <i class="fa-solid fa-xmark text-[10px]"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- 메인 레이아웃 -->
+        <main id="main-layout-root" class="flex-1 flex overflow-hidden relative">
+
+            <!-- 좌측 패널 -->
+            <aside
+                id="main-left-panel"
+                class="bg-bg-panel flex flex-col relative border-r border-ui-border"
+                :style="{ width: leftPanelWidth + 'px', minWidth: '180px' }"
+            >
+                <div id="main-left-header-bar" class="p-2 border-b border-ui-border font-bold text-text-sub flex justify-between">
+                    <span>자산 (Assets)</span>
+                    <button
+                        id="main-left-assets-add-btn"
+                        class="text-xs hover:text-white"
+                        @click="firePython('import_asset')"
+                        data-action="py:import_asset"
+                        title="새 자산 가져오기"
+                    >
+                        +
+                    </button>
+                </div>
+                <div class="flex-1 overflow-y-auto p-2 flex flex-col items-center justify-center text-text-sub opacity-30 gap-2" id="main-left-assets-list">
+                    <i class="fa-solid fa-folder-open text-2xl"></i>
+                    <div class="text-[10px]">자산 목록이 비어있습니다.</div>
+                </div>
+
+                <div
+                    id="main-left-resizer-v"
+                    class="panel-resizer-v right-0"
+                    title="좌측 패널 너비 조절"
+                    data-action="js:resizePanelLeft"
+                ></div>
+            </aside>
+
+            <!-- 중앙 패널 -->
+            <section id="main-center-panel" class="flex-1 flex flex-col bg-bg-dark min-w-[400px] relative overflow-hidden">
+
+                <!-- 프리뷰 컨테이너 -->
+                <div
+                    id="preview-main-container"
+                    class="relative flex flex-col"
+                    :style="{ height: previewContainerHeight }"
+                >
+
+                    <!-- 프리뷰 툴바 -->
+                    <div id="preview-toolbar-panel" class="h-8 bg-bg-panel border-b border-ui-border flex items-center justify-center px-2 gap-3 shrink-0 z-20">
+                        <div class="flex items-center gap-2 bg-bg-input rounded px-3 h-6 border border-ui-border">
+
+                            <!-- 드롭다운: 화면비율 -->
+                            <dropdown-menu
+                                id="preview-toolbar-ratio-dropdown"
+                                label="화면비율"
+                                :current-value="aspectRatio"
+                                :items="['16:9', '9:16', '1:1']"
+                                @select="setAspect"
+                                title="캔버스 화면비율 (메타데이터)"
+                            ></dropdown-menu>
+
+                            <div class="w-px h-3 bg-ui-border"></div>
+
+                            <!-- 드롭다운: 해상도 -->
+                            <dropdown-menu
+                                id="preview-toolbar-resolution-dropdown"
+                                label="해상도"
+                                :current-value="currentResolutionLabel"
+                                :items="resolutionOptions"
+                                @select="setResolution"
+                                title="캔버스 해상도 선택 (메타데이터)"
+                            ></dropdown-menu>
+
+                            <!-- 프리뷰 화면 배율 표시 -->
+                            <div class="w-px h-3 bg-ui-border"></div>
+                            <div
+                                id="preview-zoom-indicator"
+                                class="flex items-center pl-2 text-xxs text-text-sub"
+                                title="프리뷰 화면 배율 (표시용)"
+                            >
+                                화면 배율&nbsp;
+                                <span id="preview-zoom-indicator-value">100%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 프리뷰 캔버스 -->
+                    <div
+                        id="preview-canvas-wrapper"
+                        class="flex-1 relative overflow-hidden bg-black flex items-center justify-center"
+                        @mouseleave="mouseCoord = {x: 0, y: 0}; isMouseOverCanvas = false"
+                    >
+                        <div id="preview-canvas-viewport">
+                            <div
+                                id="preview-canvas-scaler"
+                                :class="['canvas-scaler', 'canvas-ar-' + (aspectRatio || '16:9').replace(':','-')]"
+                                :style="canvasScalerStyle"
+                            >
+                                <!-- 프리뷰 렌더 캔버스 (Canvas2D/WebGL 용) -->
+                                <canvas id="preview-render-canvas"></canvas>
+
+                                <div id="preview-guide-h" class="guide-line-h" style="top: 50%;"></div>
+                                <div id="preview-guide-v" class="guide-line-v" style="left: 50%;"></div>
+
+                                <preview-canvas
+                                    :canvas-boxes="canvasBoxes"
+                                    :selected-box-id="selectedBoxId"
+                                    @select-box="setSelectedBoxId"
+                                ></preview-canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 타임라인 리사이저 -->
+                <div
+                    id="main-center-timeline-resizer-h"
+                    class="panel-resizer-h"
+                    title="타임라인 높이 조절"
+                    data-action="js:resizePanelCenter"
+                ></div>
+
+                <!-- 타임라인 패널 -->
+                <timeline-panel :vm="$data" :style="{ height: timelineContainerHeight }"></timeline-panel>
+            </section>
+
+            <!-- 우측 패널 -->
+            <aside
+                id="main-right-panel"
+                class="bg-bg-panel flex flex-col relative border-l border-ui-border"
+                :style="{ width: rightPanelWidth + 'px', minWidth: '250px' }"
+            >
+                <div
+                    id="main-right-resizer-v"
+                    class="panel-resizer-v left-0"
+                    title="우측 패널 너비 조절"
+                    data-action="js:resizePanelRight"
+                ></div>
+
+                <div class="flex-1 overflow-y-auto flex flex-col" id="main-right-vue-root">
+                    <layer-panel :vm="$data"></layer-panel>
+                    <properties-panel :vm="$data"></properties-panel>
+                    <div class="flex-1 bg-bg-dark border-t border-ui-border p-2">
+                        <div class="text-[10px] text-text-sub text-center opacity-30 mt-4">Effects Library</div>
+                    </div>
+                </div>
+            </aside>
+
+        </main>
+
+        <!-- 프로젝트 모달 -->
+        <project-modal v-if="isProjectModalOpen" @close="isProjectModalOpen = false"></project-modal>
+
+        <!-- 레이어 설정 모달 -->
+        <layer-config-modal
+            v-if="layerConfig.isOpen && layerConfigBox"
+            :box="layerConfigBox"
+            @close="closeLayerConfig"
+            @delete="deleteLayerFromConfig"
+        ></layer-config-modal>
+
+        <!-- Inspector / Dev Overlay -->
+        <div class="dev-overlay" id="dev-overlay-root" v-if="inspector.tag">
+            <div id="dev-overlay-highlight" class="dev-highlight" :style="highlightStyle"></div>
+            <div
+                id="dev-overlay-tooltip"
+                class="dev-tooltip"
+                :style="tooltipStyle"
+                @click="copyInspectorId"
+            >
+                <div class="dev-tooltip-header">
+                    <span style="color:#d97706;">#{{ inspector.id || '(no-id)' }}</span>
+                    <span style="color:#1d4ed8;"> {{ inspector.tag }}</span>
+                    <span v-if="inspector.className" style="color:#16a34a;"> .{{ inspector.className.split(' ')[0] }}</span>
+                </div>
+                <div class="dev-tooltip-meta">
+                    Size: {{ inspector.w }} x {{ inspector.h }}
+                </div>
+
+                <template v-if="isDevModeActive && !isDevModeFull">
+                    <div class="dev-tooltip-hint">
+                        클릭하면 현재 요소의 ID가 클립보드에 복사됩니다.
+                    </div>
+                </template>
+
+                <template v-if="isDevModeFull">
+                    <div class="dev-tooltip-devinfo" v-if="inspector.dataDev">
+                        {{ inspector.dataDev }}
+                    </div>
+                    <div class="dev-tooltip-devinfo" v-else>
+                        Spec: NOT FOUND
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS 모듈 -->
+    <script src="js/utils/constants.js"></script>
+    <script src="docs/element-specs.js"></script>
+
+    <script src="js/components/DropdownMenu.js"></script>
+    <script src="js/components/RulerLine.js"></script>
+    <script src="js/components/ProjectModal.js"></script>
+    <script src="js/components/LayerConfigModal.js"></script>
+    <script src="js/components/LayerPanel.js"></script>
+    <script src="js/components/PropertiesPanel.js"></script>
+    <script src="js/components/PreviewCanvas.js"></script>
+    <script src="js/components/TimelinePanel.js"></script>
+
+    <!-- 새 프리뷰 렌더러 (Canvas2D/WebGL 진입점) -->
+    <script src="js/core/preview-renderer.js"></script>
+
+    <script src="js/core/app-root.js"></script>
+    <script src="js/core/bootstrap.js"></script>
+</body>
+</html>
