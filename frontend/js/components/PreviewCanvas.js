@@ -66,7 +66,9 @@ const PreviewCanvas = {
             dragDomEl: null,      // (현재는 사용하지 않지만 남겨둠)
 
             _mouseMoveHandler: null,
-            _mouseUpHandler: null
+            _mouseUpHandler: null,
+
+            _debugMoveCount: 0
         };
     },
     methods: {
@@ -346,6 +348,8 @@ const PreviewCanvas = {
                 this.$parent.isBoxDragging = true;
             }
 
+            console.log('[PreviewCanvas] drag start', box.id);
+
             const target = e.currentTarget;
             const rect = target.getBoundingClientRect();
             const edgeState = this.getEdgeState(e, rect);
@@ -458,6 +462,19 @@ const PreviewCanvas = {
 
             this.dragCurrentBoxPx = { x: newX, y: newY, w: newW, h: newH };
 
+            // 디버그: 10번째 이벤트마다 한 줄만 로그
+            this._debugMoveCount++;
+            if (this._debugMoveCount % 10 === 0) {
+                console.log(
+                    '[PreviewCanvas] move', this.dragBoxId,
+                    'mode=', this.dragMode,
+                    'x=', newX.toFixed(1),
+                    'y=', newY.toFixed(1),
+                    'w=', newW.toFixed(1),
+                    'h=', newH.toFixed(1)
+                );
+            }
+
             // Vue 상태(canvasBoxes)만 업데이트 (DOM 직접 수정 없음)
             if (parent && typeof parent.updateBoxPosition === 'function') {
                 parent.updateBoxPosition(this.dragBoxId, newX, newY, newW, newH);
@@ -468,13 +485,12 @@ const PreviewCanvas = {
             window.removeEventListener('mousemove', this._mouseMoveHandler);
             window.removeEventListener('mouseup', this._mouseUpHandler);
 
-            // 드래그 종료 플래그 (AppRoot에 신호)
             if (this.$parent) {
                 this.$parent.isBoxDragging = false;
             }
 
-            // 드래그 동안 이미 계속 updateBoxPosition으로 상태를 반영했으므로
-            // 여기서는 상태를 다시 건드리지 않고 플래그만 초기화
+            console.log('[PreviewCanvas] drag end', this.dragBoxId);
+
             this.dragMode = null;
             this.dragBoxId = null;
             this.dragDomEl = null;
