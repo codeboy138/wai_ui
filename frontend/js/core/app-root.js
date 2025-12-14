@@ -174,7 +174,7 @@ const AppRoot = {
         /**
          * canvasBoxes 내용이 바뀔 때마다 Pixi 와 동기화.
          * - LayerPanel: 새 박스 추가/삭제
-         * - PreviewCanvas: 드래그/리사이즈 종료
+         * - PreviewCanvas: 드래그/리사이즈
          * - LayerConfigModal: 좌표/스타일 변경
          */
         canvasBoxes: {
@@ -806,62 +806,91 @@ const AppRoot = {
             this.selectedClip = null;
         },
         /**
-         * updateBoxPosition
-         * - PreviewCanvas 등에서 px 단위로 넘어오는 좌표를 받아
-         * - 내부 퍼센트 좌표(nx,ny,nw,nh)를 갱신하고
-         * - 다시 px 캐시(x,y,w,h)를 재계산한다.
-         * - optNorm 이 넘어오면 그 값을 우선 사용 (nx,ny,nw,nh 직접 지정)
+         * updateBoxPosition (드래그/리사이즈용)
+         * - px 좌표(x,y,w,h)를 1차 기준으로 처리하고
+         * - 경계/최소 크기를 px 기준으로 클램프한 뒤
+         * - 퍼센트 좌표(nx,ny,nw,nh)를 2차로 계산한다.
+         * - optNorm 이 넘어오면 퍼센트 좌표를 1차 기준으로 사용하는 특수 케이스
          */
         updateBoxPosition(id, newX, newY, newW, newH, optNorm) {
             const index = this.canvasBoxes.findIndex(b => b.id === id);
             if (index === -1) return;
 
             const oldBox = this.canvasBoxes[index];
-            const box = { ...oldBox };
-
             const cw = this.canvasSize.w || 1;
             const ch = this.canvasSize.h || 1;
 
-            this.ensureBoxNormalized(box);
+            let x, y, w, h;
+            let nx, ny, nw, nh;
 
-            let nx = box.nx;
-            let ny = box.ny;
-            let nw = box.nw;
-            let nh = box.nh;
+            // --- 1) 퍼센트 좌표가 직접 들어온 경우(optNorm) ---
+            if (optNorm && typeof optNorm === 'object') {
+                nx = (typeof optNorm.nx === 'number')
+                    ? optNorm.nx
+                    : (typeof oldBox.nx === 'number' ? oldBox.nx : (oldBox.x || 0) / cw);
+                ny = (typeof optNorm.ny === 'number')
+                    ? optNorm.ny
+                    : (typeof oldBox.ny === 'number' ? oldBox.ny : (oldBox.y || 0) / ch);
+                nw = (typeof optNorm.nw === 'number')
+                    ? optNorm.nw
+                    : (typeof oldBox.nw === 'number' ? oldBox.nw : (oldBox.w || cw) / cw);
+                nh = (typeof optNorm.nh === 'number')
+                    ? optNorm.nh
+                    : (typeof oldBox.nh === 'number' ? oldBox.nh : (oldBox.h || ch) / ch);
 
-            if (optNorm && typeof optNorm.nx === 'number') nx = optNorm.nx;
-            if (optNorm && typeof optNorm.ny === 'number') ny = optNorm.ny;
-            if (optNorm && typeof optNorm.nw === 'number') nw = optNorm.nw;
-            if (optNorm && typeof optNorm.nh === 'number') nh = optNorm.nh;
+                const minNw = 10 / cw;
+                const minNh = 10 / ch;
 
-            if (!optNorm) {
-                if (typeof newX === 'number') nx = newX / cw;
-                if (typeof newY === 'number') ny = newY / ch;
-                if (typeof newW === 'number') nw = newW / cw;
-                if (typeof newH === 'number') nh = newH / ch;
+                if (nw < minNw) nw = minNw;
+                if (nh < minNh) nh = minNh;
+
+                if (nx < 0) nx = 0;
+                if (ny < 0) ny = 0;
+                if (nx + nw > 1) nx = Math.max(0, 1 - nw);
+                if (ny + nh > 1) ny = Math.max(0, 1 - nh);
+
+                x = nx * cw;
+                y = ny * ch;
+                w = nw * cw;
+                h = nh * ch;
+            }
+            // --- 2) 일반 드래그/리사이즈: px 좌표를 1차 기준으로 처리 ---
+            else {
+                x = (typeof newX === 'number')
+                    ? newX
+                    : (typeof oldBox.x === 'number' ? oldBox.x : 0);
+                y = (typeof newY === 'number')
+                    ? newY
+                    : (typeof oldBox.y === 'number' ? oldBox.y : 0);
+                w = (typeof newW === 'number' && newW > 0)
+                    ? newW
+                    : (typeof oldBox.w === 'number' && oldBox.w > 0 ? oldBox.w : cw);
+                h = (typeof newH === 'number' && newH > 0)
+                    ? newH
+                    : (typeof oldBox.h === 'number' && oldBox.h > 0 ? oldBox.h : ch);
+
+                const minW = 10;
+                const minH = 10;
+
+                if (w < minW) w = minW;
+                if (h < minH) h = minH;
+
+                if (x < 0) x = 0;
+                if (y < 0) y = 0;
+                if (x + w > cw) x = Math.max(0, cw - w);
+                if (y + h > ch) y = Math.max(0, ch - h);
+
+                nx = x / cw;
+                ny = y / ch;
+                nw = w / cw;
+                nh = h / ch;
             }
 
-            const minNw = 10 / cw;
-            const minNh = 10 / ch;
-
-            if (nw < minNw) nw = minNw;
-            if (nh < minNh) nh = minNh;
-
-            if (nx < 0) nx = 0;
-            if (ny < 0) ny = 0;
-            if (nx + nw > 1) {
-                nx = Math.min(nx, 1 - nw);
-            }
-            if (ny + nh > 1) {
-                ny = Math.min(ny, 1 - nh);
-            }
-
-            box.nx = nx;
-            box.ny = ny;
-            box.nw = nw;
-            box.nh = nh;
-
-            this.applyBoxNormalizedToPx(box);
+            const box = {
+                ...oldBox,
+                x, y, w, h,
+                nx, ny, nw, nh
+            };
 
             const newBoxes = [...this.canvasBoxes];
             newBoxes[index] = box;
