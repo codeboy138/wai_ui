@@ -31,6 +31,7 @@ import time
 import argparse
 import hashlib
 import subprocess
+import stat
 from datetime import datetime
 from typing import List
 
@@ -43,7 +44,8 @@ except ImportError:
 
 # --- 경로 설정 ---
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))   # C:\wai-ui\frontend
+# [수정] Windows 단축 경로(~1) 문제를 피하기 위해 realpath로 실제 경로 해상
+REPO_ROOT = os.path.realpath(os.path.abspath(os.path.join(SCRIPT_DIR, "..")))   # C:\wai-ui\frontend
 SNAP_DIR = os.path.join(REPO_ROOT, "_snapshots")
 STATE_FILE = os.path.join(SNAP_DIR, "prompt_state.json")
 STATE_LOCK = os.path.join(SNAP_DIR, "prompt_state.lock")
@@ -83,6 +85,19 @@ def sanitize_for_path(name: str) -> str:
     return safe or "snapshot"
 
 
+def on_rm_error(func, path, exc_info):
+    """
+    shutil.rmtree 실패 시 호출 (주로 읽기 전용 파일 삭제 위함)
+    """
+    # 권한 문제인 경우 권한 변경 후 재시도
+    if not os.access(path, os.W_OK):
+        os.chmod(path, stat.S_IWRITE)
+        func(path)
+    else:
+        # 다른 오류는 무시하거나 출력
+        print(f"[WARN] 파일 삭제 실패: {path} - {exc_info[1]}")
+
+
 def safe_delete_folder(path: str) -> bool:
     """
     폴더를 안전하게 삭제.
@@ -90,6 +105,9 @@ def safe_delete_folder(path: str) -> bool:
     - 그렇지 않으면 shutil.rmtree 로 영구 삭제
     반환값: 삭제 성공 여부
     """
+    # [수정] 경로 정규화 (WinError 161 방지)
+    path = os.path.normpath(os.path.abspath(path))
+
     if not os.path.isdir(path):
         return False
 
@@ -99,20 +117,16 @@ def safe_delete_folder(path: str) -> bool:
             return True
         except Exception as e:
             print(f"[WARN] 휴지통 이동 실패, 영구 삭제 시도: {e}")
-            # 폴백: 영구 삭제
-            try:
-                shutil.rmtree(path)
-                return True
-            except Exception as e2:
-                print(f"[WARN] 영구 삭제도 실패: {e2}")
-                return False
-    else:
-        try:
-            shutil.rmtree(path)
-            return True
-        except Exception as e:
-            print(f"[WARN] 폴더 삭제 실패: {e}")
-            return False
+            # 폴백: 영구 삭제로 넘어감
+    
+    # 영구 삭제 시도
+    try:
+        if os.path.isdir(path):
+            shutil.rmtree(path, onerror=on_rm_error)
+        return True
+    except Exception as e2:
+        print(f"[WARN] 영구 삭제도 실패: {e2}")
+        return False
 
 
 def append_snapshot_log(ts_for_log: str, folder_name: str, description: str) -> None:
