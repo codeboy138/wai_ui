@@ -298,6 +298,9 @@ def cleanup_old_snapshots(keep_last: int = 5) -> None:
 
 
 def get_previous_snapshot_name(current_snap_name: str):
+    """
+    현재 스냅샷 폴더 이름을 기준으로 정렬상 바로 이전 폴더 이름을 찾음.
+    """
     ensure_dir(SNAP_DIR)
     dirs = [
         d for d in os.listdir(SNAP_DIR)
@@ -356,14 +359,20 @@ def save_snapshot(description: str, prompt_idx: int, keep_last: int = 5) -> None
     append_snapshot_log(ts_for_log, folder_name, description)
     cleanup_old_snapshots(keep_last=keep_last)
 
+    # 이전 스냅샷 찾기 (방금 만든게 current이므로, 직전 스냅샷이 나옴)
     prev_snap_name = get_previous_snapshot_name(folder_name)
 
     print(f"[P{prompt_idx}] {ts_for_log} | {folder_name}")
     print(f"  > 파일: {len(files)}개 저장됨")
     if description:
         print(f"  > 설명: {description}")
+    
+    # [수정] 복구 명령줄 안내 시 직전 스냅샷 이름 사용
     if prev_snap_name:
         print(f"  > 복구: py tools\\wai_local_snapshot.py restore {prev_snap_name}")
+    else:
+        print(f"  > 복구: (이전 스냅샷 없음 - 최초 저장)")
+        
     print("-" * 50)
 
 
@@ -398,7 +407,7 @@ def restore_snapshot(snap_name: str) -> None:
         with open(manifest_path, "r", encoding="utf-8") as f:
             m = json.load(f)
         files = m.get("files", [])
-        prompt_idx = m.get("prompt_index")
+        prompt_idx = m.get("prompt_index", "")
         description = m.get("description", "")
     else:
         files = []
