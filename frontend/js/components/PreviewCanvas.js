@@ -30,7 +30,6 @@ const PreviewCanvas = {
 
   computed: {
     scalerStyle() {
-      // 캔버스 논리 크기 (예: 1920x1080)
       const cw = this.canvasSize?.w || 1920;
       const ch = this.canvasSize?.h || 1080;
       return {
@@ -43,27 +42,21 @@ const PreviewCanvas = {
   },
 
   methods: {
-    // --- 좌표 변환 (마우스 화면 좌표 -> 캔버스 논리 좌표) ---
-    // 해상도가 지정되어 있어도 화면엔 축소되어 표시되므로 스케일 보정이 필수입니다.
+    // [핵심] 화면 좌표 -> 캔버스 논리 좌표 변환 (스케일 보정)
     clientToCanvas(e) {
       const scaler = document.getElementById('preview-canvas-scaler');
       if (!scaler) {
         return { mx: 0, my: 0 };
       }
       
-      // 1. 화면에 실제 렌더링된 크기 (px)
       const rect = scaler.getBoundingClientRect();
-      
-      // 2. 논리적 해상도 (px)
       const logicalW = (this.canvasSize && this.canvasSize.w) ? this.canvasSize.w : 1920;
       
-      // 3. 스케일 비율 = (렌더링된 너비) / (논리 너비)
+      // 스케일 = (화면상 렌더링된 너비) / (논리적 너비)
       let scaleX = rect.width / logicalW;
-      
-      // 안전장치: 0 나누기 방지
       if (!scaleX || scaleX === 0) scaleX = 1;
 
-      // 4. 변환: (마우스위치 - 캔버스시작점) / 스케일
+      // 변환: (현재마우스 - 캔버스시작점) / 스케일
       const mx = (e.clientX - rect.left) / scaleX;
       const my = (e.clientY - rect.top) / scaleX;
       
@@ -74,7 +67,7 @@ const PreviewCanvas = {
       const isSelected = (this.selectedBoxId === box.id);
       return {
         position: 'absolute',
-        // 좌표 계산 오류 방지를 위해 Number() 강제 변환
+        // 좌표 계산 안전성을 위해 Number()로 강제 변환
         left: (Number(box.x) || 0) + 'px',
         top: (Number(box.y) || 0) + 'px',
         width: (Number(box.w) || 0) + 'px',
@@ -87,8 +80,7 @@ const PreviewCanvas = {
       };
     },
 
-    // [레이블] 박스 내부 하단(bottom: 0)에 표시
-    // 정보 출처: box.layerName (또는 type)
+    // [복구] 레이블: 박스 내부 하단(bottom: 0)
     labelChipStyle(box) {
       return {
         position: 'absolute',
@@ -162,7 +154,7 @@ const PreviewCanvas = {
       this.dragBoxId = box.id;
       this.dragStartMouse = { mx, my };
       
-      // 초기 상태 저장 (숫자로 변환하여 저장)
+      // 초기 상태: 반드시 숫자로 변환하여 저장 (문자열 연산 방지)
       this.dragStartBox = { 
         x0: Number(box.x) || 0, 
         y0: Number(box.y) || 0, 
@@ -178,7 +170,7 @@ const PreviewCanvas = {
       if (!this.dragging) return;
 
       const { mx, my } = this.clientToCanvas(e);
-      // 논리 좌표 기준 이동 거리
+      // 논리 좌표계 기준 이동 거리
       const dx = mx - this.dragStartMouse.mx;
       const dy = my - this.dragStartMouse.my;
       
@@ -192,7 +184,7 @@ const PreviewCanvas = {
         x += dx;
         y += dy;
         
-        // Clamping: 캔버스 밖으로 못 나가게 제한
+        // Clamping (캔버스 내부 제한)
         if (x < 0) x = 0;
         if (y < 0) y = 0;
         if (x + w > cw) x = cw - w;
@@ -201,38 +193,51 @@ const PreviewCanvas = {
       } else if (this.dragMode === 'resize') {
         const hdl = this.dragHandle;
         
-        // 가로 방향
+        // [수정] 리사이징 로직: 음수 너비/높이 방지 및 정확한 좌표 계산
+        // 가로 (Left/Right)
         if (hdl.includes('l')) { 
+          // 왼쪽 핸들: x 이동만큼 w는 반대로 줄어듦
           let newX = x + dx;
+          // 경계 체크
           if (newX < 0) newX = 0;
+          // 오른쪽 끝점(고정점) 기준으로 너비 재계산
           const rightEdge = x0 + w0;
           let newW = rightEdge - newX;
+          
           x = newX;
           w = newW;
         } else if (hdl.includes('r')) {
+          // 오른쪽 핸들: w만 증가
           w += dx;
+          // 경계 체크
           if (x + w > cw) w = cw - x;
         }
 
-        // 세로 방향
+        // 세로 (Top/Bottom)
         if (hdl.includes('t')) {
+          // 위쪽 핸들: y 이동만큼 h는 반대로 줄어듦
           let newY = y + dy;
+          // 경계 체크
           if (newY < 0) newY = 0;
+          // 아래쪽 끝점(고정점) 기준으로 높이 재계산
           const bottomEdge = y0 + h0;
           let newH = bottomEdge - newY;
+          
           y = newY;
           h = newH;
         } else if (hdl.includes('b')) {
+          // 아래쪽 핸들: h만 증가
           h += dy;
+          // 경계 체크
           if (y + h > ch) h = ch - y;
         }
       }
 
-      // 최소 크기 제한
+      // 최소 크기 제한 (10px)
       if (w < 10) w = 10;
       if (h < 10) h = 10;
 
-      // 부모로 업데이트 이벤트 발송
+      // 부모 컴포넌트에 업데이트 요청 (null 인자는 퍼센트 자동 계산용)
       if (this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
         this.$parent.updateBoxPosition(this.dragBoxId, x, y, w, h, null);
       }
