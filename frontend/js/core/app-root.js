@@ -1,6 +1,7 @@
 const { createApp, reactive, ref, onMounted, computed, nextTick } = Vue;
 
 // 프리뷰 캔버스 기준 긴 변 픽셀 (해상도와 무관, 프리뷰 전용 메타값)
+// ※ 실제 프리뷰 좌표계는 wrapper 크기에 맞춰 동적으로 결정된다.
 const BASE_CANVAS_LONG_SIDE = 1920;
 
 // 해상도별 기준 긴 변 픽셀 (레이블용, 프리뷰 스케일과는 무관)
@@ -44,7 +45,7 @@ const AppRoot = {
         'project-modal': ProjectModal, 
         'layer-panel': LayerPanel,
         'properties-panel': PropertiesPanel,
-        'preview-canvas': PreviewCanvas,
+        'preview-canvas': PreviewCanvas, // Vue.component 전역 등록되었지만 명시적 선언 유지 가능
         'timeline-panel': TimelinePanel,
         'ruler-line': RulerLine,
         'layer-config-modal': LayerConfigModal
@@ -59,8 +60,8 @@ const AppRoot = {
             isProjectModalOpen: false,
 
             // Dev / Inspector 모드 상태
-            isDevModeActive: false,
-            isDevModeFull: false,
+            isDevModeActive: false,   // Inspect
+            isDevModeFull: false,     // Dev
             
             // Core Timeline/Canvas State
             tracks: [
@@ -93,12 +94,14 @@ const AppRoot = {
             // Preview Toolbar State
             aspectRatio: '16:9',
             resolution: '4K',
+            // canvasSize: 실제 프리뷰 px (wrapper 크기 기준, aspectRatio 유지)
             canvasSize: { w: 1920, h: 1080 }, 
             mouseCoord: { x: 0, y: 0 }, 
             isMouseOverCanvas: false,
+            // canvasScale: transform:scale 대신 항상 1.0 유지 (좌표계 = 실제 px)
             canvasScale: 1.0,
 
-            // ★ 박스 드래그 중 여부 (syncBoxes 스킵용)
+            // 박스 드래그 중 여부 (PreviewCanvas에서 제어)
             isBoxDragging: false,
             
             // Inspector / Dev Overlay State
@@ -127,6 +130,7 @@ const AppRoot = {
         };
     },
     computed: {
+        // 프리뷰 스케일러: transform scale 제거, translate만 사용 (좌표계 = 실제 px)
         canvasScalerStyle() {
             return {
                 width: this.canvasSize.w + 'px',
@@ -164,10 +168,6 @@ const AppRoot = {
         },
         canvasBoxes: {
             handler(newBoxes) {
-                // ★ 드래그 중이면 syncBoxes 호출 스킵
-                if (this.isBoxDragging) {
-                    return;
-                }
                 try {
                     if (window.PreviewRenderer && typeof window.PreviewRenderer.syncBoxes === 'function') {
                         window.PreviewRenderer.syncBoxes(newBoxes);
@@ -554,6 +554,7 @@ const AppRoot = {
             this.resolution = key;
         },
 
+        // 해상도 레이블 계산용 (프리뷰 좌표계와는 별개, 메타정보)
         computeResolutionSize(aspectRatio, resolutionKey) {
             const key = resolutionKey || '4K';
             const longSide = RESOLUTION_LONG_SIDE[key] || RESOLUTION_LONG_SIDE['4K'];
@@ -578,6 +579,7 @@ const AppRoot = {
             return `${k} (${size.w} x ${size.h})`;
         },
 
+        // wrapper 크기 + aspectRatio 기반으로 실제 canvasSize(px) 재계산
         recalculateCanvasSizeFromWrapper() {
             const wrapper = document.getElementById('preview-canvas-wrapper');
             if (!wrapper) return;
@@ -602,22 +604,26 @@ const AppRoot = {
 
             let w, h;
             if (wrapperRatio > targetRatio) {
+                // wrapper가 더 넓음 → 높이에 맞추고 좌우 레터박스
                 h = innerH;
                 w = Math.round(h * targetRatio);
             } else {
+                // wrapper가 더 좁음 → 너비에 맞추고 상하 레터박스
                 w = innerW;
                 h = Math.round(w / targetRatio);
             }
 
             this.canvasSize = { w, h };
-            this.canvasScale = 1.0;
+            this.canvasScale = 1.0; // 좌표계 = 실제 px
         },
 
         updateCanvasSizeFromControls() {
+            // 해상도/비율 변경 시, wrapper 기준으로 실제 canvasSize를 다시 계산
             this.recalculateCanvasSizeFromWrapper();
             this.ensureAllBoxesNormalized();
         },
 
+        // 기존 recalculateCanvasScale 은 canvasSize 재계산을 래핑하는 역할만 하도록 단순화
         recalculateCanvasScale() {
             this.recalculateCanvasSizeFromWrapper();
         },
@@ -654,7 +660,7 @@ const AppRoot = {
 
             const canvasX = e.clientX - sRect.left;
             const canvasY = e.clientY - sRect.top;
-            const scale = this.canvasScale || 1.0;
+            const scale = this.canvasScale || 1.0; // 현재는 항상 1.0 이지만 안전용
 
             const realX = canvasX / scale;
             const realY = canvasY / scale;
@@ -735,6 +741,7 @@ const AppRoot = {
             }
         },
 
+        // --- 모든 number 스핀박스: 마우스 휠로 증감 ---
         setupSpinWheel() {
             const handler = (event) => {
                 const target = event.target;
@@ -797,9 +804,7 @@ const AppRoot = {
         },
 
         /**
-         * ★ 수정: 퍼센트 좌표 기반 업데이트 (Pixi 렌더러 전용)
-         * - 드래그 종료 시 호출됨
-         * - syncBoxes 스킵 로직과 연동
+         * 퍼센트(0~1) 좌표 기반 업데이트 (PreviewCanvas 드래그 전용)
          */
         updateBoxPositionNormalized(id, nx, ny, nw, nh) {
             const index = this.canvasBoxes.findIndex(b => b.id === id);
@@ -808,20 +813,18 @@ const AppRoot = {
             const cw = this.canvasSize.w || 1;
             const ch = this.canvasSize.h || 1;
 
-            // 최소 크기: 20px
+            // 최소 크기: 논리 캔버스 기준 20px
             const minNw = 20 / cw;
             const minNh = 20 / ch;
 
             if (nw < minNw) nw = minNw;
             if (nh < minNh) nh = minNh;
 
-            // 캔버스 경계 클램프
             if (nx < 0) nx = 0;
             if (ny < 0) ny = 0;
             if (nx + nw > 1) nx = Math.max(0, 1 - nw);
             if (ny + nh > 1) ny = Math.max(0, 1 - nh);
 
-            // 픽셀 좌표 계산
             const x = nx * cw;
             const y = ny * ch;
             const w = nw * cw;
@@ -840,7 +843,8 @@ const AppRoot = {
         },
 
         /**
-         * 픽셀 기반 업데이트 (레이어 설정 모달, DOM 드래그 등에서 사용)
+         * px 기반 업데이트 (PreviewCanvas, 레이어 설정 모달 등에서 사용)
+         * → 항상 nx,ny,nw,nh(0~1)를 함께 갱신
          */
         updateBoxPosition(id, newX, newY, newW, newH, optNorm) {
             const index = this.canvasBoxes.findIndex(b => b.id === id);
@@ -854,6 +858,7 @@ const AppRoot = {
             let nx, ny, nw, nh;
 
             if (optNorm && typeof optNorm === 'object') {
+                // 이미 퍼센트 좌표가 계산된 경우 (PreviewCanvas 등)
                 nx = (typeof optNorm.nx === 'number')
                     ? optNorm.nx
                     : (typeof oldBox.nx === 'number' ? oldBox.nx : (oldBox.x || 0) / cw);
@@ -878,11 +883,13 @@ const AppRoot = {
                 if (nx + nw > 1) nx = Math.max(0, 1 - nw);
                 if (ny + nh > 1) ny = Math.max(0, 1 - nh);
 
+                // **수정된 부분: 여기서 퍼센트 좌표를 픽셀 좌표로 변환**
                 x = nx * cw;
                 y = ny * ch;
                 w = nw * cw;
                 h = nh * ch;
             } else {
+                // 픽셀 좌표가 들어온 경우 (레이어 설정 모달 등)
                 x = (typeof newX === 'number')
                     ? newX
                     : (typeof oldBox.x === 'number' ? oldBox.x : 0);
