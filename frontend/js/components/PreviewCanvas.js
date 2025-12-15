@@ -23,7 +23,7 @@ export default {
     },
 
     /**
-     * 선택된 박스 ID (선택 표시 등에 사용할 수 있음)
+     * 선택된 박스 ID
      */
     selectedBoxId: {
       type: String,
@@ -39,7 +39,7 @@ export default {
       dragHandle: null,      // 'tl' | 'tr' | 'bl' | 'br' | null
       dragBoxId: null,
 
-      // 드래그 시작 시 마우스 좌표(canvas-px)
+      // 드래그 시작 시 마우스 좌표(canvas px)
       dragStartMouse: {
         mx: 0,
         my: 0
@@ -66,7 +66,6 @@ export default {
   computed: {
     /**
      * 캔버스 스케일러 스타일
-     * (canvasSize 기준으로 비율 맞출 수 있게 hook 제공)
      */
     scalerStyle() {
       const cw = this.canvasSize?.w || 1;
@@ -88,7 +87,12 @@ export default {
     clientToCanvas(e) {
       const scaler = document.getElementById('preview-canvas-scaler');
       if (!scaler) {
-        return { mx: 0, my: 0, cw: this.canvasSize?.w || 1, ch: this.canvasSize?.h || 1 };
+        return {
+          mx: 0,
+          my: 0,
+          cw: this.canvasSize?.w || 1,
+          ch: this.canvasSize?.h || 1
+        };
       }
 
       const rect = scaler.getBoundingClientRect();
@@ -146,7 +150,7 @@ export default {
     },
 
     /**
-     * 박스 본체를 드래그해서 이동 시작
+     * 박스 본체 드래그 시작 (이동)
      */
     onBoxMouseDown(e, box) {
       e.preventDefault();
@@ -172,7 +176,7 @@ export default {
       window.addEventListener('mousemove', this.onWindowMouseMove);
       window.addEventListener('mouseup', this.onWindowMouseUp);
 
-      // 선택 이벤트 (부모가 사용하면 됨)
+      // 선택 이벤트 (부모에서 필요하면 리스닝)
       this.$emit('select-box', box.id);
     },
 
@@ -210,7 +214,7 @@ export default {
     /**
      * 전역 mousemove 핸들러
      * - 이동 / 리사이즈 모두 여기서 처리
-     * - px 기준으로 계산 후, 부모에 그대로 전달
+     * - px 기준으로 계산 후, 부모 AppRoot.updateBoxPosition 에 그대로 전달
      */
     onWindowMouseMove(e) {
       if (!this.dragging || !this.dragBoxId) return;
@@ -300,9 +304,10 @@ export default {
         }
       }
 
-      // 부모(AppRoot)에 px 값 그대로 전달
-      // 시그니처: (id, x, y, w, h, optNorm)
-      this.$emit('update-box-position', this.dragBoxId, x, y, w, h, null);
+      // ✅ 부모(AppRoot)의 updateBoxPosition에 px 값 그대로 전달
+      if (this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
+        this.$parent.updateBoxPosition(this.dragBoxId, x, y, w, h, null);
+      }
     },
 
     /**
@@ -388,4 +393,7 @@ export default {
   }
 };
 
-Vue.component('PreviewCanvas', module.exports ? module.exports.default || module.exports : exports.default || exports);
+Vue.component(
+  'PreviewCanvas',
+  module.exports ? module.exports.default || module.exports : (exports && (exports.default || exports))
+);
