@@ -1,31 +1,16 @@
-// CDN 환경에 맞게 import 제거 및 전역 객체 할당 방식으로 수정
 const PreviewCanvas = {
   name: 'PreviewCanvas',
 
   props: {
-    /**
-     * 박스 목록
-     * 부모 컴포넌트(app-root.js)에서 :canvas-boxes="..." 로 전달하므로
-     * 이름을 반드시 canvasBoxes 로 맞춰야 데이터가 수신됨.
-     */
     canvasBoxes: {
       type: Array,
       required: true
     },
-
-    /**
-     * 캔버스 크기(px 기준)
-     * { w, h }
-     */
     canvasSize: {
       type: Object,
       required: false,
       default: () => ({ w: 1920, h: 1080 })
     },
-
-    /**
-     * 선택된 박스 ID
-     */
     selectedBoxId: {
       type: String,
       default: null
@@ -34,273 +19,176 @@ const PreviewCanvas = {
 
   data() {
     return {
-      // 드래그/리사이즈 상태
       dragging: false,
-      dragMode: null,        // 'move' | 'resize' | null
-      dragHandle: null,      // 'tl' | 'tr' | 'bl' | 'br' | null
+      dragMode: null, 
+      dragHandle: null,
       dragBoxId: null,
-
-      // 드래그 시작 시 마우스 좌표(canvas px)
-      dragStartMouse: {
-        mx: 0,
-        my: 0
-      },
-
-      // 드래그 시작 시 박스 상태
-      dragStartBox: {
-        x0: 0,
-        y0: 0,
-        w0: 0,
-        h0: 0,
-        right0: 0,
-        bottom0: 0
-      },
-
-      // 드래그 시점의 캔버스 크기
-      dragCanvasSize: {
-        cw: 0,
-        ch: 0
-      }
+      dragStartMouse: { mx: 0, my: 0 },
+      dragStartBox: { x0: 0, y0: 0, w0: 0, h0: 0 },
     };
   },
 
   computed: {
-    /**
-     * 캔버스 스케일러 스타일
-     */
     scalerStyle() {
       const cw = this.canvasSize?.w || 1920;
       const ch = this.canvasSize?.h || 1080;
-
       return {
         position: 'relative',
         width: cw + 'px',
         height: ch + 'px',
-        overflow: 'visible' // 핸들이 박스 밖으로 나갈 수 있으므로 visible
+        // 핸들이나 레이블이 박스 밖으로 삐져나와도 보이도록 visible
+        overflow: 'visible' 
       };
     }
   },
 
   methods: {
-    /**
-     * 브라우저 client 좌표 -> 캔버스 좌표 (composition px)
-     */
+    // 마우스 이벤트 -> 논리 캔버스 좌표(px) 변환
     clientToCanvas(e) {
       const scaler = document.getElementById('preview-canvas-scaler');
       if (!scaler) {
-        return {
-          mx: 0,
-          my: 0,
-          cw: this.canvasSize?.w || 1920,
-          ch: this.canvasSize?.h || 1080
-        };
+        return { mx: 0, my: 0 };
       }
-
+      
+      // scaler는 transform: scale(...) 이 적용되어 있음.
+      // getBoundingClientRect()는 스케일된 실제 화면 크기를 반환함.
       const rect = scaler.getBoundingClientRect();
-      const cw = this.canvasSize?.w || 1920;
-      const ch = this.canvasSize?.h || 1080;
-
-      // 화면상 렌더링된 크기(rect.width) 대 논리 크기(cw) 비
-      const scaleX = rect.width / cw;
-      // 0이나 무한대 방지
-      const scale = (!Number.isFinite(scaleX) || scaleX <= 0) ? 1 : scaleX;
-
-      const mx = (e.clientX - rect.left) / scale;
-      const my = (e.clientY - rect.top) / scale;
-
-      return { mx, my, cw, ch };
+      const scaleX = rect.width / (this.canvasSize?.w || 1920);
+      
+      // 마우스 위치(clientX)에서 캔버스 시작점(rect.left)을 빼고, 스케일로 나눔
+      const mx = (e.clientX - rect.left) / scaleX;
+      const my = (e.clientY - rect.top) / scaleX;
+      
+      return { mx, my };
     },
 
-    /**
-     * 박스 스타일 (px 기준)
-     */
     boxStyle(box) {
-      const x = box.x || 0;
-      const y = box.y || 0;
-      const w = box.w || 0;
-      const h = box.h || 0;
-      const z = box.zIndex || 0;
-      
-      const borderColor = box.color || '#ffffff';
       const isSelected = (this.selectedBoxId === box.id);
-
       return {
         position: 'absolute',
-        left: x + 'px',
-        top: y + 'px',
-        width: w + 'px',
-        height: h + 'px',
-        boxSizing: 'border-box',
-        border: `2px solid ${borderColor}`,
-        zIndex: z,
+        left: (box.x || 0) + 'px',
+        top: (box.y || 0) + 'px',
+        width: (box.w || 0) + 'px',
+        height: (box.h || 0) + 'px',
+        border: `2px solid ${box.color || '#fff'}`,
+        zIndex: box.zIndex || 0,
         cursor: 'move',
-        // 선택된 경우 강조 그림자
-        boxShadow: isSelected 
-            ? '0 0 0 1px #fff, 0 0 10px rgba(0,0,0,0.5)' 
-            : 'none',
-        // 텍스트 레이어인 경우 배경색 처리 (선택적으로)
-        backgroundColor: box.layerBgColor || 'transparent' 
+        boxShadow: isSelected ? '0 0 0 1px #fff, 0 0 10px rgba(0,0,0,0.5)' : 'none',
+        backgroundColor: box.layerBgColor || 'transparent'
       };
     },
 
-    /**
-     * 라벨 칩 스타일
-     */
     labelChipStyle(box) {
       return {
         position: 'absolute',
-        bottom: '0',
+        bottom: '0', 
         left: '0',
         backgroundColor: box.color || '#333',
         color: '#fff',
         padding: '2px 4px',
-        fontSize: '10px',
+        fontSize: '12px',
         maxWidth: '100%',
+        whiteSpace: 'nowrap',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-        pointerEvents: 'none'
+        pointerEvents: 'none' // 레이블이 드래그 방해 안 하도록
       };
     },
 
-    /**
-     * 박스 본체 드래그 시작 (이동)
-     */
+    // 핸들 스타일 공통
+    handleStyle(pos) {
+      // 모서리에 8x8 정도 크기
+      const size = 12; 
+      const offset = -6; // 중앙 정렬을 위해
+      const style = {
+        position: 'absolute',
+        width: size + 'px',
+        height: size + 'px',
+        backgroundColor: '#fff',
+        border: '1px solid #000',
+        zIndex: 9999, // 매우 높게
+        pointerEvents: 'auto' // 중요: 이벤트 받도록
+      };
+
+      if (pos === 'tl') { style.top = offset + 'px'; style.left = offset + 'px'; style.cursor = 'nwse-resize'; }
+      if (pos === 'tr') { style.top = offset + 'px'; style.right = offset + 'px'; style.cursor = 'nesw-resize'; }
+      if (pos === 'bl') { style.bottom = offset + 'px'; style.left = offset + 'px'; style.cursor = 'nesw-resize'; }
+      if (pos === 'br') { style.bottom = offset + 'px'; style.right = offset + 'px'; style.cursor = 'nwse-resize'; }
+      
+      return style;
+    },
+
     onBoxMouseDown(e, box) {
+      // 핸들 클릭인지 확인 (핸들은 stopPropagation 했으므로 여기 안 옴, 안전장치)
+      if (e.target.classList.contains('box-handle')) return;
+      
       e.preventDefault();
-
-      const { mx, my, cw, ch } = this.clientToCanvas(e);
-
-      this.dragging = true;
-      this.dragMode = 'move';
-      this.dragHandle = null;
-      this.dragBoxId = box.id;
-
-      const x0 = box.x || 0;
-      const y0 = box.y || 0;
-      const w0 = box.w || 0;
-      const h0 = box.h || 0;
-      const right0 = x0 + w0;
-      const bottom0 = y0 + h0;
-
-      this.dragStartMouse = { mx, my };
-      this.dragStartBox = { x0, y0, w0, h0, right0, bottom0 };
-      this.dragCanvasSize = { cw, ch };
-
-      window.addEventListener('mousemove', this.onWindowMouseMove);
-      window.addEventListener('mouseup', this.onWindowMouseUp);
-
-      // 선택 이벤트 발생
       this.$emit('select-box', box.id);
-    },
-
-    /**
-     * 리사이즈 핸들 드래그 시작
-     */
-    onHandleMouseDown(e, box, handle) {
-      e.preventDefault();
-      e.stopPropagation();
-
-      const { mx, my, cw, ch } = this.clientToCanvas(e);
-
-      this.dragging = true;
-      this.dragMode = 'resize';
-      this.dragHandle = handle;
-      this.dragBoxId = box.id;
-
-      const x0 = box.x || 0;
-      const y0 = box.y || 0;
-      const w0 = box.w || 0;
-      const h0 = box.h || 0;
-      const right0 = x0 + w0;
-      const bottom0 = y0 + h0;
-
-      this.dragStartMouse = { mx, my };
-      this.dragStartBox = { x0, y0, w0, h0, right0, bottom0 };
-      this.dragCanvasSize = { cw, ch };
-
-      window.addEventListener('mousemove', this.onWindowMouseMove);
-      window.addEventListener('mouseup', this.onWindowMouseUp);
-
-      this.$emit('select-box', box.id);
-    },
-
-    /**
-     * 전역 mousemove 핸들러
-     */
-    onWindowMouseMove(e) {
-      if (!this.dragging || !this.dragBoxId) return;
 
       const { mx, my } = this.clientToCanvas(e);
-      const { x0, y0, w0, h0, right0, bottom0 } = this.dragStartBox;
-      const { cw, ch } = this.dragCanvasSize;
+      this.startDrag('move', box, mx, my);
+    },
 
-      let x = x0;
-      let y = y0;
-      let w = w0;
-      let h = h0;
+    onHandleMouseDown(e, box, handle) {
+      e.stopPropagation(); // 박스 드래그 방지
+      e.preventDefault();
+      this.$emit('select-box', box.id);
 
-      const minW = 20;
-      const minH = 20;
+      const { mx, my } = this.clientToCanvas(e);
+      this.startDrag('resize', box, mx, my, handle);
+    },
+
+    startDrag(mode, box, mx, my, handle = null) {
+      this.dragging = true;
+      this.dragMode = mode;
+      this.dragHandle = handle;
+      this.dragBoxId = box.id;
+      this.dragStartMouse = { mx, my };
+      this.dragStartBox = { 
+        x0: box.x || 0, 
+        y0: box.y || 0, 
+        w0: box.w || 0, 
+        h0: box.h || 0 
+      };
+
+      window.addEventListener('mousemove', this.onWindowMouseMove);
+      window.addEventListener('mouseup', this.onWindowMouseUp);
+    },
+
+    onWindowMouseMove(e) {
+      if (!this.dragging) return;
+
+      const { mx, my } = this.clientToCanvas(e);
+      const dx = mx - this.dragStartMouse.mx;
+      const dy = my - this.dragStartMouse.my;
+      
+      const { x0, y0, w0, h0 } = this.dragStartBox;
+      let x = x0, y = y0, w = w0, h = h0;
 
       if (this.dragMode === 'move') {
-        const dx = mx - this.dragStartMouse.mx;
-        const dy = my - this.dragStartMouse.my;
-
-        x = x0 + dx;
-        y = y0 + dy;
-        w = w0;
-        h = h0;
+        x += dx;
+        y += dy;
       } else if (this.dragMode === 'resize') {
-        const handle = this.dragHandle;
-
-        if (handle === 'br') {
-          const rawW = mx - x0;
-          const rawH = my - y0;
-          w = Math.max(minW, rawW);
-          h = Math.max(minH, rawH);
-          x = x0;
-          y = y0;
-        } else if (handle === 'tl') {
-          const rawW = right0 - mx;
-          const rawH = bottom0 - my;
-          w = Math.max(minW, rawW);
-          h = Math.max(minH, rawH);
-          x = right0 - w;
-          y = bottom0 - h;
-        } else if (handle === 'tr') {
-          const rawW = mx - x0;
-          const rawH = bottom0 - my;
-          w = Math.max(minW, rawW);
-          h = Math.max(minH, rawH);
-          x = x0;
-          y = bottom0 - h;
-        } else if (handle === 'bl') {
-          const rawW = right0 - mx;
-          const rawH = my - y0;
-          w = Math.max(minW, rawW);
-          h = Math.max(minH, rawH);
-          x = right0 - w;
-          y = y0;
-        }
+        const hdl = this.dragHandle;
+        if (hdl.includes('l')) { x += dx; w -= dx; }
+        if (hdl.includes('r')) { w += dx; }
+        if (hdl.includes('t')) { y += dy; h -= dy; }
+        if (hdl.includes('b')) { h += dy; }
       }
 
-      // 부모(AppRoot)의 updateBoxPosition에 px 값 전달
+      // 최소 크기 제한
+      if (w < 10) w = 10;
+      if (h < 10) h = 10;
+
       if (this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
-        // null을 전달하면 내부에서 nx, ny 등을 자동 재계산
+        // null을 주면 내부에서 퍼센트 좌표 자동 재계산
         this.$parent.updateBoxPosition(this.dragBoxId, x, y, w, h, null);
       }
     },
 
-    /**
-     * 전역 mouseup 핸들러
-     */
     onWindowMouseUp() {
       this.dragging = false;
       this.dragMode = null;
-      this.dragHandle = null;
-      this.dragBoxId = null;
-
       window.removeEventListener('mousemove', this.onWindowMouseMove);
       window.removeEventListener('mouseup', this.onWindowMouseUp);
     }
@@ -322,22 +210,21 @@ const PreviewCanvas = {
         @mousedown="onBoxMouseDown($event, box)"
         data-action="js:selectCanvasBox"
       >
-        <!-- 라벨 칩 -->
+        <!-- 레이블 (박스 하단 고정) -->
         <div class="canvas-label-chip" :style="labelChipStyle(box)">
           {{ box.layerName || box.type || 'Layer' }}
         </div>
 
         <!-- 리사이즈 핸들 (선택 시만) -->
         <template v-if="selectedBoxId === box.id">
-          <div class="box-handle bh-tl" @mousedown.stop="onHandleMouseDown($event, box, 'tl')"></div>
-          <div class="box-handle bh-tr" @mousedown.stop="onHandleMouseDown($event, box, 'tr')"></div>
-          <div class="box-handle bh-bl" @mousedown.stop="onHandleMouseDown($event, box, 'bl')"></div>
-          <div class="box-handle bh-br" @mousedown.stop="onHandleMouseDown($event, box, 'br')"></div>
+          <div class="box-handle" :style="handleStyle('tl')" @mousedown="onHandleMouseDown($event, box, 'tl')"></div>
+          <div class="box-handle" :style="handleStyle('tr')" @mousedown="onHandleMouseDown($event, box, 'tr')"></div>
+          <div class="box-handle" :style="handleStyle('bl')" @mousedown="onHandleMouseDown($event, box, 'bl')"></div>
+          <div class="box-handle" :style="handleStyle('br')" @mousedown="onHandleMouseDown($event, box, 'br')"></div>
         </template>
       </div>
     </div>
   `
 };
 
-// 전역 할당 (다른 파일에서 참조 가능하도록)
 window.PreviewCanvas = PreviewCanvas;
