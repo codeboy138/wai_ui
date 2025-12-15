@@ -1,13 +1,13 @@
-// Preview Canvas Component - DOM 직접 제어 + 단일 Composition(px) 좌표계 최종본
+// Preview Canvas Component - DOM 직접 제어 + 단일 Composition(px) 좌표계
 // - 상호작용 기준: #preview-canvas-scaler 내부 DOM 픽셀 (Composition Space)
-// - 드래그/리사이즈 동안에는 Vue state(AppRoot.canvasBoxes)를 건드리지 않고,
+// - 드래그/리사이즈 중에는 Vue state(AppRoot.canvasBoxes)를 건드리지 않고,
 //   박스 DOM(style.left/top/width/height)만 직접 수정
 // - 마우스 업(mouseup) 시점에만 px 값을 AppRoot.updateBoxPosition(id, x, y, w, h)에 커밋
 //   → AppRoot가 내부에서 캔버스 경계 clamp + 0~1 ratio(nx,ny,nw,nh) 갱신
 //
-// 이 방식이면 AppRoot의 보정 로직이 드래그 중간에 개입하지 못하므로,
-// "모서리를 안쪽으로 끌면 커서만 움직이고 모서리는 제자리" 같은 현상은
-// PreviewCanvas 내부 로직 외에는 발생할 수 없다.
+// 이 방식이면 AppRoot 쪽 보정 로직이 드래그 중간에 개입하지 못하므로,
+// "커서는 안으로 들어가는데 모서리는 그 자리에 멈춘다",
+// "박스 이동이 100px 단위로 튀는 느낌" 같은 현상이 PreviewCanvas 내부에서는 더 이상 발생할 수 없다.
 
 console.log('[PreviewCanvas] script loaded (dom-direct final)');
 
@@ -64,7 +64,7 @@ const PreviewCanvas = {
                     @mousedown.stop="onHandleMouseDown($event, box, 'br')"
                 ></div>
 
-                <!-- 레이어 레이블: index.html 의 .canvas-label 기본 스타일 사용 -->
+                <!-- 레이어 레이블 -->
                 <div
                     class="canvas-label"
                     :style="labelStyle(box)"
@@ -89,7 +89,10 @@ const PreviewCanvas = {
             resizeHandlePos: null, // 'tl' | 'tr' | 'bl' | 'br'
 
             // 드래그 중 실제로 조작하는 DOM 요소
-            activeBoxEl: null
+            activeBoxEl: null,
+
+            _mouseMoveHandler: null,
+            _mouseUpHandler: null
         };
     },
     beforeUnmount() {
@@ -308,6 +311,7 @@ const PreviewCanvas = {
             const scalerRect = scaler.getBoundingClientRect();
             const boxRect = boxEl.getBoundingClientRect();
 
+            // scaler 기준 좌표
             this.dragStartDom = {
                 left: boxRect.left - scalerRect.left,
                 top: boxRect.top - scalerRect.top,
@@ -365,7 +369,7 @@ const PreviewCanvas = {
         },
 
         onBoxMouseMove(e, box) {
-            // hover 시 별도 커서 변경 없음
+            // hover 시 별도 동작 없음
         },
 
         onBoxMouseLeave(e) {
@@ -375,9 +379,6 @@ const PreviewCanvas = {
         // ---------- 실제 이동/리사이즈 처리 (DOM 직접 제어) ----------
         handleMouseMove(e) {
             if (!this.dragMode || !this.dragBoxId || !this.activeBoxEl) return;
-
-            const scaler = document.getElementById('preview-canvas-scaler');
-            if (!scaler) return;
 
             const dx = e.clientX - this.dragStartMouseClient.x;
             const dy = e.clientY - this.dragStartMouseClient.y;
