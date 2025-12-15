@@ -139,7 +139,9 @@ const AppRoot = {
                 position: 'absolute',
                 top: '50%',
                 left: '50%',
-                transform: 'translate(-50%, -50%)'
+                // [수정] scale() 추가하여 화면 배율 적용 -> 드래그 1:1 매핑 문제 해결
+                transform: `translate(-50%, -50%) scale(${this.canvasScale})`,
+                transformOrigin: 'center center'
             };
         },
         resolutionOptions() {
@@ -603,22 +605,51 @@ const AppRoot = {
             const wrapperRatio = innerW / innerH;
 
             let w, h;
-            if (wrapperRatio > targetRatio) {
-                // wrapper가 더 넓음 → 높이에 맞추고 좌우 레터박스
-                h = innerH;
-                w = Math.round(h * targetRatio);
+            let scale;
+
+            // [수정] wrapper 기준으로 canvasSize(논리 px)가 들어갈 scale 계산
+            // canvasSize가 4K(3840)라면 wrapper(1000px)에 들어가려면 scale < 1.0이 됨
+            // 하지만 현재는 wrapper 안에 들어갈 '보여질 크기'를 정하고, 
+            // 그 안에서 scale을 적용하는 방식이므로, 
+            // 1. canvasSize는 논리적 해상도(3840x2160)
+            // 2. wrapper 안에 fit 되는 크기 계산 -> fitW, fitH
+            // 3. scale = fitW / 3840
+            
+            // 그러나 기존 로직은 canvasSize 자체를 wrapper 크기에 맞게 줄여버리는 방식이었음.
+            // Pixi 사용 시에는 canvasSize는 고해상도 유지, view style만 줄이는 게 맞음.
+            // 하지만 현재 구조상 canvasSize = {w, h} 가 style.width/height 로 들어가므로
+            // 여기서는 '보여질 크기'로 w, h를 잡으면 안 되고
+            // '논리 크기'를 유지하되 scale을 계산해야 함.
+            
+            // -> 여기서는 기존대로 canvasSize를 '논리적 해상도'로 간주하고 (예: 1920x1080)
+            //    화면에 보여질 때는 scale을 적용하는 방식이 맞음.
+            //    단, setResolution() 등에서 canvasSize를 이미 논리 크기로 설정하고 있으므로
+            //    recalculateCanvasSizeFromWrapper() 에서는 scale 만 계산해야 함.
+
+            // 현재 canvasSize (논리 크기)
+            const cw = this.canvasSize.w || 1920;
+            const ch = this.canvasSize.h || 1080;
+            const cRatio = cw / ch;
+
+            if (wrapperRatio > cRatio) {
+                // wrapper가 더 넓음 -> 높이 기준
+                const fitH = innerH;
+                scale = fitH / ch;
             } else {
-                // wrapper가 더 좁음 → 너비에 맞추고 상하 레터박스
-                w = innerW;
-                h = Math.round(w / targetRatio);
+                // wrapper가 더 좁음 -> 너비 기준
+                const fitW = innerW;
+                scale = fitW / cw;
             }
 
-            this.canvasSize = { w, h };
-            this.canvasScale = 1.0; // 좌표계 = 실제 px
+            this.canvasScale = scale; 
         },
 
         updateCanvasSizeFromControls() {
-            // 해상도/비율 변경 시, wrapper 기준으로 실제 canvasSize를 다시 계산
+            // 해상도 변경 시 논리 크기(canvasSize)를 먼저 설정
+            const size = this.computeResolutionSize(this.aspectRatio, this.resolution);
+            this.canvasSize = size;
+
+            // 그 후 스케일 계산
             this.recalculateCanvasSizeFromWrapper();
             this.ensureAllBoxesNormalized();
         },
@@ -660,7 +691,7 @@ const AppRoot = {
 
             const canvasX = e.clientX - sRect.left;
             const canvasY = e.clientY - sRect.top;
-            const scale = this.canvasScale || 1.0; // 현재는 항상 1.0 이지만 안전용
+            const scale = this.canvasScale || 1.0; 
 
             const realX = canvasX / scale;
             const realY = canvasY / scale;
