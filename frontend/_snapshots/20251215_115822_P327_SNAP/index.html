@@ -8,7 +8,7 @@
     <!-- Vue 3 -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 
-    <!-- Tailwind CSS CDN -->
+    <!-- Tailwind CSS CDN (원래대로 복구) -->
     <script src="https://cdn.tailwindcss.com"></script>
 
     <!-- SweetAlert2 -->
@@ -19,6 +19,9 @@
 
     <!-- interact.js -->
     <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+
+    <!-- PixiJS (WebGL 2D 렌더링 엔진) -->
+    <script src="https://cdn.jsdelivr.net/npm/pixi.js@8/dist/pixi.min.js"></script>
 
     <script>
         tailwind.config = {
@@ -207,15 +210,15 @@
             pointer-events: none;
         }
 
-        /* 박스 핸들 (모서리 ㄱ자) */
+        /* 박스 핸들 (모서리 ㄱ자) - 항상 보이고 크게 */
         .box-handle {
             position: absolute;
-            width: 8px;
-            height: 8px;
-            background: transparent;
+            width: 14px;
+            height: 14px;
+            background: rgba(0,0,0,0.45);
             border: 2px solid #ffffff;
             z-index: 20;
-            display: none;
+            display: block;
             box-sizing: border-box;
         }
         .canvas-box.selected .box-handle { display: block; }
@@ -711,7 +714,7 @@
                                 :class="['canvas-scaler', 'canvas-ar-' + (aspectRatio || '16:9').replace(':','-')]"
                                 :style="canvasScalerStyle"
                             >
-                                <!-- 프리뷰 렌더 캔버스 (Canvas2D/WebGL 용) -->
+                                <!-- 프리뷰 렌더 캔버스 (Canvas2D/WebGL/PixiJS 용) -->
                                 <canvas id="preview-render-canvas"></canvas>
 
                                 <div id="preview-guide-h" class="guide-line-h" style="top: 50%;"></div>
@@ -823,7 +826,7 @@
     <script src="js/components/PreviewCanvas.js"></script>
     <script src="js/components/TimelinePanel.js"></script>
 
-    <!-- 새 프리뷰 렌더러 (Canvas2D/WebGL 진입점) -->
+    <!-- 새 프리뷰 렌더러 (Canvas2D/WebGL/PixiJS 진입점) -->
     <script src="js/core/preview-renderer.js"></script>
 
     <script src="js/core/app-root.js"></script>
