@@ -813,10 +813,11 @@
         </div>
     </div>
 
-    <!-- JS 모듈 -->
+    <!-- JS 모듈 로드 순서 (의존성 고려) -->
     <script src="js/utils/constants.js"></script>
     <script src="docs/element-specs.js"></script>
 
+    <!-- Vue 컴포넌트들 -->
     <script src="js/components/DropdownMenu.js"></script>
     <script src="js/components/RulerLine.js"></script>
     <script src="js/components/ProjectModal.js"></script>
@@ -826,9 +827,8 @@
     <script src="js/components/PreviewCanvas.js"></script>
     <script src="js/components/TimelinePanel.js"></script>
 
-    <!-- 새 프리뷰 렌더러 (Canvas2D/WebGL/PixiJS 진입점) -->
+    <!-- 코어 로직 -->
     <script src="js/core/preview-renderer.js"></script>
-
     <script src="js/core/app-root.js"></script>
     <script src="js/core/bootstrap.js"></script>
 </body>
