@@ -20,7 +20,7 @@ const PreviewCanvas = {
   data() {
     return {
       dragging: false,
-      dragMode: null, 
+      dragMode: null,
       dragHandle: null,
       dragBoxId: null,
       dragStartMouse: { mx: 0, my: 0 },
@@ -43,21 +43,24 @@ const PreviewCanvas = {
   },
 
   methods: {
-    // 마우스 이벤트 -> 논리 캔버스 좌표(px) 변환
+    // 마우스 이벤트 -> 논리 캔버스 좌표(px) 변환 (드래그 1:1 동기화 핵심)
     clientToCanvas(e) {
       const scaler = document.getElementById('preview-canvas-scaler');
       if (!scaler) {
         return { mx: 0, my: 0 };
       }
       
-      // scaler는 transform: scale(...) 이 적용되어 있음.
-      // getBoundingClientRect()는 스케일된 실제 화면 크기를 반환함.
+      // getBoundingClientRect()는 CSS transform(scale)이 적용된 실제 화면상 크기를 반환합니다.
       const rect = scaler.getBoundingClientRect();
-      const scaleX = rect.width / (this.canvasSize?.w || 1920);
+      const logicalW = this.canvasSize?.w || 1920;
       
-      // 마우스 위치(clientX)에서 캔버스 시작점(rect.left)을 빼고, 스케일로 나눔
-      const mx = (e.clientX - rect.left) / scaleX;
-      const my = (e.clientY - rect.top) / scaleX;
+      // 화면상 1px이 논리적 캔버스에서 몇 px인지 비율 계산
+      const scaleX = rect.width / logicalW;
+      const s = (scaleX === 0) ? 1 : scaleX;
+
+      // (현재 마우스 위치 - 캔버스 시작점) / 스케일 = 논리적 좌표
+      const mx = (e.clientX - rect.left) / s;
+      const my = (e.clientY - rect.top) / s;
       
       return { mx, my };
     },
@@ -81,33 +84,39 @@ const PreviewCanvas = {
     labelChipStyle(box) {
       return {
         position: 'absolute',
+        // [수정] 박스 내부 하단 고정
         bottom: '0', 
         left: '0',
         backgroundColor: box.color || '#333',
         color: '#fff',
-        padding: '2px 4px',
+        padding: '2px 6px',
         fontSize: '12px',
+        fontWeight: 'bold',
         maxWidth: '100%',
         whiteSpace: 'nowrap',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
-        pointerEvents: 'none' // 레이블이 드래그 방해 안 하도록
+        // 드래그 방해 금지
+        pointerEvents: 'none',
+        zIndex: 10 
       };
     },
 
-    // 핸들 스타일 공통
+    // 핸들 스타일
     handleStyle(pos) {
-      // 모서리에 8x8 정도 크기
-      const size = 12; 
-      const offset = -6; // 중앙 정렬을 위해
+      // [수정] 모서리 감지 반경 2배 확대 (12px -> 24px)
+      const size = 24; 
+      const offset = -12; // 중앙 정렬 (size의 절반)
+      
       const style = {
         position: 'absolute',
         width: size + 'px',
         height: size + 'px',
-        backgroundColor: '#fff',
+        backgroundColor: '#fff', 
         border: '1px solid #000',
-        zIndex: 9999, // 매우 높게
-        pointerEvents: 'auto' // 중요: 이벤트 받도록
+        zIndex: 9999,
+        pointerEvents: 'auto', // 핸들 클릭 가능
+        opacity: 0.8 
       };
 
       if (pos === 'tl') { style.top = offset + 'px'; style.left = offset + 'px'; style.cursor = 'nwse-resize'; }
@@ -119,9 +128,12 @@ const PreviewCanvas = {
     },
 
     onBoxMouseDown(e, box) {
-      // 핸들 클릭인지 확인 (핸들은 stopPropagation 했으므로 여기 안 옴, 안전장치)
+      // 핸들 클릭 무시
       if (e.target.classList.contains('box-handle')) return;
       
+      // 좌클릭만 드래그 허용
+      if (e.button !== 0) return;
+
       e.preventDefault();
       this.$emit('select-box', box.id);
 
@@ -129,8 +141,16 @@ const PreviewCanvas = {
       this.startDrag('move', box, mx, my);
     },
 
+    // [수정] 우클릭 핸들러 추가
+    onBoxContextMenu(e, box) {
+      // 상위 컴포넌트로 이벤트 전달 (컨텍스트 메뉴 표시용)
+      this.$emit('contextmenu', e, box.id);
+    },
+
     onHandleMouseDown(e, box, handle) {
-      e.stopPropagation(); // 박스 드래그 방지
+      if (e.button !== 0) return;
+
+      e.stopPropagation(); 
       e.preventDefault();
       this.$emit('select-box', box.id);
 
@@ -159,6 +179,8 @@ const PreviewCanvas = {
       if (!this.dragging) return;
 
       const { mx, my } = this.clientToCanvas(e);
+      
+      // 이동량 계산 (스케일 보정됨)
       const dx = mx - this.dragStartMouse.mx;
       const dy = my - this.dragStartMouse.my;
       
@@ -180,8 +202,8 @@ const PreviewCanvas = {
       if (w < 10) w = 10;
       if (h < 10) h = 10;
 
+      // 부모에게 업데이트 요청 (null 전달 시 퍼센트 좌표 자동 계산)
       if (this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
-        // null을 주면 내부에서 퍼센트 좌표 자동 재계산
         this.$parent.updateBoxPosition(this.dragBoxId, x, y, w, h, null);
       }
     },
@@ -208,6 +230,7 @@ const PreviewCanvas = {
         class="canvas-box"
         :style="boxStyle(box)"
         @mousedown="onBoxMouseDown($event, box)"
+        @contextmenu.prevent="onBoxContextMenu($event, box)"
         data-action="js:selectCanvasBox"
       >
         <!-- 레이블 (박스 하단 고정) -->
