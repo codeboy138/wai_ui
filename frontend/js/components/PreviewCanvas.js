@@ -1,11 +1,12 @@
-// Preview Canvas Component - 단일 Composition(px) 좌표계 기반 구현 (최종본)
+// Preview Canvas Component - 단일 Composition(px) 좌표계 기반 최종본
 // - 기준 좌표: #preview-canvas-scaler 내부 DOM 픽셀 (Composition Space)
 // - 이동(move): 시작 박스(x0,y0) + 마우스 델타(dx,dy)
-// - 리사이즈(resize): 시작 박스(x0,y0,w0,h0) + dx,dy 직접 적용 (사분면/앵커 락 없음)
-//   - 최소 크기 보정은 w,h 에만 적용 (x,y는 건드리지 않음)
-//   - → 모서리를 레이어 박스 안쪽으로 끌어갈 수 있음 (센터/반대편까지 뒤집힐 필요 없음)
-// - updateBoxPosition(id, x, y, w, h) 에 px 기준으로만 전달
-//   → AppRoot 가 내부에서 캔버스 경계 clamp + 0~1 ratio(nx,ny,nw,nh) 갱신
+// - 리사이즈(resize):
+//     - 시작 박스(x0,y0,w0,h0) + dx,dy 직접 적용 (핸들별로 좌우/상하 엣지 이동)
+//     - 최소 크기 보정은 w,h 에만 적용 (x,y는 건드리지 않음)
+//       → 모서리를 레이어 박스 안쪽(센터 방향)으로 끌어갈 수 있음
+// - AppRoot.updateBoxPosition(id, x, y, w, h)에 px 기준으로만 전달
+//   → AppRoot 가 캔버스 경계 clamp + 0~1 ratio(nx,ny,nw,nh) 갱신
 
 console.log('[PreviewCanvas] script loaded (composition-px final)');
 
@@ -276,6 +277,8 @@ const PreviewCanvas = {
             return `${col || ''} ${row || ''}`.trim();
         },
         labelStyle(box) {
+            // index.html 의 .canvas-label 기본 스타일을 활용하되,
+            // 텍스트 잘림을 줄이기 위해 padding/overflow 는 CSS에 맡김
             return {
                 backgroundColor: box.color || '#22c55e',
                 color: '#ffffff',
