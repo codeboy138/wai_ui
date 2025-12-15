@@ -1,12 +1,12 @@
 // Preview Canvas Component
 // - 단일 Composition 좌표계(px, #preview-canvas-scaler 기준)를 사용
 // - move: 시작 px + (현재마우스px - 시작마우스px)
-// - resize: 시작 박스의 네 변(left/top/right/bottom)을 드래그 핸들에 따라 직접 조정
-// - minW/minH: 20px (가로세로 최소 크기)
-// - 드래그 중에는 계속 px 단위로 parent.updateBoxPosition(...) 호출
-//   (AppRoot에서 0~1 정규화/경계 보정 담당)
+// - resize: "잡은 모서리"는 항상 마우스 위치를 따라가도록 설계
+//   - w/h > minSize(20) 구간: 반대 모서리는 고정, 크기만 변경
+//   - w/h == minSize 이후: 박스 전체가 슬라이드하면서, 잡은 모서리가 마우스에 붙어 있음
+// - 마지막에는 AppRoot.updateBoxPosition(id, x, y, w, h) 호출 (px 기준)
 
-console.log('[PreviewCanvas] script loaded (composition-px v3)');
+console.log('[PreviewCanvas] script loaded (composition-px v4)');
 
 const PreviewCanvas = {
     props: ['canvasBoxes', 'selectedBoxId'],
@@ -488,103 +488,117 @@ const PreviewCanvas = {
             const ch = parent.canvasSize.h || 1;
 
             const mouseCanvas = this.clientToCanvas(e);
-            const dx = mouseCanvas.x - this.dragStartMouseCanvas.x;
-            const dy = mouseCanvas.y - this.dragStartMouseCanvas.y;
+            let mx = mouseCanvas.x;
+            let my = mouseCanvas.y;
 
             const start = this.dragStartBox;
-            const left0 = start.x;
-            const top0 = start.y;
-            const right0 = start.x + start.w;
-            const bottom0 = start.y + start.h;
+            const x0 = start.x;
+            const y0 = start.y;
+            const w0 = start.w;
+            const h0 = start.h;
+            const right0 = x0 + w0;
+            const bottom0 = y0 + h0;
 
-            // ★ 최소 크기: 20px
+            // 최소 크기: 20px
             const minW = 20;
             const minH = 20;
 
             let x, y, w, h;
 
             if (this.dragMode === 'move') {
-                // ========== MOVE ==========
-                x = left0 + dx;
-                y = top0 + dy;
-                w = start.w;
-                h = start.h;
+                // ----- MOVE -----
+                const dx = mx - this.dragStartMouseCanvas.x;
+                const dy = my - this.dragStartMouseCanvas.y;
+
+                x = x0 + dx;
+                y = y0 + dy;
+                w = w0;
+                h = h0;
 
                 if (x < 0) x = 0;
                 if (y < 0) y = 0;
                 if (x + w > cw) x = cw - w;
                 if (y + h > ch) y = ch - h;
             } else if (this.dragMode === 'resize') {
-                // ========== RESIZE ==========
+                // ----- RESIZE -----
                 const handle = this.dragHandle;
 
+                // 마우스를 캔버스 범위 안으로 1차 클램프
+                mx = Math.max(0, Math.min(cw, mx));
+                my = Math.max(0, Math.min(ch, my));
+
                 if (handle === 'br') {
-                    let newRight = right0 + dx;
-                    let newBottom = bottom0 + dy;
+                    // 잡은 점: 오른쪽-아래
+                    // 규칙:
+                    //   - w,h > min일 땐 왼쪽/위 고정 (x0,y0), BR = 마우스
+                    //   - w,h == min 이후에는 BR = 마우스, 박스 전체가 슬라이드
+                    const rawW = mx - x0;
+                    const rawH = my - y0;
 
-                    if (newRight > cw) newRight = cw;
-                    if (newBottom > ch) newBottom = ch;
+                    w = Math.max(minW, rawW);
+                    h = Math.max(minH, rawH);
 
-                    if (newRight - left0 < minW) newRight = left0 + minW;
-                    if (newBottom - top0 < minH) newBottom = top0 + minH;
+                    // BR 코너를 항상 마우스 위치에 맞추기
+                    x = mx - w;
+                    y = my - h;
 
-                    x = left0;
-                    y = top0;
-                    w = newRight - left0;
-                    h = newBottom - top0;
-                } else if (handle === 'bl') {
-                    let newLeft = left0 + dx;
-                    let newBottom = bottom0 + dy;
-
-                    if (newLeft < 0) newLeft = 0;
-                    if (newBottom > ch) newBottom = ch;
-
-                    if (right0 - newLeft < minW) newLeft = right0 - minW;
-                    if (newBottom - top0 < minH) newBottom = top0 + minH;
-
-                    x = newLeft;
-                    y = top0;
-                    w = right0 - newLeft;
-                    h = newBottom - top0;
-                } else if (handle === 'tr') {
-                    let newRight = right0 + dx;
-                    let newTop = top0 + dy;
-
-                    if (newRight > cw) newRight = cw;
-                    if (newTop < 0) newTop = 0;
-
-                    if (newRight - left0 < minW) newRight = left0 + minW;
-                    if (bottom0 - newTop < minH) newTop = bottom0 - minH;
-
-                    x = left0;
-                    y = newTop;
-                    w = newRight - left0;
-                    h = bottom0 - newTop;
                 } else if (handle === 'tl') {
-                    let newLeft = left0 + dx;
-                    let newTop = top0 + dy;
+                    // 잡은 점: 왼쪽-위
+                    // 반대 코너: (right0, bottom0)
+                    //   - w,h > min일 땐 오른쪽/아래 고정, TL = 마우스
+                    //   - 이후에는 TL = 마우스, 박스 전체 슬라이드
+                    const rawW = right0 - mx;
+                    const rawH = bottom0 - my;
 
-                    if (newLeft < 0) newLeft = 0;
-                    if (newTop < 0) newTop = 0;
+                    w = Math.max(minW, rawW);
+                    h = Math.max(minH, rawH);
 
-                    if (right0 - newLeft < minW) newLeft = right0 - minW;
-                    if (bottom0 - newTop < minH) newTop = bottom0 - minH;
+                    x = mx;
+                    y = my;
 
-                    x = newLeft;
-                    y = newTop;
-                    w = right0 - newLeft;
-                    h = bottom0 - newTop;
+                } else if (handle === 'tr') {
+                    // 잡은 점: 오른쪽-위
+                    // 반대 코너: (x0, bottom0)
+                    //   - w,h > min일 땐 왼쪽/아래 고정, TR = 마우스
+                    //   - 이후에는 TR = 마우스, 박스 전체 슬라이드
+                    const rawW = mx - x0;
+                    const rawH = bottom0 - my;
+
+                    w = Math.max(minW, rawW);
+                    h = Math.max(minH, rawH);
+
+                    x = mx - w;
+                    y = my;
+
+                } else if (handle === 'bl') {
+                    // 잡은 점: 왼쪽-아래
+                    // 반대 코너: (right0, y0)
+                    //   - w,h > min일 땐 오른쪽/위 고정, BL = 마우스
+                    //   - 이후에는 BL = 마우스, 박스 전체 슬라이드
+                    const rawW = right0 - mx;
+                    const rawH = my - y0;
+
+                    w = Math.max(minW, rawW);
+                    h = Math.max(minH, rawH);
+
+                    x = mx;
+                    y = my - h;
+
                 } else {
-                    x = left0 + dx;
-                    y = top0 + dy;
-                    w = start.w;
-                    h = start.h;
+                    // 혹시 핸들이 지정 안 되면 move와 동일 처리
+                    const dx = mx - this.dragStartMouseCanvas.x;
+                    const dy = my - this.dragStartMouseCanvas.y;
+                    x = x0 + dx;
+                    y = y0 + dy;
+                    w = w0;
+                    h = h0;
                 }
 
-                if (!Number.isFinite(w) || w < minW) w = Math.max(minW, start.w);
-                if (!Number.isFinite(h) || h < minH) h = Math.max(minH, start.h);
-                if (!Number.isFinite(x)) x = start.x;
-                if (!Number.isFinite(y)) y = start.y;
+                // 안전/경계 클램프
+                if (!Number.isFinite(w) || w < minW) w = Math.max(minW, w0);
+                if (!Number.isFinite(h) || h < minH) h = Math.max(minH, h0);
+                if (!Number.isFinite(x)) x = x0;
+                if (!Number.isFinite(y)) y = y0;
 
                 if (x < 0) x = 0;
                 if (y < 0) y = 0;
