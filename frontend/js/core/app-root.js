@@ -98,7 +98,7 @@ const AppRoot = {
             isMouseOverCanvas: false,
             canvasScale: 1.0,
 
-            // 박스 드래그 중 여부
+            // ★ 박스 드래그 중 여부 (syncBoxes 스킵용)
             isBoxDragging: false,
             
             // Inspector / Dev Overlay State
@@ -164,6 +164,10 @@ const AppRoot = {
         },
         canvasBoxes: {
             handler(newBoxes) {
+                // ★ 드래그 중이면 syncBoxes 호출 스킵
+                if (this.isBoxDragging) {
+                    return;
+                }
                 try {
                     if (window.PreviewRenderer && typeof window.PreviewRenderer.syncBoxes === 'function') {
                         window.PreviewRenderer.syncBoxes(newBoxes);
@@ -793,12 +797,9 @@ const AppRoot = {
         },
 
         /**
-         * ✅ 수정: 퍼센트 좌표 기반 업데이트 (Pixi 렌더러 전용)
-         * @param {string} id - 박스 ID
-         * @param {number} nx - 0~1 범위 X 퍼센트
-         * @param {number} ny - 0~1 범위 Y 퍼센트
-         * @param {number} nw - 0~1 범위 너비 퍼센트
-         * @param {number} nh - 0~1 범위 높이 퍼센트
+         * ★ 수정: 퍼센트 좌표 기반 업데이트 (Pixi 렌더러 전용)
+         * - 드래그 종료 시 호출됨
+         * - syncBoxes 스킵 로직과 연동
          */
         updateBoxPositionNormalized(id, nx, ny, nw, nh) {
             const index = this.canvasBoxes.findIndex(b => b.id === id);
