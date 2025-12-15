@@ -2,12 +2,12 @@
 // - 퍼센트 좌표(0~1)를 사용하는 프리뷰 렌더러 진입점
 // - 기본: PixiJS(WebGL 2D) 기반으로 레이어 박스/텍스트를 렌더링
 // - 폴백: Pixi 사용 불가 시 Canvas2D 로 중앙 십자 가이드만 렌더
-// - 수정: Pixi 박스 드래그/리사이즈 인터랙션 활성화 및 좌표계 보정
+// - 수정: 리사이즈/드래그 버그 수정 - 에지 마진 동적 계산, 드래그 중 syncBoxes 스킵
 
 (function (global) {
     const DEFAULT_TEXT_MESSAGE = '현재의 레이어에 적용할\n텍스트 스타일을 설정하세요';
 
-    // ★ Pixi 박스 렌더링/드래그 토글 - 활성화로 변경
+    // ★ Pixi 박스 렌더링/드래그 토글 - 활성화
     const PIXI_BOX_RENDERING_ENABLED = true;
 
     const PreviewRenderer = {
@@ -44,6 +44,7 @@
         dragEdges: { left: false, right: false, top: false, bottom: false },
         _boundPointerMove: null,
         _boundPointerUp: null,
+        _boundStagePointerMove: null,
 
         async init(canvasEl, vm) {
             this.canvas = canvasEl;
@@ -119,6 +120,12 @@
             this.rootContainer.addChild(this.guidesContainer);
             app.stage.addChild(this.rootContainer);
 
+            // 스테이지 레벨 포인터무브로 커서 피드백 제공
+            app.stage.eventMode = 'static';
+            app.stage.hitArea = app.screen;
+            this._boundStagePointerMove = this._onStageHoverMove.bind(this);
+            app.stage.on('pointermove', this._boundStagePointerMove);
+
             this._recreateGuides();
         },
 
@@ -143,6 +150,9 @@
 
             if (this.mode === 'pixi' && this.app) {
                 this.app.renderer.resize(cssWidth, cssHeight);
+                if (this.app.stage && this.app.screen) {
+                    this.app.stage.hitArea = this.app.screen;
+                }
                 this._recreateGuides();
                 this._resyncBoxesAfterResize();
                 this._updateZoomFromCssHeight(cssHeight);
@@ -242,6 +252,13 @@
 
             for (const box of this._lastBoxes) {
                 if (!box || !box.id) continue;
+
+                // ★ 드래그 중인 박스는 syncBoxes에서 업데이트 스킵
+                if (this.dragMode && this.dragBoxId === box.id) {
+                    existingIds.delete(box.id);
+                    continue;
+                }
+
                 this._upsertBox(box, stageW, stageH);
                 existingIds.delete(box.id);
             }
@@ -294,8 +311,18 @@
             this._updateBoxGraphics(entry, tempBox, stageSize.w, stageSize.h);
         },
 
+        // ★ 동적 에지 마진 계산 (캔버스 스케일에 비례)
+        _getEdgeMargin() {
+            const stageSize = this._getStageSize();
+            const logical = this.logicalCanvasSize || { w: 1920, h: 1080 };
+            const scale = stageSize.w / logical.w;
+            // 기본 16px 마진을 스케일에 맞게 조정, 최소 8px, 최대 24px
+            const margin = Math.max(8, Math.min(24, 16 * scale));
+            return margin;
+        },
+
         _getEdgeState(globalPos, rect) {
-            const edgeMargin = 8;
+            const edgeMargin = this._getEdgeMargin();
             const offsetX = globalPos.x - rect.x;
             const offsetY = globalPos.y - rect.y;
 
@@ -335,6 +362,33 @@
                 return 'ns-resize';
             }
             return 'move';
+        },
+
+        // ★ 스테이지 호버 시 커서 피드백 (드래그 전에도 커서 변경)
+        _onStageHoverMove(event) {
+            // 드래그 중이면 스킵
+            if (this.dragMode) return;
+            if (!this.boxEntries || !this.app) return;
+
+            const globalPos = event.global;
+
+            // 모든 박스에 대해 에지 체크
+            for (const [boxId, entry] of this.boxEntries) {
+                if (!entry || !entry.container) continue;
+
+                const rect = entry.container.getBounds();
+                const isInside = globalPos.x >= rect.x && globalPos.x <= rect.x + rect.width &&
+                                 globalPos.y >= rect.y && globalPos.y <= rect.y + rect.height;
+
+                if (isInside) {
+                    const edgeState = this._getEdgeState(globalPos, rect);
+                    const cursor = this._getCursorForEdges(edgeState);
+                    entry.container.cursor = cursor;
+                    return;
+                } else {
+                    entry.container.cursor = 'move';
+                }
+            }
         },
 
         _onBoxPointerDown(event, boxId) {
@@ -400,11 +454,16 @@
                 bottom: edgeState.nearBottom
             };
 
+            // ★ VM에 드래그 시작 알림
+            if (this.vm) {
+                this.vm.isBoxDragging = true;
+            }
+
             if (!this._boundPointerMove) {
-                this._boundPointerMove = this._onStagePointerMove.bind(this);
+                this._boundPointerMove = this._onDragPointerMove.bind(this);
             }
             if (!this._boundPointerUp) {
-                this._boundPointerUp = this._onStagePointerUp.bind(this);
+                this._boundPointerUp = this._onDragPointerUp.bind(this);
             }
 
             this.app.stage.on('pointermove', this._boundPointerMove);
@@ -412,7 +471,7 @@
             this.app.stage.on('pointerupoutside', this._boundPointerUp);
         },
 
-        _onStagePointerMove(event) {
+        _onDragPointerMove(event) {
             if (!this.dragMode || !this.dragBoxId) return;
             if (!this.app || !this.layersContainer || !this.boxEntries) return;
 
@@ -429,6 +488,7 @@
 
             let { nx, ny, nw, nh } = this.dragStartNorm;
 
+            // ★ 스테이지 좌표 델타를 퍼센트로 변환
             const dxNorm = dxStage / stageW;
             const dyNorm = dyStage / stageH;
 
@@ -458,8 +518,8 @@
             const cw = logical.w || 1;
             const ch = logical.h || 1;
 
-            const minNw = 10 / cw;
-            const minNh = 10 / ch;
+            const minNw = 20 / cw;
+            const minNh = 20 / ch;
 
             if (nw < minNw) nw = minNw;
             if (nh < minNh) nh = minNh;
@@ -471,13 +531,14 @@
 
             this.dragCurrentNorm = { nx, ny, nw, nh };
 
+            // ★ 드래그 중 그래픽만 업데이트 (VM 상태는 건드리지 않음)
             const tempBox = this._buildTempBoxFromNorm(this.dragBoxId, nx, ny, nw, nh);
             if (!tempBox) return;
 
             this._updateBoxGraphics(entry, tempBox, stageW, stageH);
         },
 
-        _onStagePointerUp() {
+        _onDragPointerUp() {
             if (!this.dragMode || !this.dragBoxId) {
                 this._clearDragListeners();
                 return;
@@ -486,8 +547,14 @@
             const norm = this.dragCurrentNorm || this.dragStartNorm;
             const { nx, ny, nw, nh } = norm;
 
+            // ★ 드래그 종료 시에만 VM 상태 업데이트
             if (this.vm && typeof this.vm.updateBoxPositionNormalized === 'function') {
                 this.vm.updateBoxPositionNormalized(this.dragBoxId, nx, ny, nw, nh);
+            }
+
+            // ★ VM에 드래그 종료 알림
+            if (this.vm) {
+                this.vm.isBoxDragging = false;
             }
 
             this.dragMode = null;
