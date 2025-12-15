@@ -57,6 +57,7 @@ const PreviewCanvas = {
       let scaleX = rect.width / logicalW;
       if (!scaleX || scaleX === 0) scaleX = 1;
 
+      // 마우스 위치보정 및 스케일 역산
       const mx = (e.clientX - rect.left) / scaleX;
       const my = (e.clientY - rect.top) / scaleX;
       
@@ -67,7 +68,7 @@ const PreviewCanvas = {
       const isSelected = (this.selectedBoxId === box.id);
       return {
         position: 'absolute',
-        // [중요] 문자열 좌표 문제 방지를 위해 Number() 강제 변환
+        // [중요] 좌표 계산 오류 방지를 위해 Number() 강제 변환
         left: (Number(box.x) || 0) + 'px',
         top: (Number(box.y) || 0) + 'px',
         width: (Number(box.w) || 0) + 'px',
@@ -80,7 +81,7 @@ const PreviewCanvas = {
       };
     },
 
-    // [복구] 레이블 하단 고정
+    // [복구] 레이블: 박스 내부 하단(bottom:0)에 표시
     labelChipStyle(box) {
       return {
         position: 'absolute',
@@ -154,7 +155,7 @@ const PreviewCanvas = {
       this.dragBoxId = box.id;
       this.dragStartMouse = { mx, my };
       
-      // [중요] 시작 시점 좌표 형변환 보장
+      // [중요] 숫자 형변환하여 초기 상태 저장
       this.dragStartBox = { 
         x0: Number(box.x) || 0, 
         y0: Number(box.y) || 0, 
@@ -183,7 +184,7 @@ const PreviewCanvas = {
         x += dx;
         y += dy;
         
-        // 캔버스 내부 제한 (Clamping)
+        // Clamping (캔버스 내부 제한)
         if (x < 0) x = 0;
         if (y < 0) y = 0;
         if (x + w > cw) x = cw - w;
@@ -192,10 +193,11 @@ const PreviewCanvas = {
       } else if (this.dragMode === 'resize') {
         const hdl = this.dragHandle;
         
-        // 가로
+        // 가로 (Left/Right)
         if (hdl.includes('l')) { 
           let newX = x + dx;
           if (newX < 0) newX = 0;
+          // 오른쪽 끝은 고정, 왼쪽만 이동
           const rightEdge = x0 + w0;
           let newW = rightEdge - newX;
           x = newX;
@@ -205,10 +207,11 @@ const PreviewCanvas = {
           if (x + w > cw) w = cw - x;
         }
 
-        // 세로
+        // 세로 (Top/Bottom)
         if (hdl.includes('t')) {
           let newY = y + dy;
           if (newY < 0) newY = 0;
+          // 아래쪽 끝은 고정, 위쪽만 이동
           const bottomEdge = y0 + h0;
           let newH = bottomEdge - newY;
           y = newY;
@@ -219,7 +222,7 @@ const PreviewCanvas = {
         }
       }
 
-      // 최소 크기
+      // 최소 크기 제한 (10px)
       if (w < 10) w = 10;
       if (h < 10) h = 10;
 
