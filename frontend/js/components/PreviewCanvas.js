@@ -1,11 +1,10 @@
-import Vue from 'vue';
-
-export default {
+// CDN 환경에 맞게 import 제거 및 전역 객체 할당 방식으로 수정
+const PreviewCanvas = {
   name: 'PreviewCanvas',
 
   props: {
     /**
-     * 박스 목록 (수정됨: boxes -> canvasBoxes)
+     * 박스 목록
      * 부모 컴포넌트(app-root.js)에서 :canvas-boxes="..." 로 전달하므로
      * 이름을 반드시 canvasBoxes 로 맞춰야 데이터가 수신됨.
      */
@@ -307,70 +306,38 @@ export default {
     }
   },
 
-  beforeDestroy() {
+  beforeUnmount() {
     window.removeEventListener('mousemove', this.onWindowMouseMove);
     window.removeEventListener('mouseup', this.onWindowMouseUp);
   },
 
-  render(h) {
-    const boxes = this.canvasBoxes || [];
+  template: `
+    <div id="preview-canvas-scaler" :style="scalerStyle">
+      <div
+        v-for="box in canvasBoxes"
+        :key="box.id"
+        :id="'preview-canvas-box-' + box.id"
+        class="canvas-box"
+        :style="boxStyle(box)"
+        @mousedown="onBoxMouseDown($event, box)"
+        data-action="js:selectCanvasBox"
+      >
+        <!-- 라벨 칩 -->
+        <div class="canvas-label-chip" :style="labelChipStyle(box)">
+          {{ box.layerName || box.type || 'Layer' }}
+        </div>
 
-    return h(
-      'div',
-      {
-        attrs: { id: 'preview-canvas-scaler' },
-        style: this.scalerStyle
-      },
-      boxes.map(box =>
-        h(
-          'div',
-          {
-            key: box.id,
-            class: ['canvas-box'],
-            attrs: { 
-              id: 'preview-canvas-box-' + box.id,
-              'data-action': 'js:selectCanvasBox' 
-            },
-            style: this.boxStyle(box),
-            on: {
-              mousedown: (e) => this.onBoxMouseDown(e, box)
-            }
-          },
-          [
-            // 라벨 칩
-            h(
-              'div',
-              {
-                class: ['canvas-label-chip'],
-                style: this.labelChipStyle(box)
-              },
-              box.layerName || box.type || 'Layer'
-            ),
-
-            // 선택된 경우에만 리사이즈 핸들 표시
-            (this.selectedBoxId === box.id) && h('div', {
-              class: ['box-handle', 'bh-tl'],
-              on: { mousedown: (e) => this.onHandleMouseDown(e, box, 'tl') }
-            }),
-            (this.selectedBoxId === box.id) && h('div', {
-              class: ['box-handle', 'bh-tr'],
-              on: { mousedown: (e) => this.onHandleMouseDown(e, box, 'tr') }
-            }),
-            (this.selectedBoxId === box.id) && h('div', {
-              class: ['box-handle', 'bh-bl'],
-              on: { mousedown: (e) => this.onHandleMouseDown(e, box, 'bl') }
-            }),
-            (this.selectedBoxId === box.id) && h('div', {
-              class: ['box-handle', 'bh-br'],
-              on: { mousedown: (e) => this.onHandleMouseDown(e, box, 'br') }
-            })
-          ].filter(Boolean)
-        )
-      )
-    );
-  }
+        <!-- 리사이즈 핸들 (선택 시만) -->
+        <template v-if="selectedBoxId === box.id">
+          <div class="box-handle bh-tl" @mousedown.stop="onHandleMouseDown($event, box, 'tl')"></div>
+          <div class="box-handle bh-tr" @mousedown.stop="onHandleMouseDown($event, box, 'tr')"></div>
+          <div class="box-handle bh-bl" @mousedown.stop="onHandleMouseDown($event, box, 'bl')"></div>
+          <div class="box-handle bh-br" @mousedown.stop="onHandleMouseDown($event, box, 'br')"></div>
+        </template>
+      </div>
+    </div>
+  `
 };
 
-if (typeof window !== 'undefined' && window.Vue) {
-  window.Vue.component('PreviewCanvas', module.exports.default);
-}
+// 전역 할당 (다른 파일에서 참조 가능하도록)
+window.PreviewCanvas = PreviewCanvas;
