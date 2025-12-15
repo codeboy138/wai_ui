@@ -2,11 +2,10 @@
 // - 단일 Composition 좌표계(px, #preview-canvas-scaler 기준)를 사용
 // - move: 시작 px + (현재마우스px - 시작마우스px)
 // - resize: "잡은 모서리"는 항상 마우스 위치를 따라가도록 설계
-//   - w/h > minSize(20) 구간: 반대 모서리는 고정, 크기만 변경
-//   - w/h == minSize 이후: 박스 전체가 슬라이드하면서, 잡은 모서리가 마우스에 붙어 있음
-// - 마지막에는 AppRoot.updateBoxPosition(id, x, y, w, h) 호출 (px 기준)
+// - minSize에 막혀도 body 전체 커서를 강제로 유지하지 않음
+//   → 커서는 요소의 CSS(cursor)에 맡김 (핸들 위에서만 양방향 화살표)
 
-console.log('[PreviewCanvas] script loaded (composition-px v4)');
+console.log('[PreviewCanvas] script loaded (composition-px v4 no-body-cursor)');
 
 const PreviewCanvas = {
     props: ['canvasBoxes', 'selectedBoxId'],
@@ -96,7 +95,7 @@ const PreviewCanvas = {
     },
     beforeUnmount() {
         this.stopGlobalDragListeners();
-        document.body.style.cursor = '';
+        // body.cursor 강제 사용 안 함
     },
     methods: {
         // ===================== 전역 드래그 리스너 =====================
@@ -144,7 +143,7 @@ const PreviewCanvas = {
                 boxSizing: 'border-box',
                 zIndex: box.zIndex,
                 backgroundColor: box.layerBgColor || '#000000',
-                cursor: 'inherit'
+                cursor: 'move'   // 박스 본체 위에서는 move 커서
             };
         },
 
@@ -292,7 +291,6 @@ const PreviewCanvas = {
             return style;
         },
 
-        // 레이블 폭을 박스 폭에 맞춰 동적으로 조정하여 잘림 최소화
         labelChipStyle(box) {
             const base = box.color || '#22c55e';
             const rgb = this.parseColorToRgb(base);
@@ -391,7 +389,6 @@ const PreviewCanvas = {
             const ch = parent.canvasSize.h || rect.height || 1;
 
             const scaleX = rect.width  / cw;
-            const scaleY = rect.height / ch;
             const scale = (!Number.isFinite(scaleX) || scaleX <= 0) ? 1 : scaleX;
 
             const x = (e.clientX - rect.left) / scale;
@@ -427,7 +424,7 @@ const PreviewCanvas = {
             this.dragMode = 'move';
             this.dragHandle = null;
 
-            document.body.style.cursor = 'move';
+            // body.cursor 강제 변경 제거
             this.startGlobalDragListeners();
         },
 
@@ -459,17 +456,12 @@ const PreviewCanvas = {
             this.dragMode = 'resize';
             this.dragHandle = pos;
 
-            if (pos === 'tl' || pos === 'br') {
-                document.body.style.cursor = 'nwse-resize';
-            } else {
-                document.body.style.cursor = 'nesw-resize';
-            }
-
+            // body.cursor 강제 변경 제거
             this.startGlobalDragListeners();
         },
 
         onBoxMouseMove(e, box) {
-            // hover 시 별도 커서 처리 없음
+            // hover 시 별도 커서 처리 없음 (CSS cursor에 맡김)
         },
         onBoxMouseLeave(e) {
             // nothing
@@ -499,14 +491,12 @@ const PreviewCanvas = {
             const right0 = x0 + w0;
             const bottom0 = y0 + h0;
 
-            // 최소 크기: 20px
             const minW = 20;
             const minH = 20;
 
             let x, y, w, h;
 
             if (this.dragMode === 'move') {
-                // ----- MOVE -----
                 const dx = mx - this.dragStartMouseCanvas.x;
                 const dy = my - this.dragStartMouseCanvas.y;
 
@@ -520,33 +510,21 @@ const PreviewCanvas = {
                 if (x + w > cw) x = cw - w;
                 if (y + h > ch) y = ch - h;
             } else if (this.dragMode === 'resize') {
-                // ----- RESIZE -----
                 const handle = this.dragHandle;
 
-                // 마우스를 캔버스 범위 안으로 1차 클램프
                 mx = Math.max(0, Math.min(cw, mx));
                 my = Math.max(0, Math.min(ch, my));
 
                 if (handle === 'br') {
-                    // 잡은 점: 오른쪽-아래
-                    // 규칙:
-                    //   - w,h > min일 땐 왼쪽/위 고정 (x0,y0), BR = 마우스
-                    //   - w,h == min 이후에는 BR = 마우스, 박스 전체가 슬라이드
                     const rawW = mx - x0;
                     const rawH = my - y0;
 
                     w = Math.max(minW, rawW);
                     h = Math.max(minH, rawH);
 
-                    // BR 코너를 항상 마우스 위치에 맞추기
                     x = mx - w;
                     y = my - h;
-
                 } else if (handle === 'tl') {
-                    // 잡은 점: 왼쪽-위
-                    // 반대 코너: (right0, bottom0)
-                    //   - w,h > min일 땐 오른쪽/아래 고정, TL = 마우스
-                    //   - 이후에는 TL = 마우스, 박스 전체 슬라이드
                     const rawW = right0 - mx;
                     const rawH = bottom0 - my;
 
@@ -555,12 +533,7 @@ const PreviewCanvas = {
 
                     x = mx;
                     y = my;
-
                 } else if (handle === 'tr') {
-                    // 잡은 점: 오른쪽-위
-                    // 반대 코너: (x0, bottom0)
-                    //   - w,h > min일 땐 왼쪽/아래 고정, TR = 마우스
-                    //   - 이후에는 TR = 마우스, 박스 전체 슬라이드
                     const rawW = mx - x0;
                     const rawH = bottom0 - my;
 
@@ -569,12 +542,7 @@ const PreviewCanvas = {
 
                     x = mx - w;
                     y = my;
-
                 } else if (handle === 'bl') {
-                    // 잡은 점: 왼쪽-아래
-                    // 반대 코너: (right0, y0)
-                    //   - w,h > min일 땐 오른쪽/위 고정, BL = 마우스
-                    //   - 이후에는 BL = 마우스, 박스 전체 슬라이드
                     const rawW = right0 - mx;
                     const rawH = my - y0;
 
@@ -583,9 +551,7 @@ const PreviewCanvas = {
 
                     x = mx;
                     y = my - h;
-
                 } else {
-                    // 혹시 핸들이 지정 안 되면 move와 동일 처리
                     const dx = mx - this.dragStartMouseCanvas.x;
                     const dy = my - this.dragStartMouseCanvas.y;
                     x = x0 + dx;
@@ -594,7 +560,6 @@ const PreviewCanvas = {
                     h = h0;
                 }
 
-                // 안전/경계 클램프
                 if (!Number.isFinite(w) || w < minW) w = Math.max(minW, w0);
                 if (!Number.isFinite(h) || h < minH) h = Math.max(minH, h0);
                 if (!Number.isFinite(x)) x = x0;
@@ -613,7 +578,6 @@ const PreviewCanvas = {
 
         handleMouseUp() {
             this.stopGlobalDragListeners();
-            document.body.style.cursor = '';
 
             if (this.$parent) {
                 this.$parent.isBoxDragging = false;
