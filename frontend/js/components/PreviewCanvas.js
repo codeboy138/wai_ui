@@ -2,7 +2,7 @@
 // - 단일 Composition 좌표계(px, #preview-canvas-scaler 기준)를 사용
 // - move: 시작 px + (현재마우스px - 시작마우스px)
 // - resize: 시작 박스의 네 변(left/top/right/bottom)을 드래그 핸들에 따라 직접 조정
-// - minW/minH 만 너비/높이에 적용하고, 모서리는 박스 안쪽으로 자연스럽게 들어올 수 있음
+// - minW/minH: 20px (가로세로 최소 크기)
 // - 드래그 중에는 계속 px 단위로 parent.updateBoxPosition(...) 호출
 //   (AppRoot에서 0~1 정규화/경계 보정 담당)
 
@@ -313,7 +313,6 @@ const PreviewCanvas = {
             const fontSize = Math.max(10, 14 * scale);
 
             const boxWidth = (typeof box.w === 'number' ? box.w : 9999);
-            // 박스 폭을 최대한 사용, 양 옆으로 약간 여백
             const maxWidthPx = Math.max(40, boxWidth - 8);
 
             return {
@@ -391,10 +390,8 @@ const PreviewCanvas = {
             const cw = parent.canvasSize.w || rect.width || 1;
             const ch = parent.canvasSize.h || rect.height || 1;
 
-            // scaler의 실제 렌더 크기와 composition 크기 비율
             const scaleX = rect.width  / cw;
             const scaleY = rect.height / ch;
-            // 가로세로 동일 비율이라고 가정
             const scale = (!Number.isFinite(scaleX) || scaleX <= 0) ? 1 : scaleX;
 
             const x = (e.clientX - rect.left) / scale;
@@ -500,8 +497,9 @@ const PreviewCanvas = {
             const right0 = start.x + start.w;
             const bottom0 = start.y + start.h;
 
-            const minW = 10;
-            const minH = 10;
+            // ★ 최소 크기: 20px
+            const minW = 20;
+            const minH = 20;
 
             let x, y, w, h;
 
@@ -512,7 +510,6 @@ const PreviewCanvas = {
                 w = start.w;
                 h = start.h;
 
-                // 캔버스 경계 내로 간단히 클램프
                 if (x < 0) x = 0;
                 if (y < 0) y = 0;
                 if (x + w > cw) x = cw - w;
@@ -522,15 +519,12 @@ const PreviewCanvas = {
                 const handle = this.dragHandle;
 
                 if (handle === 'br') {
-                    // 오른쪽/아래 엣지 이동, 왼쪽/위 고정
                     let newRight = right0 + dx;
                     let newBottom = bottom0 + dy;
 
-                    // 경계 우선 클램프
                     if (newRight > cw) newRight = cw;
                     if (newBottom > ch) newBottom = ch;
 
-                    // 최소 크기
                     if (newRight - left0 < minW) newRight = left0 + minW;
                     if (newBottom - top0 < minH) newBottom = top0 + minH;
 
@@ -539,7 +533,6 @@ const PreviewCanvas = {
                     w = newRight - left0;
                     h = newBottom - top0;
                 } else if (handle === 'bl') {
-                    // 왼쪽/아래 엣지 이동, 오른쪽/위 고정
                     let newLeft = left0 + dx;
                     let newBottom = bottom0 + dy;
 
@@ -554,7 +547,6 @@ const PreviewCanvas = {
                     w = right0 - newLeft;
                     h = newBottom - top0;
                 } else if (handle === 'tr') {
-                    // 오른쪽/위 엣지 이동, 왼쪽/아래 고정
                     let newRight = right0 + dx;
                     let newTop = top0 + dy;
 
@@ -569,7 +561,6 @@ const PreviewCanvas = {
                     w = newRight - left0;
                     h = bottom0 - newTop;
                 } else if (handle === 'tl') {
-                    // 왼쪽/위 엣지 이동, 오른쪽/아래 고정
                     let newLeft = left0 + dx;
                     let newTop = top0 + dy;
 
@@ -584,20 +575,17 @@ const PreviewCanvas = {
                     w = right0 - newLeft;
                     h = bottom0 - newTop;
                 } else {
-                    // 혹시 핸들이 지정 안되었으면 move로 fallback
                     x = left0 + dx;
                     y = top0 + dy;
                     w = start.w;
                     h = start.h;
                 }
 
-                // 최종 안전 체크
                 if (!Number.isFinite(w) || w < minW) w = Math.max(minW, start.w);
                 if (!Number.isFinite(h) || h < minH) h = Math.max(minH, start.h);
                 if (!Number.isFinite(x)) x = start.x;
                 if (!Number.isFinite(y)) y = start.y;
 
-                // 경계 클램프 한 번 더
                 if (x < 0) x = 0;
                 if (y < 0) y = 0;
                 if (x + w > cw) x = cw - w;
