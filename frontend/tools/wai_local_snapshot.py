@@ -1,15 +1,14 @@
-### [WAI:UPDATE:tools/wai_local_snapshot.py]
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""
+r"""
 WAI Local Snapshot Tool (순수 로컬 스냅샷 + Git 복구 커밋/푸시)
 
 역할:
 - 기본 실행(인자 없음): 클립보드 워처 모드
   - 클립보드에서 `### [WAI:LOCAL_SNAPSHOT:설명]` 패턴을 감지하면
     → 현재 프로젝트(frontend) 전체 상태를 _snapshots/ 에 로컬 스냅샷으로 저장
-    → 최근 3개만 유지, 나머지는 자동 삭제
+    → 최근 5개만 유지, 나머지는 휴지통으로 이동
   - 이때 PROMPT 번호는 wai_magic.py 와 공유:
     - 동일한 클립보드 텍스트에 대해 항상 같은 [PROMPT N] 사용
 
@@ -35,12 +34,20 @@ import subprocess
 from datetime import datetime
 from typing import List
 
+# 휴지통 이동용 모듈
+try:
+    from send2trash import send2trash
+    SEND2TRASH_AVAILABLE = True
+except ImportError:
+    SEND2TRASH_AVAILABLE = False
+
 # --- 경로 설정 ---
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))   # C:\wai-ui\frontend
 SNAP_DIR = os.path.join(REPO_ROOT, "_snapshots")
 STATE_FILE = os.path.join(SNAP_DIR, "prompt_state.json")
 STATE_LOCK = os.path.join(SNAP_DIR, "prompt_state.lock")
+SNAPSHOT_LOG_FILE = os.path.join(SNAP_DIR, "snapshot_log.md")
 
 # Windows에서 폴더/파일 이름에 허용되지 않는 문자 (폴더 이름에만 사용)
 INVALID_WIN_CHARS = '<>:"/\\|?*'
@@ -74,6 +81,61 @@ def sanitize_for_path(name: str) -> str:
             safe_chars.append(ch)
     safe = "".join(safe_chars).strip()
     return safe or "snapshot"
+
+
+def safe_delete_folder(path: str) -> bool:
+    """
+    폴더를 안전하게 삭제.
+    - send2trash 사용 가능하면 휴지통으로 이동
+    - 그렇지 않으면 shutil.rmtree 로 영구 삭제
+    반환값: 삭제 성공 여부
+    """
+    if not os.path.isdir(path):
+        return False
+
+    if SEND2TRASH_AVAILABLE:
+        try:
+            send2trash(path)
+            return True
+        except Exception as e:
+            print(f"[WARN] 휴지통 이동 실패, 영구 삭제 시도: {e}")
+            # 폴백: 영구 삭제
+            try:
+                shutil.rmtree(path)
+                return True
+            except Exception as e2:
+                print(f"[WARN] 영구 삭제도 실패: {e2}")
+                return False
+    else:
+        try:
+            shutil.rmtree(path)
+            return True
+        except Exception as e:
+            print(f"[WARN] 폴더 삭제 실패: {e}")
+            return False
+
+
+def append_snapshot_log(ts_for_log: str, folder_name: str, description: str) -> None:
+    """
+    snapshot_log.md 에 스냅샷 기록을 한 줄 추가.
+    - 파일이 없으면 헤더와 함께 생성
+    - 형식: | 시간 | 폴더명 | 설명 |
+    """
+    ensure_dir(SNAP_DIR)
+    
+    # 파일이 없으면 헤더 생성
+    if not os.path.isfile(SNAPSHOT_LOG_FILE):
+        with open(SNAPSHOT_LOG_FILE, "w", encoding="utf-8") as f:
+            f.write("# WAI Snapshot Log\n\n")
+            f.write("| 시간 | 폴더명 | 설명 |\n")
+            f.write("|------|--------|------|\n")
+    
+    # 설명에서 줄바꿈/파이프 제거 (테이블 깨짐 방지)
+    desc_clean = (description or "").replace("\n", " ").replace("|", "/").strip()
+    
+    # 한 줄 추가
+    with open(SNAPSHOT_LOG_FILE, "a", encoding="utf-8") as f:
+        f.write(f"| {ts_for_log} | {folder_name} | {desc_clean} |\n")
 
 
 # --- Git 유틸 (restore 시 전체 커밋/푸시용) ---
@@ -226,7 +288,7 @@ def collect_files_for_snapshot() -> List[str]:
     """
     스냅샷에 포함할 파일 목록을 결정.
     - git 사용 X
-    - C:\wai-ui\frontend 전체를 os.walk로 돌면서 수집
+    - C:\\wai-ui\\frontend 전체를 os.walk로 돌면서 수집
     - 일부 디렉토리만 제외: .git, _snapshots, venv, node_modules 등
     """
     result = []
@@ -261,10 +323,11 @@ def collect_files_for_snapshot() -> List[str]:
     return result
 
 
-def cleanup_old_snapshots(keep_last: int = 3) -> None:
+def cleanup_old_snapshots(keep_last: int = 5) -> None:
     """
-    _snapshots 내에서 가장 최근 것 N개만 남기고 나머지는 삭제
+    _snapshots 내에서 가장 최근 것 N개만 남기고 나머지는 휴지통으로 이동
     - 정렬 기준: 폴더 이름(앞에 timestamp가 붙어 있으므로 이름 정렬 == 시간 정렬)
+    - send2trash 사용 가능하면 휴지통으로, 아니면 영구 삭제
     """
     ensure_dir(SNAP_DIR)
     dirs = [
@@ -278,11 +341,11 @@ def cleanup_old_snapshots(keep_last: int = 3) -> None:
     to_delete = dirs_sorted[:-keep_last]
     for name in to_delete:
         path = os.path.join(SNAP_DIR, name)
-        try:
-            shutil.rmtree(path)
-            print(f"[WAI SNAPSHOT] Removed old snapshot: {name}")
-        except Exception as e:
-            print(f"[WARN] 스냅샷 삭제 실패: {name} ({e})")
+        if safe_delete_folder(path):
+            if SEND2TRASH_AVAILABLE:
+                print(f"[WAI SNAPSHOT] 휴지통으로 이동: {name}")
+            else:
+                print(f"[WAI SNAPSHOT] 영구 삭제됨: {name}")
 
 
 def get_previous_snapshot_name(current_snap_name: str):
@@ -311,7 +374,7 @@ def get_previous_snapshot_name(current_snap_name: str):
     return dirs_sorted[idx - 1]
 
 
-def save_snapshot(description: str, prompt_idx: int, keep_last: int = 3) -> None:
+def save_snapshot(description: str, prompt_idx: int, keep_last: int = 5) -> None:
     """
     현재 REPO_ROOT 상태를 _snapshots/ 하위에 저장.
     - prompt_idx 는 외부에서 결정 (wai_magic 과 번호 공유 가능)
@@ -349,10 +412,13 @@ def save_snapshot(description: str, prompt_idx: int, keep_last: int = 3) -> None
         "created_at": ts_for_log,
         "files": files,
     }
-    with open(os.path.join(sap_path := snap_path, "manifest.json"), "w", encoding="utf-8") as f:
+    with open(os.path.join(snap_path, "manifest.json"), "w", encoding="utf-8") as f:
         json.dump(manifest, f, ensure_ascii=False, indent=2)
 
-    # 오래된 스냅샷 정리
+    # snapshot_log.md 에 기록 추가
+    append_snapshot_log(ts_for_log, folder_name, description)
+
+    # 오래된 스냅샷 정리 (휴지통으로 이동)
     cleanup_old_snapshots(keep_last=keep_last)
 
     # 정리 후, "이 작업을 되돌릴 때 갈 곳" = 직전(이전) 스냅샷으로 안내
@@ -367,7 +433,7 @@ def save_snapshot(description: str, prompt_idx: int, keep_last: int = 3) -> None
         # 현재 스냅샷(Pn) 기준, 한 단계 이전(Pn-1)으로 롤백하는 명령 안내
         print(f"    복구   : py tools\\wai_local_snapshot.py restore {prev_snap_name}")
     else:
-        print(f"    복구   : (이전 스냅샷 없음)")
+        print("    복구   : (이전 스냅샷 없음)")
     if description:
         print(f"    설명   : {description}")
 
