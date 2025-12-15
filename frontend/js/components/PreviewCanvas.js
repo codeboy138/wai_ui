@@ -36,29 +36,24 @@ const PreviewCanvas = {
         position: 'relative',
         width: cw + 'px',
         height: ch + 'px',
-        // 핸들이나 레이블이 박스 밖으로 삐져나와도 보이도록 visible
         overflow: 'visible' 
       };
     }
   },
 
   methods: {
-    // 마우스 이벤트 -> 논리 캔버스 좌표(px) 변환 (드래그 1:1 동기화 핵심)
     clientToCanvas(e) {
       const scaler = document.getElementById('preview-canvas-scaler');
       if (!scaler) {
         return { mx: 0, my: 0 };
       }
       
-      // getBoundingClientRect()는 CSS transform(scale)이 적용된 실제 화면상 크기를 반환합니다.
       const rect = scaler.getBoundingClientRect();
       const logicalW = this.canvasSize?.w || 1920;
       
-      // 화면상 1px이 논리적 캔버스에서 몇 px인지 비율 계산
       const scaleX = rect.width / logicalW;
       const s = (scaleX === 0) ? 1 : scaleX;
 
-      // (현재 마우스 위치 - 캔버스 시작점) / 스케일 = 논리적 좌표
       const mx = (e.clientX - rect.left) / s;
       const my = (e.clientY - rect.top) / s;
       
@@ -84,8 +79,8 @@ const PreviewCanvas = {
     labelChipStyle(box) {
       return {
         position: 'absolute',
-        // [수정] 박스 내부 하단 고정
-        bottom: '0', 
+        // [수정] 좌측 상단 고정 (모서리 핸들과 겹침 방지)
+        top: '0', 
         left: '0',
         backgroundColor: box.color || '#333',
         color: '#fff',
@@ -96,17 +91,15 @@ const PreviewCanvas = {
         whiteSpace: 'nowrap',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
-        // 드래그 방해 금지
         pointerEvents: 'none',
         zIndex: 10 
       };
     },
 
-    // 핸들 스타일
     handleStyle(pos) {
-      // [수정] 모서리 감지 반경 2배 확대 (12px -> 24px)
+      // 모서리 감지 반경 2배 (24px)
       const size = 24; 
-      const offset = -12; // 중앙 정렬 (size의 절반)
+      const offset = -12; 
       
       const style = {
         position: 'absolute',
@@ -115,7 +108,7 @@ const PreviewCanvas = {
         backgroundColor: '#fff', 
         border: '1px solid #000',
         zIndex: 9999,
-        pointerEvents: 'auto', // 핸들 클릭 가능
+        pointerEvents: 'auto', 
         opacity: 0.8 
       };
 
@@ -128,10 +121,7 @@ const PreviewCanvas = {
     },
 
     onBoxMouseDown(e, box) {
-      // 핸들 클릭 무시
       if (e.target.classList.contains('box-handle')) return;
-      
-      // 좌클릭만 드래그 허용
       if (e.button !== 0) return;
 
       e.preventDefault();
@@ -141,9 +131,7 @@ const PreviewCanvas = {
       this.startDrag('move', box, mx, my);
     },
 
-    // [수정] 우클릭 핸들러 추가
     onBoxContextMenu(e, box) {
-      // 상위 컴포넌트로 이벤트 전달 (컨텍스트 메뉴 표시용)
       this.$emit('contextmenu', e, box.id);
     },
 
@@ -179,30 +167,75 @@ const PreviewCanvas = {
       if (!this.dragging) return;
 
       const { mx, my } = this.clientToCanvas(e);
-      
-      // 이동량 계산 (스케일 보정됨)
       const dx = mx - this.dragStartMouse.mx;
       const dy = my - this.dragStartMouse.my;
       
       const { x0, y0, w0, h0 } = this.dragStartBox;
       let x = x0, y = y0, w = w0, h = h0;
 
+      // 캔버스 크기 (경계 제한용)
+      const cw = this.canvasSize?.w || 1920;
+      const ch = this.canvasSize?.h || 1080;
+      const minSize = 10;
+
       if (this.dragMode === 'move') {
         x += dx;
         y += dy;
+
+        // [수정] 캔버스 내부로 이동 제한 (Clamping)
+        if (x < 0) x = 0;
+        if (y < 0) y = 0;
+        if (x + w > cw) x = cw - w;
+        if (y + h > ch) y = ch - h;
+
       } else if (this.dragMode === 'resize') {
         const hdl = this.dragHandle;
-        if (hdl.includes('l')) { x += dx; w -= dx; }
-        if (hdl.includes('r')) { w += dx; }
-        if (hdl.includes('t')) { y += dy; h -= dy; }
-        if (hdl.includes('b')) { h += dy; }
+
+        if (hdl.includes('l')) { 
+            let newX = x + dx;
+            // 왼쪽 경계 제한
+            if (newX < 0) { 
+                w = w + x; 
+                x = 0; 
+            } else {
+                x = newX;
+                w -= dx;
+            }
+        }
+        if (hdl.includes('r')) { 
+            let newW = w + dx;
+            // 오른쪽 경계 제한
+            if (x + newW > cw) {
+                w = cw - x;
+            } else {
+                w = newW;
+            }
+        }
+        if (hdl.includes('t')) { 
+            let newY = y + dy;
+            // 위쪽 경계 제한
+            if (newY < 0) {
+                h = h + y;
+                y = 0;
+            } else {
+                y = newY;
+                h -= dy;
+            }
+        }
+        if (hdl.includes('b')) { 
+            let newH = h + dy;
+            // 아래쪽 경계 제한
+            if (y + newH > ch) {
+                h = ch - y;
+            } else {
+                h = newH;
+            }
+        }
       }
 
-      // 최소 크기 제한
-      if (w < 10) w = 10;
-      if (h < 10) h = 10;
+      if (w < minSize) w = minSize;
+      if (h < minSize) h = minSize;
 
-      // 부모에게 업데이트 요청 (null 전달 시 퍼센트 좌표 자동 계산)
       if (this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
         this.$parent.updateBoxPosition(this.dragBoxId, x, y, w, h, null);
       }
@@ -233,8 +266,12 @@ const PreviewCanvas = {
         @contextmenu.prevent="onBoxContextMenu($event, box)"
         data-action="js:selectCanvasBox"
       >
-        <!-- 레이블 (박스 하단 고정) -->
-        <div class="canvas-label-chip" :style="labelChipStyle(box)">
+        <!-- 레이블 (텍스트가 있을 때만 렌더링, 좌측 상단 고정) -->
+        <div 
+            v-if="box.layerName || box.type" 
+            class="canvas-label-chip" 
+            :style="labelChipStyle(box)"
+        >
           {{ box.layerName || box.type || 'Layer' }}
         </div>
 
