@@ -38,14 +38,15 @@
 
         <!-- Header -->
         <header id="header-main-panel" class="h-12 bg-bg-panel border-b border-ui-border flex items-center justify-between shrink-0 select-none px-[15px]">
-            <div class="flex items-center h-full gap-[15px]">
-                <div id="header-main-logo-label" class="font-bold text-lg tracking-tighter text-text-main" title="WAI Studio 홈">WAI</div>
+            <div class="flex items-center h-full gap-2">
+                <div id="header-main-logo-label" class="font-bold text-lg tracking-tighter text-text-main mr-2" title="WAI Studio 홈">WAI</div>
 
-                <div id="header-main-menu-container" class="relative group h-full flex items-center">
+                <div id="header-main-menu-container" class="relative group h-full flex items-center mr-2">
                     <button class="text-lg text-text-sub hover:text-text-main" title="메인 메뉴 (준비 중)"><i class="fa-solid fa-bars"></i></button>
                 </div>
 
-                <nav id="header-nav-container" class="flex items-center gap-[15px] h-full">
+                <!-- 메인메뉴 - 간격 60% 축소 (gap-[15px] → gap-[6px]) -->
+                <nav id="header-nav-container" class="flex items-center gap-[6px] h-full">
                     <button id="header-nav-explore-btn" class="nav-btn" @click="firePython('nav_explore')" data-action="py:nav_explore" title="프로젝트 탐색 열기">탐색</button>
                     
                     <div id="header-nav-create-wrapper" class="header-menu-wrapper h-full" :class="{ 'open': headerMenus.create }">
