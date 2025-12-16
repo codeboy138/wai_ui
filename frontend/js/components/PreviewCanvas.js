@@ -96,7 +96,8 @@ const PreviewCanvas = {
     },
 
     labelStyle(box) {
-      const fontSize = 60;
+      // [작업 1] 레이어 텍스트 크기 2배: 60px → 120px
+      const fontSize = 120;
       const padding = 6;
       
       const baseStyle = {
