@@ -5,13 +5,13 @@ const { createApp, reactive, ref, onMounted, computed, nextTick } = Vue;
 const BASE_CANVAS_LONG_SIDE = 1920;
 
 // 해상도별 기준 긴 변 픽셀 (레이블용, 프리뷰 스케일과는 무관)
-const RESOLUTION_KEYS = ['8K', '6K', '4K', '3K', '2K'];
+const RESOLUTION_KEYS = ['8K', '6K', '4K', 'FHD', 'HD'];
 const RESOLUTION_LONG_SIDE = {
     '8K': 7680,
     '6K': 5760,
     '4K': 3840,
-    '3K': 2880,
-    '2K': 1920
+    'FHD': 1920,
+    'HD': 1280
 };
 
 // 레이어 매트릭스 컬럼 역할 (좌→우)
@@ -93,7 +93,7 @@ const AppRoot = {
             
             // Preview Toolbar State
             aspectRatio: '16:9',
-            resolution: '4K',
+            resolution: 'FHD',
             // canvasSize: 실제 프리뷰 px (wrapper 크기 기준, aspectRatio 유지)
             canvasSize: { w: 1920, h: 1080 }, 
             mouseCoord: { x: 0, y: 0 }, 
@@ -554,12 +554,13 @@ const AppRoot = {
             const match = str.match(/^(\S+)/);
             const key = match ? match[1] : (str || this.resolution);
             this.resolution = key;
+            this.updateCanvasSizeFromControls();
         },
 
         // 해상도 레이블 계산용 (프리뷰 좌표계와는 별개, 메타정보)
         computeResolutionSize(aspectRatio, resolutionKey) {
-            const key = resolutionKey || '4K';
-            const longSide = RESOLUTION_LONG_SIDE[key] || RESOLUTION_LONG_SIDE['4K'];
+            const key = resolutionKey || 'FHD';
+            const longSide = RESOLUTION_LONG_SIDE[key] || RESOLUTION_LONG_SIDE['FHD'];
             let w, h;
 
             if (aspectRatio === '9:16') {
@@ -576,7 +577,7 @@ const AppRoot = {
             return { w, h };
         },
         getResolutionLabelFor(key) {
-            const k = key || this.resolution || '4K';
+            const k = key || this.resolution || 'FHD';
             const size = this.computeResolutionSize(this.aspectRatio, k);
             return `${k} (${size.w} x ${size.h})`;
         },
@@ -606,25 +607,6 @@ const AppRoot = {
 
             let w, h;
             let scale;
-
-            // [수정] wrapper 기준으로 canvasSize(논리 px)가 들어갈 scale 계산
-            // canvasSize가 4K(3840)라면 wrapper(1000px)에 들어가려면 scale < 1.0이 됨
-            // 하지만 현재는 wrapper 안에 들어갈 '보여질 크기'를 정하고, 
-            // 그 안에서 scale을 적용하는 방식이므로, 
-            // 1. canvasSize는 논리적 해상도(3840x2160)
-            // 2. wrapper 안에 fit 되는 크기 계산 -> fitW, fitH
-            // 3. scale = fitW / 3840
-            
-            // 그러나 기존 로직은 canvasSize 자체를 wrapper 크기에 맞게 줄여버리는 방식이었음.
-            // Pixi 사용 시에는 canvasSize는 고해상도 유지, view style만 줄이는 게 맞음.
-            // 하지만 현재 구조상 canvasSize = {w, h} 가 style.width/height 로 들어가므로
-            // 여기서는 '보여질 크기'로 w, h를 잡으면 안 되고
-            // '논리 크기'를 유지하되 scale을 계산해야 함.
-            
-            // -> 여기서는 기존대로 canvasSize를 '논리적 해상도'로 간주하고 (예: 1920x1080)
-            //    화면에 보여질 때는 scale을 적용하는 방식이 맞음.
-            //    단, setResolution() 등에서 canvasSize를 이미 논리 크기로 설정하고 있으므로
-            //    recalculateCanvasSizeFromWrapper() 에서는 scale 만 계산해야 함.
 
             // 현재 canvasSize (논리 크기)
             const cw = this.canvasSize.w || 1920;
