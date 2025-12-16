@@ -1,4 +1,4 @@
-// Asset Manager Modal Component - 드래그앤드롭 지원
+// Asset Manager Modal Component - 드래그앤드롭 지원 + 리사이징
 // [작업 6] 공통 탭(영상/이미지/사운드) 제거 - 단일 자산 타입만 표시
 
 const AssetManagerModal = {
@@ -19,6 +19,16 @@ const AssetManagerModal = {
                 :style="windowStyle"
                 @mousedown.stop
             >
+                <!-- 리사이즈 핸들 -->
+                <div class="modal-resize-handle resize-n" @mousedown="startResize($event, 'n')"></div>
+                <div class="modal-resize-handle resize-s" @mousedown="startResize($event, 's')"></div>
+                <div class="modal-resize-handle resize-e" @mousedown="startResize($event, 'e')"></div>
+                <div class="modal-resize-handle resize-w" @mousedown="startResize($event, 'w')"></div>
+                <div class="modal-resize-handle resize-nw" @mousedown="startResize($event, 'nw')"></div>
+                <div class="modal-resize-handle resize-ne" @mousedown="startResize($event, 'ne')"></div>
+                <div class="modal-resize-handle resize-sw" @mousedown="startResize($event, 'sw')"></div>
+                <div class="modal-resize-handle resize-se" @mousedown="startResize($event, 'se')"></div>
+
                 <!-- 헤더 -->
                 <div
                     id="asset-manager-modal-header"
@@ -152,12 +162,14 @@ const AssetManagerModal = {
                                     <div class="asset-thumbnail" :class="{ 'aspect-square': assetType === 'sound' }">
                                         <template v-if="assetType === 'video'">
                                             <video v-if="previewEnabled && asset.src" :src="asset.src" class="w-full h-full object-cover" muted loop @mouseenter="$event.target.play()" @mouseleave="$event.target.pause(); $event.target.currentTime = 0;"></video>
-                                            <i v-else class="asset-thumbnail-icon fa-solid fa-film"></i>
+                                            <div v-else class="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-900/30 to-purple-900/30">
+                                                <i class="asset-thumbnail-icon fa-solid fa-film"></i>
+                                            </div>
                                         </template>
                                         <template v-else-if="assetType === 'sound'">
                                             <div v-if="previewEnabled" class="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-900/30 to-blue-900/30 relative" @click.stop="toggleAudioPreview(asset)">
                                                 <div class="flex items-end gap-0.5 h-8">
-                                                    <div v-for="i in 5" :key="i" class="w-1 bg-ui-accent rounded-t" :style="{ height: '30%' }"></div>
+                                                    <div v-for="i in 5" :key="i" class="w-1 bg-ui-accent rounded-t" :style="{ height: (20 + Math.random() * 60) + '%' }"></div>
                                                 </div>
                                                 <i class="fa-solid fa-play absolute text-white text-xl drop-shadow-lg"></i>
                                             </div>
@@ -217,7 +229,10 @@ const AssetManagerModal = {
     data() {
         return {
             posX: 0, posY: 0,
+            width: 1000, height: 650,
+            minWidth: 600, minHeight: 400,
             dragging: false, dragStartMouseX: 0, dragStartMouseY: 0, dragStartPosX: 0, dragStartPosY: 0,
+            resizing: false, resizeDir: '', resizeStartX: 0, resizeStartY: 0, resizeStartW: 0, resizeStartH: 0, resizeStartPosX: 0, resizeStartPosY: 0,
             
             currentFolderId: 'all',
             viewMode: 'grid',
@@ -239,22 +254,64 @@ const AssetManagerModal = {
                 { id: 'favorites', name: '즐겨찾기' }
             ],
             
+            // 샘플 비디오 URL (퍼블릭 테스트용)
             dummyAssets: {
                 video: [
-                    { id: 'v1', name: 'intro_animation.mp4', duration: '00:15', resolution: '4K', folderId: 'all' },
-                    { id: 'v2', name: 'background_loop.mp4', duration: '00:30', resolution: 'FHD', folderId: 'all' },
-                    { id: 'v3', name: 'transition_01.mov', duration: '00:02', resolution: '4K', folderId: 'all' }
+                    { 
+                        id: 'v1', 
+                        name: 'Big Buck Bunny', 
+                        duration: '00:10', 
+                        resolution: 'FHD', 
+                        folderId: 'all',
+                        src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+                        thumbnail: ''
+                    },
+                    { 
+                        id: 'v2', 
+                        name: 'Elephant Dream', 
+                        duration: '00:15', 
+                        resolution: 'FHD', 
+                        folderId: 'all',
+                        src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+                        thumbnail: ''
+                    },
+                    { 
+                        id: 'v3', 
+                        name: 'Sintel Trailer', 
+                        duration: '00:52', 
+                        resolution: '4K', 
+                        folderId: 'all',
+                        src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
+                        thumbnail: ''
+                    },
+                    { 
+                        id: 'v4', 
+                        name: 'Tears of Steel', 
+                        duration: '00:12', 
+                        resolution: 'FHD', 
+                        folderId: 'all',
+                        src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
+                        thumbnail: ''
+                    }
                 ],
                 sound: [
-                    { id: 's1', name: 'bgm_corporate.mp3', duration: '03:24', folderId: 'all' },
-                    { id: 's2', name: 'sfx_whoosh.wav', duration: '00:02', folderId: 'all' },
-                    { id: 's3', name: 'voiceover_intro.mp3', duration: '00:45', folderId: 'all' }
+                    { id: 's1', name: 'bgm_corporate.mp3', duration: '03:24', folderId: 'all', src: '' },
+                    { id: 's2', name: 'sfx_whoosh.wav', duration: '00:02', folderId: 'all', src: '' },
+                    { id: 's3', name: 'voiceover_intro.mp3', duration: '00:45', folderId: 'all', src: '' }
                 ]
             }
         };
     },
     computed: {
-        windowStyle() { return { position: 'absolute', left: this.posX + 'px', top: this.posY + 'px' }; },
+        windowStyle() { 
+            return { 
+                position: 'absolute', 
+                left: this.posX + 'px', 
+                top: this.posY + 'px',
+                width: this.width + 'px',
+                height: this.height + 'px'
+            }; 
+        },
         assetTypeIcon() { return { video: 'fa-solid fa-film', sound: 'fa-solid fa-music' }[this.assetType] || 'fa-solid fa-file'; },
         assetTypeTitle() { return { video: '영상', sound: '사운드' }[this.assetType] || '자산'; },
         assetTypeLabel() { return { video: '영상', sound: '사운드' }[this.assetType] || '자산'; },
@@ -281,21 +338,53 @@ const AssetManagerModal = {
         centerWindow() {
             const vw = window.innerWidth || 1280;
             const vh = window.innerHeight || 720;
-            this.posX = Math.max(20, (vw - 1000) / 2);
-            this.posY = Math.max(20, (vh - 650) / 2);
+            this.posX = Math.max(20, (vw - this.width) / 2);
+            this.posY = Math.max(20, (vh - this.height) / 2);
         },
         onHeaderMouseDown(e) {
             this.dragging = true;
             this.dragStartMouseX = e.clientX; this.dragStartMouseY = e.clientY;
             this.dragStartPosX = this.posX; this.dragStartPosY = this.posY;
         },
+        startResize(e, dir) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.resizing = true;
+            this.resizeDir = dir;
+            this.resizeStartX = e.clientX;
+            this.resizeStartY = e.clientY;
+            this.resizeStartW = this.width;
+            this.resizeStartH = this.height;
+            this.resizeStartPosX = this.posX;
+            this.resizeStartPosY = this.posY;
+        },
         onGlobalMouseMove(e) {
             if (this.dragging) {
                 this.posX = this.dragStartPosX + (e.clientX - this.dragStartMouseX);
                 this.posY = this.dragStartPosY + (e.clientY - this.dragStartMouseY);
             }
+            if (this.resizing) {
+                const dx = e.clientX - this.resizeStartX;
+                const dy = e.clientY - this.resizeStartY;
+                const dir = this.resizeDir;
+                
+                let newW = this.resizeStartW;
+                let newH = this.resizeStartH;
+                let newX = this.resizeStartPosX;
+                let newY = this.resizeStartPosY;
+                
+                if (dir.includes('e')) newW = Math.max(this.minWidth, this.resizeStartW + dx);
+                if (dir.includes('w')) { newW = Math.max(this.minWidth, this.resizeStartW - dx); newX = this.resizeStartPosX + (this.resizeStartW - newW); }
+                if (dir.includes('s')) newH = Math.max(this.minHeight, this.resizeStartH + dy);
+                if (dir.includes('n')) { newH = Math.max(this.minHeight, this.resizeStartH - dy); newY = this.resizeStartPosY + (this.resizeStartH - newH); }
+                
+                this.width = newW;
+                this.height = newH;
+                this.posX = newX;
+                this.posY = newY;
+            }
         },
-        onGlobalMouseUp() { this.dragging = false; },
+        onGlobalMouseUp() { this.dragging = false; this.resizing = false; },
         
         toggleSort(field) { if (this.sortBy === field) this.sortAsc = !this.sortAsc; else { this.sortBy = field; this.sortAsc = true; } },
         selectAsset(asset) { this.selectedAssetId = asset.id; },
@@ -310,7 +399,7 @@ const AssetManagerModal = {
             const { value: name } = await Swal.fire({ title: '새 ' + this.assetTypeLabel + ' 추가', input: 'text', inputPlaceholder: '파일명', showCancelButton: true, background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6' });
             if (name) { 
                 if (!this.dummyAssets[this.assetType]) this.dummyAssets[this.assetType] = [];
-                this.dummyAssets[this.assetType].push({ id: `${this.assetType}_${Date.now()}`, name, folderId: this.currentFolderId, duration: '00:00' }); 
+                this.dummyAssets[this.assetType].push({ id: `${this.assetType}_${Date.now()}`, name, folderId: this.currentFolderId, duration: '00:00', src: '' }); 
             }
         },
         
@@ -327,11 +416,30 @@ const AssetManagerModal = {
         
         toggleAudioPreview(asset) { console.log('Playing audio:', asset.name); },
         
-        // 드래그앤드롭
+        // 드래그앤드롭 - 자산을 타임라인/캔버스로
         onAssetDragStart(e, asset) {
             this.dragData = { type: 'asset', asset };
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/wai-asset', JSON.stringify({ type: this.assetType, id: asset.id, name: asset.name }));
+            e.dataTransfer.effectAllowed = 'copyMove';
+            
+            // 타임라인/캔버스로 전달할 데이터 (src 포함)
+            const transferData = { 
+                type: this.assetType, 
+                id: asset.id, 
+                name: asset.name,
+                src: asset.src || '',
+                duration: asset.duration || '',
+                resolution: asset.resolution || ''
+            };
+            
+            e.dataTransfer.setData('text/wai-asset', JSON.stringify(transferData));
+            
+            // 드래그 이미지 설정 (선택사항)
+            const dragImage = document.createElement('div');
+            dragImage.textContent = asset.name;
+            dragImage.style.cssText = 'position:absolute;top:-1000px;padding:8px 12px;background:#3b82f6;color:#fff;border-radius:4px;font-size:12px;';
+            document.body.appendChild(dragImage);
+            e.dataTransfer.setDragImage(dragImage, 0, 0);
+            setTimeout(() => document.body.removeChild(dragImage), 0);
         },
         onDragEnd() {
             this.dragData = null;
