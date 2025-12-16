@@ -52,12 +52,6 @@
                     },
                     spacing: {
                         '15px': '15px'
-                    },
-                    cursor: {
-                        'ew-resize': 'ew-resize',
-                        'ns-resize': 'ns-resize',
-                        'row-resize': 'row-resize',
-                        'col-resize': 'col-resize'
                     }
                 }
             }
@@ -65,7 +59,6 @@
     </script>
 
     <style>
-        /* 전역 설정 */
         body {
             background-color: #09090b;
             color: #f4f4f5;
@@ -75,13 +68,11 @@
             font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
         }
 
-        /* 스크롤바 */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: #18181b; }
         ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #52525b; }
 
-        /* 타임라인 그리드 */
         .timeline-grid {
             display: grid;
             height: 100%;
@@ -92,7 +83,6 @@
         .sticky-ruler  { position: sticky; top: 0; z-index: 40; background: #09090b; border-bottom: 1px solid #27272a; }
         .sticky-col    { position: sticky; left: 0; z-index: 30; background: #18181b; border-right: 1px solid #27272a; }
 
-        /* 클립 */
         .clip {
             position: absolute;
             top: 4px;
@@ -120,18 +110,7 @@
             cursor: grabbing;
             box-shadow: 0 5px 15px rgba(0,0,0,0.5);
         }
-        .clip-label {
-            pointer-events: none;
-            text-shadow: 0 1px 2px black;
-            font-size: 10px;
-            padding: 2px 6px;
-            font-weight: bold;
-            color: white;
-            position: relative;
-            z-index: 2;
-        }
 
-        /* 오디오 파형/볼륨 라인 */
         .waveform {
             position: absolute; top: 50%; left: 0; width: 100%; height: 100%;
             transform: translateY(-50%); opacity: 0.6; pointer-events: none;
@@ -143,7 +122,6 @@
         }
         .volume-line:hover { background: #3b82f6; height: 3px; }
 
-        /* 프리뷰 뷰포트 */
         #preview-canvas-viewport {
             width: 100%;
             height: 100%;
@@ -151,7 +129,6 @@
             overflow: hidden;
         }
 
-        /* 프리뷰 캔버스 박스 */
         .canvas-scaler {
             position: relative;
             background-color: #000;
@@ -162,7 +139,6 @@
             transition: box-shadow 0.15s ease-out;
         }
 
-        /* 면별 플래시 오버레이 */
         .edge-flash-overlay {
             position: absolute;
             pointer-events: none;
@@ -182,7 +158,6 @@
 
         @keyframes edgeFlashPulse { 0% { opacity: 1; } 100% { opacity: 0; } }
 
-        /* 비율별 aspect-ratio */
         .canvas-ar-16-9 { aspect-ratio: 16 / 9; }
         .canvas-ar-9-16 { aspect-ratio: 9 / 16; }
         .canvas-ar-1-1  { aspect-ratio: 1 / 1; }
@@ -223,17 +198,6 @@
             border-radius: 2px 2px 0 0;
         }
 
-        .canvas-text-content {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            padding: 2px 6px;
-            white-space: nowrap;
-            pointer-events: none;
-        }
-
-        /* 박스 핸들 */
         .box-handle {
             position: absolute;
             width: 14px;
@@ -245,10 +209,6 @@
             box-sizing: border-box;
         }
         .canvas-box.selected .box-handle { display: block; }
-        .bh-tl { top: -1px; left: -1px; border-right: none; border-bottom: none; cursor: nwse-resize; }
-        .bh-tr { top: -1px; right: -1px; border-left: none; border-bottom: none; cursor: nesw-resize; }
-        .bh-bl { bottom: -1px; left: -1px; border-right: none; border-top: none; cursor: nesw-resize; }
-        .bh-br { bottom: -1px; right: -1px; border-left: none; border-top: none; cursor: nwse-resize; }
 
         #preview-render-canvas {
             position: absolute;
@@ -258,9 +218,6 @@
             pointer-events: none;
         }
 
-        @keyframes flash { 0% { opacity: 1; } 100% { opacity: 0; } }
-        .snap-flash { box-shadow: 0 0 0 2px #ffffff; animation: flash 0.5s ease-out; }
-
         .guide-line-h { position: absolute; left: 0; right: 0; height: 1px; background-color: #3b82f6; border-top: 1px dashed #3b82f6; display: none; pointer-events: none; z-index: 9999; opacity: 0.8; }
         .guide-line-v { position: absolute; top: 0; bottom: 0; width: 1px; background-color: #3b82f6; border-left: 1px dashed #3b82f6; display: none; pointer-events: none; z-index: 9999; opacity: 0.8; }
 
@@ -269,17 +226,12 @@
         .panel-resizer-h { width: 100%; height: 4px; background: #18181b; cursor: row-resize; z-index: 100; transition: background 0.2s; border-top: 1px solid #27272a; border-bottom: 1px solid #27272a; }
         .panel-resizer-h:hover { background: #3b82f6; }
 
-        .resizer-w { position: absolute; top: 0; right: 0; width: 5px; height: 100%; cursor: col-resize; z-index: 60; }
-        .resizer-h { position: absolute; bottom: 0; left: 0; width: 100%; height: 5px; cursor: row-resize; z-index: 60; }
-        .resizer-h:hover, .resizer-w:hover { background-color: #3b82f6; }
-
         .tool-btn { @apply p-1 rounded text-text-sub hover:text-text-main hover:bg-bg-hover transition-colors text-xs flex items-center justify-center w-6 h-6; }
         .tool-btn.active { @apply text-ui-accent bg-bg-hover; }
 
         .nav-btn { @apply px-3 py-1 text-xs text-text-sub hover:text-text-main hover:bg-ui-selected rounded transition-colors cursor-pointer h-full flex items-center; }
         .nav-btn.active { @apply text-text-main font-bold bg-bg-hover; }
 
-        /* 크롬 스타일 윈도우 버튼 */
         .win-btn { 
             width: 46px; 
             height: 100%; 
@@ -293,7 +245,6 @@
         .win-btn.close:hover { background-color: #ef4444; color: white; }
         .win-btn i { font-size: 12px; }
 
-        /* 드롭다운 */
         .c-dropdown { @apply relative inline-flex items-center px-2 h-full bg-bg-input rounded text-[10px] text-text-sub cursor-pointer hover:bg-bg-hover hover:text-text-main border border-ui-border select-none; }
         .c-dropdown-menu { position: absolute; top: 100%; left: 0; right: 0; margin-top: 0; background-color: #18181b; border: 1px solid #27272a; border-radius: 0 0 4px 4px; flex-direction: column; z-index: 2000; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
         .c-dropdown.open .c-dropdown-menu { display: flex; }
@@ -305,11 +256,6 @@
         .wai-dropdown--open .wai-dropdown-trigger { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom-color: transparent; }
         .wai-dropdown-menu { border-top-width: 0; }
 
-        .c-dropdown.locked { cursor: not-allowed; opacity: 0.7; border-color: #333; background: #1a1a1a; }
-        .c-dropdown.locked:hover { background: #1a1a1a; color: #a1a1aa; }
-        .c-dropdown.locked:hover .c-dropdown-menu { display: none; }
-
-        /* 헤더 메뉴 드롭다운 */
         .header-menu-wrapper {
             position: relative;
             height: 100%;
@@ -352,14 +298,10 @@
             background-color: #3b82f6;
             color: white;
         }
-        .header-menu-item:first-child {
-            border-radius: 0;
-        }
         .header-menu-item:last-child {
             border-radius: 0 0 4px 4px;
         }
         
-        /* 서브메뉴 */
         .header-submenu-wrapper {
             position: relative;
         }
@@ -397,44 +339,27 @@
             border-radius: 0 0 4px 4px;
         }
 
-        /* Dev Overlay */
         .dev-overlay { pointer-events: none; position: fixed; inset: 0; z-index: 99999; display: none; }
         body.dev-mode-active .dev-overlay, body.dev-mode-full .dev-overlay { display: block; }
         .dev-highlight { position: absolute; border: 1px solid #3b82f6; background: rgba(255, 255, 255, 0.1); transition: all 0.05s ease-out; pointer-events: none; }
         .dev-tooltip { position: absolute; background: rgba(255, 255, 255, 0.9); color: #000000; padding: 4px 8px; font-size: 12px; border-radius: 2px; font-family: monospace; white-space: pre-wrap; z-index: 100000; box-shadow: 0 2px 8px rgba(0,0,0,0.5); pointer-events: auto; max-width: 280px; }
-        .dev-tooltip-header { font-weight: bold; margin-bottom: 2px; }
-        .dev-tooltip-meta { color: #333; }
-        .dev-tooltip-hint { margin-top: 2px; color: #555; }
-        .dev-tooltip-devinfo { margin-top: 4px; padding-top: 4px; border-top: 1px solid #999; background: rgba(255, 255, 255, 0.9); color: #111; white-space: pre-wrap; }
 
-        /* 컨텍스트 메뉴 */
         .context-menu { position: fixed; background: #1e1e1e; border: 1px solid #333; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 5000; border-radius: 4px; padding: 4px 0; min-width: 120px; }
         .ctx-item { padding: 6px 12px; font-size: 11px; color: #eee; cursor: pointer; display: flex; align-items: center; gap: 8px; }
         .ctx-item:hover { background: #3b82f6; color: white; }
-        .ctx-item i { width: 14px; text-align: center; }
 
         .color-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding: 4px; }
         .color-swatch { width: 16px; height: 16px; border-radius: 2px; cursor: pointer; border: 1px solid #333; }
         .color-swatch:hover { border-color: white; transform: scale(1.1); }
 
-        .timeline-drag-over { box-shadow: inset 0 0 0 2px #3b82f6; background-color: rgba(59, 130, 246, 0.1); }
+        .playhead-line { position: absolute; top: 0; bottom: 0; width: 1px; background: #ef4444; z-index: 35; pointer-events: none; }
+        .playhead-handle { position: absolute; top: 0; width: 11px; height: 12px; background: #ef4444; transform: translateX(-50%); clip-path: polygon(0 0, 100% 0, 50% 100%); cursor: ew-resize; pointer-events: auto; z-index: 36; }
 
-        /* 플레이헤드 - z-index를 모달보다 낮게 */
-        .playhead-line { position: absolute; top: 0; bottom: 0; width: 1px; background: #ef4444; z-index: 40; pointer-events: none; }
-        .playhead-handle { position: absolute; top: 0; width: 11px; height: 12px; background: #ef4444; transform: translateX(-50%); clip-path: polygon(0 0, 100% 0, 50% 100%); cursor: ew-resize; pointer-events: auto; z-index: 50; }
-
-        /* Modal - z-index를 플레이헤드보다 높게 */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); display: flex; justify-content: center; align-items: center; z-index: 10000; }
-        .modal-window { background: #18181b; border: 1px solid #27272a; border-radius: 8px; width: 80%; height: 80%; max-width: 1000px; max-height: 700px; display: flex; flex-direction: column; overflow: hidden; }
+        .modal-window { background: #18181b; border: 1px solid #27272a; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; }
         .layer-config-window { width: 640px; height: 520px; max-width: 900px; max-height: 700px; }
-        
-        /* 레이어 템플릿 모달 - 대형 */
         .layer-template-window-large { width: 900px; height: 600px; max-width: 95vw; max-height: 90vh; }
-        
-        /* 프로젝트 관리 모달 */
         .project-manager-window { width: 900px; height: 600px; max-width: 95vw; max-height: 90vh; }
-        
-        /* 자산 관리 모달 */
         .asset-manager-window { width: 1000px; height: 650px; max-width: 95vw; max-height: 90vh; }
 
         .animate-fade-in { animation: fadeIn 0.2s ease-in-out; }
@@ -442,17 +367,9 @@
 
         #preview-toolbar-panel { position: relative; z-index: 40; }
         
-        /* 자산 미리보기 그리드 */
-        .asset-grid {
-            display: grid;
-            gap: 12px;
-        }
-        .asset-grid.view-grid {
-            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-        }
-        .asset-grid.view-list {
-            grid-template-columns: 1fr;
-        }
+        .asset-grid { display: grid; gap: 12px; }
+        .asset-grid.view-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+        .asset-grid.view-list { grid-template-columns: 1fr; }
         .asset-card {
             background: #27272a;
             border: 1px solid #3f3f46;
@@ -461,14 +378,9 @@
             cursor: pointer;
             transition: border-color 0.15s, box-shadow 0.15s;
         }
-        .asset-card:hover {
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 1px #3b82f6;
-        }
-        .asset-card.selected {
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 2px #3b82f6;
-        }
+        .asset-card:hover { border-color: #3b82f6; box-shadow: 0 0 0 1px #3b82f6; }
+        .asset-card.selected { border-color: #3b82f6; box-shadow: 0 0 0 2px #3b82f6; }
+        .asset-card.drag-over { border-color: #22c55e; box-shadow: 0 0 0 2px #22c55e; background: rgba(34, 197, 94, 0.1); }
         .asset-thumbnail {
             width: 100%;
             aspect-ratio: 16/9;
@@ -478,54 +390,18 @@
             justify-content: center;
             overflow: hidden;
         }
-        .asset-thumbnail img,
-        .asset-thumbnail video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        .asset-thumbnail-icon {
-            font-size: 32px;
-            color: #52525b;
-        }
-        .asset-info {
-            padding: 8px;
-        }
-        .asset-name {
-            font-size: 11px;
-            font-weight: 500;
-            color: #f4f4f5;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .asset-meta {
-            font-size: 10px;
-            color: #71717a;
-            margin-top: 2px;
-        }
+        .asset-thumbnail-icon { font-size: 32px; color: #52525b; }
+        .asset-info { padding: 8px; }
+        .asset-name { font-size: 11px; font-weight: 500; color: #f4f4f5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .asset-meta { font-size: 10px; color: #71717a; margin-top: 2px; }
         
-        /* 리스트 뷰 스타일 */
-        .asset-grid.view-list .asset-card {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        .asset-grid.view-list .asset-thumbnail {
-            width: 80px;
-            height: 45px;
-            aspect-ratio: auto;
-            flex-shrink: 0;
-        }
-        .asset-grid.view-list .asset-info {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        .asset-grid.view-list .asset-thumbnail-icon {
-            font-size: 20px;
-        }
+        .asset-grid.view-list .asset-card { display: flex; align-items: center; gap: 12px; }
+        .asset-grid.view-list .asset-thumbnail { width: 80px; height: 45px; aspect-ratio: auto; flex-shrink: 0; }
+        .asset-grid.view-list .asset-info { flex: 1; display: flex; align-items: center; justify-content: space-between; }
+        .asset-grid.view-list .asset-thumbnail-icon { font-size: 20px; }
+
+        .folder-drop-zone { transition: background-color 0.15s, border-color 0.15s; }
+        .folder-drop-zone.drag-over { background-color: rgba(59, 130, 246, 0.2); border-color: #3b82f6; }
     </style>
 </head>
 
@@ -544,10 +420,10 @@
                 <nav id="header-nav-container" class="flex items-center gap-[15px] h-full">
                     <button id="header-nav-explore-btn" class="nav-btn hover:text-white text-text-sub" @click="firePython('nav_explore')" data-action="py:nav_explore" title="프로젝트 탐색 열기">탐색</button>
                     
-                    <!-- 제작 메뉴 (하위 메뉴 포함) -->
+                    <!-- 제작 메뉴 (화살표 제거) -->
                     <div id="header-nav-create-wrapper" class="header-menu-wrapper h-full" :class="{ 'open': headerMenus.create }">
                         <button id="header-nav-create-btn" class="nav-btn hover:text-white" :class="{ 'active': headerMenus.create }" @click="toggleHeaderMenu('create')" data-action="js:toggleCreateMenu" title="제작 메뉴">
-                            제작 <i class="fa-solid fa-caret-down ml-1 text-[8px]"></i>
+                            제작
                         </button>
                         <div class="header-menu-dropdown">
                             <div id="header-menu-create-project" class="header-menu-item" @click="openProjectManager" data-action="js:openProjectManager">
@@ -556,10 +432,10 @@
                         </div>
                     </div>
                     
-                    <!-- 자산 메뉴 (하위 메뉴 포함) -->
+                    <!-- 자산 메뉴 (화살표 제거) -->
                     <div id="header-nav-assets-wrapper" class="header-menu-wrapper h-full" :class="{ 'open': headerMenus.assets }">
                         <button id="header-nav-assets-btn" class="nav-btn hover:text-white" :class="{ 'active': headerMenus.assets }" @click="toggleHeaderMenu('assets')" data-action="js:toggleAssetsMenu" title="자산 메뉴">
-                            자산 <i class="fa-solid fa-caret-down ml-1 text-[8px]"></i>
+                            자산
                         </button>
                         <div class="header-menu-dropdown">
                             <div id="header-menu-assets-manage-wrapper" class="header-submenu-wrapper" :class="{ 'open': headerSubmenus.assetManage }">
@@ -585,7 +461,6 @@
                 <button id="header-dev-inspect-btn" class="h-6 px-3 border border-ui-border rounded-l text-text-sub hover:text-white hover:bg-bg-hover flex items-center gap-1 transition-colors" :class="{'bg-ui-selected text-text-main': isDevModeActive}" @click="toggleDevMode('active')" data-action="js:toggleDevModeActive" title="Inspect 모드 토글"><i class="fa-solid fa-magnifying-glass"></i> Inspect</button>
                 <button id="header-dev-mode-btn" class="h-6 px-3 border border-ui-border border-l-0 rounded-r text-text-sub hover:text-white hover:bg-bg-hover flex items-center gap-1 mr-4 transition-colors" :class="{'bg-ui-selected text-text-main': isDevModeFull}" @click="toggleDevMode('full')" data-action="js:toggleDevModeFull" title="개발자 모드 토글"><i class="fa-solid fa-code"></i> Dev</button>
 
-                <!-- 크롬 스타일 윈도우 컨트롤 버튼 -->
                 <div id="header-window-controls-container" class="flex items-center h-full ml-4 border-l border-ui-border">
                     <button id="header-window-min-btn" class="win-btn" @click="firePython('win_min')" data-action="py:win_min" title="창 최소화">
                         <i class="fa-solid fa-window-minimize"></i>
