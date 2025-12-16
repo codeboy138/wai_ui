@@ -49,17 +49,6 @@ const PreviewCanvas = {
     },
 
     /**
-     * 캔버스 내 텍스트 크기 기준값
-     * - 논리 캔버스 높이 기준 약 4.5% (기존 3%의 1.5배)
-     * - 1080px 기준 약 48px
-     */
-    canvasFontSize() {
-      const ch = (this.canvasSize && this.canvasSize.h) ? this.canvasSize.h : 1080;
-      const size = Math.round(ch * 0.045);
-      return Math.max(36, Math.min(72, size));
-    },
-
-    /**
      * 표시할 박스 (숨김 상태 제외)
      */
     visibleBoxes() {
@@ -110,12 +99,47 @@ const PreviewCanvas = {
     },
 
     /**
+     * 박스 크기에 비례한 폰트 크기 계산
+     * - 기본 크기: 캔버스 높이의 3%
+     * - 비율 조정: 박스 너비/높이에 따라 축소
+     * - 최소 20px, 최대 60px
+     */
+    calculateFontSize(box) {
+      const ch = (this.canvasSize && this.canvasSize.h) ? this.canvasSize.h : 1080;
+      const cw = (this.canvasSize && this.canvasSize.w) ? this.canvasSize.w : 1920;
+      
+      // 기본 폰트 크기 (캔버스 높이의 3%)
+      const baseFontSize = Math.round(ch * 0.03);
+      
+      // 박스 크기
+      const boxW = Number(box.w) || cw;
+      const boxH = Number(box.h) || ch;
+      
+      // 박스 크기 비율 (캔버스 대비)
+      const widthRatio = boxW / cw;
+      const heightRatio = boxH / ch;
+      
+      // 작은 쪽 비율 사용 (더 제한적인 방향 기준)
+      const sizeRatio = Math.min(widthRatio, heightRatio);
+      
+      // 비율 조정 (0.3 이하면 축소, 1.0이면 기본 크기)
+      // 최소 비율 0.15에서 최소 폰트, 비율 0.5 이상이면 최대 폰트
+      const adjustedRatio = Math.max(0.4, Math.min(1.0, sizeRatio * 2));
+      
+      const fontSize = Math.round(baseFontSize * adjustedRatio);
+      
+      // 최소 20px, 최대 60px
+      return Math.max(20, Math.min(60, fontSize));
+    },
+
+    /**
      * 레이어 레이블 스타일
-     * - 폰트 크기: 캔버스 높이의 4.5% (1.5배 증가)
+     * - 폰트 크기: 박스 크기에 비례
+     * - 위치: rowType별 (Effect→좌, Text→중앙, BG→우)
      */
     labelStyle(box) {
-      const fontSize = this.canvasFontSize;
-      const padding = Math.round(fontSize * 0.2);
+      const fontSize = this.calculateFontSize(box);
+      const padding = Math.round(fontSize * 0.15);
       
       const baseStyle = {
         position: 'absolute',
@@ -129,27 +153,31 @@ const PreviewCanvas = {
         whiteSpace: 'nowrap',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
-        maxWidth: '40%',
+        maxWidth: '90%',
         pointerEvents: 'none',
         textShadow: '0 2px 4px rgba(0,0,0,0.8)',
-        borderRadius: `${Math.round(fontSize * 0.15)}px ${Math.round(fontSize * 0.15)}px 0 0`
+        borderRadius: `${Math.round(fontSize * 0.1)}px ${Math.round(fontSize * 0.1)}px 0 0`
       };
 
       const rowType = box.rowType || '';
       
       if (rowType === 'EFF') {
+        // Effect: 좌측
         baseStyle.left = '0';
         baseStyle.right = 'auto';
         baseStyle.transform = 'none';
       } else if (rowType === 'TXT') {
+        // Text: 중앙
         baseStyle.left = '50%';
         baseStyle.right = 'auto';
         baseStyle.transform = 'translateX(-50%)';
       } else if (rowType === 'BG') {
+        // BG: 우측
         baseStyle.left = 'auto';
         baseStyle.right = '0';
         baseStyle.transform = 'none';
       } else {
+        // 기본: 좌측
         baseStyle.left = '0';
         baseStyle.right = 'auto';
         baseStyle.transform = 'none';
@@ -160,17 +188,15 @@ const PreviewCanvas = {
 
     /**
      * 레이어 레이블 텍스트 생성
-     * - 형식: "layerName (rowType)" - 영어 행이름 사용
+     * - rowType만 표시 (단 이름 제거)
      */
     getLabelText(box) {
-      const name = box.layerName || box.colRole || 'Layer';
       const typeMap = {
         'EFF': 'Effect',
         'TXT': 'Text',
         'BG': 'BG'
       };
-      const typeName = typeMap[box.rowType] || box.rowType || '';
-      return typeName ? `${name} (${typeName})` : name;
+      return typeMap[box.rowType] || box.rowType || 'Layer';
     },
 
     handleStyle(pos) {
@@ -578,7 +604,7 @@ const PreviewCanvas = {
         @contextmenu="onBoxContextMenu($event, box)"
         data-action="js:selectCanvasBox"
       >
-        <!-- 레이어 레이블 (하단 내부, rowType별 위치) -->
+        <!-- 레이어 레이블 (rowType만 표시, 위치별 배치) -->
         <div 
           class="canvas-label"
           :style="labelStyle(box)"
