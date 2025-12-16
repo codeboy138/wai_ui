@@ -356,10 +356,14 @@
         }
         .nav-btn.active { @apply text-text-main font-bold bg-bg-hover; }
 
+        /* 크롬 스타일 윈도우 버튼 */
         .win-btn {
-            @apply w-10 h-full flex items-center justify-center text-text-sub hover:bg-bg-hover hover:text-text-main transition-colors text-xs;
+            @apply w-12 h-full flex items-center justify-center text-text-sub hover:bg-bg-hover hover:text-text-main transition-colors;
         }
         .win-btn.close:hover { @apply bg-ui-danger text-white; }
+        .win-btn i {
+            font-size: 14px;
+        }
 
         /* 커스텀 드롭다운 */
         .c-dropdown {
@@ -515,6 +519,14 @@
             max-height: 700px;
         }
 
+        /* 레이어 템플릿 관리 모달 전용 크기 */
+        .layer-template-window {
+            width: 600px;
+            height: 500px;
+            max-width: 800px;
+            max-height: 600px;
+        }
+
         .animate-fade-in { animation: fadeIn 0.2s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
@@ -625,7 +637,8 @@
                     <i class="fa-solid fa-code"></i> Dev
                 </button>
 
-                <div id="header-window-controls-container" class="flex items-center h-full ml-[15px] gap-0 border-l border-ui-border pl-2">
+                <!-- 크롬 스타일 윈도우 컨트롤 버튼 -->
+                <div id="header-window-controls-container" class="flex items-center h-full ml-4 gap-0 border-l border-ui-border">
                     <button
                         id="header-window-min-btn"
                         class="win-btn"
@@ -633,7 +646,7 @@
                         data-action="py:win_min"
                         title="창 최소화"
                     >
-                        <i class="fa-solid fa-minus text-[10px]"></i>
+                        <i class="fa-solid fa-minus"></i>
                     </button>
                     <button
                         id="header-window-max-btn"
@@ -642,7 +655,7 @@
                         data-action="py:win_max"
                         title="창 최대화/복원"
                     >
-                        <i class="fa-regular fa-square text-[10px]"></i>
+                        <i class="fa-regular fa-square"></i>
                     </button>
                     <button
                         id="header-window-close-btn"
@@ -651,7 +664,7 @@
                         data-action="py:win_close"
                         title="앱 종료"
                     >
-                        <i class="fa-solid fa-xmark text-[10px]"></i>
+                        <i class="fa-solid fa-xmark"></i>
                     </button>
                 </div>
             </div>
@@ -809,6 +822,15 @@
             @delete="deleteLayerFromConfig"
         ></layer-config-modal>
 
+        <!-- 레이어 템플릿 관리 모달 -->
+        <layer-template-modal
+            v-if="layerTemplateModal.isOpen"
+            :templates="layerTemplates"
+            @close="closeLayerTemplateModal"
+            @delete-template="deleteLayerTemplate"
+            @load-template="loadLayerTemplate"
+        ></layer-template-modal>
+
         <!-- Inspector / Dev Overlay -->
         <div class="dev-overlay" id="dev-overlay-root" v-if="inspector.tag">
             <div id="dev-overlay-highlight" class="dev-highlight" :style="highlightStyle"></div>
@@ -853,6 +875,7 @@
     <script src="js/components/RulerLine.js"></script>
     <script src="js/components/ProjectModal.js"></script>
     <script src="js/components/LayerConfigModal.js"></script>
+    <script src="js/components/LayerTemplateModal.js"></script>
     <script src="js/components/LayerPanel.js"></script>
     <script src="js/components/PreviewCanvas.js"></script>
     <script src="js/components/TimelinePanel.js"></script>
