@@ -335,18 +335,19 @@ body {
     background-color: #27272a;
 }
 
-/* 메인메뉴 버튼 - 여백 축소 */
+/* 메인메뉴 버튼 - 패딩 축소, 라운딩 추가 */
 .nav-btn { 
-    padding: 2px 6px;
+    padding: 1px 4px;
     font-size: 12px;
-    border-radius: 2px;
+    border-radius: 3px;
     transition: color 0.15s, background-color 0.15s;
     cursor: pointer;
-    height: 100%;
+    height: auto;
     display: flex;
     align-items: center;
     color: #71717a;
     border: none;
+    line-height: 1.4;
 }
 
 .nav-btn:hover { 
@@ -464,7 +465,7 @@ body {
 }
 
 /* =============================================
-   12. Header Menus - 여백/간격 축소, 회색 호버
+   12. Header Menus - 패딩 축소, 라운딩 추가, 회색 호버
    ============================================= */
 .header-menu-wrapper {
     position: relative;
@@ -477,7 +478,7 @@ body {
     position: absolute;
     top: 100%;
     left: 0;
-    min-width: 140px;
+    min-width: 120px;
     background-color: #18181b;
     border: 1px solid #27272a;
     border-top: none;
@@ -486,6 +487,7 @@ body {
     z-index: 3000;
     display: none;
     flex-direction: column;
+    padding: 2px;
 }
 
 .header-menu-wrapper.open .header-menu-dropdown {
@@ -498,9 +500,10 @@ body {
     border-bottom-right-radius: 0;
 }
 
-/* 메뉴 아이템 - 여백 축소, 회색 호버 */
+/* 메뉴 아이템 - 패딩 반으로 축소, 라운딩 추가 */
 .header-menu-item {
-    padding: 4px 8px;
+    padding: 2px 6px;
+    margin: 1px 0;
     font-size: 11px;
     color: #a1a1aa;
     cursor: pointer;
@@ -508,6 +511,8 @@ body {
     align-items: center;
     justify-content: space-between;
     transition: background-color 0.15s, color 0.15s;
+    border-radius: 3px;
+    line-height: 1.4;
 }
 
 .header-menu-item:hover {
@@ -516,7 +521,7 @@ body {
 }
 
 .header-menu-item:last-child {
-    border-radius: 0 0 4px 4px;
+    border-radius: 3px;
 }
 
 .header-submenu-wrapper {
@@ -527,7 +532,7 @@ body {
     position: absolute;
     top: 0;
     left: 100%;
-    min-width: 120px;
+    min-width: 100px;
     background-color: #18181b;
     border: 1px solid #27272a;
     border-radius: 4px;
@@ -535,19 +540,23 @@ body {
     z-index: 3001;
     display: none;
     flex-direction: column;
+    padding: 2px;
 }
 
 .header-submenu-wrapper.open .header-submenu {
     display: flex;
 }
 
-/* 서브메뉴 아이템 - 여백 축소, 회색 호버 */
+/* 서브메뉴 아이템 - 패딩 반으로 축소, 라운딩 추가 */
 .header-submenu-item {
-    padding: 4px 8px;
+    padding: 2px 6px;
+    margin: 1px 0;
     font-size: 11px;
     color: #a1a1aa;
     cursor: pointer;
     transition: background-color 0.15s, color 0.15s;
+    border-radius: 3px;
+    line-height: 1.4;
 }
 
 .header-submenu-item:hover {
@@ -556,11 +565,11 @@ body {
 }
 
 .header-submenu-item:first-child {
-    border-radius: 4px 4px 0 0;
+    border-radius: 3px;
 }
 
 .header-submenu-item:last-child {
-    border-radius: 0 0 4px 4px;
+    border-radius: 3px;
 }
 
 /* =============================================
@@ -617,18 +626,21 @@ body.dev-mode-full .dev-overlay {
 }
 
 .ctx-item { 
-    padding: 6px 12px; 
+    padding: 4px 10px; 
     font-size: 11px; 
-    color: #eee; 
+    color: #a1a1aa; 
     cursor: pointer; 
     display: flex; 
     align-items: center; 
-    gap: 8px; 
+    gap: 8px;
+    margin: 1px 2px;
+    border-radius: 3px;
+    transition: background-color 0.15s, color 0.15s;
 }
 
 .ctx-item:hover { 
     background: #3f3f46; 
-    color: white; 
+    color: #f4f4f5; 
 }
 
 /* =============================================
