@@ -95,12 +95,9 @@ const PreviewCanvas = {
       };
     },
 
-    /**
-     * 레이어 레이블 스타일 - 고정 30px 폰트
-     */
     labelStyle(box) {
-      const fontSize = 30;
-      const padding = 4;
+      const fontSize = 60;
+      const padding = 6;
       
       const baseStyle = {
         position: 'absolute',
@@ -117,7 +114,7 @@ const PreviewCanvas = {
         maxWidth: '90%',
         pointerEvents: 'none',
         textShadow: '0 2px 4px rgba(0,0,0,0.8)',
-        borderRadius: '3px 3px 0 0'
+        borderRadius: '4px 4px 0 0'
       };
 
       const rowType = box.rowType || '';
@@ -153,7 +150,7 @@ const PreviewCanvas = {
     },
 
     handleStyle(pos) {
-      const size = 24;
+      const size = 28;
       const offset = -Math.round(size / 2);
       
       const style = {
@@ -359,38 +356,17 @@ const PreviewCanvas = {
       const touchBottom = (y + h) >= (ch - threshold);
       const touchRight = (x + w) >= (cw - threshold);
 
-      if (touchTop && !this.edgeFlash.top) {
-        this.triggerEdgeFlash('top');
-      }
-      if (touchBottom && !this.edgeFlash.bottom) {
-        this.triggerEdgeFlash('bottom');
-      }
-      if (touchLeft && !this.edgeFlash.left) {
-        this.triggerEdgeFlash('left');
-      }
-      if (touchRight && !this.edgeFlash.right) {
-        this.triggerEdgeFlash('right');
-      }
+      if (touchTop && !this.edgeFlash.top) this.triggerEdgeFlash('top');
+      if (touchBottom && !this.edgeFlash.bottom) this.triggerEdgeFlash('bottom');
+      if (touchLeft && !this.edgeFlash.left) this.triggerEdgeFlash('left');
+      if (touchRight && !this.edgeFlash.right) this.triggerEdgeFlash('right');
 
-      if (!touchTop && this.edgeFlash.top) {
-        this.hideEdgeFlash('top');
-      }
-      if (!touchBottom && this.edgeFlash.bottom) {
-        this.hideEdgeFlash('bottom');
-      }
-      if (!touchLeft && this.edgeFlash.left) {
-        this.hideEdgeFlash('left');
-      }
-      if (!touchRight && this.edgeFlash.right) {
-        this.hideEdgeFlash('right');
-      }
+      if (!touchTop && this.edgeFlash.top) this.hideEdgeFlash('top');
+      if (!touchBottom && this.edgeFlash.bottom) this.hideEdgeFlash('bottom');
+      if (!touchLeft && this.edgeFlash.left) this.hideEdgeFlash('left');
+      if (!touchRight && this.edgeFlash.right) this.hideEdgeFlash('right');
 
-      this.edgeFlash = {
-        top: touchTop,
-        bottom: touchBottom,
-        left: touchLeft,
-        right: touchRight
-      };
+      this.edgeFlash = { top: touchTop, bottom: touchBottom, left: touchLeft, right: touchRight };
     },
 
     checkBgRegionContact(box, x, y, w, h) {
@@ -405,35 +381,25 @@ const PreviewCanvas = {
       const touchRegionTop = Math.abs(y - region.minY) <= threshold;
       const touchRegionBottom = Math.abs((y + h) - region.maxY) <= threshold;
 
-      if (touchRegionTop) {
-        this.triggerEdgeFlash('top');
-      }
-      if (touchRegionBottom) {
-        this.triggerEdgeFlash('bottom');
-      }
+      if (touchRegionTop) this.triggerEdgeFlash('top');
+      if (touchRegionBottom) this.triggerEdgeFlash('bottom');
     },
 
     triggerEdgeFlash(direction) {
       const flashEl = document.getElementById(`preview-edge-flash-${direction}`);
       if (flashEl) {
         flashEl.classList.add('active');
-        setTimeout(() => {
-          flashEl.classList.remove('active');
-        }, 500);
+        setTimeout(() => { flashEl.classList.remove('active'); }, 500);
       }
     },
 
     hideEdgeFlash(direction) {
       const flashEl = document.getElementById(`preview-edge-flash-${direction}`);
-      if (flashEl) {
-        flashEl.classList.remove('active');
-      }
+      if (flashEl) flashEl.classList.remove('active');
     },
 
     hideAllEdgeFlash() {
-      ['top', 'bottom', 'left', 'right'].forEach(dir => {
-        this.hideEdgeFlash(dir);
-      });
+      ['top', 'bottom', 'left', 'right'].forEach(dir => this.hideEdgeFlash(dir));
     },
 
     onWindowMouseMove(e) {
@@ -513,9 +479,7 @@ const PreviewCanvas = {
 
       this.checkEdgeContact(x, y, w, h);
 
-      if (currentBox) {
-        this.checkBgRegionContact(currentBox, x, y, w, h);
-      }
+      if (currentBox) this.checkBgRegionContact(currentBox, x, y, w, h);
 
       if (this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
         this.$parent.updateBoxPosition(this.dragBoxId, x, y, w, h, null);
