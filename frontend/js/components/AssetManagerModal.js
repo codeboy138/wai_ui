@@ -1,4 +1,5 @@
 // Asset Manager Modal Component - 드래그앤드롭 지원
+// [작업 6] 공통 탭(영상/이미지/사운드) 제거 - 단일 자산 타입만 표시
 
 const AssetManagerModal = {
     props: {
@@ -39,18 +40,10 @@ const AssetManagerModal = {
                     </div>
                 </div>
 
-                <!-- 툴바 -->
+                <!-- 툴바 (탭 제거됨) -->
                 <div class="flex items-center justify-between px-4 py-2 border-b border-ui-border bg-bg-panel">
-                    <div class="flex items-center gap-1">
-                        <button
-                            v-for="tab in assetTabs"
-                            :key="tab.type"
-                            class="px-3 py-1 text-[11px] rounded transition-colors"
-                            :class="currentAssetType === tab.type ? 'bg-ui-accent text-white' : 'bg-bg-input text-text-sub hover:bg-bg-hover'"
-                            @click="switchAssetType(tab.type)"
-                        >
-                            <i :class="tab.icon" class="mr-1"></i>{{ tab.label }}
-                        </button>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[11px] text-text-sub">{{ assetTypeTitle }} 목록</span>
                     </div>
                     
                     <div class="flex items-center gap-2">
@@ -156,16 +149,12 @@ const AssetManagerModal = {
                                     @dragstart="onAssetDragStart($event, asset)"
                                     @dragend="onDragEnd"
                                 >
-                                    <div class="asset-thumbnail" :class="{ 'aspect-square': currentAssetType === 'sound' }">
-                                        <template v-if="currentAssetType === 'video'">
+                                    <div class="asset-thumbnail" :class="{ 'aspect-square': assetType === 'sound' }">
+                                        <template v-if="assetType === 'video'">
                                             <video v-if="previewEnabled && asset.src" :src="asset.src" class="w-full h-full object-cover" muted loop @mouseenter="$event.target.play()" @mouseleave="$event.target.pause(); $event.target.currentTime = 0;"></video>
                                             <i v-else class="asset-thumbnail-icon fa-solid fa-film"></i>
                                         </template>
-                                        <template v-else-if="currentAssetType === 'image'">
-                                            <img v-if="previewEnabled && asset.src" :src="asset.src" class="w-full h-full object-cover" />
-                                            <i v-else class="asset-thumbnail-icon fa-solid fa-image"></i>
-                                        </template>
-                                        <template v-else-if="currentAssetType === 'sound'">
+                                        <template v-else-if="assetType === 'sound'">
                                             <div v-if="previewEnabled" class="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-900/30 to-blue-900/30 relative" @click.stop="toggleAudioPreview(asset)">
                                                 <div class="flex items-end gap-0.5 h-8">
                                                     <div v-for="i in 5" :key="i" class="w-1 bg-ui-accent rounded-t" :style="{ height: '30%' }"></div>
@@ -230,7 +219,6 @@ const AssetManagerModal = {
             posX: 0, posY: 0,
             dragging: false, dragStartMouseX: 0, dragStartMouseY: 0, dragStartPosX: 0, dragStartPosY: 0,
             
-            currentAssetType: this.assetType,
             currentFolderId: 'all',
             viewMode: 'grid',
             searchQuery: '',
@@ -245,12 +233,6 @@ const AssetManagerModal = {
             dragOverFolderId: null,
             isContentPanelDragOver: false,
             
-            assetTabs: [
-                { type: 'video', label: '영상', icon: 'fa-solid fa-film' },
-                { type: 'image', label: '이미지', icon: 'fa-solid fa-image' },
-                { type: 'sound', label: '사운드', icon: 'fa-solid fa-music' }
-            ],
-            
             assetFolders: [
                 { id: 'all', name: '전체' },
                 { id: 'recent', name: '최근 사용' },
@@ -263,11 +245,6 @@ const AssetManagerModal = {
                     { id: 'v2', name: 'background_loop.mp4', duration: '00:30', resolution: 'FHD', folderId: 'all' },
                     { id: 'v3', name: 'transition_01.mov', duration: '00:02', resolution: '4K', folderId: 'all' }
                 ],
-                image: [
-                    { id: 'i1', name: 'logo_white.png', resolution: '1920x1080', folderId: 'all' },
-                    { id: 'i2', name: 'background_01.jpg', resolution: '3840x2160', folderId: 'all' },
-                    { id: 'i3', name: 'overlay_texture.png', resolution: '1920x1080', folderId: 'all' }
-                ],
                 sound: [
                     { id: 's1', name: 'bgm_corporate.mp3', duration: '03:24', folderId: 'all' },
                     { id: 's2', name: 'sfx_whoosh.wav', duration: '00:02', folderId: 'all' },
@@ -278,13 +255,13 @@ const AssetManagerModal = {
     },
     computed: {
         windowStyle() { return { position: 'absolute', left: this.posX + 'px', top: this.posY + 'px' }; },
-        assetTypeIcon() { return { video: 'fa-solid fa-film', image: 'fa-solid fa-image', sound: 'fa-solid fa-music' }[this.currentAssetType] || 'fa-solid fa-file'; },
-        assetTypeTitle() { return { video: '영상', image: '이미지', sound: '사운드' }[this.currentAssetType] || '자산'; },
-        assetTypeLabel() { return { video: '영상', image: '이미지', sound: '사운드' }[this.currentAssetType] || '자산'; },
-        previewToggleLabel() { return this.currentAssetType === 'sound' ? '미리듣기' : '미리보기'; },
+        assetTypeIcon() { return { video: 'fa-solid fa-film', sound: 'fa-solid fa-music' }[this.assetType] || 'fa-solid fa-file'; },
+        assetTypeTitle() { return { video: '영상', sound: '사운드' }[this.assetType] || '자산'; },
+        assetTypeLabel() { return { video: '영상', sound: '사운드' }[this.assetType] || '자산'; },
+        previewToggleLabel() { return this.assetType === 'sound' ? '미리듣기' : '미리보기'; },
         currentFolderName() { const folder = this.assetFolders.find(f => f.id === this.currentFolderId); return folder ? folder.name : '전체'; },
         filteredAssets() {
-            let assets = this.dummyAssets[this.currentAssetType] || [];
+            let assets = this.dummyAssets[this.assetType] || [];
             if (this.currentFolderId !== 'all') assets = assets.filter(a => a.folderId === this.currentFolderId);
             if (this.searchQuery) { const q = this.searchQuery.toLowerCase(); assets = assets.filter(a => a.name.toLowerCase().includes(q)); }
             assets = [...assets].sort((a, b) => { let cmp = this.sortBy === 'name' ? a.name.localeCompare(b.name) : 0; return this.sortAsc ? cmp : -cmp; });
@@ -320,7 +297,6 @@ const AssetManagerModal = {
         },
         onGlobalMouseUp() { this.dragging = false; },
         
-        switchAssetType(type) { this.currentAssetType = type; this.selectedAssetId = null; },
         toggleSort(field) { if (this.sortBy === field) this.sortAsc = !this.sortAsc; else { this.sortBy = field; this.sortAsc = true; } },
         selectAsset(asset) { this.selectedAssetId = asset.id; },
         
@@ -332,7 +308,10 @@ const AssetManagerModal = {
         
         async addAsset() {
             const { value: name } = await Swal.fire({ title: '새 ' + this.assetTypeLabel + ' 추가', input: 'text', inputPlaceholder: '파일명', showCancelButton: true, background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6' });
-            if (name) { this.dummyAssets[this.currentAssetType].push({ id: `${this.currentAssetType}_${Date.now()}`, name, folderId: this.currentFolderId, duration: '00:00' }); }
+            if (name) { 
+                if (!this.dummyAssets[this.assetType]) this.dummyAssets[this.assetType] = [];
+                this.dummyAssets[this.assetType].push({ id: `${this.assetType}_${Date.now()}`, name, folderId: this.currentFolderId, duration: '00:00' }); 
+            }
         },
         
         async createFolder() {
@@ -341,8 +320,9 @@ const AssetManagerModal = {
         },
         
         getFolderAssetCount(folderId) {
-            if (folderId === 'all') return this.dummyAssets[this.currentAssetType]?.length || 0;
-            return (this.dummyAssets[this.currentAssetType] || []).filter(a => a.folderId === folderId).length;
+            const assets = this.dummyAssets[this.assetType] || [];
+            if (folderId === 'all') return assets.length;
+            return assets.filter(a => a.folderId === folderId).length;
         },
         
         toggleAudioPreview(asset) { console.log('Playing audio:', asset.name); },
@@ -351,7 +331,7 @@ const AssetManagerModal = {
         onAssetDragStart(e, asset) {
             this.dragData = { type: 'asset', asset };
             e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/wai-asset', JSON.stringify({ type: this.currentAssetType, id: asset.id, name: asset.name }));
+            e.dataTransfer.setData('text/wai-asset', JSON.stringify({ type: this.assetType, id: asset.id, name: asset.name }));
         },
         onDragEnd() {
             this.dragData = null;
@@ -386,7 +366,7 @@ const AssetManagerModal = {
             this.dragData = null;
         },
         moveAssetToFolder(asset, targetFolderId) {
-            const assets = this.dummyAssets[this.currentAssetType];
+            const assets = this.dummyAssets[this.assetType] || [];
             const idx = assets.findIndex(a => a.id === asset.id);
             if (idx !== -1) assets[idx].folderId = targetFolderId;
         }
