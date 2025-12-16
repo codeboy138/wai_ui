@@ -670,3 +670,16 @@ const ProjectModal = {
                 const id = selected.replace('project:', '');
                 const project = this.allProjects.find(p => p.id === id);
                 if (project) this.openProject(project
+
+
+-------------------------------------------------------
+작업계획
+
+1차: CSS + TimelinePanel + PreviewCanvas 
+2차: AssetManagerModal + ImageAssetModal + ImageEffectModal (리사이징 추가)
+3차: VisualizationModal + ProjectModal + ApiManagerModal + LayerTemplateModal (리사이징 추가)
+4차: app-root.js (재생 연동, 드롭 핸들러)
+
+==========================
+맨위에 프롬프트를 작업계획대로 작업중에 ProjectModal.js 코드작성중에  멈췄어.
+
