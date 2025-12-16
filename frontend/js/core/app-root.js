@@ -8,7 +8,7 @@ const LAYER_ROW_META = { EFF: { name: 'effect', zOffset: 80 }, TXT: { name: 'tex
 const DEFAULT_TEXT_MESSAGE = '현재의 레이어에 적용할\n텍스트 스타일을 설정하세요';
 
 function createDefaultTextStyle() {
-    return { fontFamily: 'Pretendard', fontSize: 48, strokeColor: '#000000', strokeWidth: 0, fillColor: '#ffffff', backgroundColor: 'transparent' };
+    return { fontFamily: 'Pretendard', fontSize: 48, strokeColor: '#000000', strokeWidth: 0, fillColor: '#ffffff', backgroundColor: 'transparent', shadow: { offsetX: 2, offsetY: 2, blur: 4, color: '#000000' } };
 }
 
 const AppRoot = {
@@ -16,6 +16,10 @@ const AppRoot = {
         'dropdown-menu': DropdownMenu, 
         'project-modal': ProjectModal, 
         'asset-manager-modal': AssetManagerModal,
+        'image-asset-modal': ImageAssetModal,
+        'image-effect-modal': ImageEffectModal,
+        'visualization-modal': VisualizationModal,
+        'api-manager-modal': ApiManagerModal,
         'layer-panel': LayerPanel,
         'preview-canvas': PreviewCanvas,
         'timeline-panel': TimelinePanel,
@@ -36,7 +40,8 @@ const AppRoot = {
             // 헤더 메뉴 상태
             headerMenus: {
                 create: false,
-                assets: false
+                assets: false,
+                settings: false
             },
             headerSubmenus: {
                 assetManage: false
@@ -51,6 +56,26 @@ const AppRoot = {
             assetManagerModal: {
                 isOpen: false,
                 assetType: 'video'
+            },
+            
+            // 이미지 자산 모달
+            imageAssetModal: {
+                isOpen: false
+            },
+            
+            // 이미지효과 모달
+            imageEffectModal: {
+                isOpen: false
+            },
+            
+            // 시각화 모달
+            visualizationModal: {
+                isOpen: false
+            },
+            
+            // API 관리 모달
+            apiManagerModal: {
+                isOpen: false
             },
             
             tracks: [
@@ -190,6 +215,7 @@ const AppRoot = {
         closeAllHeaderMenus() {
             this.headerMenus.create = false;
             this.headerMenus.assets = false;
+            this.headerMenus.settings = false;
             this.headerSubmenus.assetManage = false;
         },
         
@@ -213,7 +239,7 @@ const AppRoot = {
             this.projectManagerModal.isOpen = false;
         },
         
-        // === Asset Manager Modal ===
+        // === Asset Manager Modal (영상/사운드) ===
         openAssetManager(assetType) {
             this.closeAllHeaderMenus();
             this.assetManagerModal.assetType = assetType || 'video';
@@ -222,6 +248,71 @@ const AppRoot = {
         
         closeAssetManager() {
             this.assetManagerModal.isOpen = false;
+        },
+        
+        // === Image Asset Modal ===
+        openImageAssetModal() {
+            this.closeAllHeaderMenus();
+            this.imageAssetModal.isOpen = true;
+        },
+        
+        closeImageAssetModal() {
+            this.imageAssetModal.isOpen = false;
+        },
+        
+        // === Image Effect Modal ===
+        openImageEffectModal() {
+            this.closeAllHeaderMenus();
+            this.imageEffectModal.isOpen = true;
+        },
+        
+        closeImageEffectModal() {
+            this.imageEffectModal.isOpen = false;
+        },
+        
+        // === Visualization Modal ===
+        openVisualizationModal() {
+            this.closeAllHeaderMenus();
+            this.visualizationModal.isOpen = true;
+        },
+        
+        closeVisualizationModal() {
+            this.visualizationModal.isOpen = false;
+        },
+        
+        // === API Manager Modal ===
+        openApiManagerModal() {
+            this.closeAllHeaderMenus();
+            this.apiManagerModal.isOpen = true;
+        },
+        
+        closeApiManagerModal() {
+            this.apiManagerModal.isOpen = false;
+        },
+        
+        // === Account Manager (placeholder) ===
+        openAccountManager() {
+            this.closeAllHeaderMenus();
+            Swal.fire({ icon: 'info', title: '계정관리', text: '계정관리 기능은 준비 중입니다.', background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6' });
+        },
+        
+        // === Logout ===
+        async handleLogout() {
+            this.closeAllHeaderMenus();
+            const result = await Swal.fire({
+                title: '로그아웃',
+                text: '정말 로그아웃 하시겠습니까?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: '로그아웃',
+                cancelButtonText: '취소',
+                background: '#1e1e1e',
+                color: '#fff',
+                confirmButtonColor: '#ef4444'
+            });
+            if (result.isConfirmed) {
+                Swal.fire({ icon: 'success', title: '로그아웃 완료', background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6', timer: 1500, showConfirmButton: false });
+            }
         },
 
         // === Box Normalization ===
