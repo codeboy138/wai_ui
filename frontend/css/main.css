@@ -335,9 +335,14 @@ body {
     background-color: #27272a;
 }
 
-/* 메인메뉴 버튼 - 패딩 축소, 라운딩 추가 */
+/* =============================================
+   11. 통합 메뉴 스타일 - 모든 메뉴 아이템에 적용
+   회색 배경 (#3f3f46), 5px 패딩, 라운딩
+   ============================================= */
+
+/* 메인메뉴 버튼 */
 .nav-btn { 
-    padding: 1px 4px;
+    padding: 5px;
     font-size: 12px;
     border-radius: 3px;
     transition: color 0.15s, background-color 0.15s;
@@ -345,9 +350,9 @@ body {
     height: auto;
     display: flex;
     align-items: center;
-    color: #71717a;
+    color: #a1a1aa;
     border: none;
-    line-height: 1.4;
+    line-height: 1;
 }
 
 .nav-btn:hover { 
@@ -360,6 +365,101 @@ body {
     background-color: #3f3f46;
 }
 
+/* 헤더 드롭다운 메뉴 */
+.header-menu-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 120px;
+    background-color: #18181b;
+    border: 1px solid #27272a;
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    z-index: 3000;
+    display: none;
+    flex-direction: column;
+    padding: 4px;
+}
+
+.header-menu-wrapper.open .header-menu-dropdown {
+    display: flex;
+}
+
+.header-menu-wrapper.open .nav-btn {
+    background-color: #3f3f46;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+/* 메뉴 아이템 - 통일된 스타일 */
+.header-menu-item {
+    padding: 5px;
+    font-size: 11px;
+    color: #a1a1aa;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: background-color 0.15s, color 0.15s;
+    border-radius: 3px;
+    line-height: 1;
+}
+
+.header-menu-item:hover {
+    background-color: #3f3f46;
+    color: #f4f4f5;
+}
+
+/* 서브메뉴 컨테이너 */
+.header-submenu-wrapper {
+    position: relative;
+}
+
+.header-submenu {
+    position: absolute;
+    top: 0;
+    left: 100%;
+    min-width: 100px;
+    background-color: #18181b;
+    border: 1px solid #27272a;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    z-index: 3001;
+    display: none;
+    flex-direction: column;
+    padding: 4px;
+}
+
+.header-submenu-wrapper.open .header-submenu {
+    display: flex;
+}
+
+/* 서브메뉴 아이템 - 통일된 스타일 */
+.header-submenu-item {
+    padding: 5px;
+    font-size: 11px;
+    color: #a1a1aa;
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s;
+    border-radius: 3px;
+    line-height: 1;
+}
+
+.header-submenu-item:hover {
+    background-color: #3f3f46;
+    color: #f4f4f5;
+}
+
+/* 헤더 메뉴 래퍼 */
+.header-menu-wrapper {
+    position: relative;
+    height: 100%;
+    display: flex;
+    align-items: center;
+}
+
+/* 윈도우 버튼 */
 .win-btn { 
     width: 46px; 
     height: 100%; 
@@ -371,7 +471,7 @@ body {
 }
 
 .win-btn:hover { 
-    background-color: #27272a; 
+    background-color: #3f3f46; 
     color: #f4f4f5; 
 }
 
@@ -385,7 +485,7 @@ body {
 }
 
 /* =============================================
-   11. Dropdowns
+   12. Dropdowns
    ============================================= */
 .c-dropdown { 
     position: relative;
@@ -403,7 +503,7 @@ body {
 }
 
 .c-dropdown:hover {
-    background-color: #27272a;
+    background-color: #3f3f46;
     color: #f4f4f5;
 }
 
@@ -418,7 +518,8 @@ body {
     border-radius: 0 0 4px 4px; 
     flex-direction: column; 
     z-index: 2000; 
-    box-shadow: 0 4px 12px rgba(0,0,0,0.5); 
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    padding: 4px;
 }
 
 .c-dropdown.open .c-dropdown-menu { 
@@ -426,19 +527,21 @@ body {
 }
 
 .c-dropdown-item { 
-    padding: 8px;
+    padding: 5px;
     text-align: center;
     transition: background-color 0.15s, color 0.15s;
+    border-radius: 3px;
+    color: #a1a1aa;
 }
 
 .c-dropdown-item:hover {
-    background-color: #3b82f6;
-    color: white;
+    background-color: #3f3f46;
+    color: #f4f4f5;
 }
 
 .c-dropdown-item-selected { 
     border: 1px solid #71717a; 
-    border-radius: 4px; 
+    border-radius: 3px; 
 }
 
 .wai-dropdown { 
@@ -462,114 +565,6 @@ body {
 
 .wai-dropdown-menu { 
     border-top-width: 0; 
-}
-
-/* =============================================
-   12. Header Menus - 패딩 축소, 라운딩 추가, 회색 호버
-   ============================================= */
-.header-menu-wrapper {
-    position: relative;
-    height: 100%;
-    display: flex;
-    align-items: center;
-}
-
-.header-menu-dropdown {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    min-width: 120px;
-    background-color: #18181b;
-    border: 1px solid #27272a;
-    border-top: none;
-    border-radius: 0 0 4px 4px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-    z-index: 3000;
-    display: none;
-    flex-direction: column;
-    padding: 2px;
-}
-
-.header-menu-wrapper.open .header-menu-dropdown {
-    display: flex;
-}
-
-.header-menu-wrapper.open .nav-btn {
-    background-color: #3f3f46;
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
-}
-
-/* 메뉴 아이템 - 패딩 반으로 축소, 라운딩 추가 */
-.header-menu-item {
-    padding: 2px 6px;
-    margin: 1px 0;
-    font-size: 11px;
-    color: #a1a1aa;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    transition: background-color 0.15s, color 0.15s;
-    border-radius: 3px;
-    line-height: 1.4;
-}
-
-.header-menu-item:hover {
-    background-color: #3f3f46;
-    color: #f4f4f5;
-}
-
-.header-menu-item:last-child {
-    border-radius: 3px;
-}
-
-.header-submenu-wrapper {
-    position: relative;
-}
-
-.header-submenu {
-    position: absolute;
-    top: 0;
-    left: 100%;
-    min-width: 100px;
-    background-color: #18181b;
-    border: 1px solid #27272a;
-    border-radius: 4px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-    z-index: 3001;
-    display: none;
-    flex-direction: column;
-    padding: 2px;
-}
-
-.header-submenu-wrapper.open .header-submenu {
-    display: flex;
-}
-
-/* 서브메뉴 아이템 - 패딩 반으로 축소, 라운딩 추가 */
-.header-submenu-item {
-    padding: 2px 6px;
-    margin: 1px 0;
-    font-size: 11px;
-    color: #a1a1aa;
-    cursor: pointer;
-    transition: background-color 0.15s, color 0.15s;
-    border-radius: 3px;
-    line-height: 1.4;
-}
-
-.header-submenu-item:hover {
-    background-color: #3f3f46;
-    color: #f4f4f5;
-}
-
-.header-submenu-item:first-child {
-    border-radius: 3px;
-}
-
-.header-submenu-item:last-child {
-    border-radius: 3px;
 }
 
 /* =============================================
@@ -612,34 +607,34 @@ body.dev-mode-full .dev-overlay {
 }
 
 /* =============================================
-   14. Context Menu
+   14. Context Menu - 통일된 스타일
    ============================================= */
 .context-menu { 
     position: fixed; 
-    background: #1e1e1e; 
-    border: 1px solid #333; 
+    background: #18181b; 
+    border: 1px solid #27272a; 
     box-shadow: 0 4px 12px rgba(0,0,0,0.5); 
     z-index: 5000; 
     border-radius: 4px; 
-    padding: 4px 0; 
+    padding: 4px; 
     min-width: 120px; 
 }
 
 .ctx-item { 
-    padding: 4px 10px; 
+    padding: 5px; 
     font-size: 11px; 
     color: #a1a1aa; 
     cursor: pointer; 
     display: flex; 
     align-items: center; 
     gap: 8px;
-    margin: 1px 2px;
     border-radius: 3px;
     transition: background-color 0.15s, color 0.15s;
+    line-height: 1;
 }
 
 .ctx-item:hover { 
-    background: #3f3f46; 
+    background-color: #3f3f46; 
     color: #f4f4f5; 
 }
 
@@ -718,10 +713,10 @@ body.dev-mode-full .dev-overlay {
 }
 
 .layer-config-window { 
-    width: 340px; 
-    height: 580px; 
+    width: 360px; 
+    height: 650px; 
     max-width: 900px; 
-    max-height: 700px; 
+    max-height: 90vh; 
 }
 
 .layer-template-window-large { 
