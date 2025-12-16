@@ -1,4 +1,4 @@
-// Image Effect Modal Component - 이미지효과 관리 + 리사이징
+// Image Effect Modal Component - 이미지효과 관리 + 리사이징 + 드래그
 
 const ImageEffectModal = {
     emits: ['close'],
@@ -79,7 +79,7 @@ const ImageEffectModal = {
                             v-for="effect in filteredEffects"
                             :key="effect.id"
                             class="bg-bg-input border border-ui-border rounded-lg p-3 cursor-pointer hover:border-ui-accent transition-colors"
-                            :class="{ 'border-ui-accent ring-1 ring-ui-accent': selectedEffectId === effect.id, 'dragging': draggingEffectId === effect.id }"
+                            :class="{ 'border-ui-accent ring-1 ring-ui-accent': selectedEffectId === effect.id }"
                             @click="selectEffect(effect)"
                             @dblclick="applyEffect(effect)"
                             draggable="true"
@@ -98,7 +98,7 @@ const ImageEffectModal = {
                 <!-- 상태바 -->
                 <div class="px-4 py-2 border-t border-ui-border bg-bg-panel flex justify-between items-center text-[11px] rounded-b-lg">
                     <div class="text-text-sub">
-                        <span v-if="selectedEffectId">1개 선택됨 - 캔버스나 타임라인으로 드래그하세요</span>
+                        <span v-if="selectedEffectId">1개 선택됨</span>
                         <span v-else>{{ currentCategoryLabel }}</span>
                     </div>
                     <div class="flex items-center gap-2">
@@ -120,7 +120,6 @@ const ImageEffectModal = {
             currentCategory: 'filter',
             searchQuery: '',
             selectedEffectId: null,
-            draggingEffectId: null,
             
             categoryTabs: [
                 { id: 'filter', label: '필터', icon: 'fa-solid fa-sliders' },
@@ -238,29 +237,6 @@ const ImageEffectModal = {
             if (effect) this.applyEffect(effect); 
         },
         
-        // 드래그앤드롭 - 캔버스/타임라인으로
-        onEffectDragStart(e, effect) {
-            this.draggingEffectId = effect.id;
-            e.dataTransfer.effectAllowed = 'copy';
-            e.dataTransfer.setData('text/wai-asset', JSON.stringify({ 
-                type: 'effect', 
-                id: effect.id, 
-                name: effect.name,
-                category: effect.category,
-                effectType: this.currentCategory
-            }));
-            
-            const dragImage = document.createElement('div');
-            dragImage.textContent = effect.name;
-            dragImage.style.cssText = 'position:absolute;top:-1000px;padding:8px 12px;background:#a855f7;color:white;border-radius:4px;font-size:12px;';
-            document.body.appendChild(dragImage);
-            e.dataTransfer.setDragImage(dragImage, 0, 0);
-            setTimeout(() => document.body.removeChild(dragImage), 0);
-        },
-        onDragEnd() {
-            this.draggingEffectId = null;
-        },
-        
         async addEffect() {
             const { value: name } = await Swal.fire({ 
                 title: '새 효과 추가', 
@@ -280,6 +256,21 @@ const ImageEffectModal = {
                     icon: 'fa-solid fa-star'
                 }); 
             }
+        },
+        
+        // 드래그앤드롭
+        onEffectDragStart(e, effect) {
+            e.dataTransfer.effectAllowed = 'copy';
+            e.dataTransfer.setData('text/wai-asset', JSON.stringify({ 
+                type: 'effect', 
+                id: effect.id, 
+                name: effect.name,
+                category: effect.category,
+                effectType: this.currentCategory
+            }));
+        },
+        onDragEnd() {
+            // 드래그 종료 시 정리
         }
     }
 };
