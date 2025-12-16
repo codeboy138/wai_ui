@@ -669,17 +669,75 @@ const ProjectModal = {
             if (selected && selected.startsWith('project:')) {
                 const id = selected.replace('project:', '');
                 const project = this.allProjects.find(p => p.id === id);
-                if (project) this.openProject(project
+                if (project) this.openProject(project);
+            }
+        },
+        openContextProject() { this.closeContextMenu(); this.openProject(this.contextMenu.target); },
+        openContextFolder() { this.closeContextMenu(); this.navigateToFolder(this.contextMenu.target.id); },
+        async deleteProject(project) {
+            const result = await Swal.fire({
+                title: '프로젝트 삭제', text: `"${project.name}" 프로젝트를 삭제하시겠습니까?`, icon: 'warning',
+                showCancelButton: true, confirmButtonText: '삭제', cancelButtonText: '취소',
+                background: '#1e1e1e', color: '#fff', confirmButtonColor: '#ef4444'
+            });
+            if (result.isConfirmed) this.internalProjects = this.internalProjects.filter(p => p.id !== project.id);
+        },
+        deleteContextProject() { this.closeContextMenu(); this.deleteProject(this.contextMenu.target); },
+        async deleteContextFolder() {
+            this.closeContextMenu();
+            const folder = this.contextMenu.target;
+            if (folder.id === 'root') { Swal.fire({ icon: 'error', title: '루트 폴더는 삭제할 수 없습니다', background: '#1e1e1e', color: '#fff' }); return; }
+            const result = await Swal.fire({
+                title: '폴더 삭제', text: `"${folder.name}" 폴더를 삭제하시겠습니까?`, icon: 'warning',
+                showCancelButton: true, confirmButtonText: '삭제', cancelButtonText: '취소',
+                background: '#1e1e1e', color: '#fff', confirmButtonColor: '#ef4444'
+            });
+            if (result.isConfirmed) {
+                this.internalFolders = this.internalFolders.filter(f => f.id !== folder.id);
+                if (this.currentFolderId === folder.id) this.currentFolderId = folder.parentId || 'root';
+            }
+        },
+        async renameItem() {
+            const target = this.contextMenu.target;
+            const type = this.contextMenu.type;
+            this.closeContextMenu();
+            const { value: name } = await Swal.fire({
+                title: '이름 바꾸기', input: 'text', inputValue: target.name,
+                showCancelButton: true, background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6'
+            });
+            if (name && name !== target.name) {
+                if (type === 'folder') {
+                    const idx = this.internalFolders.findIndex(f => f.id === target.id);
+                    if (idx !== -1) this.internalFolders[idx].name = name;
+                } else if (type === 'project') {
+                    const idx = this.internalProjects.findIndex(p => p.id === target.id);
+                    if (idx !== -1) this.internalProjects[idx].name = name;
+                }
+            }
+        },
+        async duplicateProject() {
+            this.closeContextMenu();
+            const project = this.contextMenu.target;
+            this.internalProjects.push({ ...project, id: `proj_${Date.now()}`, name: `${project.name} (복사본)`, updatedAt: new Date().toISOString() });
+        },
+        
+        formatDate(isoString) {
+            if (!isoString) return '-';
+            try {
+                const date = new Date(isoString);
+                const now = new Date();
+                const diff = now - date;
+                if (diff < 60000) return '방금 전';
+                if (diff < 3600000) return `${Math.floor(diff / 60000)}분 전`;
+                if (diff < 86400000) return `${Math.floor(diff / 3600000)}시간 전`;
+                if (diff < 604800000) return `${Math.floor(diff / 86400000)}일 전`;
+                return date.toLocaleDateString('ko-KR');
+            } catch (e) { return isoString; }
+        },
+        getChildCount(folderId) {
+            return this.allFolders.filter(f => f.parentId === folderId).length + this.allProjects.filter(p => (p.folderId || 'root') === folderId).length;
+        }
+    }
+};
 
-
--------------------------------------------------------
-작업계획
-
-1차: CSS + TimelinePanel + PreviewCanvas 
-2차: AssetManagerModal + ImageAssetModal + ImageEffectModal (리사이징 추가)
-3차: VisualizationModal + ProjectModal + ApiManagerModal + LayerTemplateModal (리사이징 추가)
-4차: app-root.js (재생 연동, 드롭 핸들러)
-
-==========================
-맨위에 프롬프트를 작업계획대로 작업중에 ProjectModal.js 코드작성중에  멈췄어.
-
+window.ProjectModal = ProjectModal;
