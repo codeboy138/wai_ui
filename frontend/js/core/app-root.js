@@ -15,6 +15,7 @@ const AppRoot = {
     components: { 
         'dropdown-menu': DropdownMenu, 
         'project-modal': ProjectModal, 
+        'asset-manager-modal': AssetManagerModal,
         'layer-panel': LayerPanel,
         'preview-canvas': PreviewCanvas,
         'timeline-panel': TimelinePanel,
@@ -31,6 +32,26 @@ const AppRoot = {
             isProjectModalOpen: false,
             isDevModeActive: false,
             isDevModeFull: false,
+            
+            // 헤더 메뉴 상태
+            headerMenus: {
+                create: false,
+                assets: false
+            },
+            headerSubmenus: {
+                assetManage: false
+            },
+            
+            // 프로젝트 관리 모달
+            projectManagerModal: {
+                isOpen: false
+            },
+            
+            // 자산 관리 모달
+            assetManagerModal: {
+                isOpen: false,
+                assetType: 'video'
+            },
             
             tracks: [
                 { id: 't1', name: 'Global', type: 'video', color: '#64748b' }, 
@@ -140,6 +161,7 @@ const AppRoot = {
             this.setupInspectorMode();
             this.setupSpinWheel();
             this.initPreviewRenderer();
+            this.setupHeaderMenuClose();
         });
         window.vm = this; 
     },
@@ -147,9 +169,61 @@ const AppRoot = {
         if (this._spinWheelHandler) { 
             document.removeEventListener('wheel', this._spinWheelHandler); 
             this._spinWheelHandler = null; 
-        } 
+        }
+        if (this._headerMenuCloseHandler) {
+            document.removeEventListener('click', this._headerMenuCloseHandler);
+            this._headerMenuCloseHandler = null;
+        }
     },
     methods: {
+        // === Header Menu Methods ===
+        setupHeaderMenuClose() {
+            this._headerMenuCloseHandler = (e) => {
+                const isInsideMenu = e.target.closest('.header-menu-wrapper');
+                if (!isInsideMenu) {
+                    this.closeAllHeaderMenus();
+                }
+            };
+            document.addEventListener('click', this._headerMenuCloseHandler);
+        },
+        
+        closeAllHeaderMenus() {
+            this.headerMenus.create = false;
+            this.headerMenus.assets = false;
+            this.headerSubmenus.assetManage = false;
+        },
+        
+        toggleHeaderMenu(menu) {
+            const wasOpen = this.headerMenus[menu];
+            this.closeAllHeaderMenus();
+            this.headerMenus[menu] = !wasOpen;
+        },
+        
+        toggleHeaderSubmenu(submenu) {
+            this.headerSubmenus[submenu] = !this.headerSubmenus[submenu];
+        },
+        
+        // === Project Manager Modal ===
+        openProjectManager() {
+            this.closeAllHeaderMenus();
+            this.projectManagerModal.isOpen = true;
+        },
+        
+        closeProjectManager() {
+            this.projectManagerModal.isOpen = false;
+        },
+        
+        // === Asset Manager Modal ===
+        openAssetManager(assetType) {
+            this.closeAllHeaderMenus();
+            this.assetManagerModal.assetType = assetType || 'video';
+            this.assetManagerModal.isOpen = true;
+        },
+        
+        closeAssetManager() {
+            this.assetManagerModal.isOpen = false;
+        },
+
         // === Box Normalization ===
         ensureBoxNormalized(box) {
             const cw = this.canvasSize.w || 1;
