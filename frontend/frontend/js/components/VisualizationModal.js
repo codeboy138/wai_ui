@@ -1,4 +1,4 @@
-// Visualization Modal Component - 시각화 관리 + 리사이징
+// Visualization Modal Component - 시각화 관리 + 리사이징 + 드래그
 
 const VisualizationModal = {
     emits: ['close'],
@@ -79,7 +79,7 @@ const VisualizationModal = {
                             v-for="item in filteredItems"
                             :key="item.id"
                             class="bg-bg-input border border-ui-border rounded-lg p-4 cursor-pointer hover:border-ui-accent transition-colors"
-                            :class="{ 'border-ui-accent ring-1 ring-ui-accent': selectedItemId === item.id, 'dragging': draggingItemId === item.id }"
+                            :class="{ 'border-ui-accent ring-1 ring-ui-accent': selectedItemId === item.id }"
                             @click="selectItem(item)"
                             @dblclick="applyItem(item)"
                             draggable="true"
@@ -98,7 +98,7 @@ const VisualizationModal = {
                 <!-- 상태바 -->
                 <div class="px-4 py-2 border-t border-ui-border bg-bg-panel flex justify-between items-center text-[11px] rounded-b-lg">
                     <div class="text-text-sub">
-                        <span v-if="selectedItemId">1개 선택됨 - 캔버스로 드래그하세요</span>
+                        <span v-if="selectedItemId">1개 선택됨</span>
                         <span v-else>{{ currentCategoryLabel }}</span>
                     </div>
                     <div class="flex items-center gap-2">
@@ -120,7 +120,6 @@ const VisualizationModal = {
             currentCategory: 'chart',
             searchQuery: '',
             selectedItemId: null,
-            draggingItemId: null,
             
             categoryTabs: [
                 { id: 'chart', label: '차트', icon: 'fa-solid fa-chart-bar' },
@@ -237,27 +236,6 @@ const VisualizationModal = {
             if (item) this.applyItem(item); 
         },
         
-        onItemDragStart(e, item) {
-            this.draggingItemId = item.id;
-            e.dataTransfer.effectAllowed = 'copy';
-            e.dataTransfer.setData('text/wai-asset', JSON.stringify({ 
-                type: 'visualization', 
-                id: item.id, 
-                name: item.name,
-                category: item.category
-            }));
-            
-            const dragImage = document.createElement('div');
-            dragImage.textContent = item.name;
-            dragImage.style.cssText = 'position:absolute;top:-1000px;padding:8px 12px;background:#06b6d4;color:white;border-radius:4px;font-size:12px;';
-            document.body.appendChild(dragImage);
-            e.dataTransfer.setDragImage(dragImage, 0, 0);
-            setTimeout(() => document.body.removeChild(dragImage), 0);
-        },
-        onDragEnd() {
-            this.draggingItemId = null;
-        },
-        
         async addItem() {
             const { value: name } = await Swal.fire({ 
                 title: '새 시각화 추가', 
@@ -277,6 +255,21 @@ const VisualizationModal = {
                     icon: 'fa-solid fa-chart-simple'
                 }); 
             }
+        },
+        
+        // 드래그앤드롭
+        onItemDragStart(e, item) {
+            e.dataTransfer.effectAllowed = 'copy';
+            e.dataTransfer.setData('text/wai-asset', JSON.stringify({ 
+                type: 'visualization', 
+                id: item.id, 
+                name: item.name,
+                category: item.category,
+                vizType: this.currentCategory
+            }));
+        },
+        onDragEnd() {
+            // 드래그 종료 시 정리
         }
     }
 };
