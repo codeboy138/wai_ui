@@ -91,8 +91,36 @@ const PreviewCanvas = {
         zIndex: box.zIndex || 0,
         cursor: 'move',
         boxShadow: isSelected ? '0 0 0 2px #fff, 0 0 12px rgba(59,130,246,0.5)' : 'none',
-        backgroundColor: box.layerBgColor || 'transparent'
+        backgroundColor: box.layerBgColor || 'transparent',
+        overflow: 'hidden'
       };
+    },
+
+    // 미디어 스타일 (이미지/동영상)
+    mediaStyle(box) {
+      const fit = box.mediaFit || 'cover';
+      return {
+        position: 'absolute',
+        inset: '0',
+        width: '100%',
+        height: '100%',
+        objectFit: fit,
+        pointerEvents: 'none'
+      };
+    },
+
+    // 미디어 존재 여부
+    hasMedia(box) {
+      return box.mediaType && box.mediaType !== 'none' && box.mediaSrc;
+    },
+
+    // 미디어 타입 확인
+    isImage(box) {
+      return box.mediaType === 'image';
+    },
+
+    isVideo(box) {
+      return box.mediaType === 'video';
     },
 
     labelStyle(box) {
@@ -114,7 +142,8 @@ const PreviewCanvas = {
         maxWidth: '90%',
         pointerEvents: 'none',
         textShadow: '0 2px 4px rgba(0,0,0,0.8)',
-        borderRadius: '4px 4px 0 0'
+        borderRadius: '4px 4px 0 0',
+        zIndex: 10
       };
 
       const rowType = box.rowType || '';
@@ -140,7 +169,7 @@ const PreviewCanvas = {
       return baseStyle;
     },
 
-    // 텍스트 콘텐츠 스타일
+    // 텍스트 콘텐츠 스타일 - 글자간/행간 추가, 겹침 해결
     textContentStyle(box) {
       const ts = box.textStyle || {};
       const fontSize = ts.fontSize || 48;
@@ -150,6 +179,8 @@ const PreviewCanvas = {
       const textAlign = ts.textAlign || 'center';
       const vAlign = ts.vAlign || 'middle';
       const bgColor = ts.backgroundColor || 'transparent';
+      const letterSpacing = ts.letterSpacing || 0;
+      const lineHeight = ts.lineHeight || 1.4;
       
       // 그림자 설정
       let textShadow = 'none';
@@ -186,7 +217,10 @@ const PreviewCanvas = {
         textShadow: textShadow,
         backgroundColor: bgColor,
         WebkitTextStroke: strokeWidth > 0 ? `${strokeWidth}px ${strokeColor}` : 'none',
-        paintOrder: 'stroke fill'
+        paintOrder: 'stroke fill',
+        letterSpacing: letterSpacing + 'px',
+        lineHeight: lineHeight,
+        zIndex: 5
       };
     },
 
@@ -580,6 +614,25 @@ const PreviewCanvas = {
         @contextmenu="onBoxContextMenu($event, box)"
         data-action="js:selectCanvasBox"
       >
+        <!-- 미디어: 이미지 -->
+        <img 
+          v-if="hasMedia(box) && isImage(box)"
+          :src="box.mediaSrc"
+          :style="mediaStyle(box)"
+          draggable="false"
+        />
+        
+        <!-- 미디어: 동영상 -->
+        <video 
+          v-if="hasMedia(box) && isVideo(box)"
+          :src="box.mediaSrc"
+          :style="mediaStyle(box)"
+          autoplay
+          muted
+          loop
+          playsinline
+        ></video>
+
         <!-- 텍스트 콘텐츠 표시 -->
         <div 
           v-if="hasTextContent(box)"
