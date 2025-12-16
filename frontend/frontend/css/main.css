@@ -56,73 +56,6 @@ body {
     border-right: 1px solid #27272a; 
 }
 
-/* 타임라인 트랙 헤더 폭 조절 핸들 */
-.track-header-resizer {
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 4px;
-    height: 100%;
-    cursor: col-resize;
-    background: transparent;
-    z-index: 50;
-    transition: background 0.15s;
-}
-
-.track-header-resizer:hover {
-    background: #3b82f6;
-}
-
-/* 트랙 컨트롤 아이콘 */
-.track-control-btn {
-    width: 18px;
-    height: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 2px;
-    font-size: 10px;
-    color: #71717a;
-    transition: color 0.15s, background-color 0.15s;
-    cursor: pointer;
-}
-
-.track-control-btn:hover {
-    color: #f4f4f5;
-    background-color: #3f3f46;
-}
-
-.track-control-btn.active {
-    color: #3b82f6;
-}
-
-.track-control-btn.locked {
-    color: #ef4444;
-}
-
-.track-control-btn.main-track {
-    color: #22c55e;
-}
-
-/* 트랙 드래그 오버 표시 */
-.track-lane-drop-target {
-    background: rgba(59, 130, 246, 0.1);
-    border: 2px dashed #3b82f6;
-}
-
-/* 타임라인 눈금 - 초단위 작은 눈금 */
-.timeline-ruler-major {
-    border-left: 1px solid #52525b;
-}
-
-.timeline-ruler-minor {
-    border-left: 1px solid #3f3f46;
-}
-
-.timeline-ruler-sub {
-    border-left: 1px solid #27272a;
-}
-
 /* =============================================
    4. Clips
    ============================================= */
@@ -157,11 +90,6 @@ body {
     box-shadow: 0 5px 15px rgba(0,0,0,0.5);
 }
 
-/* 클립 자석 스냅 표시 */
-.clip.snapped {
-    box-shadow: 0 0 8px rgba(59, 130, 246, 0.8);
-}
-
 .waveform {
     position: absolute; 
     top: 50%; 
@@ -190,32 +118,6 @@ body {
     height: 3px; 
 }
 
-/* 사운드 클립 속도 조절 포인트 */
-.speed-point {
-    position: absolute;
-    width: 8px;
-    height: 8px;
-    background: #22c55e;
-    border: 2px solid #fff;
-    border-radius: 50%;
-    cursor: pointer;
-    z-index: 10;
-    transform: translate(-50%, -50%);
-    transition: transform 0.1s;
-}
-
-.speed-point:hover {
-    transform: translate(-50%, -50%) scale(1.3);
-}
-
-.speed-line {
-    position: absolute;
-    height: 2px;
-    background: #22c55e;
-    pointer-events: none;
-    z-index: 5;
-}
-
 /* =============================================
    5. Preview Canvas
    ============================================= */
@@ -234,11 +136,6 @@ body {
     box-shadow: 0 0 40px rgba(0,0,0,0.7);
     overflow: hidden;
     transition: box-shadow 0.15s ease-out;
-}
-
-/* 캔버스 드롭 대상 표시 */
-.canvas-drop-target {
-    box-shadow: 0 0 0 4px #3b82f6, 0 0 20px rgba(59, 130, 246, 0.5);
 }
 
 /* Aspect Ratios */
@@ -355,34 +252,7 @@ body {
 }
 
 /* =============================================
-   8. Guide Lines
-   ============================================= */
-.guide-line-h { 
-    position: absolute; 
-    left: 0; right: 0; 
-    height: 1px; 
-    background-color: #3b82f6; 
-    border-top: 1px dashed #3b82f6; 
-    display: none; 
-    pointer-events: none; 
-    z-index: 9999; 
-    opacity: 0.8; 
-}
-
-.guide-line-v { 
-    position: absolute; 
-    top: 0; bottom: 0; 
-    width: 1px; 
-    background-color: #3b82f6; 
-    border-left: 1px dashed #3b82f6; 
-    display: none; 
-    pointer-events: none; 
-    z-index: 9999; 
-    opacity: 0.8; 
-}
-
-/* =============================================
-   9. Panel Resizers
+   8. Panel Resizers
    ============================================= */
 .panel-resizer-v { 
     position: absolute; 
@@ -413,7 +283,7 @@ body {
 }
 
 /* =============================================
-   10. Buttons
+   9. Buttons
    ============================================= */
 .tool-btn { 
     padding: 4px;
@@ -439,7 +309,7 @@ body {
 }
 
 /* =============================================
-   11. 통합 메뉴 스타일 - 모든 메뉴 아이템에 적용
+   10. 통합 메뉴 스타일 - 모든 메뉴 아이템에 적용
    회색 배경 (#3f3f46), 5px 패딩, 라운딩
    ============================================= */
 
@@ -588,7 +458,7 @@ body {
 }
 
 /* =============================================
-   12. Dropdowns
+   11. Dropdowns
    ============================================= */
 .c-dropdown { 
     position: relative;
@@ -671,7 +541,7 @@ body {
 }
 
 /* =============================================
-   13. Dev Overlay
+   12. Dev Overlay
    ============================================= */
 .dev-overlay { 
     pointer-events: none; 
@@ -710,7 +580,7 @@ body.dev-mode-full .dev-overlay {
 }
 
 /* =============================================
-   14. Context Menu - 통일된 스타일
+   13. Context Menu - 통일된 스타일
    ============================================= */
 .context-menu { 
     position: fixed; 
@@ -742,7 +612,7 @@ body.dev-mode-full .dev-overlay {
 }
 
 /* =============================================
-   15. Color Picker
+   14. Color Picker
    ============================================= */
 .color-grid { 
     display: grid; 
@@ -765,7 +635,7 @@ body.dev-mode-full .dev-overlay {
 }
 
 /* =============================================
-   16. Playhead
+   15. Playhead
    ============================================= */
 .playhead-line { 
     position: absolute; 
@@ -791,7 +661,7 @@ body.dev-mode-full .dev-overlay {
 }
 
 /* =============================================
-   17. Modals
+   16. Modals
    ============================================= */
 .modal-overlay { 
     position: fixed; 
@@ -851,14 +721,14 @@ body.dev-mode-full .dev-overlay {
 }
 
 /* =============================================
-   18. Modal Resize Handles
+   17. Resize Handles for Modals
    ============================================= */
-.modal-resize-handle {
+.resize-handle {
     position: absolute;
     z-index: 100;
 }
 
-.modal-resize-handle.resize-n {
+.resize-handle.resize-n {
     top: 0;
     left: 8px;
     right: 8px;
@@ -866,7 +736,7 @@ body.dev-mode-full .dev-overlay {
     cursor: ns-resize;
 }
 
-.modal-resize-handle.resize-s {
+.resize-handle.resize-s {
     bottom: 0;
     left: 8px;
     right: 8px;
@@ -874,7 +744,7 @@ body.dev-mode-full .dev-overlay {
     cursor: ns-resize;
 }
 
-.modal-resize-handle.resize-e {
+.resize-handle.resize-e {
     top: 8px;
     right: 0;
     bottom: 8px;
@@ -882,7 +752,7 @@ body.dev-mode-full .dev-overlay {
     cursor: ew-resize;
 }
 
-.modal-resize-handle.resize-w {
+.resize-handle.resize-w {
     top: 8px;
     left: 0;
     bottom: 8px;
@@ -890,7 +760,7 @@ body.dev-mode-full .dev-overlay {
     cursor: ew-resize;
 }
 
-.modal-resize-handle.resize-nw {
+.resize-handle.resize-nw {
     top: 0;
     left: 0;
     width: 12px;
@@ -898,7 +768,7 @@ body.dev-mode-full .dev-overlay {
     cursor: nwse-resize;
 }
 
-.modal-resize-handle.resize-ne {
+.resize-handle.resize-ne {
     top: 0;
     right: 0;
     width: 12px;
@@ -906,7 +776,7 @@ body.dev-mode-full .dev-overlay {
     cursor: nesw-resize;
 }
 
-.modal-resize-handle.resize-sw {
+.resize-handle.resize-sw {
     bottom: 0;
     left: 0;
     width: 12px;
@@ -914,20 +784,16 @@ body.dev-mode-full .dev-overlay {
     cursor: nesw-resize;
 }
 
-.modal-resize-handle.resize-se {
+.resize-handle.resize-se {
     bottom: 0;
     right: 0;
     width: 12px;
     height: 12px;
     cursor: nwse-resize;
-}
-
-.modal-resize-handle:hover {
-    background: rgba(59, 130, 246, 0.3);
 }
 
 /* =============================================
-   19. Animations
+   18. Animations
    ============================================= */
 .animate-fade-in { 
     animation: fadeIn 0.2s ease-in-out; 
@@ -939,7 +805,7 @@ body.dev-mode-full .dev-overlay {
 }
 
 /* =============================================
-   20. Preview Toolbar
+   19. Preview Toolbar
    ============================================= */
 #preview-toolbar-panel { 
     position: relative; 
@@ -947,7 +813,7 @@ body.dev-mode-full .dev-overlay {
 }
 
 /* =============================================
-   21. Asset Grid
+   20. Asset Grid
    ============================================= */
 .asset-grid { 
     display: grid; 
@@ -985,12 +851,6 @@ body.dev-mode-full .dev-overlay {
     border-color: #22c55e; 
     box-shadow: 0 0 0 2px #22c55e; 
     background: rgba(34, 197, 94, 0.1); 
-}
-
-/* 드래그 중인 자산 카드 */
-.asset-card.dragging {
-    opacity: 0.7;
-    transform: scale(0.95);
 }
 
 .asset-thumbnail {
@@ -1061,7 +921,7 @@ body.dev-mode-full .dev-overlay {
 }
 
 /* =============================================
-   22. API Manager
+   21. API Manager
    ============================================= */
 .api-card {
     background: #27272a;
@@ -1083,32 +943,4 @@ body.dev-mode-full .dev-overlay {
 .api-key-input {
     font-family: monospace;
     letter-spacing: 1px;
-}
-
-/* =============================================
-   23. Timeline Quick Tools - Cut Icons
-   ============================================= */
-.timeline-cut-icon {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.timeline-cut-icon .cut-indicator {
-    position: absolute;
-    font-size: 6px;
-    font-weight: bold;
-}
-
-.timeline-cut-icon .cut-indicator.left {
-    left: -2px;
-    top: 50%;
-    transform: translateY(-50%);
-}
-
-.timeline-cut-icon .cut-indicator.right {
-    right: -2px;
-    top: 50%;
-    transform: translateY(-50%);
 }
