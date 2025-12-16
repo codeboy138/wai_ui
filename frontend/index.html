@@ -3,436 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WAI Studio - Professional Editor (Full Version)</title>
+    <title>WAI Studio - Professional Editor</title>
 
-    <!-- Vue 3 -->
+    <!-- 1. External Libraries -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-
-    <!-- SweetAlert2 -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
-    <!-- Font Awesome -->
+    <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    <!-- interact.js -->
-    <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
-
+    <!-- 2. Tailwind Config -->
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        bg: {
-                            dark: '#09090b',
-                            panel: '#18181b',
-                            hover: '#27272a',
-                            input: '#202023'
-                        },
-                        ui: {
-                            border: '#27272a',
-                            selected: '#3f3f46',
-                            accent: '#3b82f6',
-                            danger: '#ef4444',
-                            success: '#22c55e'
-                        },
-                        text: {
-                            main: '#f4f4f5',
-                            sub: '#a1a1aa',
-                            inv: '#18181b'
-                        }
+                        bg: { dark: '#09090b', panel: '#18181b', hover: '#27272a', input: '#202023' },
+                        ui: { border: '#27272a', selected: '#3f3f46', accent: '#3b82f6', danger: '#ef4444', success: '#22c55e' },
+                        text: { main: '#f4f4f5', sub: '#a1a1aa', inv: '#18181b' }
                     },
-                    fontSize: {
-                        'xxs': '10px'
-                    },
-                    spacing: {
-                        '15px': '15px'
-                    }
+                    fontSize: { 'xxs': '10px' },
+                    spacing: { '15px': '15px' }
                 }
             }
         }
     </script>
 
-    <style>
-        body {
-            background-color: #09090b;
-            color: #f4f4f5;
-            height: 100vh;
-            overflow: hidden;
-            user-select: none;
-            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
-        }
-
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #18181b; }
-        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #52525b; }
-
-        .timeline-grid {
-            display: grid;
-            height: 100%;
-            overflow: hidden;
-        }
-
-        .sticky-corner { position: sticky; top: 0; left: 0; z-index: 50; background: #18181b; border-bottom: 1px solid #27272a; border-right: 1px solid #27272a; }
-        .sticky-ruler  { position: sticky; top: 0; z-index: 40; background: #09090b; border-bottom: 1px solid #27272a; }
-        .sticky-col    { position: sticky; left: 0; z-index: 30; background: #18181b; border-right: 1px solid #27272a; }
-
-        .clip {
-            position: absolute;
-            top: 4px;
-            height: 32px;
-            border-radius: 4px;
-            overflow: hidden;
-            border: 1px solid rgba(255,255,255,0.1);
-            cursor: pointer;
-            transition: box-shadow 0.1s, border-color 0.1s;
-            touch-action: none;
-        }
-        .clip:hover {
-            filter: brightness(1.1);
-            z-index: 10;
-            border-color: rgba(255,255,255,0.5);
-        }
-        .clip.selected {
-            border: 2px solid #fff;
-            z-index: 20;
-            box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
-        }
-        .clip.dragging {
-            opacity: 0.8;
-            z-index: 100 !important;
-            cursor: grabbing;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
-        }
-
-        .waveform {
-            position: absolute; top: 50%; left: 0; width: 100%; height: 100%;
-            transform: translateY(-50%); opacity: 0.6; pointer-events: none;
-        }
-        .volume-line {
-            position: absolute; top: 30%; left: 0; width: 100%; height: 2px;
-            background: rgba(255,255,255,0.8); cursor: ns-resize; z-index: 5;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.5);
-        }
-        .volume-line:hover { background: #3b82f6; height: 3px; }
-
-        #preview-canvas-viewport {
-            width: 100%;
-            height: 100%;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .canvas-scaler {
-            position: relative;
-            background-color: #000;
-            border-radius: 0;
-            border: 2px solid #ffffff;
-            box-shadow: 0 0 40px rgba(0,0,0,0.7);
-            overflow: hidden;
-            transition: box-shadow 0.15s ease-out;
-        }
-
-        .edge-flash-overlay {
-            position: absolute;
-            pointer-events: none;
-            z-index: 9998;
-            opacity: 0;
-            transition: opacity 0.1s ease-out;
-        }
-        .edge-flash-overlay.active {
-            opacity: 1;
-            animation: edgeFlashPulse 0.5s ease-out;
-        }
-
-        .edge-flash-top { top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(to bottom, rgba(255,255,255,1), rgba(255,255,255,0)); box-shadow: 0 0 20px 5px rgba(255,255,255,0.8); }
-        .edge-flash-bottom { bottom: 0; left: 0; right: 0; height: 4px; background: linear-gradient(to top, rgba(255,255,255,1), rgba(255,255,255,0)); box-shadow: 0 0 20px 5px rgba(255,255,255,0.8); }
-        .edge-flash-left { top: 0; bottom: 0; left: 0; width: 4px; background: linear-gradient(to right, rgba(255,255,255,1), rgba(255,255,255,0)); box-shadow: 0 0 20px 5px rgba(255,255,255,0.8); }
-        .edge-flash-right { top: 0; bottom: 0; right: 0; width: 4px; background: linear-gradient(to left, rgba(255,255,255,1), rgba(255,255,255,0)); box-shadow: 0 0 20px 5px rgba(255,255,255,0.8); }
-
-        @keyframes edgeFlashPulse { 0% { opacity: 1; } 100% { opacity: 0; } }
-
-        .canvas-ar-16-9 { aspect-ratio: 16 / 9; }
-        .canvas-ar-9-16 { aspect-ratio: 9 / 16; }
-        .canvas-ar-1-1  { aspect-ratio: 1 / 1; }
-
-        .canvas-box {
-            position: absolute;
-            border: 2px dashed rgba(255,255,255,0.6);
-            background: rgba(255,255,255,0.05);
-            display: flex;
-            align-items: flex-start;
-            justify-content: flex-end;
-            touch-action: none;
-            box-sizing: border-box;
-        }
-        .canvas-box.selected {
-            border-style: solid;
-            box-shadow: 0 0 0 1px #fff, 0 0 10px rgba(0,0,0,0.5);
-            z-index: 1000 !important;
-            border-color: #3b82f6;
-        }
-
-        .canvas-label {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            height: auto;
-            line-height: 1.2;
-            font-size: 12px;
-            font-weight: bold;
-            font-family: monospace;
-            white-space: nowrap;
-            pointer-events: none;
-            text-shadow: 0 1px 2px black;
-            opacity: 0.95;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            padding: 2px 6px;
-            border-radius: 2px 2px 0 0;
-        }
-
-        .box-handle {
-            position: absolute;
-            width: 14px;
-            height: 14px;
-            background: rgba(0,0,0,0.45);
-            border: 2px solid #ffffff;
-            z-index: 20;
-            display: block;
-            box-sizing: border-box;
-        }
-        .canvas-box.selected .box-handle { display: block; }
-
-        #preview-render-canvas {
-            position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-        }
-
-        .guide-line-h { position: absolute; left: 0; right: 0; height: 1px; background-color: #3b82f6; border-top: 1px dashed #3b82f6; display: none; pointer-events: none; z-index: 9999; opacity: 0.8; }
-        .guide-line-v { position: absolute; top: 0; bottom: 0; width: 1px; background-color: #3b82f6; border-left: 1px dashed #3b82f6; display: none; pointer-events: none; z-index: 9999; opacity: 0.8; }
-
-        .panel-resizer-v { position: absolute; top: 0; bottom: 0; width: 4px; cursor: col-resize; z-index: 100; transition: background 0.2s; }
-        .panel-resizer-v:hover { background: #3b82f6; }
-        .panel-resizer-h { width: 100%; height: 4px; background: #18181b; cursor: row-resize; z-index: 50; transition: background 0.2s; border-top: 1px solid #27272a; border-bottom: 1px solid #27272a; }
-        .panel-resizer-h:hover { background: #3b82f6; }
-
-        .tool-btn { @apply p-1 rounded text-text-sub hover:text-text-main hover:bg-bg-hover transition-colors text-xs flex items-center justify-center w-6 h-6; }
-        .tool-btn.active { @apply text-ui-accent bg-bg-hover; }
-
-        .nav-btn { 
-            @apply px-3 py-1 text-xs rounded transition-colors cursor-pointer h-full flex items-center;
-            color: #71717a;
-            border: 1px solid transparent;
-        }
-        .nav-btn:hover { 
-            color: #f4f4f5;
-            background-color: #3f3f46;
-        }
-        .nav-btn.active { 
-            color: #f4f4f5;
-            font-weight: bold;
-            background-color: #27272a;
-        }
-
-        .win-btn { 
-            width: 46px; 
-            height: 100%; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            color: #a1a1aa; 
-            transition: background-color 0.15s, color 0.15s; 
-        }
-        .win-btn:hover { background-color: #27272a; color: #f4f4f5; }
-        .win-btn.close:hover { background-color: #ef4444; color: white; }
-        .win-btn i { font-size: 12px; }
-
-        .c-dropdown { @apply relative inline-flex items-center px-2 h-full bg-bg-input rounded text-[10px] text-text-sub cursor-pointer hover:bg-bg-hover hover:text-text-main border border-ui-border select-none; }
-        .c-dropdown-menu { position: absolute; top: 100%; left: 0; right: 0; margin-top: 0; background-color: #18181b; border: 1px solid #27272a; border-radius: 0 0 4px 4px; flex-direction: column; z-index: 2000; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
-        .c-dropdown.open .c-dropdown-menu { display: flex; }
-        .c-dropdown-item { @apply p-2 text-center hover:bg-ui-accent hover:text-white transition-colors; }
-        .c-dropdown-item-selected { border: 1px solid #71717a; border-radius: 4px; }
-
-        .wai-dropdown { position: relative; border: none; }
-        .wai-dropdown-trigger { width: 100%; height: 100%; border-radius: 4px; border: 1px solid #27272a; background-color: transparent; }
-        .wai-dropdown--open .wai-dropdown-trigger { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom-color: transparent; }
-        .wai-dropdown-menu { border-top-width: 0; }
-
-        .header-menu-wrapper {
-            position: relative;
-            height: 100%;
-            display: flex;
-            align-items: center;
-        }
-        .header-menu-dropdown {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            min-width: 160px;
-            background-color: #18181b;
-            border: 1px solid #27272a;
-            border-top: none;
-            border-radius: 0 0 4px 4px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-            z-index: 3000;
-            display: none;
-            flex-direction: column;
-        }
-        .header-menu-wrapper.open .header-menu-dropdown {
-            display: flex;
-        }
-        .header-menu-wrapper.open .nav-btn {
-            background-color: #18181b;
-            border-bottom-left-radius: 0;
-            border-bottom-right-radius: 0;
-        }
-        .header-menu-item {
-            padding: 8px 12px;
-            font-size: 12px;
-            color: #71717a;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            transition: background-color 0.15s, color 0.15s;
-        }
-        .header-menu-item:hover {
-            background-color: #3b82f6;
-            color: white;
-        }
-        .header-menu-item:last-child {
-            border-radius: 0 0 4px 4px;
-        }
-        
-        .header-submenu-wrapper {
-            position: relative;
-        }
-        .header-submenu {
-            position: absolute;
-            top: 0;
-            left: 100%;
-            min-width: 140px;
-            background-color: #18181b;
-            border: 1px solid #27272a;
-            border-radius: 4px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-            z-index: 3001;
-            display: none;
-            flex-direction: column;
-        }
-        .header-submenu-wrapper.open .header-submenu {
-            display: flex;
-        }
-        .header-submenu-item {
-            padding: 8px 12px;
-            font-size: 12px;
-            color: #71717a;
-            cursor: pointer;
-            transition: background-color 0.15s, color 0.15s;
-        }
-        .header-submenu-item:hover {
-            background-color: #3b82f6;
-            color: white;
-        }
-        .header-submenu-item:first-child {
-            border-radius: 4px 4px 0 0;
-        }
-        .header-submenu-item:last-child {
-            border-radius: 0 0 4px 4px;
-        }
-
-        .dev-overlay { pointer-events: none; position: fixed; inset: 0; z-index: 99999; display: none; }
-        body.dev-mode-active .dev-overlay, body.dev-mode-full .dev-overlay { display: block; }
-        .dev-highlight { position: absolute; border: 1px solid #3b82f6; background: rgba(255, 255, 255, 0.1); transition: all 0.05s ease-out; pointer-events: none; }
-        .dev-tooltip { position: absolute; background: rgba(255, 255, 255, 0.9); color: #000000; padding: 4px 8px; font-size: 12px; border-radius: 2px; font-family: monospace; white-space: pre-wrap; z-index: 100000; box-shadow: 0 2px 8px rgba(0,0,0,0.5); pointer-events: auto; max-width: 280px; }
-
-        .context-menu { position: fixed; background: #1e1e1e; border: 1px solid #333; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 5000; border-radius: 4px; padding: 4px 0; min-width: 120px; }
-        .ctx-item { padding: 6px 12px; font-size: 11px; color: #eee; cursor: pointer; display: flex; align-items: center; gap: 8px; }
-        .ctx-item:hover { background: #3b82f6; color: white; }
-
-        .color-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding: 4px; }
-        .color-swatch { width: 16px; height: 16px; border-radius: 2px; cursor: pointer; border: 1px solid #333; }
-        .color-swatch:hover { border-color: white; transform: scale(1.1); }
-
-        .playhead-line { position: absolute; top: 0; bottom: 0; width: 1px; background: #ef4444; z-index: 35; pointer-events: none; }
-        .playhead-handle { position: absolute; top: 0; width: 11px; height: 12px; background: #ef4444; transform: translateX(-50%); clip-path: polygon(0 0, 100% 0, 50% 100%); cursor: ew-resize; pointer-events: auto; z-index: 36; }
-
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); display: flex; justify-content: center; align-items: center; z-index: 10000; }
-        .modal-window { background: #18181b; border: 1px solid #27272a; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; }
-        .layer-config-window { width: 640px; height: 520px; max-width: 900px; max-height: 700px; }
-        .layer-template-window-large { width: 900px; height: 600px; max-width: 95vw; max-height: 90vh; }
-        .project-manager-window { width: 900px; height: 600px; max-width: 95vw; max-height: 90vh; }
-        .asset-manager-window { width: 1000px; height: 650px; max-width: 95vw; max-height: 90vh; }
-        .api-manager-window { width: 800px; height: 600px; max-width: 95vw; max-height: 90vh; }
-
-        .animate-fade-in { animation: fadeIn 0.2s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-        #preview-toolbar-panel { position: relative; z-index: 40; }
-        
-        .asset-grid { display: grid; gap: 12px; }
-        .asset-grid.view-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
-        .asset-grid.view-list { grid-template-columns: 1fr; }
-        .asset-card {
-            background: #27272a;
-            border: 1px solid #3f3f46;
-            border-radius: 8px;
-            overflow: hidden;
-            cursor: pointer;
-            transition: border-color 0.15s, box-shadow 0.15s;
-        }
-        .asset-card:hover { border-color: #3b82f6; box-shadow: 0 0 0 1px #3b82f6; }
-        .asset-card.selected { border-color: #3b82f6; box-shadow: 0 0 0 2px #3b82f6; }
-        .asset-card.drag-over { border-color: #22c55e; box-shadow: 0 0 0 2px #22c55e; background: rgba(34, 197, 94, 0.1); }
-        .asset-thumbnail {
-            width: 100%;
-            aspect-ratio: 16/9;
-            background: #18181b;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-        }
-        .asset-thumbnail-icon { font-size: 32px; color: #52525b; }
-        .asset-info { padding: 8px; }
-        .asset-name { font-size: 11px; font-weight: 500; color: #f4f4f5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .asset-meta { font-size: 10px; color: #71717a; margin-top: 2px; }
-        
-        .asset-grid.view-list .asset-card { display: flex; align-items: center; gap: 12px; }
-        .asset-grid.view-list .asset-thumbnail { width: 80px; height: 45px; aspect-ratio: auto; flex-shrink: 0; }
-        .asset-grid.view-list .asset-info { flex: 1; display: flex; align-items: center; justify-content: space-between; }
-        .asset-grid.view-list .asset-thumbnail-icon { font-size: 20px; }
-
-        .folder-drop-zone { transition: background-color 0.15s, border-color 0.15s; }
-        .folder-drop-zone.drag-over { background-color: rgba(59, 130, 246, 0.2); border-color: #3b82f6; }
-        
-        .api-card {
-            background: #27272a;
-            border: 1px solid #3f3f46;
-            border-radius: 8px;
-            padding: 16px;
-            transition: border-color 0.15s;
-        }
-        .api-card:hover { border-color: #3b82f6; }
-        .api-card.active { border-color: #22c55e; box-shadow: 0 0 0 1px #22c55e; }
-        .api-key-input {
-            font-family: monospace;
-            letter-spacing: 1px;
-        }
-    </style>
+    <!-- 3. Custom CSS -->
+    <link rel="stylesheet" href="css/main.css">
 </head>
 
 <body id="app-root-container" class="flex flex-col text-xs">
     <div id="app-vue-root" class="flex flex-col h-screen">
 
-        <!-- 헤더 -->
+        <!-- Header -->
         <header id="header-main-panel" class="h-12 bg-bg-panel border-b border-ui-border flex items-center justify-between shrink-0 select-none px-[15px]">
             <div class="flex items-center h-full gap-[15px]">
                 <div id="header-main-logo-label" class="font-bold text-lg tracking-tighter text-text-main" title="WAI Studio 홈">WAI</div>
@@ -441,28 +45,18 @@
                     <button class="text-lg text-text-sub hover:text-text-main" title="메인 메뉴 (준비 중)"><i class="fa-solid fa-bars"></i></button>
                 </div>
 
-                <!-- 메인메뉴 순서: 탐색, 제작, 자산, 운영, 연구, 설정 -->
                 <nav id="header-nav-container" class="flex items-center gap-[15px] h-full">
-                    <!-- 탐색 -->
                     <button id="header-nav-explore-btn" class="nav-btn" @click="firePython('nav_explore')" data-action="py:nav_explore" title="프로젝트 탐색 열기">탐색</button>
                     
-                    <!-- 제작 메뉴 -->
                     <div id="header-nav-create-wrapper" class="header-menu-wrapper h-full" :class="{ 'open': headerMenus.create }">
-                        <button id="header-nav-create-btn" class="nav-btn" :class="{ 'active': headerMenus.create }" @click="toggleHeaderMenu('create')" data-action="js:toggleCreateMenu" title="제작 메뉴">
-                            제작
-                        </button>
+                        <button id="header-nav-create-btn" class="nav-btn" :class="{ 'active': headerMenus.create }" @click="toggleHeaderMenu('create')" data-action="js:toggleCreateMenu" title="제작 메뉴">제작</button>
                         <div class="header-menu-dropdown">
-                            <div id="header-menu-create-project" class="header-menu-item" @click="openProjectManager" data-action="js:openProjectManager">
-                                <span>프로젝트 관리</span>
-                            </div>
+                            <div id="header-menu-create-project" class="header-menu-item" @click="openProjectManager" data-action="js:openProjectManager"><span>프로젝트 관리</span></div>
                         </div>
                     </div>
                     
-                    <!-- 자산 메뉴 -->
                     <div id="header-nav-assets-wrapper" class="header-menu-wrapper h-full" :class="{ 'open': headerMenus.assets }">
-                        <button id="header-nav-assets-btn" class="nav-btn" :class="{ 'active': headerMenus.assets }" @click="toggleHeaderMenu('assets')" data-action="js:toggleAssetsMenu" title="자산 메뉴">
-                            자산
-                        </button>
+                        <button id="header-nav-assets-btn" class="nav-btn" :class="{ 'active': headerMenus.assets }" @click="toggleHeaderMenu('assets')" data-action="js:toggleAssetsMenu" title="자산 메뉴">자산</button>
                         <div class="header-menu-dropdown">
                             <div id="header-menu-assets-manage-wrapper" class="header-submenu-wrapper" :class="{ 'open': headerSubmenus.assetManage }">
                                 <div id="header-menu-assets-manage" class="header-menu-item" @click="toggleHeaderSubmenu('assetManage')" data-action="js:toggleAssetManageSubmenu">
@@ -476,33 +70,19 @@
                                     <div id="header-submenu-asset-effect" class="header-submenu-item" @click="openImageEffectModal" data-action="js:openImageEffectModal">이미지효과</div>
                                 </div>
                             </div>
-                            <div id="header-menu-assets-visualization" class="header-menu-item" @click="openVisualizationModal" data-action="js:openVisualizationModal">
-                                <span>시각화</span>
-                            </div>
+                            <div id="header-menu-assets-visualization" class="header-menu-item" @click="openVisualizationModal" data-action="js:openVisualizationModal"><span>시각화</span></div>
                         </div>
                     </div>
                     
-                    <!-- 운영 -->
                     <button id="header-nav-operation-btn" class="nav-btn" @click="firePython('nav_operation')" data-action="py:nav_operation" title="운영 패널 열기">운영</button>
-                    
-                    <!-- 연구 -->
                     <button id="header-nav-research-btn" class="nav-btn" @click="firePython('nav_research')" data-action="py:nav_research" title="연구 패널 열기">연구</button>
                     
-                    <!-- 설정 메뉴 -->
                     <div id="header-nav-settings-wrapper" class="header-menu-wrapper h-full" :class="{ 'open': headerMenus.settings }">
-                        <button id="header-nav-settings-btn" class="nav-btn" :class="{ 'active': headerMenus.settings }" @click="toggleHeaderMenu('settings')" data-action="js:toggleSettingsMenu" title="설정 메뉴">
-                            설정
-                        </button>
+                        <button id="header-nav-settings-btn" class="nav-btn" :class="{ 'active': headerMenus.settings }" @click="toggleHeaderMenu('settings')" data-action="js:toggleSettingsMenu" title="설정 메뉴">설정</button>
                         <div class="header-menu-dropdown">
-                            <div id="header-menu-settings-api" class="header-menu-item" @click="openApiManagerModal" data-action="js:openApiManagerModal">
-                                <span>API 관리</span>
-                            </div>
-                            <div id="header-menu-settings-account" class="header-menu-item" @click="openAccountManager" data-action="js:openAccountManager">
-                                <span>계정관리</span>
-                            </div>
-                            <div id="header-menu-settings-logout" class="header-menu-item" @click="handleLogout" data-action="js:handleLogout">
-                                <span>로그아웃</span>
-                            </div>
+                            <div id="header-menu-settings-api" class="header-menu-item" @click="openApiManagerModal" data-action="js:openApiManagerModal"><span>API 관리</span></div>
+                            <div id="header-menu-settings-account" class="header-menu-item" @click="openAccountManager" data-action="js:openAccountManager"><span>계정관리</span></div>
+                            <div id="header-menu-settings-logout" class="header-menu-item" @click="handleLogout" data-action="js:handleLogout"><span>로그아웃</span></div>
                         </div>
                     </div>
                 </nav>
@@ -513,23 +93,16 @@
                 <button id="header-dev-mode-btn" class="h-6 px-3 border border-ui-border border-l-0 rounded-r text-text-sub hover:text-white hover:bg-bg-hover flex items-center gap-1 mr-4 transition-colors" :class="{'bg-ui-selected text-text-main': isDevModeFull}" @click="toggleDevMode('full')" data-action="js:toggleDevModeFull" title="개발자 모드 토글"><i class="fa-solid fa-code"></i> Dev</button>
 
                 <div id="header-window-controls-container" class="flex items-center h-full ml-4 border-l border-ui-border">
-                    <button id="header-window-min-btn" class="win-btn" @click="firePython('win_min')" data-action="py:win_min" title="창 최소화">
-                        <i class="fa-solid fa-window-minimize"></i>
-                    </button>
-                    <button id="header-window-max-btn" class="win-btn" @click="firePython('win_max')" data-action="py:win_max" title="창 최대화/복원">
-                        <i class="fa-regular fa-square"></i>
-                    </button>
-                    <button id="header-window-close-btn" class="win-btn close" @click="firePython('win_close')" data-action="py:win_close" title="앱 종료">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
+                    <button id="header-window-min-btn" class="win-btn" @click="firePython('win_min')" data-action="py:win_min" title="창 최소화"><i class="fa-solid fa-window-minimize"></i></button>
+                    <button id="header-window-max-btn" class="win-btn" @click="firePython('win_max')" data-action="py:win_max" title="창 최대화/복원"><i class="fa-regular fa-square"></i></button>
+                    <button id="header-window-close-btn" class="win-btn close" @click="firePython('win_close')" data-action="py:win_close" title="앱 종료"><i class="fa-solid fa-xmark"></i></button>
                 </div>
             </div>
         </header>
 
-        <!-- 메인 레이아웃 -->
+        <!-- Main Layout -->
         <main id="main-layout-root" class="flex-1 flex overflow-hidden relative">
-
-            <!-- 좌측 패널 -->
+            <!-- Left Panel -->
             <aside id="main-left-panel" class="bg-bg-panel flex flex-col relative border-r border-ui-border" :style="{ width: leftPanelWidth + 'px', minWidth: '180px' }">
                 <div class="flex-1 flex items-center justify-center text-text-sub opacity-30">
                     <div class="text-center">
@@ -540,7 +113,7 @@
                 <div id="main-left-resizer-v" class="panel-resizer-v right-0" title="좌측 패널 너비 조절" data-action="js:resizePanelLeft"></div>
             </aside>
 
-            <!-- 중앙 패널 -->
+            <!-- Center Panel -->
             <section id="main-center-panel" class="flex-1 flex flex-col bg-bg-dark min-w-[400px] relative overflow-hidden">
                 <div id="preview-main-container" class="relative flex flex-col" :style="{ height: previewContainerHeight }">
                     <div id="preview-toolbar-panel" class="h-8 bg-bg-panel border-b border-ui-border flex items-center justify-center px-2 gap-3 shrink-0 z-20">
@@ -567,7 +140,7 @@
                 <timeline-panel :vm="$data" :style="{ height: timelineContainerHeight }"></timeline-panel>
             </section>
 
-            <!-- 우측 패널 -->
+            <!-- Right Panel -->
             <aside id="main-right-panel" class="bg-bg-panel flex flex-col relative border-l border-ui-border" :style="{ width: rightPanelWidth + 'px', minWidth: '250px' }">
                 <div id="main-right-resizer-v" class="panel-resizer-v left-0" title="우측 패널 너비 조절" data-action="js:resizePanelRight"></div>
                 <div class="flex-1 overflow-y-auto flex flex-col" id="main-right-vue-root">
@@ -579,64 +152,17 @@
             </aside>
         </main>
 
-        <!-- 프로젝트 관리 모달 -->
-        <project-modal 
-            v-if="projectManagerModal.isOpen" 
-            @close="closeProjectManager"
-        ></project-modal>
+        <!-- Modals -->
+        <project-modal v-if="projectManagerModal.isOpen" @close="closeProjectManager"></project-modal>
+        <layer-config-modal v-if="layerConfig.isOpen && layerConfigBox" :box="layerConfigBox" @close="closeLayerConfig" @delete="deleteLayerFromConfig"></layer-config-modal>
+        <layer-template-modal v-if="layerTemplateModal.isOpen" :templates="layerTemplates" :folders="layerTemplateFolders" @close="closeLayerTemplateModal" @delete-template="deleteLayerTemplate" @load-template="loadLayerTemplate" @update-templates="updateLayerTemplates" @update-folders="updateLayerTemplateFolders"></layer-template-modal>
+        <asset-manager-modal v-if="assetManagerModal.isOpen" :asset-type="assetManagerModal.assetType" @close="closeAssetManager"></asset-manager-modal>
+        <image-asset-modal v-if="imageAssetModal.isOpen" @close="closeImageAssetModal"></image-asset-modal>
+        <image-effect-modal v-if="imageEffectModal.isOpen" @close="closeImageEffectModal"></image-effect-modal>
+        <visualization-modal v-if="visualizationModal.isOpen" @close="closeVisualizationModal"></visualization-modal>
+        <api-manager-modal v-if="apiManagerModal.isOpen" @close="closeApiManagerModal"></api-manager-modal>
 
-        <!-- 레이어 설정 모달 -->
-        <layer-config-modal 
-            v-if="layerConfig.isOpen && layerConfigBox" 
-            :box="layerConfigBox" 
-            @close="closeLayerConfig" 
-            @delete="deleteLayerFromConfig"
-        ></layer-config-modal>
-
-        <!-- 레이어 템플릿 관리 모달 -->
-        <layer-template-modal
-            v-if="layerTemplateModal.isOpen"
-            :templates="layerTemplates"
-            :folders="layerTemplateFolders"
-            @close="closeLayerTemplateModal"
-            @delete-template="deleteLayerTemplate"
-            @load-template="loadLayerTemplate"
-            @update-templates="updateLayerTemplates"
-            @update-folders="updateLayerTemplateFolders"
-        ></layer-template-modal>
-
-        <!-- 자산 관리 모달 (영상/사운드) -->
-        <asset-manager-modal
-            v-if="assetManagerModal.isOpen"
-            :asset-type="assetManagerModal.assetType"
-            @close="closeAssetManager"
-        ></asset-manager-modal>
-
-        <!-- 이미지 자산 관리 모달 -->
-        <image-asset-modal
-            v-if="imageAssetModal.isOpen"
-            @close="closeImageAssetModal"
-        ></image-asset-modal>
-
-        <!-- 이미지효과 관리 모달 -->
-        <image-effect-modal
-            v-if="imageEffectModal.isOpen"
-            @close="closeImageEffectModal"
-        ></image-effect-modal>
-
-        <!-- 시각화 관리 모달 -->
-        <visualization-modal
-            v-if="visualizationModal.isOpen"
-            @close="closeVisualizationModal"
-        ></visualization-modal>
-
-        <!-- API 관리 모달 -->
-        <api-manager-modal
-            v-if="apiManagerModal.isOpen"
-            @close="closeApiManagerModal"
-        ></api-manager-modal>
-
-        <!-- Inspector / Dev Overlay -->
+        <!-- Dev Overlay -->
         <div class="dev-overlay" id="dev-overlay-root" v-if="inspector.tag">
             <div id="dev-overlay-highlight" class="dev-highlight" :style="highlightStyle"></div>
             <div id="dev-overlay-tooltip" class="dev-tooltip" :style="tooltipStyle" @click="copyInspectorId">
@@ -657,9 +183,12 @@
         </div>
     </div>
 
-    <!-- JS 모듈 -->
+    <!-- JS Modules (Load Order Matters) -->
+    <!-- 1. Utils & Specs -->
     <script src="js/utils/constants.js"></script>
     <script src="docs/element-specs.js"></script>
+    
+    <!-- 2. Components (Dependencies First) -->
     <script src="js/components/DropdownMenu.js"></script>
     <script src="js/components/RulerLine.js"></script>
     <script src="js/components/ProjectModal.js"></script>
@@ -673,6 +202,8 @@
     <script src="js/components/LayerPanel.js"></script>
     <script src="js/components/PreviewCanvas.js"></script>
     <script src="js/components/TimelinePanel.js"></script>
+    
+    <!-- 3. Core (Last) -->
     <script src="js/core/preview-renderer.js"></script>
     <script src="js/core/app-root.js"></script>
     <script src="js/core/bootstrap.js"></script>
