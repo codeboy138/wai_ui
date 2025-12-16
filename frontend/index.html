@@ -660,27 +660,18 @@
         <!-- 메인 레이아웃 -->
         <main id="main-layout-root" class="flex-1 flex overflow-hidden relative">
 
-            <!-- 좌측 패널 -->
+            <!-- 좌측 패널 (빈 영역) -->
             <aside
                 id="main-left-panel"
                 class="bg-bg-panel flex flex-col relative border-r border-ui-border"
                 :style="{ width: leftPanelWidth + 'px', minWidth: '180px' }"
             >
-                <div id="main-left-header-bar" class="p-2 border-b border-ui-border font-bold text-text-sub flex justify-between">
-                    <span>자산 (Assets)</span>
-                    <button
-                        id="main-left-assets-add-btn"
-                        class="text-xs hover:text-white"
-                        @click="firePython('import_asset')"
-                        data-action="py:import_asset"
-                        title="새 자산 가져오기"
-                    >
-                        +
-                    </button>
-                </div>
-                <div class="flex-1 overflow-y-auto p-2 flex flex-col items-center justify-center text-text-sub opacity-30 gap-2" id="main-left-assets-list">
-                    <i class="fa-solid fa-folder-open text-2xl"></i>
-                    <div class="text-[10px]">자산 목록이 비어있습니다.</div>
+                <!-- 빈 영역 placeholder -->
+                <div class="flex-1 flex items-center justify-center text-text-sub opacity-30">
+                    <div class="text-center">
+                        <i class="fa-solid fa-layer-group text-2xl mb-2"></i>
+                        <div class="text-[10px]">좌측 패널</div>
+                    </div>
                 </div>
 
                 <div
@@ -795,8 +786,10 @@
                 ></div>
 
                 <div class="flex-1 overflow-y-auto flex flex-col" id="main-right-vue-root">
+                    <!-- 레이어 관리 패널 -->
                     <layer-panel :vm="$data"></layer-panel>
-                    <properties-panel :vm="$data"></properties-panel>
+                    
+                    <!-- Effects Library placeholder -->
                     <div class="flex-1 bg-bg-dark border-t border-ui-border p-2">
                         <div class="text-[10px] text-text-sub text-center opacity-30 mt-4">Effects Library</div>
                     </div>
@@ -861,7 +854,6 @@
     <script src="js/components/ProjectModal.js"></script>
     <script src="js/components/LayerConfigModal.js"></script>
     <script src="js/components/LayerPanel.js"></script>
-    <script src="js/components/PropertiesPanel.js"></script>
     <script src="js/components/PreviewCanvas.js"></script>
     <script src="js/components/TimelinePanel.js"></script>
 
