@@ -1,5 +1,5 @@
 // Asset Manager Modal Component - 드래그앤드롭 지원 + 리사이징
-// [작업 6] 공통 탭(영상/이미지/사운드) 제거 - 단일 자산 타입만 표시
+// 모달 오버레이 드래그 통과 가능하도록 수정
 
 const AssetManagerModal = {
     props: {
@@ -31,7 +31,6 @@ const AssetManagerModal = {
 
                 <!-- 헤더 -->
                 <div
-                    id="asset-manager-modal-header"
                     class="flex items-center justify-between px-4 py-3 border-b border-ui-border bg-bg-hover cursor-move rounded-t-lg"
                     @mousedown.stop.prevent="onHeaderMouseDown"
                 >
@@ -50,10 +49,11 @@ const AssetManagerModal = {
                     </div>
                 </div>
 
-                <!-- 툴바 (탭 제거됨) -->
+                <!-- 툴바 -->
                 <div class="flex items-center justify-between px-4 py-2 border-b border-ui-border bg-bg-panel">
                     <div class="flex items-center gap-2">
                         <span class="text-[11px] text-text-sub">{{ assetTypeTitle }} 목록</span>
+                        <span class="text-[10px] text-ui-accent">(드래그하여 타임라인에 추가)</span>
                     </div>
                     
                     <div class="flex items-center gap-2">
@@ -89,7 +89,7 @@ const AssetManagerModal = {
                 <!-- 메인 컨텐츠 -->
                 <div class="flex-1 flex overflow-hidden">
                     <!-- 좌측: 폴더 -->
-                    <div class="w-48 border-r border-ui-border bg-bg-dark flex flex-col shrink-0">
+                    <div class="w-44 border-r border-ui-border bg-bg-dark flex flex-col shrink-0">
                         <div class="p-2 border-b border-ui-border bg-bg-panel">
                             <span class="text-[10px] text-text-sub font-bold uppercase tracking-wide">폴더</span>
                         </div>
@@ -147,7 +147,7 @@ const AssetManagerModal = {
                             </div>
 
                             <!-- 그리드 보기 -->
-                            <div v-else-if="viewMode === 'grid'" class="asset-grid view-grid">
+                            <div v-else-if="viewMode === 'grid'" class="asset-grid view-grid" :style="gridStyle">
                                 <div
                                     v-for="asset in filteredAssets"
                                     :key="asset.id"
@@ -159,21 +159,28 @@ const AssetManagerModal = {
                                     @dragstart="onAssetDragStart($event, asset)"
                                     @dragend="onDragEnd"
                                 >
-                                    <div class="asset-thumbnail" :class="{ 'aspect-square': assetType === 'sound' }">
+                                    <div class="asset-thumbnail">
                                         <template v-if="assetType === 'video'">
-                                            <video v-if="previewEnabled && asset.src" :src="asset.src" class="w-full h-full object-cover" muted loop @mouseenter="$event.target.play()" @mouseleave="$event.target.pause(); $event.target.currentTime = 0;"></video>
+                                            <video 
+                                                v-if="previewEnabled && asset.src" 
+                                                :src="asset.src" 
+                                                class="w-full h-full object-cover" 
+                                                muted 
+                                                loop 
+                                                @mouseenter="$event.target.play()" 
+                                                @mouseleave="$event.target.pause(); $event.target.currentTime = 0;"
+                                            ></video>
                                             <div v-else class="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-900/30 to-purple-900/30">
-                                                <i class="asset-thumbnail-icon fa-solid fa-film"></i>
+                                                <i class="fa-solid fa-film text-2xl text-text-sub opacity-50"></i>
                                             </div>
                                         </template>
                                         <template v-else-if="assetType === 'sound'">
-                                            <div v-if="previewEnabled" class="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-900/30 to-blue-900/30 relative" @click.stop="toggleAudioPreview(asset)">
+                                            <div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-900/30 to-blue-900/30 relative" @click.stop="toggleAudioPreview(asset)">
                                                 <div class="flex items-end gap-0.5 h-8">
                                                     <div v-for="i in 5" :key="i" class="w-1 bg-ui-accent rounded-t" :style="{ height: (20 + Math.random() * 60) + '%' }"></div>
                                                 </div>
                                                 <i class="fa-solid fa-play absolute text-white text-xl drop-shadow-lg"></i>
                                             </div>
-                                            <i v-else class="asset-thumbnail-icon fa-solid fa-music"></i>
                                         </template>
                                     </div>
                                     <div class="asset-info">
@@ -215,7 +222,7 @@ const AssetManagerModal = {
                 <!-- 상태바 -->
                 <div class="px-4 py-2 border-t border-ui-border bg-bg-panel flex justify-between items-center text-[11px] rounded-b-lg">
                     <div class="text-text-sub">
-                        <span v-if="selectedAssetId">1개 선택됨</span>
+                        <span v-if="selectedAssetId">1개 선택됨 - 드래그하여 타임라인에 추가</span>
                         <span v-else>{{ currentFolderName }}</span>
                     </div>
                     <div class="flex items-center gap-2">
@@ -229,8 +236,8 @@ const AssetManagerModal = {
     data() {
         return {
             posX: 0, posY: 0,
-            width: 1000, height: 650,
-            minWidth: 600, minHeight: 400,
+            width: 900, height: 600,
+            minWidth: 500, minHeight: 350,
             dragging: false, dragStartMouseX: 0, dragStartMouseY: 0, dragStartPosX: 0, dragStartPosY: 0,
             resizing: false, resizeDir: '', resizeStartX: 0, resizeStartY: 0, resizeStartW: 0, resizeStartH: 0, resizeStartPosX: 0, resizeStartPosY: 0,
             
@@ -243,7 +250,6 @@ const AssetManagerModal = {
             
             selectedAssetId: null,
             
-            // 드래그 상태
             dragData: null,
             dragOverFolderId: null,
             isContentPanelDragOver: false,
@@ -254,45 +260,12 @@ const AssetManagerModal = {
                 { id: 'favorites', name: '즐겨찾기' }
             ],
             
-            // 샘플 비디오 URL (퍼블릭 테스트용)
             dummyAssets: {
                 video: [
-                    { 
-                        id: 'v1', 
-                        name: 'Big Buck Bunny', 
-                        duration: '00:10', 
-                        resolution: 'FHD', 
-                        folderId: 'all',
-                        src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-                        thumbnail: ''
-                    },
-                    { 
-                        id: 'v2', 
-                        name: 'Elephant Dream', 
-                        duration: '00:15', 
-                        resolution: 'FHD', 
-                        folderId: 'all',
-                        src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
-                        thumbnail: ''
-                    },
-                    { 
-                        id: 'v3', 
-                        name: 'Sintel Trailer', 
-                        duration: '00:52', 
-                        resolution: '4K', 
-                        folderId: 'all',
-                        src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
-                        thumbnail: ''
-                    },
-                    { 
-                        id: 'v4', 
-                        name: 'Tears of Steel', 
-                        duration: '00:12', 
-                        resolution: 'FHD', 
-                        folderId: 'all',
-                        src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
-                        thumbnail: ''
-                    }
+                    { id: 'v1', name: 'Big Buck Bunny', duration: '00:10', resolution: 'FHD', folderId: 'all', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4' },
+                    { id: 'v2', name: 'Elephant Dream', duration: '00:15', resolution: 'FHD', folderId: 'all', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4' },
+                    { id: 'v3', name: 'Sintel Trailer', duration: '00:52', resolution: '4K', folderId: 'all', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4' },
+                    { id: 'v4', name: 'Tears of Steel', duration: '00:12', resolution: 'FHD', folderId: 'all', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4' }
                 ],
                 sound: [
                     { id: 's1', name: 'bgm_corporate.mp3', duration: '03:24', folderId: 'all', src: '' },
@@ -311,6 +284,15 @@ const AssetManagerModal = {
                 width: this.width + 'px',
                 height: this.height + 'px'
             }; 
+        },
+        // 그리드 스타일 - 창 크기에 따라 컬럼 수 조정
+        gridStyle() {
+            const contentWidth = this.width - 176 - 24; // 폴더 패널 폭 + 패딩
+            const minCardWidth = 140;
+            const cols = Math.max(2, Math.floor(contentWidth / minCardWidth));
+            return {
+                gridTemplateColumns: `repeat(${cols}, 1fr)`
+            };
         },
         assetTypeIcon() { return { video: 'fa-solid fa-film', sound: 'fa-solid fa-music' }[this.assetType] || 'fa-solid fa-file'; },
         assetTypeTitle() { return { video: '영상', sound: '사운드' }[this.assetType] || '자산'; },
@@ -343,8 +325,10 @@ const AssetManagerModal = {
         },
         onHeaderMouseDown(e) {
             this.dragging = true;
-            this.dragStartMouseX = e.clientX; this.dragStartMouseY = e.clientY;
-            this.dragStartPosX = this.posX; this.dragStartPosY = this.posY;
+            this.dragStartMouseX = e.clientX;
+            this.dragStartMouseY = e.clientY;
+            this.dragStartPosX = this.posX;
+            this.dragStartPosY = this.posY;
         },
         startResize(e, dir) {
             e.preventDefault();
@@ -416,12 +400,11 @@ const AssetManagerModal = {
         
         toggleAudioPreview(asset) { console.log('Playing audio:', asset.name); },
         
-        // 드래그앤드롭 - 자산을 타임라인/캔버스로
+        // 자산 드래그 시작 - 타임라인으로 드래그
         onAssetDragStart(e, asset) {
             this.dragData = { type: 'asset', asset };
-            e.dataTransfer.effectAllowed = 'copyMove';
+            e.dataTransfer.effectAllowed = 'copy';
             
-            // 타임라인/캔버스로 전달할 데이터 (src 포함)
             const transferData = { 
                 type: this.assetType, 
                 id: asset.id, 
@@ -433,10 +416,10 @@ const AssetManagerModal = {
             
             e.dataTransfer.setData('text/wai-asset', JSON.stringify(transferData));
             
-            // 드래그 이미지 설정 (선택사항)
+            // 드래그 이미지
             const dragImage = document.createElement('div');
-            dragImage.textContent = asset.name;
-            dragImage.style.cssText = 'position:absolute;top:-1000px;padding:8px 12px;background:#3b82f6;color:#fff;border-radius:4px;font-size:12px;';
+            dragImage.textContent = '🎬 ' + asset.name;
+            dragImage.style.cssText = 'position:absolute;top:-1000px;padding:8px 16px;background:#3b82f6;color:#fff;border-radius:6px;font-size:12px;font-weight:bold;white-space:nowrap;';
             document.body.appendChild(dragImage);
             e.dataTransfer.setDragImage(dragImage, 0, 0);
             setTimeout(() => document.body.removeChild(dragImage), 0);
