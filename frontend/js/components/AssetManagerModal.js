@@ -8,7 +8,7 @@ const AssetManagerModal = {
         assetType: {
             type: String,
             required: true,
-            default: 'video' // 'video' | 'image' | 'sound'
+            default: 'video'
         }
     },
     emits: ['close'],
@@ -39,7 +39,6 @@ const AssetManagerModal = {
                         </span>
                     </div>
                     <div class="flex items-center gap-2">
-                        <!-- 자산 추가 -->
                         <button
                             id="asset-manager-add-btn"
                             class="px-2 py-1 text-[11px] bg-ui-accent text-white rounded hover:bg-blue-600 transition-colors flex items-center gap-1"
@@ -48,7 +47,6 @@ const AssetManagerModal = {
                         >
                             <i class="fa-solid fa-plus"></i> 추가
                         </button>
-                        <!-- 닫기 -->
                         <button
                             id="asset-manager-modal-close-btn"
                             class="text-[14px] text-text-sub hover:text-white w-8 h-8 flex items-center justify-center rounded hover:bg-ui-danger transition-colors"
@@ -62,7 +60,6 @@ const AssetManagerModal = {
 
                 <!-- 툴바 -->
                 <div class="flex items-center justify-between px-4 py-2 border-b border-ui-border bg-bg-panel">
-                    <!-- 자산 타입 탭 -->
                     <div class="flex items-center gap-1">
                         <button
                             v-for="tab in assetTabs"
@@ -76,9 +73,7 @@ const AssetManagerModal = {
                         </button>
                     </div>
                     
-                    <!-- 검색/필터/옵션 -->
                     <div class="flex items-center gap-2">
-                        <!-- 미리보기/미리듣기 토글 -->
                         <div class="flex items-center gap-1 px-2 py-1 bg-bg-input rounded border border-ui-border">
                             <span class="text-[10px] text-text-sub">{{ previewToggleLabel }}</span>
                             <button
@@ -95,7 +90,6 @@ const AssetManagerModal = {
                         
                         <div class="w-px h-5 bg-ui-border"></div>
                         
-                        <!-- 검색 -->
                         <div class="relative">
                             <input
                                 type="text"
@@ -106,7 +100,6 @@ const AssetManagerModal = {
                             <i class="fa-solid fa-search absolute right-2 top-1/2 -translate-y-1/2 text-text-sub text-[10px]"></i>
                         </div>
                         
-                        <!-- 보기 모드 -->
                         <div class="flex border border-ui-border rounded overflow-hidden">
                             <button 
                                 class="px-2 py-1 text-[10px]"
@@ -128,9 +121,8 @@ const AssetManagerModal = {
                     </div>
                 </div>
 
-                <!-- 메인 컨텐츠: 2패널 -->
+                <!-- 메인 컨텐츠 -->
                 <div class="flex-1 flex overflow-hidden">
-                    
                     <!-- 좌측: 폴더 트리 -->
                     <div 
                         id="asset-manager-folder-panel"
@@ -156,7 +148,6 @@ const AssetManagerModal = {
                             </div>
                         </div>
                         
-                        <!-- 폴더 추가 버튼 -->
                         <div class="p-2 border-t border-ui-border">
                             <button
                                 class="w-full px-2 py-1 text-[10px] bg-bg-input border border-ui-border rounded hover:bg-bg-hover flex items-center justify-center gap-1"
@@ -172,7 +163,6 @@ const AssetManagerModal = {
                         id="asset-manager-content-panel"
                         class="flex-1 flex flex-col bg-bg-dark overflow-hidden"
                     >
-                        <!-- 정렬 바 -->
                         <div class="flex items-center justify-between px-3 py-1.5 border-b border-ui-border bg-bg-panel text-[10px]">
                             <div class="flex items-center gap-4">
                                 <span 
@@ -191,26 +181,11 @@ const AssetManagerModal = {
                                     추가일
                                     <i v-if="sortBy === 'date'" :class="sortAsc ? 'fa-solid fa-arrow-up' : 'fa-solid fa-arrow-down'" class="text-[8px]"></i>
                                 </span>
-                                <span 
-                                    class="cursor-pointer hover:text-ui-accent flex items-center gap-1"
-                                    :class="{ 'text-ui-accent': sortBy === 'size' }"
-                                    @click="toggleSort('size')"
-                                >
-                                    크기
-                                    <i v-if="sortBy === 'size'" :class="sortAsc ? 'fa-solid fa-arrow-up' : 'fa-solid fa-arrow-down'" class="text-[8px]"></i>
-                                </span>
                             </div>
-                            <span class="text-text-sub">
-                                {{ filteredAssets.length }}개 항목
-                            </span>
+                            <span class="text-text-sub">{{ filteredAssets.length }}개 항목</span>
                         </div>
 
-                        <!-- 자산 목록 -->
-                        <div 
-                            class="flex-1 overflow-auto p-3"
-                            @contextmenu.prevent="openEmptyContextMenu($event)"
-                        >
-                            <!-- 빈 상태 -->
+                        <div class="flex-1 overflow-auto p-3">
                             <div
                                 v-if="filteredAssets.length === 0"
                                 class="flex flex-col items-center justify-center h-full text-text-sub opacity-50"
@@ -221,11 +196,7 @@ const AssetManagerModal = {
                             </div>
 
                             <!-- 그리드 보기 -->
-                            <div 
-                                v-else-if="viewMode === 'grid'" 
-                                class="asset-grid view-grid"
-                                :class="{ 'gap-4': previewEnabled }"
-                            >
+                            <div v-else-if="viewMode === 'grid'" class="asset-grid view-grid">
                                 <div
                                     v-for="asset in filteredAssets"
                                     :key="asset.id"
@@ -233,13 +204,10 @@ const AssetManagerModal = {
                                     :class="{ 'selected': selectedAssetId === asset.id }"
                                     @click="selectAsset(asset)"
                                     @dblclick="useAsset(asset)"
-                                    @contextmenu.prevent="openAssetContextMenu($event, asset)"
                                     draggable="true"
                                     @dragstart="onAssetDragStart($event, asset)"
                                 >
-                                    <!-- 썸네일/미리보기 -->
                                     <div class="asset-thumbnail" :class="{ 'aspect-square': currentAssetType === 'sound' }">
-                                        <!-- 영상 미리보기 -->
                                         <template v-if="currentAssetType === 'video'">
                                             <video 
                                                 v-if="previewEnabled && asset.src"
@@ -250,52 +218,38 @@ const AssetManagerModal = {
                                                 @mouseenter="$event.target.play()"
                                                 @mouseleave="$event.target.pause(); $event.target.currentTime = 0;"
                                             ></video>
-                                            <img v-else-if="asset.thumbnail" :src="asset.thumbnail" class="w-full h-full object-cover" />
                                             <i v-else class="asset-thumbnail-icon fa-solid fa-film"></i>
                                         </template>
                                         
-                                        <!-- 이미지 미리보기 -->
                                         <template v-else-if="currentAssetType === 'image'">
                                             <img 
                                                 v-if="previewEnabled && asset.src"
                                                 :src="asset.src"
                                                 class="w-full h-full object-cover"
                                             />
-                                            <img v-else-if="asset.thumbnail" :src="asset.thumbnail" class="w-full h-full object-cover" />
                                             <i v-else class="asset-thumbnail-icon fa-solid fa-image"></i>
                                         </template>
                                         
-                                        <!-- 사운드 미리보기 -->
                                         <template v-else-if="currentAssetType === 'sound'">
                                             <div 
                                                 v-if="previewEnabled" 
-                                                class="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-900/30 to-blue-900/30"
+                                                class="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-900/30 to-blue-900/30 relative"
                                                 @click.stop="toggleAudioPreview(asset)"
                                             >
                                                 <div class="flex items-end gap-0.5 h-8">
-                                                    <div 
-                                                        v-for="i in 5" 
-                                                        :key="i"
-                                                        class="w-1 bg-ui-accent rounded-t transition-all"
-                                                        :style="{ height: (playingAudioId === asset.id ? (Math.random() * 100) : 30) + '%' }"
-                                                    ></div>
+                                                    <div v-for="i in 5" :key="i" class="w-1 bg-ui-accent rounded-t" :style="{ height: '30%' }"></div>
                                                 </div>
-                                                <i 
-                                                    :class="playingAudioId === asset.id ? 'fa-solid fa-pause' : 'fa-solid fa-play'"
-                                                    class="absolute text-white text-xl drop-shadow-lg"
-                                                ></i>
+                                                <i class="fa-solid fa-play absolute text-white text-xl drop-shadow-lg"></i>
                                             </div>
                                             <i v-else class="asset-thumbnail-icon fa-solid fa-music"></i>
                                         </template>
                                     </div>
                                     
-                                    <!-- 정보 -->
                                     <div class="asset-info">
                                         <div class="asset-name">{{ asset.name }}</div>
                                         <div class="asset-meta">
-                                            {{ formatDuration(asset.duration) }}
+                                            {{ asset.duration || '' }}
                                             <span v-if="asset.resolution"> · {{ asset.resolution }}</span>
-                                            <span v-if="asset.size"> · {{ formatSize(asset.size) }}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -309,3 +263,288 @@ const AssetManagerModal = {
                                     class="asset-card"
                                     :class="{ 'selected': selectedAssetId === asset.id }"
                                     @click="selectAsset(asset)"
+                                    @dblclick="useAsset(asset)"
+                                    draggable="true"
+                                    @dragstart="onAssetDragStart($event, asset)"
+                                >
+                                    <div class="asset-thumbnail">
+                                        <i :class="assetTypeIcon" class="asset-thumbnail-icon"></i>
+                                    </div>
+                                    <div class="asset-info">
+                                        <div class="flex-1">
+                                            <div class="asset-name">{{ asset.name }}</div>
+                                            <div class="asset-meta">{{ asset.duration || '' }}</div>
+                                        </div>
+                                        <div class="text-[10px] text-text-sub">{{ asset.resolution || '' }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 상태바 -->
+                <div class="px-4 py-2 border-t border-ui-border bg-bg-panel flex justify-between items-center text-[11px] rounded-b-lg">
+                    <div class="text-text-sub">
+                        <span v-if="selectedAssetId">1개 선택됨</span>
+                        <span v-else>{{ currentFolderName }}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button
+                            v-if="selectedAssetId"
+                            class="px-3 py-1 bg-ui-accent text-white rounded hover:bg-blue-600 transition-colors"
+                            @click="useSelectedAsset"
+                        >
+                            사용
+                        </button>
+                        <button
+                            class="px-3 py-1 bg-bg-input border border-ui-border text-text-sub rounded hover:bg-bg-hover transition-colors"
+                            @click="$emit('close')"
+                        >
+                            닫기
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `,
+    data() {
+        return {
+            posX: 0,
+            posY: 0,
+            dragging: false,
+            dragStartMouseX: 0,
+            dragStartMouseY: 0,
+            dragStartPosX: 0,
+            dragStartPosY: 0,
+            
+            currentAssetType: this.assetType,
+            currentFolderId: 'all',
+            viewMode: 'grid',
+            searchQuery: '',
+            sortBy: 'name',
+            sortAsc: true,
+            previewEnabled: true,
+            
+            selectedAssetId: null,
+            playingAudioId: null,
+            
+            assetTabs: [
+                { type: 'video', label: '영상', icon: 'fa-solid fa-film' },
+                { type: 'image', label: '이미지', icon: 'fa-solid fa-image' },
+                { type: 'sound', label: '사운드', icon: 'fa-solid fa-music' }
+            ],
+            
+            assetFolders: [
+                { id: 'all', name: '전체' },
+                { id: 'recent', name: '최근 사용' },
+                { id: 'favorites', name: '즐겨찾기' }
+            ],
+            
+            dummyAssets: {
+                video: [
+                    { id: 'v1', name: 'intro_animation.mp4', duration: '00:15', resolution: '4K', folderId: 'all' },
+                    { id: 'v2', name: 'background_loop.mp4', duration: '00:30', resolution: 'FHD', folderId: 'all' },
+                    { id: 'v3', name: 'transition_01.mov', duration: '00:02', resolution: '4K', folderId: 'all' }
+                ],
+                image: [
+                    { id: 'i1', name: 'logo_white.png', resolution: '1920x1080', folderId: 'all' },
+                    { id: 'i2', name: 'background_01.jpg', resolution: '3840x2160', folderId: 'all' },
+                    { id: 'i3', name: 'overlay_texture.png', resolution: '1920x1080', folderId: 'all' }
+                ],
+                sound: [
+                    { id: 's1', name: 'bgm_corporate.mp3', duration: '03:24', folderId: 'all' },
+                    { id: 's2', name: 'sfx_whoosh.wav', duration: '00:02', folderId: 'all' },
+                    { id: 's3', name: 'voiceover_intro.mp3', duration: '00:45', folderId: 'all' }
+                ]
+            }
+        };
+    },
+    computed: {
+        windowStyle() {
+            return {
+                position: 'absolute',
+                left: this.posX + 'px',
+                top: this.posY + 'px'
+            };
+        },
+        assetTypeIcon() {
+            const icons = { video: 'fa-solid fa-film', image: 'fa-solid fa-image', sound: 'fa-solid fa-music' };
+            return icons[this.currentAssetType] || 'fa-solid fa-file';
+        },
+        assetTypeTitle() {
+            const titles = { video: '영상', image: '이미지', sound: '사운드' };
+            return titles[this.currentAssetType] || '자산';
+        },
+        assetTypeLabel() {
+            const labels = { video: '영상', image: '이미지', sound: '사운드' };
+            return labels[this.currentAssetType] || '자산';
+        },
+        previewToggleLabel() {
+            if (this.currentAssetType === 'sound') return '미리듣기';
+            return '미리보기';
+        },
+        currentFolderName() {
+            const folder = this.assetFolders.find(f => f.id === this.currentFolderId);
+            return folder ? folder.name : '전체';
+        },
+        filteredAssets() {
+            let assets = this.dummyAssets[this.currentAssetType] || [];
+            
+            if (this.currentFolderId !== 'all') {
+                assets = assets.filter(a => a.folderId === this.currentFolderId);
+            }
+            
+            if (this.searchQuery) {
+                const q = this.searchQuery.toLowerCase();
+                assets = assets.filter(a => a.name.toLowerCase().includes(q));
+            }
+            
+            assets = [...assets].sort((a, b) => {
+                let cmp = 0;
+                if (this.sortBy === 'name') {
+                    cmp = a.name.localeCompare(b.name);
+                } else if (this.sortBy === 'date') {
+                    cmp = 0;
+                }
+                return this.sortAsc ? cmp : -cmp;
+            });
+            
+            return assets;
+        }
+    },
+    mounted() {
+        this.centerWindow();
+        document.addEventListener('mousemove', this.onGlobalMouseMove);
+        document.addEventListener('mouseup', this.onGlobalMouseUp);
+    },
+    beforeUnmount() {
+        document.removeEventListener('mousemove', this.onGlobalMouseMove);
+        document.removeEventListener('mouseup', this.onGlobalMouseUp);
+    },
+    methods: {
+        centerWindow() {
+            const vw = window.innerWidth || 1280;
+            const vh = window.innerHeight || 720;
+            this.posX = Math.max(20, (vw - 1000) / 2);
+            this.posY = Math.max(20, (vh - 650) / 2);
+        },
+        onHeaderMouseDown(e) {
+            this.dragging = true;
+            this.dragStartMouseX = e.clientX;
+            this.dragStartMouseY = e.clientY;
+            this.dragStartPosX = this.posX;
+            this.dragStartPosY = this.posY;
+        },
+        onGlobalMouseMove(e) {
+            if (this.dragging) {
+                this.posX = this.dragStartPosX + (e.clientX - this.dragStartMouseX);
+                this.posY = this.dragStartPosY + (e.clientY - this.dragStartMouseY);
+            }
+        },
+        onGlobalMouseUp() {
+            this.dragging = false;
+        },
+        
+        switchAssetType(type) {
+            this.currentAssetType = type;
+            this.selectedAssetId = null;
+        },
+        
+        toggleSort(field) {
+            if (this.sortBy === field) {
+                this.sortAsc = !this.sortAsc;
+            } else {
+                this.sortBy = field;
+                this.sortAsc = true;
+            }
+        },
+        
+        selectAsset(asset) {
+            this.selectedAssetId = asset.id;
+        },
+        
+        useAsset(asset) {
+            Swal.fire({
+                icon: 'success',
+                title: '자산 사용',
+                text: `"${asset.name}"을(를) 타임라인에 추가합니다.`,
+                background: '#1e1e1e',
+                color: '#fff',
+                confirmButtonColor: '#3b82f6',
+                timer: 1500,
+                showConfirmButton: false
+            });
+            this.$emit('close');
+        },
+        
+        useSelectedAsset() {
+            const asset = this.filteredAssets.find(a => a.id === this.selectedAssetId);
+            if (asset) this.useAsset(asset);
+        },
+        
+        async addAsset() {
+            const { value: name } = await Swal.fire({
+                title: '새 ' + this.assetTypeLabel + ' 추가',
+                input: 'text',
+                inputPlaceholder: '파일명',
+                showCancelButton: true,
+                background: '#1e1e1e',
+                color: '#fff',
+                confirmButtonColor: '#3b82f6'
+            });
+            if (name) {
+                const newAsset = {
+                    id: `${this.currentAssetType}_${Date.now()}`,
+                    name,
+                    folderId: 'all',
+                    duration: '00:00'
+                };
+                this.dummyAssets[this.currentAssetType].push(newAsset);
+            }
+        },
+        
+        async createFolder() {
+            const { value: name } = await Swal.fire({
+                title: '새 폴더',
+                input: 'text',
+                inputPlaceholder: '폴더 이름',
+                showCancelButton: true,
+                background: '#1e1e1e',
+                color: '#fff',
+                confirmButtonColor: '#3b82f6'
+            });
+            if (name) {
+                this.assetFolders.push({
+                    id: `folder_${Date.now()}`,
+                    name
+                });
+            }
+        },
+        
+        getFolderAssetCount(folderId) {
+            if (folderId === 'all') {
+                return this.dummyAssets[this.currentAssetType]?.length || 0;
+            }
+            return (this.dummyAssets[this.currentAssetType] || []).filter(a => a.folderId === folderId).length;
+        },
+        
+        toggleAudioPreview(asset) {
+            if (this.playingAudioId === asset.id) {
+                this.playingAudioId = null;
+            } else {
+                this.playingAudioId = asset.id;
+            }
+        },
+        
+        onAssetDragStart(e, asset) {
+            e.dataTransfer.setData('text/wai-asset', JSON.stringify({
+                type: this.currentAssetType,
+                id: asset.id,
+                name: asset.name
+            }));
+        }
+    }
+};
+
+window.AssetManagerModal = AssetManagerModal;
