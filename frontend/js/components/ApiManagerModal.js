@@ -1,4 +1,6 @@
-// API Manager Modal Component - YouTube Data API v3 / Gemini API 순환관리 및 CRUD
+// API Manager Modal Component
+// - 좌측: API 종류 선택
+// - 우측: 시트 형식 API 키 관리 (CRUD + 대량 붙여넣기)
 
 const ApiManagerModal = {
     emits: ['close'],
@@ -24,285 +26,445 @@ const ApiManagerModal = {
                     <div class="flex items-center gap-3">
                         <i class="fa-solid fa-key text-ui-accent"></i>
                         <span class="text-[14px] font-bold">API 관리</span>
-                        <span class="text-[11px] text-text-sub">{{ totalApiCount }}개 API 키 등록됨</span>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <button class="text-[14px] text-text-sub hover:text-white w-8 h-8 flex items-center justify-center rounded hover:bg-ui-danger transition-colors" @click.stop="$emit('close')">
-                            <i class="fa-solid fa-xmark"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- 서비스 탭 -->
-                <div class="flex items-center px-4 py-2 border-b border-ui-border bg-bg-panel gap-2">
-                    <button
-                        v-for="tab in serviceTabs"
-                        :key="tab.id"
-                        class="px-4 py-1.5 text-[11px] rounded transition-colors flex items-center gap-2"
-                        :class="currentService === tab.id ? 'bg-ui-accent text-white' : 'bg-bg-input text-text-sub hover:bg-bg-hover'"
-                        @click="currentService = tab.id"
-                    >
-                        <i :class="tab.icon"></i>{{ tab.label }}
-                        <span class="px-1.5 py-0.5 rounded text-[9px]" :class="currentService === tab.id ? 'bg-white/20' : 'bg-bg-hover'">{{ getServiceApiCount(tab.id) }}</span>
+                    <button class="text-[14px] text-text-sub hover:text-white w-8 h-8 flex items-center justify-center rounded hover:bg-ui-danger transition-colors" @click.stop="$emit('close')">
+                        <i class="fa-solid fa-xmark"></i>
                     </button>
                 </div>
 
                 <!-- 메인 컨텐츠 -->
                 <div class="flex-1 flex overflow-hidden">
-                    <!-- 좌측: API 목록 -->
-                    <div class="w-72 border-r border-ui-border bg-bg-dark flex flex-col shrink-0">
-                        <div class="p-3 border-b border-ui-border bg-bg-panel flex items-center justify-between">
-                            <span class="text-[11px] text-text-sub font-bold">{{ currentServiceLabel }} API 키</span>
-                            <button 
-                                class="px-2 py-1 text-[10px] bg-ui-accent text-white rounded hover:bg-blue-600 transition-colors flex items-center gap-1"
-                                @click="addNewApi"
-                            >
-                                <i class="fa-solid fa-plus"></i> 추가
-                            </button>
+                    <!-- 좌측: API 종류 -->
+                    <div class="w-48 border-r border-ui-border bg-bg-dark flex flex-col shrink-0">
+                        <div class="p-3 border-b border-ui-border bg-bg-panel">
+                            <span class="text-[11px] text-text-sub font-bold">API 종류</span>
                         </div>
-                        
-                        <div class="flex-1 overflow-auto p-2 space-y-2">
-                            <div v-if="currentServiceApis.length === 0" class="flex flex-col items-center justify-center h-full text-text-sub opacity-50">
-                                <i class="fa-solid fa-key text-2xl mb-2"></i>
-                                <p class="text-[11px]">등록된 API 키가 없습니다</p>
-                            </div>
-                            
+                        <div class="flex-1 overflow-auto p-2 space-y-1">
                             <div
-                                v-for="(api, index) in currentServiceApis"
-                                :key="api.id"
-                                class="api-card p-3 cursor-pointer"
-                                :class="{ 
-                                    'active': api.isActive,
-                                    'border-ui-accent': selectedApiId === api.id 
-                                }"
-                                @click="selectApi(api)"
+                                v-for="service in services"
+                                :key="service.id"
+                                class="flex items-center gap-2 px-3 py-2 rounded cursor-pointer transition-colors"
+                                :class="currentService === service.id ? 'bg-ui-accent text-white' : 'hover:bg-bg-hover text-text-sub'"
+                                @click="selectService(service.id)"
                             >
-                                <div class="flex items-center justify-between mb-2">
-                                    <span class="text-[11px] font-medium truncate flex-1">{{ api.name }}</span>
-                                    <div class="flex items-center gap-1">
-                                        <span v-if="api.isActive" class="px-1.5 py-0.5 text-[9px] bg-ui-success text-white rounded">활성</span>
-                                        <span class="text-[9px] text-text-sub">#{{ index + 1 }}</span>
-                                    </div>
-                                </div>
-                                <div class="text-[10px] text-text-sub font-mono truncate">{{ maskApiKey(api.key) }}</div>
-                                <div class="flex items-center justify-between mt-2 text-[9px] text-text-sub">
-                                    <span>사용량: {{ api.usage || 0 }} / {{ api.quota || '무제한' }}</span>
-                                    <span :class="getStatusClass(api.status)">{{ api.status }}</span>
-                                </div>
+                                <i :class="service.icon" class="w-4 text-center"></i>
+                                <span class="flex-1 text-[11px]">{{ service.label }}</span>
+                                <span class="text-[10px] px-1.5 py-0.5 rounded" :class="currentService === service.id ? 'bg-white/20' : 'bg-bg-panel'">
+                                    {{ getServiceCount(service.id) }}
+                                </span>
                             </div>
                         </div>
-                        
-                        <!-- 순환 설정 -->
-                        <div class="p-3 border-t border-ui-border bg-bg-panel">
-                            <div class="flex items-center justify-between mb-2">
-                                <span class="text-[10px] text-text-sub font-bold">자동 순환</span>
-                                <button
-                                    class="w-10 h-5 rounded-full transition-colors relative"
-                                    :class="rotationEnabled ? 'bg-ui-accent' : 'bg-ui-border'"
-                                    @click="rotationEnabled = !rotationEnabled"
-                                >
-                                    <span class="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform" :class="rotationEnabled ? 'left-5' : 'left-0.5'"></span>
-                                </button>
-                            </div>
-                            <p class="text-[9px] text-text-sub">할당량 초과 시 다음 API 키로 자동 전환</p>
+                        <div class="p-2 border-t border-ui-border">
+                            <button 
+                                class="w-full px-3 py-2 text-[11px] bg-bg-input border border-ui-border rounded hover:bg-bg-hover transition-colors flex items-center justify-center gap-2"
+                                @click="openAddServiceModal"
+                            >
+                                <i class="fa-solid fa-plus"></i> API 종류 추가
+                            </button>
                         </div>
                     </div>
 
-                    <!-- 우측: API 상세 정보 / 편집 -->
+                    <!-- 우측: API 키 시트 -->
                     <div class="flex-1 flex flex-col bg-bg-dark overflow-hidden">
-                        <div v-if="!selectedApi" class="flex-1 flex flex-col items-center justify-center text-text-sub opacity-50">
-                            <i class="fa-solid fa-arrow-left text-3xl mb-3"></i>
-                            <p class="text-[12px]">좌측에서 API 키를 선택하세요</p>
-                        </div>
-                        
-                        <template v-else>
-                            <!-- 상세 정보 헤더 -->
-                            <div class="p-4 border-b border-ui-border bg-bg-panel">
-                                <div class="flex items-center justify-between">
-                                    <div>
-                                        <h3 class="text-[14px] font-bold">{{ selectedApi.name }}</h3>
-                                        <p class="text-[10px] text-text-sub mt-1">{{ currentServiceLabel }} API</p>
-                                    </div>
-                                    <div class="flex items-center gap-2">
-                                        <button 
-                                            v-if="!selectedApi.isActive"
-                                            class="px-3 py-1.5 text-[11px] bg-ui-success text-white rounded hover:bg-green-600 transition-colors"
-                                            @click="activateApi(selectedApi)"
-                                        >
-                                            <i class="fa-solid fa-check mr-1"></i> 활성화
-                                        </button>
-                                        <button 
-                                            class="px-3 py-1.5 text-[11px] bg-ui-danger text-white rounded hover:bg-red-600 transition-colors"
-                                            @click="deleteApi(selectedApi)"
-                                        >
-                                            <i class="fa-solid fa-trash mr-1"></i> 삭제
-                                        </button>
-                                    </div>
-                                </div>
+                        <!-- 툴바 -->
+                        <div class="flex items-center justify-between px-3 py-2 border-b border-ui-border bg-bg-panel gap-2">
+                            <div class="flex items-center gap-2">
+                                <button 
+                                    class="px-3 py-1.5 text-[11px] bg-ui-accent text-white rounded hover:bg-blue-600 transition-colors flex items-center gap-1"
+                                    @click="addNewKey"
+                                >
+                                    <i class="fa-solid fa-plus"></i> 추가
+                                </button>
+                                <button 
+                                    class="px-3 py-1.5 text-[11px] bg-bg-input border border-ui-border rounded hover:bg-bg-hover transition-colors flex items-center gap-1"
+                                    @click="openBulkPasteModal"
+                                >
+                                    <i class="fa-solid fa-paste"></i> 붙여넣기
+                                </button>
+                                <button 
+                                    class="px-3 py-1.5 text-[11px] bg-bg-input border border-ui-border rounded hover:bg-bg-hover transition-colors flex items-center gap-1"
+                                    @click="exportKeys"
+                                >
+                                    <i class="fa-solid fa-download"></i> 내보내기
+                                </button>
+                                <button 
+                                    class="px-3 py-1.5 text-[11px] bg-bg-input border border-ui-border rounded hover:bg-bg-hover transition-colors flex items-center gap-1"
+                                    :class="{ 'text-ui-accent': showMasked }"
+                                    @click="showMasked = !showMasked"
+                                >
+                                    <i :class="showMasked ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'"></i>
+                                </button>
                             </div>
-                            
-                            <!-- 편집 폼 -->
-                            <div class="flex-1 overflow-auto p-4 space-y-4">
-                                <!-- 이름 -->
-                                <div>
-                                    <label class="block text-[10px] text-text-sub mb-1 font-bold">API 이름</label>
+                            <div class="flex items-center gap-2">
+                                <div class="relative">
                                     <input 
                                         type="text" 
-                                        v-model="selectedApi.name"
-                                        class="w-full h-8 bg-bg-input border border-ui-border rounded px-3 text-[11px] focus:border-ui-accent focus:outline-none"
-                                        placeholder="예: 메인 YouTube API"
+                                        v-model="searchQuery"
+                                        class="w-48 h-7 bg-bg-input border border-ui-border rounded pl-8 pr-3 text-[11px] focus:border-ui-accent focus:outline-none"
+                                        placeholder="검색..."
+                                    />
+                                    <i class="fa-solid fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-text-sub text-[10px]"></i>
+                                </div>
+                                <select 
+                                    v-model="statusFilter"
+                                    class="h-7 bg-bg-input border border-ui-border rounded px-2 text-[11px] focus:border-ui-accent focus:outline-none"
+                                >
+                                    <option value="all">전체 상태</option>
+                                    <option value="active">활성</option>
+                                    <option value="standby">대기</option>
+                                    <option value="error">오류</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- 시트 헤더 -->
+                        <div class="flex items-center bg-bg-panel border-b border-ui-border text-[10px] text-text-sub font-bold">
+                            <div class="w-10 h-8 flex items-center justify-center border-r border-ui-border">
+                                <input 
+                                    type="checkbox" 
+                                    class="w-3 h-3"
+                                    :checked="isAllSelected"
+                                    @change="toggleSelectAll"
+                                />
+                            </div>
+                            <div class="w-16 h-8 flex items-center justify-center border-r border-ui-border">상태</div>
+                            <div class="w-20 h-8 flex items-center justify-center border-r border-ui-border">사용량</div>
+                            <div class="w-28 h-8 flex items-center px-2 border-r border-ui-border">계정명</div>
+                            <div class="w-28 h-8 flex items-center px-2 border-r border-ui-border">키이름</div>
+                            <div class="flex-1 h-8 flex items-center px-2 border-r border-ui-border">API KEY</div>
+                            <div class="w-32 h-8 flex items-center px-2 border-r border-ui-border">메모</div>
+                            <div class="w-24 h-8 flex items-center justify-center">작업</div>
+                        </div>
+
+                        <!-- 시트 바디 -->
+                        <div class="flex-1 overflow-auto">
+                            <div v-if="filteredKeys.length === 0" class="flex flex-col items-center justify-center h-full text-text-sub opacity-50">
+                                <i class="fa-solid fa-key text-3xl mb-3"></i>
+                                <p class="text-[12px]">등록된 API 키가 없습니다</p>
+                                <p class="text-[10px] mt-1">위의 '추가' 또는 '붙여넣기' 버튼을 사용하세요</p>
+                            </div>
+                            
+                            <div 
+                                v-for="(key, index) in filteredKeys" 
+                                :key="key.id"
+                                class="flex items-center border-b border-ui-border hover:bg-bg-hover/50 transition-colors"
+                                :class="{ 'bg-ui-accent/10': selectedKeys.includes(key.id) }"
+                            >
+                                <!-- 체크박스 -->
+                                <div class="w-10 h-10 flex items-center justify-center border-r border-ui-border">
+                                    <input 
+                                        type="checkbox" 
+                                        class="w-3 h-3"
+                                        :checked="selectedKeys.includes(key.id)"
+                                        @change="toggleSelect(key.id)"
                                     />
                                 </div>
                                 
-                                <!-- API 키 -->
-                                <div>
-                                    <label class="block text-[10px] text-text-sub mb-1 font-bold">API 키</label>
-                                    <div class="flex gap-2">
-                                        <input 
-                                            :type="showApiKey ? 'text' : 'password'"
-                                            v-model="selectedApi.key"
-                                            class="flex-1 h-8 bg-bg-input border border-ui-border rounded px-3 text-[11px] font-mono focus:border-ui-accent focus:outline-none api-key-input"
-                                            placeholder="API 키를 입력하세요"
-                                        />
-                                        <button 
-                                            class="px-3 h-8 bg-bg-input border border-ui-border rounded hover:bg-bg-hover transition-colors"
-                                            @click="showApiKey = !showApiKey"
-                                        >
-                                            <i :class="showApiKey ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'" class="text-[10px]"></i>
-                                        </button>
-                                        <button 
-                                            class="px-3 h-8 bg-bg-input border border-ui-border rounded hover:bg-bg-hover transition-colors"
-                                            @click="copyApiKey"
-                                        >
-                                            <i class="fa-solid fa-copy text-[10px]"></i>
-                                        </button>
-                                    </div>
+                                <!-- 상태 -->
+                                <div class="w-16 h-10 flex items-center justify-center border-r border-ui-border">
+                                    <button 
+                                        class="w-6 h-6 rounded-full flex items-center justify-center transition-colors"
+                                        :class="getStatusButtonClass(key.status)"
+                                        @click="cycleStatus(key)"
+                                        :title="getStatusTitle(key.status)"
+                                    >
+                                        <i :class="getStatusIcon(key.status)" class="text-[10px]"></i>
+                                    </button>
                                 </div>
                                 
-                                <!-- 할당량 설정 -->
-                                <div class="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label class="block text-[10px] text-text-sub mb-1 font-bold">일일 할당량</label>
-                                        <input 
-                                            type="number" 
-                                            v-model.number="selectedApi.quota"
-                                            class="w-full h-8 bg-bg-input border border-ui-border rounded px-3 text-[11px] focus:border-ui-accent focus:outline-none"
-                                            placeholder="10000"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label class="block text-[10px] text-text-sub mb-1 font-bold">현재 사용량</label>
-                                        <input 
-                                            type="number" 
-                                            v-model.number="selectedApi.usage"
-                                            class="w-full h-8 bg-bg-input border border-ui-border rounded px-3 text-[11px] focus:border-ui-accent focus:outline-none"
-                                            placeholder="0"
-                                            readonly
-                                        />
-                                    </div>
-                                </div>
-                                
-                                <!-- 사용량 프로그레스 바 -->
-                                <div>
-                                    <div class="flex items-center justify-between text-[10px] text-text-sub mb-1">
-                                        <span>사용량</span>
-                                        <span>{{ getUsagePercent(selectedApi) }}%</span>
-                                    </div>
-                                    <div class="w-full h-2 bg-bg-input rounded-full overflow-hidden">
+                                <!-- 사용량 -->
+                                <div class="w-20 h-10 flex items-center justify-center border-r border-ui-border">
+                                    <div class="w-14 h-2 bg-bg-input rounded-full overflow-hidden" :title="key.usage + '/' + key.quota">
                                         <div 
-                                            class="h-full transition-all duration-300"
-                                            :class="getUsageBarClass(selectedApi)"
-                                            :style="{ width: getUsagePercent(selectedApi) + '%' }"
+                                            class="h-full transition-all"
+                                            :class="getUsageBarClass(key)"
+                                            :style="{ width: getUsagePercent(key) + '%' }"
                                         ></div>
                                     </div>
+                                    <span class="text-[9px] text-text-sub ml-1">{{ getUsagePercent(key) }}%</span>
+                                </div>
+                                
+                                <!-- 계정명 -->
+                                <div class="w-28 h-10 flex items-center border-r border-ui-border px-1">
+                                    <input 
+                                        type="text"
+                                        class="w-full h-7 bg-transparent border border-transparent hover:border-ui-border focus:border-ui-accent focus:bg-bg-input rounded px-1 text-[11px] transition-colors"
+                                        v-model="key.accountName"
+                                        @blur="saveKey(key)"
+                                    />
+                                </div>
+                                
+                                <!-- 키이름 -->
+                                <div class="w-28 h-10 flex items-center border-r border-ui-border px-1">
+                                    <input 
+                                        type="text"
+                                        class="w-full h-7 bg-transparent border border-transparent hover:border-ui-border focus:border-ui-accent focus:bg-bg-input rounded px-1 text-[11px] transition-colors"
+                                        v-model="key.keyName"
+                                        @blur="saveKey(key)"
+                                    />
+                                </div>
+                                
+                                <!-- API KEY -->
+                                <div class="flex-1 h-10 flex items-center border-r border-ui-border px-1">
+                                    <input 
+                                        :type="showMasked ? 'password' : 'text'"
+                                        class="w-full h-7 bg-transparent border border-transparent hover:border-ui-border focus:border-ui-accent focus:bg-bg-input rounded px-1 text-[11px] font-mono transition-colors"
+                                        v-model="key.apiKey"
+                                        @blur="saveKey(key)"
+                                    />
                                 </div>
                                 
                                 <!-- 메모 -->
-                                <div>
-                                    <label class="block text-[10px] text-text-sub mb-1 font-bold">메모</label>
-                                    <textarea 
-                                        v-model="selectedApi.memo"
-                                        class="w-full h-20 bg-bg-input border border-ui-border rounded px-3 py-2 text-[11px] focus:border-ui-accent focus:outline-none resize-none"
-                                        placeholder="API에 대한 메모를 입력하세요..."
-                                    ></textarea>
+                                <div class="w-32 h-10 flex items-center border-r border-ui-border px-1">
+                                    <input 
+                                        type="text"
+                                        class="w-full h-7 bg-transparent border border-transparent hover:border-ui-border focus:border-ui-accent focus:bg-bg-input rounded px-1 text-[11px] transition-colors"
+                                        v-model="key.memo"
+                                        placeholder="메모..."
+                                        @blur="saveKey(key)"
+                                    />
                                 </div>
                                 
-                                <!-- 테스트 버튼 -->
-                                <div class="flex gap-2">
+                                <!-- 작업 -->
+                                <div class="w-24 h-10 flex items-center justify-center gap-1">
                                     <button 
-                                        class="flex-1 h-9 bg-bg-input border border-ui-border rounded text-[11px] hover:bg-bg-hover transition-colors flex items-center justify-center gap-2"
-                                        @click="testApiConnection"
-                                        :disabled="isTesting"
+                                        class="w-6 h-6 rounded flex items-center justify-center text-text-sub hover:text-ui-accent hover:bg-bg-hover transition-colors"
+                                        @click="testKey(key)"
+                                        title="연결 테스트"
                                     >
-                                        <i :class="isTesting ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-plug'"></i>
-                                        {{ isTesting ? '테스트 중...' : '연결 테스트' }}
+                                        <i class="fa-solid fa-plug text-[10px]"></i>
                                     </button>
                                     <button 
-                                        class="flex-1 h-9 bg-ui-accent text-white rounded text-[11px] hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
-                                        @click="saveApiChanges"
+                                        class="w-6 h-6 rounded flex items-center justify-center text-text-sub hover:text-white hover:bg-bg-hover transition-colors"
+                                        @click="copyKey(key)"
+                                        title="키 복사"
                                     >
-                                        <i class="fa-solid fa-save"></i>
-                                        저장
+                                        <i class="fa-solid fa-copy text-[10px]"></i>
+                                    </button>
+                                    <button 
+                                        class="w-6 h-6 rounded flex items-center justify-center text-text-sub hover:text-ui-danger hover:bg-bg-hover transition-colors"
+                                        @click="deleteKey(key)"
+                                        title="삭제"
+                                    >
+                                        <i class="fa-solid fa-trash text-[10px]"></i>
                                     </button>
                                 </div>
                             </div>
-                        </template>
+                        </div>
+
+                        <!-- 선택 항목 액션 바 -->
+                        <div v-if="selectedKeys.length > 0" class="flex items-center justify-between px-3 py-2 border-t border-ui-border bg-bg-panel">
+                            <span class="text-[11px] text-text-sub">{{ selectedKeys.length }}개 선택됨</span>
+                            <div class="flex items-center gap-2">
+                                <button 
+                                    class="px-3 py-1 text-[11px] bg-ui-success text-white rounded hover:bg-green-600 transition-colors"
+                                    @click="activateSelected"
+                                >
+                                    활성화
+                                </button>
+                                <button 
+                                    class="px-3 py-1 text-[11px] bg-bg-input border border-ui-border rounded hover:bg-bg-hover transition-colors"
+                                    @click="testSelected"
+                                >
+                                    일괄 테스트
+                                </button>
+                                <button 
+                                    class="px-3 py-1 text-[11px] bg-ui-danger text-white rounded hover:bg-red-600 transition-colors"
+                                    @click="deleteSelected"
+                                >
+                                    삭제
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <!-- 상태바 -->
                 <div class="px-4 py-2 border-t border-ui-border bg-bg-panel flex justify-between items-center text-[11px] rounded-b-lg">
-                    <div class="text-text-sub flex items-center gap-3">
-                        <span>활성 API: <span class="text-ui-success font-bold">{{ activeApiName }}</span></span>
-                        <span v-if="rotationEnabled" class="text-ui-accent"><i class="fa-solid fa-sync mr-1"></i>자동 순환 활성</span>
+                    <div class="flex items-center gap-4 text-text-sub">
+                        <span>총 <span class="text-text-main font-bold">{{ currentServiceKeys.length }}</span>개 API 키</span>
+                        <span>활성 <span class="text-ui-success font-bold">{{ activeCount }}</span>개</span>
+                        <span v-if="autoRotation" class="text-ui-accent"><i class="fa-solid fa-sync mr-1"></i>자동 순환</span>
                     </div>
-                    <button class="px-3 py-1 bg-bg-input border border-ui-border text-text-sub rounded hover:bg-bg-hover transition-colors" @click="$emit('close')">닫기</button>
+                    <div class="flex items-center gap-2">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <span class="text-text-sub">자동 순환</span>
+                            <button
+                                class="w-10 h-5 rounded-full transition-colors relative"
+                                :class="autoRotation ? 'bg-ui-accent' : 'bg-ui-border'"
+                                @click="autoRotation = !autoRotation"
+                            >
+                                <span class="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform" :class="autoRotation ? 'left-5' : 'left-0.5'"></span>
+                            </button>
+                        </label>
+                        <button class="px-3 py-1 bg-bg-input border border-ui-border text-text-sub rounded hover:bg-bg-hover transition-colors ml-2" @click="$emit('close')">닫기</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 대량 붙여넣기 모달 -->
+            <div v-if="bulkPasteModal.isOpen" class="fixed inset-0 z-[10001] flex items-center justify-center bg-black/60" @click.self="closeBulkPasteModal">
+                <div class="bg-bg-panel border border-ui-border rounded-lg shadow-2xl w-[600px] max-w-[95vw]" @mousedown.stop>
+                    <div class="flex items-center justify-between px-4 py-3 border-b border-ui-border bg-bg-hover rounded-t-lg">
+                        <span class="text-[13px] font-bold">대량 붙여넣기</span>
+                        <button class="text-text-sub hover:text-white" @click="closeBulkPasteModal">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                    <div class="p-4 space-y-4">
+                        <div>
+                            <label class="block text-[11px] text-text-sub mb-2">붙여넣기 형식 선택</label>
+                            <div class="flex gap-2">
+                                <button 
+                                    v-for="fmt in pasteFormats"
+                                    :key="fmt.id"
+                                    class="px-3 py-1.5 text-[11px] rounded border transition-colors"
+                                    :class="bulkPasteModal.format === fmt.id ? 'bg-ui-accent text-white border-ui-accent' : 'bg-bg-input border-ui-border hover:bg-bg-hover'"
+                                    @click="bulkPasteModal.format = fmt.id"
+                                >
+                                    {{ fmt.label }}
+                                </button>
+                            </div>
+                            <p class="text-[10px] text-text-sub mt-2">{{ getFormatDescription(bulkPasteModal.format) }}</p>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] text-text-sub mb-2">데이터 붙여넣기 (탭/줄바꿈 구분)</label>
+                            <textarea 
+                                v-model="bulkPasteModal.data"
+                                class="w-full h-48 bg-bg-input border border-ui-border rounded p-3 text-[11px] font-mono focus:border-ui-accent focus:outline-none resize-none"
+                                placeholder="엑셀이나 스프레드시트에서 복사한 데이터를 붙여넣으세요...&#10;&#10;예시 (계정명/키이름/API KEY):&#10;main	key1	AIzaSyB1234567890&#10;sub	key2	AIzaSyC0987654321"
+                                @paste="handleBulkPaste"
+                            ></textarea>
+                        </div>
+                        <div v-if="bulkPasteModal.preview.length > 0" class="border border-ui-border rounded overflow-hidden">
+                            <div class="bg-bg-panel px-3 py-2 text-[11px] font-bold border-b border-ui-border">
+                                미리보기 ({{ bulkPasteModal.preview.length }}개)
+                            </div>
+                            <div class="max-h-32 overflow-auto">
+                                <div 
+                                    v-for="(item, idx) in bulkPasteModal.preview.slice(0, 5)" 
+                                    :key="idx"
+                                    class="flex items-center px-3 py-1.5 text-[10px] border-b border-ui-border last:border-b-0"
+                                >
+                                    <span class="w-6 text-text-sub">{{ idx + 1 }}</span>
+                                    <span class="flex-1 truncate">{{ item.accountName || '-' }}</span>
+                                    <span class="flex-1 truncate">{{ item.keyName || '-' }}</span>
+                                    <span class="flex-1 truncate font-mono">{{ maskApiKey(item.apiKey) }}</span>
+                                </div>
+                                <div v-if="bulkPasteModal.preview.length > 5" class="px-3 py-1.5 text-[10px] text-text-sub text-center">
+                                    ... 외 {{ bulkPasteModal.preview.length - 5 }}개
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-2 px-4 py-3 border-t border-ui-border bg-bg-panel rounded-b-lg">
+                        <button 
+                            class="px-4 py-1.5 text-[11px] bg-bg-input border border-ui-border rounded hover:bg-bg-hover transition-colors"
+                            @click="closeBulkPasteModal"
+                        >
+                            취소
+                        </button>
+                        <button 
+                            class="px-4 py-1.5 text-[11px] bg-ui-accent text-white rounded hover:bg-blue-600 transition-colors"
+                            :disabled="bulkPasteModal.preview.length === 0"
+                            @click="applyBulkPaste"
+                        >
+                            {{ bulkPasteModal.preview.length }}개 추가
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     `,
     data() {
         return {
-            posX: 0, posY: 0,
-            dragging: false, dragStartMouseX: 0, dragStartMouseY: 0, dragStartPosX: 0, dragStartPosY: 0,
+            // 윈도우 위치/크기
+            posX: 0, 
+            posY: 0,
+            dragging: false, 
+            dragStartMouseX: 0, 
+            dragStartMouseY: 0, 
+            dragStartPosX: 0, 
+            dragStartPosY: 0,
             
+            // 서비스 목록
+            services: [
+                { id: 'youtube', label: 'YouTube Data API', icon: 'fa-brands fa-youtube' },
+                { id: 'gemini', label: 'Gemini API', icon: 'fa-solid fa-robot' },
+                { id: 'openai', label: 'OpenAI API', icon: 'fa-solid fa-brain' },
+                { id: 'claude', label: 'Claude API', icon: 'fa-solid fa-comments' }
+            ],
             currentService: 'youtube',
-            selectedApiId: null,
-            showApiKey: false,
-            rotationEnabled: true,
-            isTesting: false,
             
-            serviceTabs: [
-                { id: 'youtube', label: 'YouTube Data API v3', icon: 'fa-brands fa-youtube' },
-                { id: 'gemini', label: 'Gemini API', icon: 'fa-solid fa-robot' }
+            // API 키 데이터
+            apiKeys: [
+                { id: 'yt1', service: 'youtube', status: 'active', usage: 3420, quota: 10000, accountName: 'main', keyName: 'primary', apiKey: 'AIzaSyB1234567890abcdefghijklmnop', memo: '메인 프로젝트용' },
+                { id: 'yt2', service: 'youtube', status: 'standby', usage: 0, quota: 10000, accountName: 'sub', keyName: 'backup', apiKey: 'AIzaSyC0987654321zyxwvutsrqponmlk', memo: '백업용' },
+                { id: 'gm1', service: 'gemini', status: 'active', usage: 12, quota: 60, accountName: 'main', keyName: 'gemini-1', apiKey: 'sk-gemini-abcdef123456789', memo: 'AI 기능용' }
             ],
             
-            apiList: [
-                { id: 'yt1', service: 'youtube', name: '메인 YouTube API', key: 'AIzaSyB1234567890abcdefghijklmnop', quota: 10000, usage: 3420, status: '정상', isActive: true, memo: '메인 프로젝트용 API 키' },
-                { id: 'yt2', service: 'youtube', name: '백업 YouTube API', key: 'AIzaSyC0987654321zyxwvutsrqponmlk', quota: 10000, usage: 0, status: '대기', isActive: false, memo: '할당량 초과 시 사용' },
-                { id: 'gm1', service: 'gemini', name: '메인 Gemini API', key: 'sk-gemini-abcdef123456789', quota: 60, usage: 12, status: '정상', isActive: true, memo: 'AI 기능용 Gemini API' },
-                { id: 'gm2', service: 'gemini', name: '테스트 Gemini API', key: 'sk-gemini-test-987654321', quota: 60, usage: 0, status: '대기', isActive: false, memo: '개발 테스트용' }
-            ]
+            // 선택/필터
+            selectedKeys: [],
+            searchQuery: '',
+            statusFilter: 'all',
+            showMasked: true,
+            autoRotation: true,
+            
+            // 붙여넣기 형식
+            pasteFormats: [
+                { id: 'full', label: '계정명/키이름/API KEY' },
+                { id: 'key-only', label: 'API KEY만' },
+                { id: 'name-key', label: '키이름/API KEY' }
+            ],
+            
+            // 대량 붙여넣기 모달
+            bulkPasteModal: {
+                isOpen: false,
+                format: 'full',
+                data: '',
+                preview: []
+            }
         };
     },
     computed: {
-        windowStyle() { return { position: 'absolute', left: this.posX + 'px', top: this.posY + 'px' }; },
-        currentServiceLabel() { 
-            const tab = this.serviceTabs.find(t => t.id === this.currentService);
-            return tab ? tab.label : '';
+        windowStyle() { 
+            return { 
+                position: 'absolute', 
+                left: this.posX + 'px', 
+                top: this.posY + 'px',
+                width: '1000px',
+                height: '650px'
+            }; 
         },
-        currentServiceApis() {
-            return this.apiList.filter(a => a.service === this.currentService);
+        currentServiceKeys() {
+            return this.apiKeys.filter(k => k.service === this.currentService);
         },
-        selectedApi() {
-            return this.apiList.find(a => a.id === this.selectedApiId) || null;
+        filteredKeys() {
+            let keys = this.currentServiceKeys;
+            
+            // 상태 필터
+            if (this.statusFilter !== 'all') {
+                keys = keys.filter(k => k.status === this.statusFilter);
+            }
+            
+            // 검색
+            if (this.searchQuery.trim()) {
+                const q = this.searchQuery.toLowerCase();
+                keys = keys.filter(k => 
+                    (k.accountName && k.accountName.toLowerCase().includes(q)) ||
+                    (k.keyName && k.keyName.toLowerCase().includes(q)) ||
+                    (k.apiKey && k.apiKey.toLowerCase().includes(q)) ||
+                    (k.memo && k.memo.toLowerCase().includes(q))
+                );
+            }
+            
+            return keys;
         },
-        totalApiCount() {
-            return this.apiList.length;
+        isAllSelected() {
+            return this.filteredKeys.length > 0 && this.filteredKeys.every(k => this.selectedKeys.includes(k.id));
         },
-        activeApiName() {
-            const activeApi = this.apiList.find(a => a.service === this.currentService && a.isActive);
-            return activeApi ? activeApi.name : '없음';
+        activeCount() {
+            return this.currentServiceKeys.filter(k => k.status === 'active').length;
         }
     },
     mounted() {
@@ -315,16 +477,19 @@ const ApiManagerModal = {
         document.removeEventListener('mouseup', this.onGlobalMouseUp);
     },
     methods: {
+        // 윈도우 드래그
         centerWindow() {
             const vw = window.innerWidth || 1280;
             const vh = window.innerHeight || 720;
-            this.posX = Math.max(20, (vw - 800) / 2);
-            this.posY = Math.max(20, (vh - 600) / 2);
+            this.posX = Math.max(20, (vw - 1000) / 2);
+            this.posY = Math.max(20, (vh - 650) / 2);
         },
         onHeaderMouseDown(e) {
             this.dragging = true;
-            this.dragStartMouseX = e.clientX; this.dragStartMouseY = e.clientY;
-            this.dragStartPosX = this.posX; this.dragStartPosY = this.posY;
+            this.dragStartMouseX = e.clientX;
+            this.dragStartMouseY = e.clientY;
+            this.dragStartPosX = this.posX;
+            this.dragStartPosY = this.posY;
         },
         onGlobalMouseMove(e) {
             if (this.dragging) {
@@ -332,82 +497,117 @@ const ApiManagerModal = {
                 this.posY = this.dragStartPosY + (e.clientY - this.dragStartMouseY);
             }
         },
-        onGlobalMouseUp() { this.dragging = false; },
-        
-        getServiceApiCount(serviceId) {
-            return this.apiList.filter(a => a.service === serviceId).length;
+        onGlobalMouseUp() { 
+            this.dragging = false; 
         },
         
-        maskApiKey(key) {
-            if (!key || key.length < 10) return '••••••••';
-            return key.substring(0, 6) + '••••••••' + key.substring(key.length - 4);
+        // 서비스 선택
+        selectService(serviceId) {
+            this.currentService = serviceId;
+            this.selectedKeys = [];
+        },
+        getServiceCount(serviceId) {
+            return this.apiKeys.filter(k => k.service === serviceId).length;
         },
         
-        getStatusClass(status) {
-            if (status === '정상') return 'text-ui-success';
-            if (status === '오류') return 'text-ui-danger';
-            return 'text-text-sub';
+        // 상태 관련
+        getStatusButtonClass(status) {
+            switch(status) {
+                case 'active': return 'bg-ui-success text-white';
+                case 'standby': return 'bg-bg-input border border-ui-border text-text-sub';
+                case 'error': return 'bg-ui-danger text-white';
+                default: return 'bg-bg-input border border-ui-border text-text-sub';
+            }
+        },
+        getStatusIcon(status) {
+            switch(status) {
+                case 'active': return 'fa-solid fa-check';
+                case 'standby': return 'fa-solid fa-pause';
+                case 'error': return 'fa-solid fa-xmark';
+                default: return 'fa-solid fa-question';
+            }
+        },
+        getStatusTitle(status) {
+            switch(status) {
+                case 'active': return '활성 (클릭하여 변경)';
+                case 'standby': return '대기 (클릭하여 변경)';
+                case 'error': return '오류 (클릭하여 변경)';
+                default: return '상태 변경';
+            }
+        },
+        cycleStatus(key) {
+            const states = ['active', 'standby', 'error'];
+            const idx = states.indexOf(key.status);
+            key.status = states[(idx + 1) % states.length];
         },
         
-        getUsagePercent(api) {
-            if (!api || !api.quota) return 0;
-            return Math.min(100, Math.round((api.usage / api.quota) * 100));
+        // 사용량
+        getUsagePercent(key) {
+            if (!key.quota) return 0;
+            return Math.min(100, Math.round((key.usage / key.quota) * 100));
         },
-        
-        getUsageBarClass(api) {
-            const percent = this.getUsagePercent(api);
-            if (percent >= 90) return 'bg-ui-danger';
-            if (percent >= 70) return 'bg-yellow-500';
+        getUsageBarClass(key) {
+            const pct = this.getUsagePercent(key);
+            if (pct >= 90) return 'bg-ui-danger';
+            if (pct >= 70) return 'bg-yellow-500';
             return 'bg-ui-accent';
         },
         
-        selectApi(api) {
-            this.selectedApiId = api.id;
-            this.showApiKey = false;
+        // 선택
+        toggleSelect(id) {
+            const idx = this.selectedKeys.indexOf(id);
+            if (idx >= 0) {
+                this.selectedKeys.splice(idx, 1);
+            } else {
+                this.selectedKeys.push(id);
+            }
         },
-        
-        async addNewApi() {
-            const { value: name } = await Swal.fire({ 
-                title: '새 API 키 추가', 
-                input: 'text', 
-                inputPlaceholder: 'API 이름', 
-                showCancelButton: true, 
-                background: '#1e1e1e', 
-                color: '#fff', 
-                confirmButtonColor: '#3b82f6' 
-            });
-            if (name) {
-                const newApi = {
-                    id: `api_${Date.now()}`,
-                    service: this.currentService,
-                    name,
-                    key: '',
-                    quota: this.currentService === 'youtube' ? 10000 : 60,
-                    usage: 0,
-                    status: '미설정',
-                    isActive: false,
-                    memo: ''
-                };
-                this.apiList.push(newApi);
-                this.selectedApiId = newApi.id;
+        toggleSelectAll() {
+            if (this.isAllSelected) {
+                this.selectedKeys = [];
+            } else {
+                this.selectedKeys = this.filteredKeys.map(k => k.id);
             }
         },
         
-        activateApi(api) {
-            // 같은 서비스의 다른 API 비활성화
-            this.apiList.forEach(a => {
-                if (a.service === api.service) {
-                    a.isActive = (a.id === api.id);
-                    a.status = a.isActive ? '정상' : '대기';
-                }
-            });
-            Swal.fire({ icon: 'success', title: 'API 활성화', text: `"${api.name}"이(가) 활성화되었습니다.`, background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6', timer: 1500, showConfirmButton: false });
+        // CRUD
+        addNewKey() {
+            const newKey = {
+                id: `key_${Date.now()}`,
+                service: this.currentService,
+                status: 'standby',
+                usage: 0,
+                quota: this.currentService === 'youtube' ? 10000 : 60,
+                accountName: '',
+                keyName: '',
+                apiKey: '',
+                memo: ''
+            };
+            this.apiKeys.push(newKey);
         },
-        
-        async deleteApi(api) {
+        saveKey(key) {
+            // 중복 검사
+            const duplicate = this.apiKeys.find(k => 
+                k.id !== key.id && 
+                k.apiKey === key.apiKey && 
+                key.apiKey.trim() !== ''
+            );
+            if (duplicate) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: '중복 키',
+                    text: '동일한 API 키가 이미 등록되어 있습니다.',
+                    background: '#1e1e1e',
+                    color: '#fff',
+                    confirmButtonColor: '#3b82f6'
+                });
+            }
+            // 실제로는 여기서 저장 로직 수행
+        },
+        async deleteKey(key) {
             const result = await Swal.fire({
-                title: 'API 키 삭제',
-                text: `"${api.name}"을(를) 삭제하시겠습니까?`,
+                title: '삭제 확인',
+                text: `"${key.keyName || key.accountName || 'API 키'}"를 삭제하시겠습니까?`,
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonText: '삭제',
@@ -417,34 +617,251 @@ const ApiManagerModal = {
                 confirmButtonColor: '#ef4444'
             });
             if (result.isConfirmed) {
-                this.apiList = this.apiList.filter(a => a.id !== api.id);
-                if (this.selectedApiId === api.id) {
-                    this.selectedApiId = null;
+                const idx = this.apiKeys.findIndex(k => k.id === key.id);
+                if (idx >= 0) {
+                    this.apiKeys.splice(idx, 1);
+                    this.selectedKeys = this.selectedKeys.filter(id => id !== key.id);
                 }
             }
         },
-        
-        copyApiKey() {
-            if (this.selectedApi && this.selectedApi.key) {
-                navigator.clipboard.writeText(this.selectedApi.key);
-                Swal.fire({ icon: 'success', title: '복사됨', text: 'API 키가 클립보드에 복사되었습니다.', background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6', timer: 1000, showConfirmButton: false });
-            }
-        },
-        
-        async testApiConnection() {
-            this.isTesting = true;
-            // 시뮬레이션
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            this.isTesting = false;
+        async deleteSelected() {
+            if (this.selectedKeys.length === 0) return;
             
-            if (this.selectedApi) {
-                this.selectedApi.status = '정상';
-                Swal.fire({ icon: 'success', title: '연결 성공', text: 'API 연결 테스트가 성공했습니다.', background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6', timer: 1500, showConfirmButton: false });
+            const result = await Swal.fire({
+                title: '일괄 삭제',
+                text: `선택한 ${this.selectedKeys.length}개의 API 키를 삭제하시겠습니까?`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: '삭제',
+                cancelButtonText: '취소',
+                background: '#1e1e1e',
+                color: '#fff',
+                confirmButtonColor: '#ef4444'
+            });
+            if (result.isConfirmed) {
+                this.apiKeys = this.apiKeys.filter(k => !this.selectedKeys.includes(k.id));
+                this.selectedKeys = [];
             }
         },
         
-        saveApiChanges() {
-            Swal.fire({ icon: 'success', title: '저장됨', text: 'API 설정이 저장되었습니다.', background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6', timer: 1500, showConfirmButton: false });
+        // 기타 액션
+        copyKey(key) {
+            navigator.clipboard.writeText(key.apiKey);
+            Swal.fire({
+                icon: 'success',
+                title: '복사됨',
+                text: 'API 키가 클립보드에 복사되었습니다.',
+                background: '#1e1e1e',
+                color: '#fff',
+                confirmButtonColor: '#3b82f6',
+                timer: 1000,
+                showConfirmButton: false
+            });
+        },
+        async testKey(key) {
+            Swal.fire({
+                title: '테스트 중...',
+                text: 'API 연결을 확인하고 있습니다.',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); },
+                background: '#1e1e1e',
+                color: '#fff'
+            });
+            
+            await new Promise(r => setTimeout(r, 1500));
+            
+            // 시뮬레이션: 랜덤 결과
+            const success = Math.random() > 0.2;
+            key.status = success ? 'active' : 'error';
+            
+            Swal.fire({
+                icon: success ? 'success' : 'error',
+                title: success ? '연결 성공' : '연결 실패',
+                text: success ? 'API 키가 정상적으로 작동합니다.' : 'API 키를 확인해주세요.',
+                background: '#1e1e1e',
+                color: '#fff',
+                confirmButtonColor: '#3b82f6',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        },
+        async testSelected() {
+            if (this.selectedKeys.length === 0) return;
+            
+            for (const id of this.selectedKeys) {
+                const key = this.apiKeys.find(k => k.id === id);
+                if (key) await this.testKey(key);
+            }
+        },
+        activateSelected() {
+            for (const id of this.selectedKeys) {
+                const key = this.apiKeys.find(k => k.id === id);
+                if (key) key.status = 'active';
+            }
+            this.selectedKeys = [];
+        },
+        
+        // 내보내기
+        exportKeys() {
+            const keys = this.currentServiceKeys;
+            const csv = [
+                ['상태', '사용량', '할당량', '계정명', '키이름', 'API KEY', '메모'].join('\t'),
+                ...keys.map(k => [
+                    k.status,
+                    k.usage,
+                    k.quota,
+                    k.accountName,
+                    k.keyName,
+                    k.apiKey,
+                    k.memo
+                ].join('\t'))
+            ].join('\n');
+            
+            const blob = new Blob([csv], { type: 'text/tab-separated-values' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `api-keys-${this.currentService}-${Date.now()}.tsv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        },
+        
+        // 대량 붙여넣기
+        openBulkPasteModal() {
+            this.bulkPasteModal.isOpen = true;
+            this.bulkPasteModal.data = '';
+            this.bulkPasteModal.preview = [];
+        },
+        closeBulkPasteModal() {
+            this.bulkPasteModal.isOpen = false;
+        },
+        getFormatDescription(format) {
+            switch(format) {
+                case 'full': return '탭으로 구분된 3열: 계정명, 키이름, API KEY';
+                case 'key-only': return 'API KEY만 한 줄에 하나씩';
+                case 'name-key': return '탭으로 구분된 2열: 키이름, API KEY';
+                default: return '';
+            }
+        },
+        handleBulkPaste(e) {
+            // 붙여넣기 이벤트에서 데이터 파싱
+            setTimeout(() => this.parseBulkData(), 10);
+        },
+        parseBulkData() {
+            const data = this.bulkPasteModal.data.trim();
+            if (!data) {
+                this.bulkPasteModal.preview = [];
+                return;
+            }
+            
+            const lines = data.split('\n').filter(l => l.trim());
+            const format = this.bulkPasteModal.format;
+            const preview = [];
+            
+            for (const line of lines) {
+                const parts = line.split('\t').map(p => p.trim());
+                let item = {
+                    accountName: '',
+                    keyName: '',
+                    apiKey: ''
+                };
+                
+                switch(format) {
+                    case 'full':
+                        item.accountName = parts[0] || '';
+                        item.keyName = parts[1] || '';
+                        item.apiKey = parts[2] || parts[0] || '';
+                        break;
+                    case 'key-only':
+                        item.apiKey = parts[0] || '';
+                        item.keyName = `key-${preview.length + 1}`;
+                        break;
+                    case 'name-key':
+                        item.keyName = parts[0] || '';
+                        item.apiKey = parts[1] || parts[0] || '';
+                        break;
+                }
+                
+                if (item.apiKey) {
+                    preview.push(item);
+                }
+            }
+            
+            this.bulkPasteModal.preview = preview;
+        },
+        applyBulkPaste() {
+            const preview = this.bulkPasteModal.preview;
+            if (preview.length === 0) return;
+            
+            for (const item of preview) {
+                // 중복 검사
+                const exists = this.apiKeys.find(k => k.apiKey === item.apiKey);
+                if (exists) continue;
+                
+                this.apiKeys.push({
+                    id: `key_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                    service: this.currentService,
+                    status: 'standby',
+                    usage: 0,
+                    quota: this.currentService === 'youtube' ? 10000 : 60,
+                    accountName: item.accountName,
+                    keyName: item.keyName,
+                    apiKey: item.apiKey,
+                    memo: ''
+                });
+            }
+            
+            Swal.fire({
+                icon: 'success',
+                title: '추가 완료',
+                text: `${preview.length}개의 API 키가 추가되었습니다.`,
+                background: '#1e1e1e',
+                color: '#fff',
+                confirmButtonColor: '#3b82f6',
+                timer: 1500,
+                showConfirmButton: false
+            });
+            
+            this.closeBulkPasteModal();
+        },
+        
+        // 유틸
+        maskApiKey(key) {
+            if (!key || key.length < 10) return '••••••••';
+            return key.substring(0, 6) + '••••••' + key.substring(key.length - 4);
+        },
+        openAddServiceModal() {
+            Swal.fire({
+                title: 'API 종류 추가',
+                input: 'text',
+                inputPlaceholder: 'API 이름 (예: Custom API)',
+                showCancelButton: true,
+                confirmButtonText: '추가',
+                cancelButtonText: '취소',
+                background: '#1e1e1e',
+                color: '#fff',
+                confirmButtonColor: '#3b82f6'
+            }).then(result => {
+                if (result.isConfirmed && result.value) {
+                    const id = result.value.toLowerCase().replace(/\s+/g, '-');
+                    if (!this.services.find(s => s.id === id)) {
+                        this.services.push({
+                            id,
+                            label: result.value,
+                            icon: 'fa-solid fa-key'
+                        });
+                        this.currentService = id;
+                    }
+                }
+            });
+        }
+    },
+    watch: {
+        'bulkPasteModal.data'() {
+            this.parseBulkData();
+        },
+        'bulkPasteModal.format'() {
+            this.parseBulkData();
         }
     }
 };
