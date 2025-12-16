@@ -1,5 +1,4 @@
-// Project Modal Component - 2패널 파일탐색기 스타일
-// 레이어 템플릿 모달과 동일한 구조
+// Project Modal Component - 2패널 파일탐색기 스타일 + 드래그앤드롭 지원
 
 const ProjectModal = {
     emits: ['close'],
@@ -30,7 +29,6 @@ const ProjectModal = {
                         </span>
                     </div>
                     <div class="flex items-center gap-2">
-                        <!-- 새 폴더 -->
                         <button
                             id="project-modal-new-folder-btn"
                             class="px-2 py-1 text-[11px] bg-bg-input border border-ui-border rounded hover:bg-bg-hover transition-colors flex items-center gap-1"
@@ -39,7 +37,6 @@ const ProjectModal = {
                         >
                             <i class="fa-solid fa-folder-plus"></i> 새 폴더
                         </button>
-                        <!-- 새 프로젝트 -->
                         <button
                             id="project-modal-new-project-btn"
                             class="px-2 py-1 text-[11px] bg-ui-accent text-white rounded hover:bg-blue-600 transition-colors flex items-center gap-1"
@@ -48,7 +45,6 @@ const ProjectModal = {
                         >
                             <i class="fa-solid fa-plus"></i> 새 프로젝트
                         </button>
-                        <!-- 닫기 -->
                         <button
                             id="project-modal-close-btn"
                             class="text-[14px] text-text-sub hover:text-white w-8 h-8 flex items-center justify-center rounded hover:bg-ui-danger transition-colors"
@@ -62,7 +58,6 @@ const ProjectModal = {
 
                 <!-- 툴바 -->
                 <div class="flex items-center justify-between px-4 py-2 border-b border-ui-border bg-bg-panel">
-                    <!-- 경로 표시 (Breadcrumb) -->
                     <div class="flex items-center gap-1 text-[11px]">
                         <template v-for="(crumb, idx) in breadcrumbs" :key="crumb.id">
                             <span 
@@ -75,7 +70,6 @@ const ProjectModal = {
                         </template>
                     </div>
                     
-                    <!-- 검색/필터 -->
                     <div class="flex items-center gap-2">
                         <div class="relative">
                             <input
@@ -86,13 +80,11 @@ const ProjectModal = {
                             />
                             <i class="fa-solid fa-search absolute right-2 top-1/2 -translate-y-1/2 text-text-sub text-[10px]"></i>
                         </div>
-                        <!-- 보기 모드 -->
                         <div class="flex border border-ui-border rounded overflow-hidden">
                             <button 
                                 class="px-2 py-1 text-[10px]"
                                 :class="viewMode === 'list' ? 'bg-ui-accent text-white' : 'bg-bg-input text-text-sub hover:bg-bg-hover'"
                                 @click="viewMode = 'list'"
-                                title="목록 보기"
                             >
                                 <i class="fa-solid fa-list"></i>
                             </button>
@@ -100,7 +92,6 @@ const ProjectModal = {
                                 class="px-2 py-1 text-[10px]"
                                 :class="viewMode === 'grid' ? 'bg-ui-accent text-white' : 'bg-bg-input text-text-sub hover:bg-bg-hover'"
                                 @click="viewMode = 'grid'"
-                                title="그리드 보기"
                             >
                                 <i class="fa-solid fa-grip"></i>
                             </button>
@@ -115,7 +106,6 @@ const ProjectModal = {
                     <div 
                         id="project-modal-folder-panel"
                         class="w-52 border-r border-ui-border bg-bg-dark flex flex-col shrink-0"
-                        :style="{ width: leftPanelWidth + 'px' }"
                     >
                         <div class="p-2 border-b border-ui-border bg-bg-panel">
                             <span class="text-[10px] text-text-sub font-bold uppercase tracking-wide">폴더</span>
@@ -125,14 +115,51 @@ const ProjectModal = {
                                 v-for="folder in rootFolders"
                                 :key="folder.id"
                             >
-                                <project-folder-item
-                                    :folder="folder"
-                                    :all-folders="allFolders"
-                                    :selected-folder-id="currentFolderId"
-                                    @select="selectFolder"
-                                    @toggle="toggleFolder"
-                                    @contextmenu="openFolderContextMenu"
-                                ></project-folder-item>
+                                <div
+                                    class="flex items-center gap-1 px-2 py-1.5 rounded cursor-pointer text-[11px] transition-colors folder-drop-zone"
+                                    :class="{
+                                        'bg-ui-selected text-white': currentFolderId === folder.id,
+                                        'hover:bg-bg-hover': currentFolderId !== folder.id,
+                                        'drag-over': dragOverFolderId === folder.id
+                                    }"
+                                    @click="selectFolder(folder)"
+                                    @contextmenu.prevent="openFolderContextMenu($event, folder)"
+                                    @dragover.prevent="onFolderDragOver($event, folder)"
+                                    @dragleave="onFolderDragLeave($event, folder)"
+                                    @drop.prevent="onFolderDrop($event, folder)"
+                                >
+                                    <i 
+                                        v-if="getChildFolders(folder.id).length > 0"
+                                        class="fa-solid text-[8px] w-3 cursor-pointer"
+                                        :class="folder.isExpanded ? 'fa-chevron-down' : 'fa-chevron-right'"
+                                        @click.stop="toggleFolder(folder)"
+                                    ></i>
+                                    <span v-else class="w-3"></span>
+                                    <i :class="folder.isExpanded ? 'fa-solid fa-folder-open' : 'fa-solid fa-folder'" class="text-yellow-500"></i>
+                                    <span class="truncate flex-1">{{ folder.name }}</span>
+                                </div>
+                                
+                                <div v-if="folder.isExpanded" class="ml-3">
+                                    <div
+                                        v-for="child in getChildFolders(folder.id)"
+                                        :key="child.id"
+                                        class="flex items-center gap-1 px-2 py-1.5 rounded cursor-pointer text-[11px] transition-colors folder-drop-zone"
+                                        :class="{
+                                            'bg-ui-selected text-white': currentFolderId === child.id,
+                                            'hover:bg-bg-hover': currentFolderId !== child.id,
+                                            'drag-over': dragOverFolderId === child.id
+                                        }"
+                                        @click="selectFolder(child)"
+                                        @contextmenu.prevent="openFolderContextMenu($event, child)"
+                                        @dragover.prevent="onFolderDragOver($event, child)"
+                                        @dragleave="onFolderDragLeave($event, child)"
+                                        @drop.prevent="onFolderDrop($event, child)"
+                                    >
+                                        <span class="w-3"></span>
+                                        <i class="fa-solid fa-folder text-yellow-500"></i>
+                                        <span class="truncate flex-1">{{ child.name }}</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -141,8 +168,9 @@ const ProjectModal = {
                     <div 
                         id="project-modal-file-panel"
                         class="flex-1 flex flex-col bg-bg-dark overflow-hidden"
+                        @dragover.prevent="onContentPanelDragOver"
+                        @drop.prevent="onContentPanelDrop"
                     >
-                        <!-- 정렬 바 -->
                         <div class="flex items-center justify-between px-3 py-1.5 border-b border-ui-border bg-bg-panel text-[10px]">
                             <div class="flex items-center gap-4">
                                 <span 
@@ -162,17 +190,14 @@ const ProjectModal = {
                                     <i v-if="sortBy === 'date'" :class="sortAsc ? 'fa-solid fa-arrow-up' : 'fa-solid fa-arrow-down'" class="text-[8px]"></i>
                                 </span>
                             </div>
-                            <span class="text-text-sub">
-                                {{ filteredItems.length }}개 항목
-                            </span>
+                            <span class="text-text-sub">{{ filteredItems.length }}개 항목</span>
                         </div>
 
-                        <!-- 프로젝트/폴더 목록 -->
                         <div 
                             class="flex-1 overflow-auto p-2"
+                            :class="{ 'drag-over': isContentPanelDragOver }"
                             @contextmenu.prevent="openEmptyAreaContextMenu($event)"
                         >
-                            <!-- 빈 상태 -->
                             <div
                                 v-if="filteredItems.length === 0 && !searchQuery"
                                 class="flex flex-col items-center justify-center h-full text-text-sub opacity-50"
@@ -182,7 +207,6 @@ const ProjectModal = {
                                 <p class="text-[11px] mt-1">새 프로젝트를 생성하거나 폴더를 만드세요</p>
                             </div>
 
-                            <!-- 검색 결과 없음 -->
                             <div
                                 v-else-if="filteredItems.length === 0 && searchQuery"
                                 class="flex flex-col items-center justify-center h-full text-text-sub opacity-50"
@@ -193,7 +217,6 @@ const ProjectModal = {
 
                             <!-- 목록 보기 -->
                             <div v-else-if="viewMode === 'list'" class="space-y-0.5">
-                                <!-- 하위 폴더들 -->
                                 <div
                                     v-for="folder in childFolders"
                                     :key="'folder-' + folder.id"
@@ -202,6 +225,9 @@ const ProjectModal = {
                                     @click="onItemClick($event, 'folder', folder)"
                                     @dblclick="navigateToFolder(folder.id)"
                                     @contextmenu.prevent="openFolderContextMenu($event, folder)"
+                                    draggable="true"
+                                    @dragstart="onDragStart($event, 'folder', folder)"
+                                    @dragend="onDragEnd"
                                 >
                                     <i class="fa-solid fa-folder text-yellow-500 text-[14px]"></i>
                                     <span class="flex-1 truncate">{{ folder.name }}</span>
@@ -210,7 +236,6 @@ const ProjectModal = {
                                     </span>
                                 </div>
 
-                                <!-- 프로젝트들 -->
                                 <div
                                     v-for="project in filteredProjects"
                                     :key="'proj-' + project.id"
@@ -219,6 +244,9 @@ const ProjectModal = {
                                     @click="onItemClick($event, 'project', project)"
                                     @dblclick="openProject(project)"
                                     @contextmenu.prevent="openProjectContextMenu($event, project)"
+                                    draggable="true"
+                                    @dragstart="onDragStart($event, 'project', project)"
+                                    @dragend="onDragEnd"
                                 >
                                     <i class="fa-solid fa-film text-ui-accent text-[14px]"></i>
                                     <div class="flex-1 min-w-0">
@@ -231,14 +259,12 @@ const ProjectModal = {
                                         <button 
                                             class="w-6 h-6 rounded hover:bg-ui-accent hover:text-white flex items-center justify-center"
                                             @click.stop="openProject(project)"
-                                            title="열기"
                                         >
                                             <i class="fa-solid fa-folder-open text-[10px]"></i>
                                         </button>
                                         <button 
                                             class="w-6 h-6 rounded hover:bg-ui-danger hover:text-white flex items-center justify-center"
                                             @click.stop="deleteProject(project)"
-                                            title="삭제"
                                         >
                                             <i class="fa-solid fa-trash text-[10px]"></i>
                                         </button>
@@ -248,7 +274,6 @@ const ProjectModal = {
 
                             <!-- 그리드 보기 -->
                             <div v-else class="grid grid-cols-4 gap-2">
-                                <!-- 하위 폴더들 -->
                                 <div
                                     v-for="folder in childFolders"
                                     :key="'folder-' + folder.id"
@@ -257,12 +282,14 @@ const ProjectModal = {
                                     @click="onItemClick($event, 'folder', folder)"
                                     @dblclick="navigateToFolder(folder.id)"
                                     @contextmenu.prevent="openFolderContextMenu($event, folder)"
+                                    draggable="true"
+                                    @dragstart="onDragStart($event, 'folder', folder)"
+                                    @dragend="onDragEnd"
                                 >
                                     <i class="fa-solid fa-folder text-yellow-500 text-3xl mb-2"></i>
                                     <span class="text-[11px] truncate max-w-full text-center">{{ folder.name }}</span>
                                 </div>
 
-                                <!-- 프로젝트들 -->
                                 <div
                                     v-for="project in filteredProjects"
                                     :key="'proj-' + project.id"
@@ -271,10 +298,12 @@ const ProjectModal = {
                                     @click="onItemClick($event, 'project', project)"
                                     @dblclick="openProject(project)"
                                     @contextmenu.prevent="openProjectContextMenu($event, project)"
+                                    draggable="true"
+                                    @dragstart="onDragStart($event, 'project', project)"
+                                    @dragend="onDragEnd"
                                 >
                                     <div class="w-full aspect-video bg-bg-input rounded-lg flex items-center justify-center mb-2 border border-ui-border overflow-hidden">
-                                        <img v-if="project.thumbnail" :src="project.thumbnail" class="w-full h-full object-cover" />
-                                        <i v-else class="fa-solid fa-film text-ui-accent text-xl"></i>
+                                        <i class="fa-solid fa-film text-ui-accent text-xl"></i>
                                     </div>
                                     <span class="text-[11px] truncate max-w-full text-center">{{ project.name }}</span>
                                     <span class="text-[9px] text-text-sub">{{ formatDate(project.updatedAt) }}</span>
@@ -286,13 +315,9 @@ const ProjectModal = {
 
                 <!-- 상태바 -->
                 <div class="px-4 py-2 border-t border-ui-border bg-bg-panel flex justify-between items-center text-[11px] rounded-b-lg">
-                    <div class="flex items-center gap-4 text-text-sub">
-                        <span v-if="selectedItems.length > 0">
-                            {{ selectedItems.length }}개 선택됨
-                        </span>
-                        <span v-else>
-                            {{ currentFolderName }}
-                        </span>
+                    <div class="text-text-sub">
+                        <span v-if="selectedItems.length > 0">{{ selectedItems.length }}개 선택됨</span>
+                        <span v-else>{{ currentFolderName }}</span>
                     </div>
                     <div class="flex items-center gap-2">
                         <button
@@ -318,7 +343,6 @@ const ProjectModal = {
                     :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px', zIndex: 10001 }"
                     @click.stop
                 >
-                    <!-- 폴더 컨텍스트 메뉴 -->
                     <template v-if="contextMenu.type === 'folder'">
                         <div class="ctx-item" @click="openContextFolder">
                             <i class="fa-solid fa-folder-open w-4"></i>
@@ -335,7 +359,6 @@ const ProjectModal = {
                         </div>
                     </template>
 
-                    <!-- 프로젝트 컨텍스트 메뉴 -->
                     <template v-else-if="contextMenu.type === 'project'">
                         <div class="ctx-item" @click="openContextProject">
                             <i class="fa-solid fa-folder-open w-4"></i>
@@ -356,7 +379,6 @@ const ProjectModal = {
                         </div>
                     </template>
 
-                    <!-- 빈 영역 컨텍스트 메뉴 -->
                     <template v-else-if="contextMenu.type === 'empty'">
                         <div class="ctx-item" @click="createNewFolder">
                             <i class="fa-solid fa-folder-plus w-4"></i>
@@ -371,60 +393,8 @@ const ProjectModal = {
             </div>
         </div>
     `,
-    components: {
-        'project-folder-item': {
-            props: ['folder', 'allFolders', 'selectedFolderId', 'depth'],
-            emits: ['select', 'toggle', 'contextmenu'],
-            template: `
-                <div>
-                    <div
-                        class="flex items-center gap-1 px-2 py-1 rounded cursor-pointer text-[11px] transition-colors"
-                        :class="{
-                            'bg-ui-selected text-white': selectedFolderId === folder.id,
-                            'hover:bg-bg-hover': selectedFolderId !== folder.id
-                        }"
-                        :style="{ paddingLeft: ((depth || 0) * 12 + 8) + 'px' }"
-                        @click="$emit('select', folder)"
-                        @contextmenu.prevent.stop="$emit('contextmenu', $event, folder)"
-                    >
-                        <i 
-                            v-if="hasChildren"
-                            class="fa-solid text-[8px] w-3 cursor-pointer"
-                            :class="folder.isExpanded ? 'fa-chevron-down' : 'fa-chevron-right'"
-                            @click.stop="$emit('toggle', folder)"
-                        ></i>
-                        <span v-else class="w-3"></span>
-                        <i :class="folder.isExpanded && hasChildren ? 'fa-solid fa-folder-open' : 'fa-solid fa-folder'" class="text-yellow-500"></i>
-                        <span class="truncate flex-1">{{ folder.name }}</span>
-                    </div>
-                    <div v-if="folder.isExpanded && hasChildren">
-                        <project-folder-item
-                            v-for="child in childFolders"
-                            :key="child.id"
-                            :folder="child"
-                            :all-folders="allFolders"
-                            :selected-folder-id="selectedFolderId"
-                            :depth="(depth || 0) + 1"
-                            @select="$emit('select', $event)"
-                            @toggle="$emit('toggle', $event)"
-                            @contextmenu="$emit('contextmenu', $event[0], $event[1])"
-                        ></project-folder-item>
-                    </div>
-                </div>
-            `,
-            computed: {
-                childFolders() {
-                    return this.allFolders.filter(f => f.parentId === this.folder.id);
-                },
-                hasChildren() {
-                    return this.childFolders.length > 0;
-                }
-            }
-        }
-    },
     data() {
         return {
-            // 창 위치/크기
             posX: 0,
             posY: 0,
             dragging: false,
@@ -433,20 +403,19 @@ const ProjectModal = {
             dragStartPosX: 0,
             dragStartPosY: 0,
             
-            // 패널 크기
-            leftPanelWidth: 200,
-            
-            // 뷰 상태
             currentFolderId: 'root',
             viewMode: 'list',
             searchQuery: '',
             sortBy: 'name',
             sortAsc: true,
             
-            // 선택 상태
             selectedItems: [],
             
-            // 컨텍스트 메뉴
+            // 드래그 상태
+            dragData: null,
+            dragOverFolderId: null,
+            isContentPanelDragOver: false,
+            
             contextMenu: {
                 show: false,
                 x: 0,
@@ -455,7 +424,6 @@ const ProjectModal = {
                 target: null
             },
             
-            // 내부 데이터 (더미)
             internalFolders: [
                 { id: 'root', name: '전체 프로젝트', parentId: null, isExpanded: true },
                 { id: 'folder1', name: '2024 프로젝트', parentId: 'root', isExpanded: false },
@@ -470,61 +438,35 @@ const ProjectModal = {
     },
     computed: {
         windowStyle() {
-            return {
-                position: 'absolute',
-                left: this.posX + 'px',
-                top: this.posY + 'px'
-            };
+            return { position: 'absolute', left: this.posX + 'px', top: this.posY + 'px' };
         },
-        allFolders() {
-            return this.internalFolders;
-        },
-        allProjects() {
-            return this.internalProjects;
-        },
-        rootFolders() {
-            return this.allFolders.filter(f => f.parentId === null);
-        },
-        childFolders() {
-            return this.allFolders.filter(f => f.parentId === this.currentFolderId);
-        },
-        currentFolderProjects() {
-            return this.allProjects.filter(p => (p.folderId || 'root') === this.currentFolderId);
-        },
+        allFolders() { return this.internalFolders; },
+        allProjects() { return this.internalProjects; },
+        rootFolders() { return this.allFolders.filter(f => f.parentId === null); },
+        childFolders() { return this.allFolders.filter(f => f.parentId === this.currentFolderId); },
+        currentFolderProjects() { return this.allProjects.filter(p => (p.folderId || 'root') === this.currentFolderId); },
         filteredProjects() {
             let projects = this.currentFolderProjects;
-            
             if (this.searchQuery) {
                 const q = this.searchQuery.toLowerCase();
                 projects = projects.filter(p => p.name.toLowerCase().includes(q));
             }
-            
             projects = [...projects].sort((a, b) => {
                 let cmp = 0;
-                if (this.sortBy === 'name') {
-                    cmp = a.name.localeCompare(b.name);
-                } else if (this.sortBy === 'date') {
-                    cmp = new Date(b.updatedAt) - new Date(a.updatedAt);
-                }
+                if (this.sortBy === 'name') cmp = a.name.localeCompare(b.name);
+                else if (this.sortBy === 'date') cmp = new Date(b.updatedAt) - new Date(a.updatedAt);
                 return this.sortAsc ? cmp : -cmp;
             });
-            
             return projects;
         },
-        filteredItems() {
-            return [...this.childFolders, ...this.filteredProjects];
-        },
+        filteredItems() { return [...this.childFolders, ...this.filteredProjects]; },
         breadcrumbs() {
             const crumbs = [];
             let folderId = this.currentFolderId;
             while (folderId) {
                 const folder = this.allFolders.find(f => f.id === folderId);
-                if (folder) {
-                    crumbs.unshift(folder);
-                    folderId = folder.parentId;
-                } else {
-                    break;
-                }
+                if (folder) { crumbs.unshift(folder); folderId = folder.parentId; }
+                else break;
             }
             return crumbs;
         },
@@ -564,136 +506,118 @@ const ProjectModal = {
                 this.posY = this.dragStartPosY + (e.clientY - this.dragStartMouseY);
             }
         },
-        onGlobalMouseUp() {
-            this.dragging = false;
-        },
+        onGlobalMouseUp() { this.dragging = false; },
         
-        // 폴더 네비게이션
-        selectFolder(folder) {
-            this.currentFolderId = folder.id;
-            this.selectedItems = [];
-        },
-        navigateToFolder(folderId) {
-            this.currentFolderId = folderId;
-            this.selectedItems = [];
-        },
+        getChildFolders(parentId) { return this.allFolders.filter(f => f.parentId === parentId); },
+        selectFolder(folder) { this.currentFolderId = folder.id; this.selectedItems = []; },
+        navigateToFolder(folderId) { this.currentFolderId = folderId; this.selectedItems = []; },
         toggleFolder(folder) {
             const idx = this.internalFolders.findIndex(f => f.id === folder.id);
-            if (idx !== -1) {
-                this.internalFolders[idx].isExpanded = !this.internalFolders[idx].isExpanded;
-            }
+            if (idx !== -1) this.internalFolders[idx].isExpanded = !this.internalFolders[idx].isExpanded;
         },
         
-        // 선택
         onItemClick(e, type, item) {
             const key = `${type}:${item.id}`;
             if (e.ctrlKey || e.metaKey) {
                 const idx = this.selectedItems.indexOf(key);
-                if (idx === -1) {
-                    this.selectedItems.push(key);
-                } else {
-                    this.selectedItems.splice(idx, 1);
-                }
+                if (idx === -1) this.selectedItems.push(key);
+                else this.selectedItems.splice(idx, 1);
             } else {
                 this.selectedItems = [key];
             }
         },
         
-        // 정렬
-        toggleSort(field) {
-            if (this.sortBy === field) {
-                this.sortAsc = !this.sortAsc;
-            } else {
-                this.sortBy = field;
-                this.sortAsc = true;
+        // 드래그앤드롭
+        onDragStart(e, type, item) {
+            this.dragData = { type, item };
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', JSON.stringify({ type, id: item.id }));
+        },
+        onDragEnd() {
+            this.dragData = null;
+            this.dragOverFolderId = null;
+            this.isContentPanelDragOver = false;
+        },
+        onFolderDragOver(e, folder) {
+            e.preventDefault();
+            if (this.dragData && folder.id !== this.dragData.item?.id) {
+                this.dragOverFolderId = folder.id;
+            }
+        },
+        onFolderDragLeave(e, folder) {
+            if (this.dragOverFolderId === folder.id) {
+                this.dragOverFolderId = null;
+            }
+        },
+        onFolderDrop(e, folder) {
+            e.preventDefault();
+            if (this.dragData) {
+                this.moveItemToFolder(this.dragData.type, this.dragData.item, folder.id);
+            }
+            this.dragOverFolderId = null;
+            this.dragData = null;
+        },
+        onContentPanelDragOver(e) {
+            e.preventDefault();
+            this.isContentPanelDragOver = true;
+        },
+        onContentPanelDrop(e) {
+            e.preventDefault();
+            if (this.dragData) {
+                this.moveItemToFolder(this.dragData.type, this.dragData.item, this.currentFolderId);
+            }
+            this.isContentPanelDragOver = false;
+            this.dragData = null;
+        },
+        moveItemToFolder(type, item, targetFolderId) {
+            if (type === 'project') {
+                const idx = this.internalProjects.findIndex(p => p.id === item.id);
+                if (idx !== -1) this.internalProjects[idx].folderId = targetFolderId;
+            } else if (type === 'folder') {
+                if (item.id === targetFolderId) return;
+                const idx = this.internalFolders.findIndex(f => f.id === item.id);
+                if (idx !== -1) this.internalFolders[idx].parentId = targetFolderId;
             }
         },
         
-        // 컨텍스트 메뉴
-        openFolderContextMenu(e, folder) {
-            this.contextMenu = {
-                show: true,
-                x: e.clientX,
-                y: e.clientY,
-                type: 'folder',
-                target: folder
-            };
-        },
-        openProjectContextMenu(e, project) {
-            this.contextMenu = {
-                show: true,
-                x: e.clientX,
-                y: e.clientY,
-                type: 'project',
-                target: project
-            };
-        },
-        openEmptyAreaContextMenu(e) {
-            this.contextMenu = {
-                show: true,
-                x: e.clientX,
-                y: e.clientY,
-                type: 'empty',
-                target: null
-            };
-        },
-        closeContextMenu() {
-            this.contextMenu.show = false;
+        toggleSort(field) {
+            if (this.sortBy === field) this.sortAsc = !this.sortAsc;
+            else { this.sortBy = field; this.sortAsc = true; }
         },
         
-        // CRUD
+        openFolderContextMenu(e, folder) {
+            this.contextMenu = { show: true, x: e.clientX, y: e.clientY, type: 'folder', target: folder };
+        },
+        openProjectContextMenu(e, project) {
+            this.contextMenu = { show: true, x: e.clientX, y: e.clientY, type: 'project', target: project };
+        },
+        openEmptyAreaContextMenu(e) {
+            this.contextMenu = { show: true, x: e.clientX, y: e.clientY, type: 'empty', target: null };
+        },
+        closeContextMenu() { this.contextMenu.show = false; },
+        
         async createNewFolder() {
             this.closeContextMenu();
             const { value: name } = await Swal.fire({
-                title: '새 폴더',
-                input: 'text',
-                inputPlaceholder: '폴더 이름',
-                showCancelButton: true,
-                background: '#1e1e1e',
-                color: '#fff',
-                confirmButtonColor: '#3b82f6'
+                title: '새 폴더', input: 'text', inputPlaceholder: '폴더 이름',
+                showCancelButton: true, background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6'
             });
             if (name) {
-                const newFolder = {
-                    id: `folder_${Date.now()}`,
-                    name,
-                    parentId: this.currentFolderId,
-                    isExpanded: false
-                };
-                this.internalFolders.push(newFolder);
+                this.internalFolders.push({ id: `folder_${Date.now()}`, name, parentId: this.currentFolderId, isExpanded: false });
             }
         },
         async createNewProject() {
             this.closeContextMenu();
             const { value: name } = await Swal.fire({
-                title: '새 프로젝트',
-                input: 'text',
-                inputPlaceholder: '프로젝트 이름',
-                showCancelButton: true,
-                background: '#1e1e1e',
-                color: '#fff',
-                confirmButtonColor: '#3b82f6'
+                title: '새 프로젝트', input: 'text', inputPlaceholder: '프로젝트 이름',
+                showCancelButton: true, background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6'
             });
             if (name) {
-                const newProject = {
-                    id: `proj_${Date.now()}`,
-                    name,
-                    folderId: this.currentFolderId,
-                    updatedAt: new Date().toISOString(),
-                    resolution: 'FHD'
-                };
-                this.internalProjects.push(newProject);
+                this.internalProjects.push({ id: `proj_${Date.now()}`, name, folderId: this.currentFolderId, updatedAt: new Date().toISOString(), resolution: 'FHD' });
             }
         },
         openProject(project) {
-            Swal.fire({
-                icon: 'info',
-                title: '프로젝트 열기',
-                text: `"${project.name}" 프로젝트를 엽니다.`,
-                background: '#1e1e1e',
-                color: '#fff',
-                confirmButtonColor: '#3b82f6'
-            });
+            Swal.fire({ icon: 'info', title: '프로젝트 열기', text: `"${project.name}" 프로젝트를 엽니다.`, background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6' });
             this.$emit('close');
         },
         openSelectedProject() {
@@ -704,74 +628,38 @@ const ProjectModal = {
                 if (project) this.openProject(project);
             }
         },
-        openContextProject() {
-            this.closeContextMenu();
-            this.openProject(this.contextMenu.target);
-        },
-        openContextFolder() {
-            this.closeContextMenu();
-            this.navigateToFolder(this.contextMenu.target.id);
-        },
+        openContextProject() { this.closeContextMenu(); this.openProject(this.contextMenu.target); },
+        openContextFolder() { this.closeContextMenu(); this.navigateToFolder(this.contextMenu.target.id); },
         async deleteProject(project) {
             const result = await Swal.fire({
-                title: '프로젝트 삭제',
-                text: `"${project.name}" 프로젝트를 삭제하시겠습니까?`,
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: '삭제',
-                cancelButtonText: '취소',
-                background: '#1e1e1e',
-                color: '#fff',
-                confirmButtonColor: '#ef4444'
+                title: '프로젝트 삭제', text: `"${project.name}" 프로젝트를 삭제하시겠습니까?`, icon: 'warning',
+                showCancelButton: true, confirmButtonText: '삭제', cancelButtonText: '취소',
+                background: '#1e1e1e', color: '#fff', confirmButtonColor: '#ef4444'
             });
-            if (result.isConfirmed) {
-                this.internalProjects = this.internalProjects.filter(p => p.id !== project.id);
-            }
+            if (result.isConfirmed) this.internalProjects = this.internalProjects.filter(p => p.id !== project.id);
         },
-        deleteContextProject() {
-            this.closeContextMenu();
-            this.deleteProject(this.contextMenu.target);
-        },
+        deleteContextProject() { this.closeContextMenu(); this.deleteProject(this.contextMenu.target); },
         async deleteContextFolder() {
             this.closeContextMenu();
             const folder = this.contextMenu.target;
-            if (folder.id === 'root') {
-                Swal.fire({ icon: 'error', title: '루트 폴더는 삭제할 수 없습니다', background: '#1e1e1e', color: '#fff' });
-                return;
-            }
-            
+            if (folder.id === 'root') { Swal.fire({ icon: 'error', title: '루트 폴더는 삭제할 수 없습니다', background: '#1e1e1e', color: '#fff' }); return; }
             const result = await Swal.fire({
-                title: '폴더 삭제',
-                text: `"${folder.name}" 폴더를 삭제하시겠습니까?`,
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: '삭제',
-                cancelButtonText: '취소',
-                background: '#1e1e1e',
-                color: '#fff',
-                confirmButtonColor: '#ef4444'
+                title: '폴더 삭제', text: `"${folder.name}" 폴더를 삭제하시겠습니까?`, icon: 'warning',
+                showCancelButton: true, confirmButtonText: '삭제', cancelButtonText: '취소',
+                background: '#1e1e1e', color: '#fff', confirmButtonColor: '#ef4444'
             });
-            
             if (result.isConfirmed) {
                 this.internalFolders = this.internalFolders.filter(f => f.id !== folder.id);
-                if (this.currentFolderId === folder.id) {
-                    this.currentFolderId = folder.parentId || 'root';
-                }
+                if (this.currentFolderId === folder.id) this.currentFolderId = folder.parentId || 'root';
             }
         },
         async renameItem() {
             const target = this.contextMenu.target;
             const type = this.contextMenu.type;
             this.closeContextMenu();
-            
             const { value: name } = await Swal.fire({
-                title: '이름 바꾸기',
-                input: 'text',
-                inputValue: target.name,
-                showCancelButton: true,
-                background: '#1e1e1e',
-                color: '#fff',
-                confirmButtonColor: '#3b82f6'
+                title: '이름 바꾸기', input: 'text', inputValue: target.name,
+                showCancelButton: true, background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6'
             });
             if (name && name !== target.name) {
                 if (type === 'folder') {
@@ -786,37 +674,24 @@ const ProjectModal = {
         async duplicateProject() {
             this.closeContextMenu();
             const project = this.contextMenu.target;
-            const newProject = {
-                ...project,
-                id: `proj_${Date.now()}`,
-                name: `${project.name} (복사본)`,
-                updatedAt: new Date().toISOString()
-            };
-            this.internalProjects.push(newProject);
+            this.internalProjects.push({ ...project, id: `proj_${Date.now()}`, name: `${project.name} (복사본)`, updatedAt: new Date().toISOString() });
         },
         
-        // 유틸리티
         formatDate(isoString) {
             if (!isoString) return '-';
             try {
                 const date = new Date(isoString);
                 const now = new Date();
                 const diff = now - date;
-                
                 if (diff < 60000) return '방금 전';
                 if (diff < 3600000) return `${Math.floor(diff / 60000)}분 전`;
                 if (diff < 86400000) return `${Math.floor(diff / 3600000)}시간 전`;
                 if (diff < 604800000) return `${Math.floor(diff / 86400000)}일 전`;
-                
                 return date.toLocaleDateString('ko-KR');
-            } catch (e) {
-                return isoString;
-            }
+            } catch (e) { return isoString; }
         },
         getChildCount(folderId) {
-            const folderCount = this.allFolders.filter(f => f.parentId === folderId).length;
-            const projectCount = this.allProjects.filter(p => (p.folderId || 'root') === folderId).length;
-            return folderCount + projectCount;
+            return this.allFolders.filter(f => f.parentId === folderId).length + this.allProjects.filter(p => (p.folderId || 'root') === folderId).length;
         }
     }
 };
