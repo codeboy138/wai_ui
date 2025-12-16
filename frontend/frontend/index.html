@@ -130,4 +130,81 @@
                         <div id="preview-canvas-viewport">
                             <div id="preview-canvas-scaler" :class="['canvas-scaler', 'canvas-ar-' + (aspectRatio || '16:9').replace(':','-')]" :style="canvasScalerStyle">
                                 <canvas id="preview-render-canvas"></canvas>
-                                <preview-canvas :canvas-boxes="canvasBoxes" :canvas-size="canvasSize" :selected-box-<span class="cursor">█</span>
+                                <preview-canvas :canvas-boxes="canvasBoxes" :canvas-size="canvasSize" :selected-box-id="selectedBoxId" @select-box="setSelectedBoxId"></preview-canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="main-center-timeline-resizer-h" class="panel-resizer-h" title="타임라인 높이 조절" data-action="js:resizePanelCenter"></div>
+                <timeline-panel :vm="$data" :style="{ height: timelineContainerHeight }"></timeline-panel>
+            </section>
+
+            <!-- Right Panel -->
+            <aside id="main-right-panel" class="bg-bg-panel flex flex-col relative border-l border-ui-border" :style="{ width: rightPanelWidth + 'px', minWidth: '250px' }">
+                <div id="main-right-resizer-v" class="panel-resizer-v left-0" title="우측 패널 너비 조절" data-action="js:resizePanelRight"></div>
+                <div class="flex-1 overflow-y-auto flex flex-col" id="main-right-vue-root">
+                    <layer-panel :vm="$data"></layer-panel>
+                    <div class="flex-1 bg-bg-dark border-t border-ui-border p-2">
+                        <div class="text-[10px] text-text-sub text-center opacity-30 mt-4">Effects Library</div>
+                    </div>
+                </div>
+            </aside>
+        </main>
+
+        <!-- Modals -->
+        <project-modal v-if="projectManagerModal.isOpen" @close="closeProjectManager"></project-modal>
+        <layer-config-modal v-if="layerConfig.isOpen && layerConfigBox" :box="layerConfigBox" @close="closeLayerConfig" @delete="deleteLayerFromConfig"></layer-config-modal>
+        <layer-template-modal v-if="layerTemplateModal.isOpen" :templates="layerTemplates" :folders="layerTemplateFolders" @close="closeLayerTemplateModal" @delete-template="deleteLayerTemplate" @load-template="loadLayerTemplate" @update-templates="updateLayerTemplates" @update-folders="updateLayerTemplateFolders"></layer-template-modal>
+        <asset-manager-modal v-if="assetManagerModal.isOpen" :asset-type="assetManagerModal.assetType" @close="closeAssetManager"></asset-manager-modal>
+        <image-asset-modal v-if="imageAssetModal.isOpen" @close="closeImageAssetModal"></image-asset-modal>
+        <image-effect-modal v-if="imageEffectModal.isOpen" @close="closeImageEffectModal"></image-effect-modal>
+        <visualization-modal v-if="visualizationModal.isOpen" @close="closeVisualizationModal"></visualization-modal>
+        <api-manager-modal v-if="apiManagerModal.isOpen" @close="closeApiManagerModal"></api-manager-modal>
+
+        <!-- Dev Overlay -->
+        <div class="dev-overlay" id="dev-overlay-root" v-if="inspector.tag">
+            <div id="dev-overlay-highlight" class="dev-highlight" :style="highlightStyle"></div>
+            <div id="dev-overlay-tooltip" class="dev-tooltip" :style="tooltipStyle" @click="copyInspectorId">
+                <div class="dev-tooltip-header">
+                    <span style="color:#d97706;">#{{ inspector.id || '(no-id)' }}</span>
+                    <span style="color:#1d4ed8;"> {{ inspector.tag }}</span>
+                    <span v-if="inspector.className" style="color:#16a34a;"> .{{ inspector.className.split(' ')[0] }}</span>
+                </div>
+                <div class="dev-tooltip-meta">Size: {{ inspector.w }} x {{ inspector.h }}</div>
+                <template v-if="isDevModeActive && !isDevModeFull">
+                    <div class="dev-tooltip-hint">클릭하면 현재 요소의 ID가 클립보드에 복사됩니다.</div>
+                </template>
+                <template v-if="isDevModeFull">
+                    <div class="dev-tooltip-devinfo" v-if="inspector.dataDev">{{ inspector.dataDev }}</div>
+                    <div class="dev-tooltip-devinfo" v-else>Spec: NOT FOUND</div>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS Modules (Load Order Matters) -->
+    <!-- 1. Utils & Specs -->
+    <script src="js/utils/constants.js"></script>
+    <script src="docs/element-specs.js"></script>
+    
+    <!-- 2. Components (Dependencies First) -->
+    <script src="js/components/DropdownMenu.js"></script>
+    <script src="js/components/RulerLine.js"></script>
+    <script src="js/components/ProjectModal.js"></script>
+    <script src="js/components/AssetManagerModal.js"></script>
+    <script src="js/components/ImageAssetModal.js"></script>
+    <script src="js/components/ImageEffectModal.js"></script>
+    <script src="js/components/VisualizationModal.js"></script>
+    <script src="js/components/ApiManagerModal.js"></script>
+    <script src="js/components/LayerConfigModal.js"></script>
+    <script src="js/components/LayerTemplateModal.js"></script>
+    <script src="js/components/LayerPanel.js"></script>
+    <script src="js/components/PreviewCanvas.js"></script>
+    <script src="js/components/TimelinePanel.js"></script>
+    
+    <!-- 3. Core (Last) -->
+    <script src="js/core/preview-renderer.js"></script>
+    <script src="js/core/app-root.js"></script>
+    <script src="js/core/bootstrap.js"></script>
+</body>
+</html>
