@@ -46,7 +46,8 @@ const AppRoot = {
         'preview-canvas': PreviewCanvas,
         'timeline-panel': TimelinePanel,
         'ruler-line': RulerLine,
-        'layer-config-modal': LayerConfigModal
+        'layer-config-modal': LayerConfigModal,
+        'layer-template-modal': LayerTemplateModal
     },
     data() {
         return {
@@ -120,6 +121,11 @@ const AppRoot = {
             layerConfig: {
                 isOpen: false,
                 boxId: null
+            },
+
+            // 레이어 템플릿 관리 모달 상태
+            layerTemplateModal: {
+                isOpen: false
             },
 
             COLORS
@@ -786,6 +792,80 @@ const AppRoot = {
                 this.removeBox(box.id);
             }
             this.closeLayerConfig();
+        },
+
+        // --- 레이어 템플릿 관리 모달 ---
+        openLayerTemplateModal() {
+            this.layerTemplateModal.isOpen = true;
+        },
+        closeLayerTemplateModal() {
+            this.layerTemplateModal.isOpen = false;
+        },
+        deleteLayerTemplate(templateId) {
+            this.layerTemplates = this.layerTemplates.filter(t => t.id !== templateId);
+            Swal.fire({
+                icon: 'success',
+                title: '삭제됨',
+                text: '템플릿이 삭제되었습니다',
+                background: '#1e1e1e',
+                color: '#fff',
+                confirmButtonColor: '#3b82f6',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        },
+        loadLayerTemplate(template) {
+            if (!template || !template.matrixJson) {
+                Swal.fire({
+                    icon: 'error',
+                    title: '불러오기 실패',
+                    text: '템플릿 데이터가 유효하지 않습니다',
+                    background: '#1e1e1e',
+                    color: '#fff',
+                    confirmButtonColor: '#3b82f6'
+                });
+                return;
+            }
+
+            try {
+                const parsed = JSON.parse(template.matrixJson);
+                
+                // 캔버스 박스 복원
+                if (parsed.canvasBoxes && Array.isArray(parsed.canvasBoxes)) {
+                    // 새로운 ID 생성하여 충돌 방지
+                    const newBoxes = parsed.canvasBoxes.map(box => ({
+                        ...box,
+                        id: `box_${box.slotKey}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+                    }));
+                    
+                    this.canvasBoxes = newBoxes;
+                    this.ensureAllBoxesNormalized();
+                }
+
+                // 레이어 메인 이름 설정
+                this.layerMainName = template.name || '';
+
+                Swal.fire({
+                    icon: 'success',
+                    title: '불러오기 완료',
+                    text: `"${template.name}" 템플릿이 적용되었습니다`,
+                    background: '#1e1e1e',
+                    color: '#fff',
+                    confirmButtonColor: '#3b82f6',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+            } catch (err) {
+                console.error('[loadLayerTemplate] parse error:', err);
+                Swal.fire({
+                    icon: 'error',
+                    title: '불러오기 실패',
+                    text: '템플릿 파싱 중 오류가 발생했습니다',
+                    background: '#1e1e1e',
+                    color: '#fff',
+                    confirmButtonColor: '#3b82f6'
+                });
+            }
         },
 
         // --- Core Model Methods (Clips/Boxes) ---
