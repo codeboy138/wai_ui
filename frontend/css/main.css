@@ -252,34 +252,7 @@ body {
 }
 
 /* =============================================
-   8. Guide Lines
-   ============================================= */
-.guide-line-h { 
-    position: absolute; 
-    left: 0; right: 0; 
-    height: 1px; 
-    background-color: #3b82f6; 
-    border-top: 1px dashed #3b82f6; 
-    display: none; 
-    pointer-events: none; 
-    z-index: 9999; 
-    opacity: 0.8; 
-}
-
-.guide-line-v { 
-    position: absolute; 
-    top: 0; bottom: 0; 
-    width: 1px; 
-    background-color: #3b82f6; 
-    border-left: 1px dashed #3b82f6; 
-    display: none; 
-    pointer-events: none; 
-    z-index: 9999; 
-    opacity: 0.8; 
-}
-
-/* =============================================
-   9. Panel Resizers
+   8. Panel Resizers
    ============================================= */
 .panel-resizer-v { 
     position: absolute; 
@@ -310,7 +283,7 @@ body {
 }
 
 /* =============================================
-   10. Buttons
+   9. Buttons
    ============================================= */
 .tool-btn { 
     padding: 4px;
@@ -336,7 +309,7 @@ body {
 }
 
 /* =============================================
-   11. 통합 메뉴 스타일 - 모든 메뉴 아이템에 적용
+   10. 통합 메뉴 스타일 - 모든 메뉴 아이템에 적용
    회색 배경 (#3f3f46), 5px 패딩, 라운딩
    ============================================= */
 
@@ -485,7 +458,7 @@ body {
 }
 
 /* =============================================
-   12. Dropdowns
+   11. Dropdowns
    ============================================= */
 .c-dropdown { 
     position: relative;
@@ -568,7 +541,7 @@ body {
 }
 
 /* =============================================
-   13. Dev Overlay
+   12. Dev Overlay
    ============================================= */
 .dev-overlay { 
     pointer-events: none; 
@@ -607,7 +580,7 @@ body.dev-mode-full .dev-overlay {
 }
 
 /* =============================================
-   14. Context Menu - 통일된 스타일
+   13. Context Menu - 통일된 스타일
    ============================================= */
 .context-menu { 
     position: fixed; 
@@ -639,7 +612,7 @@ body.dev-mode-full .dev-overlay {
 }
 
 /* =============================================
-   15. Color Picker
+   14. Color Picker
    ============================================= */
 .color-grid { 
     display: grid; 
@@ -662,7 +635,7 @@ body.dev-mode-full .dev-overlay {
 }
 
 /* =============================================
-   16. Playhead
+   15. Playhead
    ============================================= */
 .playhead-line { 
     position: absolute; 
@@ -688,7 +661,7 @@ body.dev-mode-full .dev-overlay {
 }
 
 /* =============================================
-   17. Modals
+   16. Modals
    ============================================= */
 .modal-overlay { 
     position: fixed; 
@@ -709,7 +682,8 @@ body.dev-mode-full .dev-overlay {
     border-radius: 8px; 
     display: flex; 
     flex-direction: column; 
-    overflow: hidden; 
+    overflow: hidden;
+    position: relative;
 }
 
 .layer-config-window { 
@@ -745,6 +719,83 @@ body.dev-mode-full .dev-overlay {
     height: 650px; 
     max-width: 95vw; 
     max-height: 90vh; 
+}
+
+/* =============================================
+   17. Resize Handles for Modals
+   ============================================= */
+.modal-resize-handle {
+    position: absolute;
+    z-index: 100;
+}
+
+.modal-resize-handle.resize-n {
+    top: 0;
+    left: 12px;
+    right: 12px;
+    height: 6px;
+    cursor: ns-resize;
+}
+
+.modal-resize-handle.resize-s {
+    bottom: 0;
+    left: 12px;
+    right: 12px;
+    height: 6px;
+    cursor: ns-resize;
+}
+
+.modal-resize-handle.resize-e {
+    top: 12px;
+    right: 0;
+    bottom: 12px;
+    width: 6px;
+    cursor: ew-resize;
+}
+
+.modal-resize-handle.resize-w {
+    top: 12px;
+    left: 0;
+    bottom: 12px;
+    width: 6px;
+    cursor: ew-resize;
+}
+
+.modal-resize-handle.resize-nw {
+    top: 0;
+    left: 0;
+    width: 12px;
+    height: 12px;
+    cursor: nwse-resize;
+}
+
+.modal-resize-handle.resize-ne {
+    top: 0;
+    right: 0;
+    width: 12px;
+    height: 12px;
+    cursor: nesw-resize;
+}
+
+.modal-resize-handle.resize-sw {
+    bottom: 0;
+    left: 0;
+    width: 12px;
+    height: 12px;
+    cursor: nesw-resize;
+}
+
+.modal-resize-handle.resize-se {
+    bottom: 0;
+    right: 0;
+    width: 12px;
+    height: 12px;
+    cursor: nwse-resize;
+}
+
+/* Hover effect for resize handles (optional visual feedback) */
+.modal-resize-handle:hover {
+    background: rgba(59, 130, 246, 0.3);
 }
 
 /* =============================================
@@ -898,4 +949,33 @@ body.dev-mode-full .dev-overlay {
 .api-key-input {
     font-family: monospace;
     letter-spacing: 1px;
+}
+
+/* =============================================
+   22. Timeline Ruler Ticks
+   ============================================= */
+.timeline-tick {
+    position: absolute;
+    top: 0;
+    width: 1px;
+    background: #3f3f46;
+}
+
+.timeline-tick.major {
+    height: 100%;
+    background: #52525b;
+}
+
+.timeline-tick.minor {
+    height: 50%;
+    background: #3f3f46;
+}
+
+.timeline-tick-label {
+    position: absolute;
+    top: 2px;
+    font-size: 9px;
+    color: #71717a;
+    transform: translateX(-50%);
+    white-space: nowrap;
 }
