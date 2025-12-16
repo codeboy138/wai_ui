@@ -132,7 +132,7 @@ const LayerConfigModal = {
                 </div>
 
                 <div class="flex-1 overflow-auto px-3 py-2 space-y-3">
-                    <!-- [수정] 텍스트 입력 필드 - 클릭 이벤트 전파 차단 -->
+                    <!-- 텍스트 입력 필드 -->
                     <div v-if="isTextLayer">
                         <label class="block text-[10px] mb-1 text-text-sub">텍스트 내용</label>
                         <textarea 
@@ -146,26 +146,28 @@ const LayerConfigModal = {
                         ></textarea>
                     </div>
 
+                    <!-- 좌표 / 크기 (픽셀 단위) -->
                     <div>
-                        <label class="block text-[10px] mb-1 text-text-sub">좌표 / 크기 (캔버스 기준 %)</label>
+                        <label class="block text-[10px] mb-1 text-text-sub">좌표 / 크기 (px)</label>
                         <div class="grid grid-cols-4 gap-1">
                             <div class="flex flex-col">
-                                <span class="text-[10px] text-text-sub mb-0.5">X (%)</span>
-                                <input type="number" min="0" max="100" step="0.01" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]" v-model.number="percentX" @mousedown.stop @click.stop />
+                                <span class="text-[10px] text-text-sub mb-0.5">X</span>
+                                <input type="number" min="0" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]" v-model.number="pixelX" @mousedown.stop @click.stop />
                             </div>
                             <div class="flex flex-col">
-                                <span class="text-[10px] text-text-sub mb-0.5">Y (%)</span>
-                                <input type="number" min="0" max="100" step="0.01" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]" v-model.number="percentY" @mousedown.stop @click.stop />
+                                <span class="text-[10px] text-text-sub mb-0.5">Y</span>
+                                <input type="number" min="0" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]" v-model.number="pixelY" @mousedown.stop @click.stop />
                             </div>
                             <div class="flex flex-col">
-                                <span class="text-[10px] text-text-sub mb-0.5">W (%)</span>
-                                <input type="number" min="0" max="100" step="0.01" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]" v-model.number="percentW" @mousedown.stop @click.stop />
+                                <span class="text-[10px] text-text-sub mb-0.5">W</span>
+                                <input type="number" min="10" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]" v-model.number="pixelW" @mousedown.stop @click.stop />
                             </div>
                             <div class="flex flex-col">
-                                <span class="text-[10px] text-text-sub mb-0.5">H (%)</span>
-                                <input type="number" min="0" max="100" step="0.01" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]" v-model.number="percentH" @mousedown.stop @click.stop />
+                                <span class="text-[10px] text-text-sub mb-0.5">H</span>
+                                <input type="number" min="10" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]" v-model.number="pixelH" @mousedown.stop @click.stop />
                             </div>
                         </div>
+                        <div class="text-[9px] text-text-sub mt-1 opacity-60">캔버스: {{ canvasWidth }} × {{ canvasHeight }}px</div>
                     </div>
 
                     <div class="flex items-center gap-2">
@@ -192,8 +194,8 @@ const LayerConfigModal = {
                         <div class="space-y-1">
                             <div class="grid grid-cols-2 gap-1">
                                 <div class="flex flex-col">
-                                    <span class="text-[10px] text-text-sub mb-0.5">폰트 크기 (%)</span>
-                                    <input type="number" min="0" max="100" step="0.01" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]" v-model.number="percentFontSize" @mousedown.stop @click.stop />
+                                    <span class="text-[10px] text-text-sub mb-0.5">폰트 크기 (px)</span>
+                                    <input type="number" min="1" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]" v-model.number="pixelFontSize" @mousedown.stop @click.stop />
                                 </div>
                                 <div class="flex flex-col">
                                     <span class="text-[10px] text-text-sub mb-0.5">테두리 두께 (px)</span>
@@ -330,119 +332,97 @@ const LayerConfigModal = {
             if (t === 'textBg') return this.box.textStyle.backgroundColor || '#000000';
             return '#000000';
         },
-        percentX: {
+        // 캔버스 크기 가져오기
+        canvasWidth() {
+            const root = this.$root;
+            return (root && root.canvasSize) ? root.canvasSize.w : 1920;
+        },
+        canvasHeight() {
+            const root = this.$root;
+            return (root && root.canvasSize) ? root.canvasSize.h : 1080;
+        },
+        // 픽셀 좌표 (X)
+        pixelX: {
             get() {
                 const box = this.box;
                 if (!box) return 0;
-                const root = this.$root;
-                const canvas = root && root.canvasSize ? root.canvasSize : { w: 1, h: 1 };
-                const cw = canvas.w || 1;
-                const rawNx = typeof box.nx === 'number' ? box.nx : (box.x || 0) / cw;
-                return +(rawNx * 100).toFixed(2);
+                return Math.round(box.x || 0);
             },
             set(v) {
                 const box = this.box;
                 if (!box) return;
-                const root = this.$root;
-                const canvas = root && root.canvasSize ? root.canvasSize : { w: 1, h: 1 };
-                const cw = canvas.w || 1;
-                const nw = typeof box.nw === 'number' ? box.nw : ((box.w || cw) / cw);
-                let nx = (parseFloat(v) || 0) / 100;
-                nx = Math.max(0, Math.min(nx, 1 - nw));
-                box.nx = nx;
-                box.x = nx * cw;
+                const cw = this.canvasWidth;
+                const w = box.w || 0;
+                let x = Math.max(0, parseInt(v) || 0);
+                if (x + w > cw) x = Math.max(0, cw - w);
+                box.x = x;
+                box.nx = x / cw;
             }
         },
-        percentY: {
+        // 픽셀 좌표 (Y)
+        pixelY: {
             get() {
                 const box = this.box;
                 if (!box) return 0;
-                const root = this.$root;
-                const canvas = root && root.canvasSize ? root.canvasSize : { w: 1, h: 1 };
-                const ch = canvas.h || 1;
-                const rawNy = typeof box.ny === 'number' ? box.ny : (box.y || 0) / ch;
-                return +(rawNy * 100).toFixed(2);
+                return Math.round(box.y || 0);
             },
             set(v) {
                 const box = this.box;
                 if (!box) return;
-                const root = this.$root;
-                const canvas = root && root.canvasSize ? root.canvasSize : { w: 1, h: 1 };
-                const ch = canvas.h || 1;
-                const nh = typeof box.nh === 'number' ? box.nh : ((box.h || ch) / ch);
-                let ny = (parseFloat(v) || 0) / 100;
-                ny = Math.max(0, Math.min(ny, 1 - nh));
-                box.ny = ny;
-                box.y = ny * ch;
+                const ch = this.canvasHeight;
+                const h = box.h || 0;
+                let y = Math.max(0, parseInt(v) || 0);
+                if (y + h > ch) y = Math.max(0, ch - h);
+                box.y = y;
+                box.ny = y / ch;
             }
         },
-        percentW: {
+        // 픽셀 크기 (W)
+        pixelW: {
             get() {
                 const box = this.box;
                 if (!box) return 0;
-                const root = this.$root;
-                const canvas = root && root.canvasSize ? root.canvasSize : { w: 1, h: 1 };
-                const cw = canvas.w || 1;
-                const rawNw = typeof box.nw === 'number' ? box.nw : ((box.w || cw) / cw);
-                return +(rawNw * 100).toFixed(2);
+                return Math.round(box.w || 0);
             },
             set(v) {
                 const box = this.box;
                 if (!box) return;
-                const root = this.$root;
-                const canvas = root && root.canvasSize ? root.canvasSize : { w: 1, h: 1 };
-                const cw = canvas.w || 1;
-                const nx = typeof box.nx === 'number' ? box.nx : ((box.x || 0) / cw);
-                let nw = (parseFloat(v) || 0) / 100;
-                const minNw = 10 / cw;
-                nw = Math.max(minNw, Math.min(nw, 1 - nx));
-                box.nw = nw;
-                box.w = nw * cw;
+                const cw = this.canvasWidth;
+                const x = box.x || 0;
+                let w = Math.max(10, parseInt(v) || 10);
+                if (x + w > cw) w = Math.max(10, cw - x);
+                box.w = w;
+                box.nw = w / cw;
             }
         },
-        percentH: {
+        // 픽셀 크기 (H)
+        pixelH: {
             get() {
                 const box = this.box;
                 if (!box) return 0;
-                const root = this.$root;
-                const canvas = root && root.canvasSize ? root.canvasSize : { w: 1, h: 1 };
-                const ch = canvas.h || 1;
-                const rawNh = typeof box.nh === 'number' ? box.nh : ((box.h || ch) / ch);
-                return +(rawNh * 100).toFixed(2);
+                return Math.round(box.h || 0);
             },
             set(v) {
                 const box = this.box;
                 if (!box) return;
-                const root = this.$root;
-                const canvas = root && root.canvasSize ? root.canvasSize : { w: 1, h: 1 };
-                const ch = canvas.h || 1;
-                const ny = typeof box.ny === 'number' ? box.ny : ((box.y || 0) / ch);
-                let nh = (parseFloat(v) || 0) / 100;
-                const minNh = 10 / ch;
-                nh = Math.max(minNh, Math.min(nh, 1 - ny));
-                box.nh = nh;
-                box.h = nh * ch;
+                const ch = this.canvasHeight;
+                const y = box.y || 0;
+                let h = Math.max(10, parseInt(v) || 10);
+                if (y + h > ch) h = Math.max(10, ch - y);
+                box.h = h;
+                box.nh = h / ch;
             }
         },
-        percentFontSize: {
+        // 폰트 크기 (픽셀)
+        pixelFontSize: {
             get() {
-                if (!this.box || !this.box.textStyle) return 0;
-                const fontSize = this.box.textStyle.fontSize || 0;
-                const root = this.$root;
-                const canvas = root && root.canvasSize ? root.canvasSize : { w: 1, h: 1 };
-                const ch = canvas.h || 1;
-                const scale = ch > 0 ? fontSize / ch : 0;
-                return +(scale * 100).toFixed(2);
+                if (!this.box || !this.box.textStyle) return 48;
+                return Math.round(this.box.textStyle.fontSize || 48);
             },
             set(v) {
                 if (!this.box) return;
                 if (!this.box.textStyle) this.box.textStyle = {};
-                const root = this.$root;
-                const canvas = root && root.canvasSize ? root.canvasSize : { w: 1, h: 1 };
-                const ch = canvas.h || 1;
-                let scale = (parseFloat(v) || 0) / 100;
-                if (scale < 0) scale = 0;
-                this.box.textStyle.fontSize = scale * ch;
+                this.box.textStyle.fontSize = Math.max(1, parseInt(v) || 1);
             }
         },
         shadowOffsetX: {
