@@ -38,7 +38,7 @@ const LayerPanel = {
                         id="panel-right-layer-matrix-label"
                         class="text-sm text-text-sub"
                     >
-                        매트릭스 (우클릭: 색상)
+                        매트릭스 (우클릭: 옵션)
                     </span>
                     <button
                         id="panel-right-layer-addcol-btn"
@@ -63,7 +63,7 @@ const LayerPanel = {
                             :id="'panel-right-layer-col-' + col.id"
                             class="w-14 text-center py-px rounded text-sm font-bold text-white cursor-context-menu hover:brightness-110 relative group"
                             :style="{ backgroundColor: col.color }"
-                            @contextmenu.prevent="openContextMenu($event, col.id, i)"
+                            @contextmenu.prevent="openColContextMenu($event, col.id, i)"
                         >
                             <input
                                 :id="'panel-right-layer-col-name-' + col.id"
@@ -99,15 +99,18 @@ const LayerPanel = {
                             v-for="(col, i) in vm.layerCols"
                             :key="col.id + row.type"
                             :id="'panel-right-layer-cell-' + col.id + '-' + row.type"
-                            :class="{
-                                'opacity-100': isActive(i, row.type),
-                                'opacity-40 grayscale': !isActive(i, row.type)
-                            }"
-                            class="w-14 h-6 border rounded flex flex-col items-center justify-center cursor-pointer hover:border-white transition-all"
+                            :class="getCellClass(i, row.type)"
+                            class="w-14 h-6 border rounded flex flex-col items-center justify-center cursor-pointer hover:border-white transition-all relative"
                             :style="cellStyle(i, row.type, col.color)"
                             @click="handleCellClick(i, row.type, col.color)"
-                            data-action="js:layerAddBox"
+                            @contextmenu.prevent="openCellContextMenu($event, i, row.type, col)"
+                            data-action="js:layerCellAction"
                         >
+                            <!-- 숨김 상태 아이콘 -->
+                            <i 
+                                v-if="isCellHidden(i, row.type)" 
+                                class="fa-solid fa-eye-slash text-[8px] absolute top-0 left-0 text-text-sub"
+                            ></i>
                             <span
                                 class="text-sm font-bold text-white drop-shadow-md"
                                 style="text-shadow: 0 0 3px black"
@@ -142,10 +145,11 @@ const LayerPanel = {
 
             <!-- 컬럼 색상 선택 컨텍스트 메뉴 -->
             <div
-                v-if="contextMenu"
+                v-if="colContextMenu"
                 id="panel-right-layer-color-menu"
                 class="context-menu"
-                :style="{top: contextMenu.y + 'px', left: contextMenu.x + 'px'}"
+                :style="{top: colContextMenu.y + 'px', left: colContextMenu.x + 'px'}"
+                @click.stop
             >
                 <div class="color-grid">
                     <div
@@ -158,24 +162,59 @@ const LayerPanel = {
                     ></div>
                 </div>
             </div>
+
+            <!-- 셀 우클릭 컨텍스트 메뉴 (눈 표시, 삭제) -->
+            <div
+                v-if="cellContextMenu"
+                id="panel-right-layer-cell-menu"
+                class="context-menu"
+                :style="{top: cellContextMenu.y + 'px', left: cellContextMenu.x + 'px'}"
+                @click.stop
+            >
+                <div 
+                    class="ctx-item"
+                    @click="toggleCellVisibility"
+                >
+                    <span>{{ cellContextMenu.isHidden ? '표시' : '숨김' }}</span>
+                    <i :class="cellContextMenu.isHidden ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash'"></i>
+                </div>
+                <div 
+                    class="ctx-item text-red-400 hover:!bg-ui-danger"
+                    @click="deleteCellLayer"
+                >
+                    <span>삭제</span>
+                    <i class="fa-solid fa-trash"></i>
+                </div>
+            </div>
         </div>
     `,
     data() {
         return {
             isCollapsed: false,
-            contextMenu: null,
-            // 12셀 구성: 전체(full) / 상단(high) / 중단(mid) / 하단(low) × EFF/TXT/BG
-            // 행 라벨 한글화: Effect→효과, Text→텍스트, BG→배경
+            colContextMenu: null,
+            cellContextMenu: null,
             rows: [
-                { type: 'EFF', label: '효과', color: '#ef4444', zOffset: 80 },
-                { type: 'TXT', label: '텍스트', color: '#eab308', zOffset: 40 },
-                { type: 'BG',  label: '배경', color: '#3b82f6', zOffset: 20 }
+                { type: 'EFF', label: 'Effect', color: '#ef4444', zOffset: 80 },
+                { type: 'TXT', label: 'Text', color: '#eab308', zOffset: 40 },
+                { type: 'BG',  label: 'BG', color: '#3b82f6', zOffset: 20 }
             ],
             COLORS: COLORS
         };
     },
+    mounted() {
+        // 외부 클릭 시 메뉴 닫기
+        document.addEventListener('click', this.closeAllMenus);
+    },
+    beforeUnmount() {
+        document.removeEventListener('click', this.closeAllMenus);
+    },
     methods: {
-        // colIdx + rowType 에 대한 slotKey 생성 (full_text, mid_bg, high_effect ...)
+        closeAllMenus() {
+            this.colContextMenu = null;
+            this.cellContextMenu = null;
+        },
+
+        // colIdx + rowType 에 대한 slotKey 생성
         getColRole(colIdx) {
             const roles = ['full', 'high', 'mid', 'low'];
             return roles[colIdx] || `col${colIdx}`;
@@ -192,66 +231,135 @@ const LayerPanel = {
         cellSlotKey(colIdx, rowType) {
             return this.getSlotKey(colIdx, rowType);
         },
-        isActive(colIdx, rowType) {
+
+        // 셀에 해당하는 박스 찾기
+        findBoxByCell(colIdx, rowType) {
             const slotKey = this.cellSlotKey(colIdx, rowType);
-            return this.vm.canvasBoxes.some(b => b.slotKey === slotKey);
+            return this.vm.canvasBoxes.find(b => b.slotKey === slotKey) || null;
         },
+
+        isActive(colIdx, rowType) {
+            return !!this.findBoxByCell(colIdx, rowType);
+        },
+
+        isCellHidden(colIdx, rowType) {
+            const box = this.findBoxByCell(colIdx, rowType);
+            return box ? box.isHidden : false;
+        },
+
+        getCellClass(colIdx, rowType) {
+            const active = this.isActive(colIdx, rowType);
+            const hidden = this.isCellHidden(colIdx, rowType);
+            return {
+                'opacity-100': active && !hidden,
+                'opacity-60': active && hidden,
+                'opacity-40 grayscale': !active
+            };
+        },
+
         cellStyle(colIdx, rowType, colColor) {
             const active = this.isActive(colIdx, rowType);
             return {
-                // 사용중인 셀 → 배경 회색
                 backgroundColor: active ? '#4b5563' : '#27272a',
                 borderColor: active ? colColor : '#27272a'
             };
         },
-        // 12셀 숫자(z-index) 계산 로직 (캔바스 내에서만 적용)
+
         getZIndexForCell(colIdx, rowType) {
             const row = this.rows.find(r => r.type === rowType);
             const offset = row ? row.zOffset : 0;
             const base = (colIdx * 100) + 100;
             return base + offset;
         },
+
         handleCellClick(colIdx, rowType, color) {
-            // 상위(AppRoot)의 addLayerBox 사용
             if (this.$parent && typeof this.$parent.addLayerBox === 'function') {
                 this.$parent.addLayerBox(colIdx, rowType, color);
             }
         },
+
+        // 셀 우클릭 메뉴 열기
+        openCellContextMenu(e, colIdx, rowType, col) {
+            const box = this.findBoxByCell(colIdx, rowType);
+            if (!box) {
+                // 레이어가 없으면 메뉴 표시 안 함
+                this.cellContextMenu = null;
+                return;
+            }
+
+            this.colContextMenu = null;
+            this.cellContextMenu = {
+                x: e.clientX,
+                y: e.clientY,
+                colIdx,
+                rowType,
+                col,
+                boxId: box.id,
+                isHidden: box.isHidden || false
+            };
+        },
+
+        // 셀 레이어 숨김/표시 토글
+        toggleCellVisibility() {
+            if (!this.cellContextMenu) return;
+            
+            const { boxId } = this.cellContextMenu;
+            const boxIndex = this.vm.canvasBoxes.findIndex(b => b.id === boxId);
+            
+            if (boxIndex !== -1) {
+                const box = this.vm.canvasBoxes[boxIndex];
+                const newBoxes = [...this.vm.canvasBoxes];
+                newBoxes[boxIndex] = { ...box, isHidden: !box.isHidden };
+                this.vm.canvasBoxes = newBoxes;
+            }
+            
+            this.cellContextMenu = null;
+        },
+
+        // 셀 레이어 삭제
+        deleteCellLayer() {
+            if (!this.cellContextMenu) return;
+            
+            const { boxId } = this.cellContextMenu;
+            this.vm.canvasBoxes = this.vm.canvasBoxes.filter(b => b.id !== boxId);
+            
+            if (this.vm.selectedBoxId === boxId) {
+                this.vm.selectedBoxId = null;
+            }
+            
+            this.cellContextMenu = null;
+        },
+
         addColumn() {
             const newCol = { id: `lc_${Date.now()}`, name: 'New', color: '#333' };
             this.vm.layerCols.push(newCol);
         },
+
         updateColName(id, name) {
             const col = this.vm.layerCols.find(c => c.id === id);
             if (col) col.name = name;
-            // 컬럼 이름 변경 → 해당 컬럼의 박스 레이어 이름도 갱신
             this.vm.canvasBoxes = this.vm.canvasBoxes.map(box =>
                 box.colId === id ? { ...box, layerName: name } : box
             );
         },
-        openContextMenu(e, id, index) {
-            this.contextMenu = { x: e.clientX, y: e.clientY, colId: id, colIndex: index };
+
+        // 컬럼 헤더 우클릭 (색상 변경)
+        openColContextMenu(e, id, index) {
+            this.cellContextMenu = null;
+            this.colContextMenu = { x: e.clientX, y: e.clientY, colId: id, colIndex: index };
         },
+
         handleColColor(color) {
-            const colId = this.contextMenu.colId;
-            // 컬럼 색 변경
+            const colId = this.colContextMenu.colId;
             this.vm.layerCols = this.vm.layerCols.map(col =>
                 col.id === colId ? { ...col, color: color } : col
             );
-            // 해당 컬럼에 속한 박스들의 점선 색도 함께 변경
             this.vm.canvasBoxes = this.vm.canvasBoxes.map(box =>
                 box.colId === colId ? { ...box, color: color } : box
             );
-            this.contextMenu = null;
+            this.colContextMenu = null;
         },
 
-        /**
-         * 초기화: 캔버스의 모든 레이어(박스)를 삭제
-         * - ID: panel-right-layer-reset-btn
-         * - data-action: js:layerResetAll
-         * - 기능: vm.canvasBoxes 배열을 빈 배열로 초기화
-         * - 확인 다이얼로그 표시 후 실행
-         */
         async resetAllLayers() {
             if (this.vm.canvasBoxes.length === 0) {
                 Swal.fire({
@@ -278,7 +386,6 @@ const LayerPanel = {
             });
 
             if (result.isConfirmed) {
-                // 모든 레이어 삭제
                 this.vm.canvasBoxes = [];
                 this.vm.selectedBoxId = null;
 
@@ -295,19 +402,20 @@ const LayerPanel = {
             }
         },
 
-        // 레이어 매트릭스 JSON 스냅샷 생성
         buildLayerMatrixSnapshot(name) {
             const columns = this.vm.layerCols.map((col, colIdx) => {
                 const colRole = this.getColRole(colIdx);
                 const slots = this.rows.map(row => {
                     const slotKey = this.getSlotKey(colIdx, row.type);
-                    const used = this.vm.canvasBoxes.some(b => b.slotKey === slotKey);
+                    const box = this.vm.canvasBoxes.find(b => b.slotKey === slotKey);
+                    const used = !!box;
                     const zIndex = this.getZIndexForCell(colIdx, row.type);
                     return {
                         rowType: row.type,
                         rowLabel: row.label,
                         slotKey,
                         used,
+                        isHidden: box ? box.isHidden : false,
                         zIndex
                     };
                 });
@@ -339,14 +447,11 @@ const LayerPanel = {
                 confirmButtonColor: '#3b82f6' 
             });
             if (name) {
-                // JSON 스냅샷 생성
                 const snapshot = this.buildLayerMatrixSnapshot(name);
                 const json = JSON.stringify(snapshot, null, 2);
 
-                // AppRoot 에 템플릿 저장 (JSON 포함)
                 this.vm.saveLayerTemplate(name, json);
 
-                // 저장 버튼에 dev 데이터 기록
                 const btn = document.getElementById('panel-right-layer-save-template-btn');
                 if (btn) {
                     btn.setAttribute('data-dev', json);
