@@ -335,17 +335,18 @@ body {
     background-color: #27272a;
 }
 
+/* 메인메뉴 버튼 - 여백 축소 */
 .nav-btn { 
-    padding: 4px 12px;
+    padding: 2px 6px;
     font-size: 12px;
-    border-radius: 4px;
+    border-radius: 2px;
     transition: color 0.15s, background-color 0.15s;
     cursor: pointer;
     height: 100%;
     display: flex;
     align-items: center;
     color: #71717a;
-    border: 1px solid transparent;
+    border: none;
 }
 
 .nav-btn:hover { 
@@ -355,8 +356,7 @@ body {
 
 .nav-btn.active { 
     color: #f4f4f5;
-    font-weight: bold;
-    background-color: #27272a;
+    background-color: #3f3f46;
 }
 
 .win-btn { 
@@ -464,7 +464,7 @@ body {
 }
 
 /* =============================================
-   12. Header Menus
+   12. Header Menus - 여백/간격 축소, 회색 호버
    ============================================= */
 .header-menu-wrapper {
     position: relative;
@@ -477,7 +477,7 @@ body {
     position: absolute;
     top: 100%;
     left: 0;
-    min-width: 160px;
+    min-width: 140px;
     background-color: #18181b;
     border: 1px solid #27272a;
     border-top: none;
@@ -493,15 +493,16 @@ body {
 }
 
 .header-menu-wrapper.open .nav-btn {
-    background-color: #18181b;
+    background-color: #3f3f46;
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
 }
 
+/* 메뉴 아이템 - 여백 축소, 회색 호버 */
 .header-menu-item {
-    padding: 8px 12px;
-    font-size: 12px;
-    color: #71717a;
+    padding: 4px 8px;
+    font-size: 11px;
+    color: #a1a1aa;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -510,8 +511,8 @@ body {
 }
 
 .header-menu-item:hover {
-    background-color: #3b82f6;
-    color: white;
+    background-color: #3f3f46;
+    color: #f4f4f5;
 }
 
 .header-menu-item:last-child {
@@ -526,7 +527,7 @@ body {
     position: absolute;
     top: 0;
     left: 100%;
-    min-width: 140px;
+    min-width: 120px;
     background-color: #18181b;
     border: 1px solid #27272a;
     border-radius: 4px;
@@ -540,17 +541,18 @@ body {
     display: flex;
 }
 
+/* 서브메뉴 아이템 - 여백 축소, 회색 호버 */
 .header-submenu-item {
-    padding: 8px 12px;
-    font-size: 12px;
-    color: #71717a;
+    padding: 4px 8px;
+    font-size: 11px;
+    color: #a1a1aa;
     cursor: pointer;
     transition: background-color 0.15s, color 0.15s;
 }
 
 .header-submenu-item:hover {
-    background-color: #3b82f6;
-    color: white;
+    background-color: #3f3f46;
+    color: #f4f4f5;
 }
 
 .header-submenu-item:first-child {
@@ -625,7 +627,7 @@ body.dev-mode-full .dev-overlay {
 }
 
 .ctx-item:hover { 
-    background: #3b82f6; 
+    background: #3f3f46; 
     color: white; 
 }
 
@@ -704,8 +706,8 @@ body.dev-mode-full .dev-overlay {
 }
 
 .layer-config-window { 
-    width: 640px; 
-    height: 520px; 
+    width: 340px; 
+    height: 580px; 
     max-width: 900px; 
     max-height: 700px; 
 }
@@ -732,8 +734,8 @@ body.dev-mode-full .dev-overlay {
 }
 
 .api-manager-window { 
-    width: 800px; 
-    height: 600px; 
+    width: 1000px; 
+    height: 650px; 
     max-width: 95vw; 
     max-height: 90vh; 
 }
