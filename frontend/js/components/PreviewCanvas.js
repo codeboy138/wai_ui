@@ -96,7 +96,6 @@ const PreviewCanvas = {
     },
 
     labelStyle(box) {
-      // [작업 1] 레이어 텍스트 크기 2배: 60px → 120px
       const fontSize = 120;
       const padding = 6;
       
@@ -141,6 +140,56 @@ const PreviewCanvas = {
       return baseStyle;
     },
 
+    // 텍스트 콘텐츠 스타일
+    textContentStyle(box) {
+      const ts = box.textStyle || {};
+      const fontSize = ts.fontSize || 48;
+      const fillColor = ts.fillColor || '#ffffff';
+      const strokeColor = ts.strokeColor || '#000000';
+      const strokeWidth = ts.strokeWidth || 0;
+      const textAlign = ts.textAlign || 'center';
+      const vAlign = ts.vAlign || 'middle';
+      const bgColor = ts.backgroundColor || 'transparent';
+      
+      // 그림자 설정
+      let textShadow = 'none';
+      if (ts.shadow) {
+        const sx = ts.shadow.offsetX || 0;
+        const sy = ts.shadow.offsetY || 0;
+        const blur = ts.shadow.blur || 0;
+        const scolor = ts.shadow.color || '#000000';
+        textShadow = `${sx}px ${sy}px ${blur}px ${scolor}`;
+      }
+      
+      // 세로 정렬을 위한 justify-content
+      let justifyContent = 'center';
+      if (vAlign === 'top') justifyContent = 'flex-start';
+      if (vAlign === 'bottom') justifyContent = 'flex-end';
+      
+      return {
+        position: 'absolute',
+        inset: '0',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: textAlign === 'left' ? 'flex-start' : textAlign === 'right' ? 'flex-end' : 'center',
+        justifyContent: justifyContent,
+        padding: '20px',
+        fontSize: fontSize + 'px',
+        fontFamily: ts.fontFamily || 'Pretendard, system-ui, sans-serif',
+        fontWeight: 'bold',
+        color: fillColor,
+        textAlign: textAlign,
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
+        overflow: 'hidden',
+        pointerEvents: 'none',
+        textShadow: textShadow,
+        backgroundColor: bgColor,
+        WebkitTextStroke: strokeWidth > 0 ? `${strokeWidth}px ${strokeColor}` : 'none',
+        paintOrder: 'stroke fill'
+      };
+    },
+
     getLabelText(box) {
       const typeMap = {
         'EFF': 'Effect',
@@ -148,6 +197,18 @@ const PreviewCanvas = {
         'BG': 'BG'
       };
       return typeMap[box.rowType] || box.rowType || 'Layer';
+    },
+
+    // 텍스트 콘텐츠 가져오기
+    getTextContent(box) {
+      if (box.rowType !== 'TXT') return '';
+      const content = box.textContent || '';
+      return content.trim() || '';
+    },
+
+    // 텍스트 표시 여부
+    hasTextContent(box) {
+      return box.rowType === 'TXT' && this.getTextContent(box).length > 0;
     },
 
     handleStyle(pos) {
@@ -519,6 +580,13 @@ const PreviewCanvas = {
         @contextmenu="onBoxContextMenu($event, box)"
         data-action="js:selectCanvasBox"
       >
+        <!-- 텍스트 콘텐츠 표시 -->
+        <div 
+          v-if="hasTextContent(box)"
+          :style="textContentStyle(box)"
+        >{{ getTextContent(box) }}</div>
+
+        <!-- 레이어 라벨 -->
         <div 
           class="canvas-label"
           :style="labelStyle(box)"
