@@ -1,6 +1,5 @@
 // Layer Template Modal Component (레이어 템플릿 관리 모달)
-// 2패널 파일 탐색기 스타일 - 좌측 폴더트리, 우측 파일목록
-// CRUD, 드래그앤드롭 이동, 필터링, 컨텍스트 메뉴 지원
+// AssetManagerModal 스타일 - 2패널 파일 탐색기, 리사이징, 드래그앤드롭 지원
 
 const LayerTemplateModal = {
     props: {
@@ -19,16 +18,26 @@ const LayerTemplateModal = {
     template: `
         <div
             id="layer-template-modal-overlay"
-            class="fixed inset-0 z-40 bg-black/70"
+            class="modal-overlay"
             @click.self="$emit('close')"
             @contextmenu.prevent
         >
             <div
                 id="layer-template-modal-window"
-                class="layer-template-window-large bg-bg-panel border border-ui-border rounded-lg shadow-2xl text-[12px] text-text-main flex flex-col"
+                class="layer-template-window bg-bg-panel border border-ui-border rounded-lg shadow-2xl text-[12px] text-text-main flex flex-col"
                 :style="windowStyle"
                 @mousedown.stop
             >
+                <!-- 리사이즈 핸들 -->
+                <div class="modal-resize-handle resize-n" @mousedown="startResize($event, 'n')"></div>
+                <div class="modal-resize-handle resize-s" @mousedown="startResize($event, 's')"></div>
+                <div class="modal-resize-handle resize-e" @mousedown="startResize($event, 'e')"></div>
+                <div class="modal-resize-handle resize-w" @mousedown="startResize($event, 'w')"></div>
+                <div class="modal-resize-handle resize-nw" @mousedown="startResize($event, 'nw')"></div>
+                <div class="modal-resize-handle resize-ne" @mousedown="startResize($event, 'ne')"></div>
+                <div class="modal-resize-handle resize-sw" @mousedown="startResize($event, 'sw')"></div>
+                <div class="modal-resize-handle resize-se" @mousedown="startResize($event, 'se')"></div>
+
                 <!-- 헤더 -->
                 <div
                     id="layer-template-modal-header"
@@ -43,15 +52,13 @@ const LayerTemplateModal = {
                         </span>
                     </div>
                     <div class="flex items-center gap-2">
-                        <!-- 새 폴더 -->
                         <button
-                            class="px-2 py-1 text-[11px] bg-bg-input border border-ui-border rounded hover:bg-bg-hover transition-colors flex items-center gap-1"
+                            class="px-2 py-1 text-[11px] bg-ui-accent text-white rounded hover:bg-blue-600 transition-colors flex items-center gap-1"
                             @click="createNewFolder"
                             title="새 폴더 만들기"
                         >
                             <i class="fa-solid fa-folder-plus"></i> 새 폴더
                         </button>
-                        <!-- 닫기 -->
                         <button
                             id="layer-template-modal-close-btn"
                             class="text-[14px] text-text-sub hover:text-white w-8 h-8 flex items-center justify-center rounded hover:bg-ui-danger transition-colors"
@@ -117,8 +124,7 @@ const LayerTemplateModal = {
                     <!-- 좌측: 폴더 트리 -->
                     <div 
                         id="layer-template-folder-panel"
-                        class="w-52 border-r border-ui-border bg-bg-dark flex flex-col shrink-0"
-                        :style="{ width: leftPanelWidth + 'px' }"
+                        class="w-48 border-r border-ui-border bg-bg-dark flex flex-col shrink-0"
                     >
                         <div class="p-2 border-b border-ui-border bg-bg-panel">
                             <span class="text-[10px] text-text-sub font-bold uppercase tracking-wide">폴더</span>
@@ -142,19 +148,15 @@ const LayerTemplateModal = {
                                 ></folder-tree-item>
                             </div>
                         </div>
-                        
-                        <!-- 리사이저 -->
-                        <div 
-                            class="absolute top-0 bottom-0 w-1 cursor-col-resize hover:bg-ui-accent transition-colors"
-                            :style="{ left: (leftPanelWidth - 2) + 'px' }"
-                            @mousedown="startPanelResize"
-                        ></div>
                     </div>
 
                     <!-- 우측: 파일 목록 -->
                     <div 
                         id="layer-template-file-panel"
                         class="flex-1 flex flex-col bg-bg-dark overflow-hidden"
+                        @dragover.prevent="onFilePanelDragOver"
+                        @dragleave="onFilePanelDragLeave"
+                        @drop="onFilePanelDrop"
                     >
                         <!-- 정렬 바 -->
                         <div class="flex items-center justify-between px-3 py-1.5 border-b border-ui-border bg-bg-panel text-[10px]">
@@ -192,9 +194,8 @@ const LayerTemplateModal = {
                         <!-- 파일/폴더 목록 -->
                         <div 
                             class="flex-1 overflow-auto p-2"
+                            :class="{ 'drag-over': isFilePanelDragOver }"
                             @contextmenu.prevent="openEmptyAreaContextMenu($event)"
-                            @dragover.prevent="onFilePanelDragOver"
-                            @drop="onFilePanelDrop"
                         >
                             <!-- 빈 상태 -->
                             <div
@@ -321,7 +322,7 @@ const LayerTemplateModal = {
 
                 <!-- 상태바 -->
                 <div class="px-4 py-2 border-t border-ui-border bg-bg-panel flex justify-between items-center text-[11px] rounded-b-lg">
-                    <div class="flex items-center gap-4 text-text-sub">
+                    <div class="text-text-sub">
                         <span v-if="selectedItems.length > 0">
                             {{ selectedItems.length }}개 선택됨
                         </span>
@@ -431,23 +432,6 @@ const LayerTemplateModal = {
                     </template>
                 </div>
 
-                <!-- 이름 변경 인라인 에디터 -->
-                <div
-                    v-if="renameEditor.show"
-                    class="fixed bg-bg-panel border border-ui-accent rounded shadow-lg p-1 z-50"
-                    :style="{ top: renameEditor.y + 'px', left: renameEditor.x + 'px' }"
-                >
-                    <input
-                        ref="renameInput"
-                        type="text"
-                        v-model="renameEditor.value"
-                        class="w-48 h-7 bg-bg-input border border-ui-border rounded px-2 text-[12px] focus:outline-none focus:border-ui-accent"
-                        @keydown.enter="confirmRename"
-                        @keydown.esc="cancelRename"
-                        @blur="confirmRename"
-                    />
-                </div>
-
                 <!-- 폴더 이동 모달 -->
                 <div
                     v-if="moveModal.show"
@@ -537,11 +521,11 @@ const LayerTemplateModal = {
             template: `
                 <div>
                     <div
-                        class="flex items-center gap-1 px-2 py-1 rounded cursor-pointer text-[11px] transition-colors"
+                        class="flex items-center gap-1 px-2 py-1 rounded cursor-pointer text-[11px] transition-colors folder-drop-zone"
                         :class="{
                             'bg-ui-selected text-white': selectedFolderId === folder.id,
                             'hover:bg-bg-hover': selectedFolderId !== folder.id,
-                            'ring-2 ring-ui-accent': dragOverFolderId === folder.id
+                            'drag-over': dragOverFolderId === folder.id
                         }"
                         :style="{ paddingLeft: ((depth || 0) * 12 + 8) + 'px' }"
                         @click="$emit('select', folder)"
@@ -571,10 +555,10 @@ const LayerTemplateModal = {
                             :depth="(depth || 0) + 1"
                             @select="$emit('select', $event)"
                             @toggle="$emit('toggle', $event)"
-                            @contextmenu="$emit('contextmenu', $event[0], $event[1])"
-                            @dragover="$emit('dragover', $event[0], $event[1])"
-                            @dragleave="$emit('dragleave', $event[0], $event[1])"
-                            @drop="$emit('drop', $event[0], $event[1])"
+                            @contextmenu="(e, f) => $emit('contextmenu', e, f)"
+                            @dragover="(e, f) => $emit('dragover', e, f)"
+                            @dragleave="(e, f) => $emit('dragleave', e, f)"
+                            @drop="(e, f) => $emit('drop', e, f)"
                         ></folder-tree-item>
                     </div>
                 </div>
@@ -594,47 +578,48 @@ const LayerTemplateModal = {
             // 창 위치/크기
             posX: 0,
             posY: 0,
+            width: 900,
+            height: 600,
+            minWidth: 600,
+            minHeight: 400,
             dragging: false,
             dragStartMouseX: 0,
             dragStartMouseY: 0,
             dragStartPosX: 0,
             dragStartPosY: 0,
             
-            // 패널 크기
-            leftPanelWidth: 200,
-            isResizingPanel: false,
+            // 리사이즈
+            resizing: false,
+            resizeDir: '',
+            resizeStartX: 0,
+            resizeStartY: 0,
+            resizeStartW: 0,
+            resizeStartH: 0,
+            resizeStartPosX: 0,
+            resizeStartPosY: 0,
             
             // 뷰 상태
             currentFolderId: 'root',
-            viewMode: 'list', // 'list' | 'grid'
+            viewMode: 'list',
             searchQuery: '',
-            sortBy: 'name', // 'name' | 'date' | 'layers'
+            sortBy: 'name',
             sortAsc: true,
             
             // 선택 상태
-            selectedItems: [], // ['template:id', 'folder:id', ...]
+            selectedItems: [],
             
             // 드래그 상태
             dragData: null,
             dragOverFolderId: null,
+            isFilePanelDragOver: false,
             
             // 컨텍스트 메뉴
             contextMenu: {
                 show: false,
                 x: 0,
                 y: 0,
-                type: null, // 'folder' | 'template' | 'empty'
-                target: null
-            },
-            
-            // 이름 변경
-            renameEditor: {
-                show: false,
-                x: 0,
-                y: 0,
                 type: null,
-                target: null,
-                value: ''
+                target: null
             },
             
             // 폴더 이동 모달
@@ -651,7 +636,7 @@ const LayerTemplateModal = {
             },
             
             // 클립보드
-            clipboard: null, // { type: 'cut' | 'copy', items: [] }
+            clipboard: null,
             
             // 내부 데이터
             internalFolders: [],
@@ -664,8 +649,8 @@ const LayerTemplateModal = {
                 position: 'absolute',
                 left: this.posX + 'px',
                 top: this.posY + 'px',
-                width: '900px',
-                height: '600px'
+                width: this.width + 'px',
+                height: this.height + 'px'
             };
         },
         allFolders() {
@@ -686,13 +671,11 @@ const LayerTemplateModal = {
         filteredTemplates() {
             let templates = this.currentFolderTemplates;
             
-            // 검색
             if (this.searchQuery) {
                 const q = this.searchQuery.toLowerCase();
                 templates = templates.filter(t => t.name.toLowerCase().includes(q));
             }
             
-            // 정렬
             templates = [...templates].sort((a, b) => {
                 let cmp = 0;
                 if (this.sortBy === 'name') {
@@ -765,8 +748,8 @@ const LayerTemplateModal = {
         centerWindow() {
             const vw = window.innerWidth || 1280;
             const vh = window.innerHeight || 720;
-            this.posX = Math.max(20, (vw - 900) / 2);
-            this.posY = Math.max(20, (vh - 600) / 2);
+            this.posX = Math.max(20, (vw - this.width) / 2);
+            this.posY = Math.max(20, (vh - this.height) / 2);
         },
         onHeaderMouseDown(e) {
             this.dragging = true;
@@ -775,23 +758,47 @@ const LayerTemplateModal = {
             this.dragStartPosX = this.posX;
             this.dragStartPosY = this.posY;
         },
+        startResize(e, dir) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.resizing = true;
+            this.resizeDir = dir;
+            this.resizeStartX = e.clientX;
+            this.resizeStartY = e.clientY;
+            this.resizeStartW = this.width;
+            this.resizeStartH = this.height;
+            this.resizeStartPosX = this.posX;
+            this.resizeStartPosY = this.posY;
+        },
         onGlobalMouseMove(e) {
             if (this.dragging) {
                 this.posX = this.dragStartPosX + (e.clientX - this.dragStartMouseX);
                 this.posY = this.dragStartPosY + (e.clientY - this.dragStartMouseY);
             }
-            if (this.isResizingPanel) {
-                const newWidth = e.clientX - this.$el.querySelector('#layer-template-folder-panel').getBoundingClientRect().left;
-                this.leftPanelWidth = Math.max(150, Math.min(400, newWidth));
+            if (this.resizing) {
+                const dx = e.clientX - this.resizeStartX;
+                const dy = e.clientY - this.resizeStartY;
+                const dir = this.resizeDir;
+                
+                let newW = this.resizeStartW;
+                let newH = this.resizeStartH;
+                let newX = this.resizeStartPosX;
+                let newY = this.resizeStartPosY;
+                
+                if (dir.includes('e')) newW = Math.max(this.minWidth, this.resizeStartW + dx);
+                if (dir.includes('w')) { newW = Math.max(this.minWidth, this.resizeStartW - dx); newX = this.resizeStartPosX + (this.resizeStartW - newW); }
+                if (dir.includes('s')) newH = Math.max(this.minHeight, this.resizeStartH + dy);
+                if (dir.includes('n')) { newH = Math.max(this.minHeight, this.resizeStartH - dy); newY = this.resizeStartPosY + (this.resizeStartH - newH); }
+                
+                this.width = newW;
+                this.height = newH;
+                this.posX = newX;
+                this.posY = newY;
             }
         },
         onGlobalMouseUp() {
             this.dragging = false;
-            this.isResizingPanel = false;
-        },
-        startPanelResize(e) {
-            e.preventDefault();
-            this.isResizingPanel = true;
+            this.resizing = false;
         },
         
         // 폴더 네비게이션
@@ -814,7 +821,6 @@ const LayerTemplateModal = {
         onItemClick(e, type, item) {
             const key = `${type}:${item.id}`;
             if (e.ctrlKey || e.metaKey) {
-                // 다중 선택
                 const idx = this.selectedItems.indexOf(key);
                 if (idx === -1) {
                     this.selectedItems.push(key);
@@ -822,7 +828,6 @@ const LayerTemplateModal = {
                     this.selectedItems.splice(idx, 1);
                 }
             } else if (e.shiftKey) {
-                // 범위 선택 (간단 구현)
                 this.selectedItems = [key];
             } else {
                 this.selectedItems = [key];
@@ -845,6 +850,7 @@ const LayerTemplateModal = {
         onDragEnd() {
             this.dragData = null;
             this.dragOverFolderId = null;
+            this.isFilePanelDragOver = false;
         },
         onFolderDragOver(e, folder) {
             e.preventDefault();
@@ -867,14 +873,18 @@ const LayerTemplateModal = {
         },
         onFilePanelDragOver(e) {
             e.preventDefault();
+            this.isFilePanelDragOver = true;
+        },
+        onFilePanelDragLeave(e) {
+            this.isFilePanelDragOver = false;
         },
         onFilePanelDrop(e) {
             e.preventDefault();
-            // 현재 폴더로 이동
             if (this.dragData) {
                 this.moveItemToFolder(this.dragData.type, this.dragData.item, this.currentFolderId);
             }
             this.dragData = null;
+            this.isFilePanelDragOver = false;
         },
         moveItemToFolder(type, item, targetFolderId) {
             if (type === 'template') {
@@ -884,7 +894,6 @@ const LayerTemplateModal = {
                     this.$emit('update-templates', this.internalTemplates);
                 }
             } else if (type === 'folder') {
-                // 자기 자신이나 자식 폴더로는 이동 불가
                 if (item.id === targetFolderId || this.isDescendant(item.id, targetFolderId)) {
                     return;
                 }
@@ -989,7 +998,6 @@ const LayerTemplateModal = {
                     isExpanded: false
                 };
                 this.internalFolders.push(newFolder);
-                // 부모 폴더 펼치기
                 const idx = this.internalFolders.findIndex(f => f.id === parentFolder.id);
                 if (idx !== -1) {
                     this.internalFolders[idx].isExpanded = true;
@@ -1019,7 +1027,6 @@ const LayerTemplateModal = {
             });
             
             if (result.isConfirmed) {
-                // 하위 폴더와 템플릿 모두 삭제
                 const foldersToDelete = this.getAllDescendantFolders(folder.id);
                 foldersToDelete.push(folder.id);
                 
@@ -1125,15 +1132,11 @@ const LayerTemplateModal = {
         },
         
         // 이름 변경
-        renameItem() {
+        async renameItem() {
             const target = this.contextMenu.target;
             const type = this.contextMenu.type;
             this.closeContextMenu();
             
-            // 인라인 에디터 표시 (간단 구현 - 모달 사용)
-            this.showRenameModal(type, target);
-        },
-        async showRenameModal(type, target) {
             const { value: name } = await Swal.fire({
                 title: '이름 바꾸기',
                 input: 'text',
@@ -1185,7 +1188,6 @@ const LayerTemplateModal = {
         pasteItem() {
             this.closeContextMenu();
             if (!this.clipboard) return;
-            // 구현 예정
         },
         
         // 키보드 단축키
@@ -1193,15 +1195,12 @@ const LayerTemplateModal = {
             if (!this.$el) return;
             
             if (e.key === 'Delete' && this.selectedItems.length > 0) {
-                // 선택 항목 삭제
                 e.preventDefault();
             }
             if (e.key === 'F2' && this.selectedItems.length === 1) {
-                // 이름 변경
                 e.preventDefault();
             }
             if (e.key === 'a' && (e.ctrlKey || e.metaKey)) {
-                // 모두 선택
                 e.preventDefault();
                 this.selectAll();
             }
