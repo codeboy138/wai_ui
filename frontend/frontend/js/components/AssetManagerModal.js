@@ -1,4 +1,5 @@
 // Asset Manager Modal Component - 드래그앤드롭 지원 + 리사이징
+// [작업 6] 공통 탭(영상/이미지/사운드) 제거 - 단일 자산 타입만 표시
 
 const AssetManagerModal = {
     props: {
@@ -49,7 +50,7 @@ const AssetManagerModal = {
                     </div>
                 </div>
 
-                <!-- 툴바 -->
+                <!-- 툴바 (탭 제거됨) -->
                 <div class="flex items-center justify-between px-4 py-2 border-b border-ui-border bg-bg-panel">
                     <div class="flex items-center gap-2">
                         <span class="text-[11px] text-text-sub">{{ assetTypeTitle }} 목록</span>
@@ -151,7 +152,7 @@ const AssetManagerModal = {
                                     v-for="asset in filteredAssets"
                                     :key="asset.id"
                                     class="asset-card"
-                                    :class="{ 'selected': selectedAssetId === asset.id, 'dragging': draggingAssetId === asset.id }"
+                                    :class="{ 'selected': selectedAssetId === asset.id }"
                                     @click="selectAsset(asset)"
                                     @dblclick="useAsset(asset)"
                                     draggable="true"
@@ -186,7 +187,7 @@ const AssetManagerModal = {
                                     v-for="asset in filteredAssets"
                                     :key="asset.id"
                                     class="asset-card"
-                                    :class="{ 'selected': selectedAssetId === asset.id, 'dragging': draggingAssetId === asset.id }"
+                                    :class="{ 'selected': selectedAssetId === asset.id }"
                                     @click="selectAsset(asset)"
                                     @dblclick="useAsset(asset)"
                                     draggable="true"
@@ -212,7 +213,7 @@ const AssetManagerModal = {
                 <!-- 상태바 -->
                 <div class="px-4 py-2 border-t border-ui-border bg-bg-panel flex justify-between items-center text-[11px] rounded-b-lg">
                     <div class="text-text-sub">
-                        <span v-if="selectedAssetId">1개 선택됨 - 캔버스나 타임라인으로 드래그하세요</span>
+                        <span v-if="selectedAssetId">1개 선택됨</span>
                         <span v-else>{{ currentFolderName }}</span>
                     </div>
                     <div class="flex items-center gap-2">
@@ -239,8 +240,8 @@ const AssetManagerModal = {
             previewEnabled: true,
             
             selectedAssetId: null,
-            draggingAssetId: null,
             
+            // 드래그 상태
             dragData: null,
             dragOverFolderId: null,
             isContentPanelDragOver: false,
@@ -379,32 +380,23 @@ const AssetManagerModal = {
         
         toggleAudioPreview(asset) { console.log('Playing audio:', asset.name); },
         
-        // 드래그앤드롭 - 캔버스/타임라인으로
+        // 드래그앤드롭 - 자산 모달 내부용
         onAssetDragStart(e, asset) {
-            this.draggingAssetId = asset.id;
             this.dragData = { type: 'asset', asset };
             e.dataTransfer.effectAllowed = 'copyMove';
+            // 캔버스/타임라인으로 드롭 가능하도록 데이터 설정
             e.dataTransfer.setData('text/wai-asset', JSON.stringify({ 
                 type: this.assetType, 
                 id: asset.id, 
                 name: asset.name,
-                duration: asset.duration,
-                resolution: asset.resolution
+                src: asset.src || '',
+                duration: asset.duration || ''
             }));
-            
-            // 드래그 이미지 설정
-            const dragImage = document.createElement('div');
-            dragImage.textContent = asset.name;
-            dragImage.style.cssText = 'position:absolute;top:-1000px;padding:8px 12px;background:#3b82f6;color:white;border-radius:4px;font-size:12px;';
-            document.body.appendChild(dragImage);
-            e.dataTransfer.setDragImage(dragImage, 0, 0);
-            setTimeout(() => document.body.removeChild(dragImage), 0);
         },
         onDragEnd() {
             this.dragData = null;
             this.dragOverFolderId = null;
             this.isContentPanelDragOver = false;
-            this.draggingAssetId = null;
         },
         onFolderDragOver(e, folder) {
             e.preventDefault();
