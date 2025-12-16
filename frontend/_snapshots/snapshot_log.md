@@ -44,3 +44,16 @@
 | 2025-12-16 08:53:09 | 20251216_085309_P354_SNAP | 설명 |
 | 2025-12-16 08:54:11 | 20251216_085411_P355_SNAP | 설명 |
 | 2025-12-16 08:55:26 | 20251216_085526_P356_SNAP | RESTORE:20251215_203638_P353_SNAP - PreviewFixes-FinalStrict |
+| 2025-12-16 09:03:10 | 20251216_090310_P358_SNAP | resolution_keys_fhd_hd_update |
+| 2025-12-16 09:11:51 | 20251216_091151_P360_SNAP | layer_panel_korean_font_size |
+| 2025-12-16 09:19:52 | 20251216_091952_P362_SNAP | layer_panel_compact_reset_button |
+| 2025-12-16 09:19:52 | 20251216_091952_P363_SNAP | layer_panel_compact_reset_button |
+| 2025-12-16 09:25:58 | 20251216_092558_P368_SNAP | layer_label_edge_flash_effect |
+| 2025-12-16 09:25:58 | 20251216_092558_P369_SNAP | layer_label_edge_flash_effect |
+| 2025-12-16 09:25:58 | 20251216_092558_P370_SNAP | layer_label_edge_flash_effect |
+| 2025-12-16 09:34:54 | 20251216_093454_P373_SNAP | preview_canvas_full_code_update |
+| 2025-12-16 09:40:20 | 20251216_094020_P375_SNAP | canvas_font_scale_contextmenu_fix |
+| 2025-12-16 09:47:43 | 20251216_094743_P378_SNAP | edge_flash_bg_constraint_magnet_snap |
+| 2025-12-16 10:01:54 | 20251216_100154_P381_SNAP | cell_context_menu_label_size_english |
+| 2025-12-16 10:06:32 | 20251216_100632_P383_SNAP | label_rowtype_only_size_ratio |
+| 2025-12-16 10:12:09 | 20251216_101209_P385_SNAP | remove_assets_header_properties_panel |
