@@ -1,3 +1,6 @@
+// Preview Canvas Component - Enhanced
+// 자산 드롭 수신, 캔버스-타임라인 연동
+
 const PreviewCanvas = {
   name: 'PreviewCanvas',
 
@@ -33,7 +36,15 @@ const PreviewCanvas = {
       },
       magnetEnabled: true,
       snapDistance: 15,
-      isDropTarget: false
+      
+      // 드롭 상태
+      isDropTarget: false,
+      
+      // 현재 재생 시간 (타임라인 연동용)
+      currentPlayTime: 0,
+      
+      // 활성 미디어 요소들
+      activeMediaElements: {}
     };
   },
 
@@ -97,6 +108,7 @@ const PreviewCanvas = {
       };
     },
 
+    // 미디어 스타일 (이미지/동영상)
     mediaStyle(box) {
       const fit = box.mediaFit || 'cover';
       return {
@@ -109,10 +121,12 @@ const PreviewCanvas = {
       };
     },
 
+    // 미디어 존재 여부
     hasMedia(box) {
       return box.mediaType && box.mediaType !== 'none' && box.mediaSrc;
     },
 
+    // 미디어 타입 확인
     isImage(box) {
       return box.mediaType === 'image';
     },
@@ -167,6 +181,7 @@ const PreviewCanvas = {
       return baseStyle;
     },
 
+    // 텍스트 콘텐츠 스타일 - 글자간/행간 추가, 겹침 해결
     textContentStyle(box) {
       const ts = box.textStyle || {};
       const fontSize = ts.fontSize || 48;
@@ -179,6 +194,7 @@ const PreviewCanvas = {
       const letterSpacing = ts.letterSpacing || 0;
       const lineHeight = ts.lineHeight || 1.4;
       
+      // 그림자 설정
       let textShadow = 'none';
       if (ts.shadow) {
         const sx = ts.shadow.offsetX || 0;
@@ -188,6 +204,7 @@ const PreviewCanvas = {
         textShadow = `${sx}px ${sy}px ${blur}px ${scolor}`;
       }
       
+      // 세로 정렬을 위한 justify-content
       let justifyContent = 'center';
       if (vAlign === 'top') justifyContent = 'flex-start';
       if (vAlign === 'bottom') justifyContent = 'flex-end';
@@ -228,12 +245,14 @@ const PreviewCanvas = {
       return typeMap[box.rowType] || box.rowType || 'Layer';
     },
 
+    // 텍스트 콘텐츠 가져오기
     getTextContent(box) {
       if (box.rowType !== 'TXT') return '';
       const content = box.textContent || '';
       return content.trim() || '';
     },
 
+    // 텍스트 표시 여부
     hasTextContent(box) {
       return box.rowType === 'TXT' && this.getTextContent(box).length > 0;
     },
@@ -265,58 +284,131 @@ const PreviewCanvas = {
       return style;
     },
 
-    // 드롭 이벤트 처리
-    onDragOver(e) {
-      e.preventDefault();
-      e.stopPropagation();
-      
-      // wai-asset 데이터가 있는지 확인
-      if (e.dataTransfer.types.includes('text/wai-asset')) {
+    // === 드래그앤드롭 수신 (자산 모달에서 드래그) ===
+    onCanvasDragOver(e) {
+      // 자산 모달에서 오는 드래그만 허용
+      const hasAssetData = e.dataTransfer.types.includes('text/wai-asset');
+      if (hasAssetData) {
+        e.preventDefault();
         e.dataTransfer.dropEffect = 'copy';
         this.isDropTarget = true;
-        
-        const scaler = document.getElementById('preview-canvas-scaler');
-        if (scaler) {
-          scaler.classList.add('drop-target');
+      }
+    },
+
+    onCanvasDragLeave(e) {
+      this.isDropTarget = false;
+    },
+
+    onCanvasDrop(e) {
+      e.preventDefault();
+      this.isDropTarget = false;
+
+      let assetData;
+      try {
+        const dataStr = e.dataTransfer.getData('text/wai-asset');
+        if (!dataStr) return;
+        assetData = JSON.parse(dataStr);
+      } catch (error) {
+        console.warn('[PreviewCanvas] Drop parse error:', error);
+        return;
+      }
+
+      // 드롭 위치 계산
+      const { mx, my } = this.clientToCanvas(e);
+      
+      // 부모에게 자산 드롭 이벤트 전달
+      if (this.$parent && typeof this.$parent.handleCanvasAssetDrop === 'function') {
+        this.$parent.handleCanvasAssetDrop(assetData, mx, my);
+      } else {
+        // 기본 처리: 레이어 생성
+        this.createLayerFromAsset(assetData, mx, my);
+      }
+    },
+
+    createLayerFromAsset(assetData, x, y) {
+      const cw = this.canvasSize.w || 1920;
+      const ch = this.canvasSize.h || 1080;
+      
+      // 기본 크기 (캔버스의 1/4)
+      const defaultW = cw / 2;
+      const defaultH = ch / 2;
+      
+      // 드롭 위치를 중심으로
+      const boxX = Math.max(0, Math.min(cw - defaultW, x - defaultW / 2));
+      const boxY = Math.max(0, Math.min(ch - defaultH, y - defaultH / 2));
+      
+      const newBox = {
+        id: `box_drop_${Date.now()}`,
+        x: boxX,
+        y: boxY,
+        w: defaultW,
+        h: defaultH,
+        nx: boxX / cw,
+        ny: boxY / ch,
+        nw: defaultW / cw,
+        nh: defaultH / ch,
+        color: '#3b82f6',
+        layerBgColor: 'transparent',
+        zIndex: 100,
+        isHidden: false,
+        layerName: assetData.name || 'Dropped Asset',
+        rowType: assetData.type === 'sound' ? 'EFF' : 'BG',
+        colRole: 'full',
+        slotKey: `drop_${Date.now()}`
+      };
+
+      // 미디어 타입에 따라 설정
+      if (assetData.type === 'video') {
+        newBox.mediaType = 'video';
+        newBox.mediaSrc = assetData.src || '';
+        newBox.mediaFit = 'cover';
+      } else if (assetData.type === 'image') {
+        newBox.mediaType = 'image';
+        newBox.mediaSrc = assetData.src || '';
+        newBox.mediaFit = 'cover';
+      }
+
+      // 캔버스 박스 배열에 추가
+      this.$emit('add-box', newBox);
+    },
+
+    // === 타임라인 연동: 특정 시간의 클립 렌더링 ===
+    renderAtTime(time) {
+      this.currentPlayTime = time;
+      
+      // 현재 시간에 활성화된 클립들 찾기
+      if (this.$parent && this.$parent.clips) {
+        const activeClips = this.$parent.clips.filter(clip => {
+          return time >= clip.start && time < clip.start + clip.duration;
+        });
+
+        // 각 활성 클립에 대해 미디어 동기화
+        activeClips.forEach(clip => {
+          this.syncClipMedia(clip, time);
+        });
+      }
+    },
+
+    syncClipMedia(clip, currentTime) {
+      const clipLocalTime = currentTime - clip.start;
+      
+      // 비디오 클립인 경우 해당 시간으로 이동
+      const videoEl = this.activeMediaElements[clip.id];
+      if (videoEl && videoEl.tagName === 'VIDEO') {
+        if (Math.abs(videoEl.currentTime - clipLocalTime) > 0.1) {
+          videoEl.currentTime = clipLocalTime;
         }
       }
     },
 
-    onDragLeave(e) {
-      e.preventDefault();
-      this.isDropTarget = false;
-      
-      const scaler = document.getElementById('preview-canvas-scaler');
-      if (scaler) {
-        scaler.classList.remove('drop-target');
-      }
+    // 비디오 요소 등록
+    registerVideoElement(clipId, videoEl) {
+      this.activeMediaElements[clipId] = videoEl;
     },
 
-    onDrop(e) {
-      e.preventDefault();
-      e.stopPropagation();
-      
-      this.isDropTarget = false;
-      
-      const scaler = document.getElementById('preview-canvas-scaler');
-      if (scaler) {
-        scaler.classList.remove('drop-target');
-      }
-      
-      let assetData;
-      try {
-        assetData = JSON.parse(e.dataTransfer.getData('text/wai-asset'));
-      } catch (error) {
-        return;
-      }
-      
-      // 캔버스 내 드롭 위치 계산
-      const { mx, my } = this.clientToCanvas(e);
-      
-      // 부모 컴포넌트에 드롭 이벤트 전달
-      if (this.$parent && typeof this.$parent.handleCanvasDrop === 'function') {
-        this.$parent.handleCanvasDrop(assetData, mx, my);
-      }
+    // 비디오 요소 해제
+    unregisterVideoElement(clipId) {
+      delete this.activeMediaElements[clipId];
     },
 
     onBoxContextMenu(e, box) {
@@ -648,9 +740,10 @@ const PreviewCanvas = {
     <div 
       id="preview-canvas-scaler" 
       :style="scalerStyle"
-      @dragover="onDragOver"
-      @dragleave="onDragLeave"
-      @drop="onDrop"
+      :class="{ 'canvas-drop-target': isDropTarget }"
+      @dragover="onCanvasDragOver"
+      @dragleave="onCanvasDragLeave"
+      @drop="onCanvasDrop"
     >
       <div id="preview-edge-flash-top" class="edge-flash-overlay edge-flash-top"></div>
       <div id="preview-edge-flash-bottom" class="edge-flash-overlay edge-flash-bottom"></div>
