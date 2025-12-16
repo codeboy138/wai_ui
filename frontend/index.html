@@ -223,16 +223,28 @@
 
         .panel-resizer-v { position: absolute; top: 0; bottom: 0; width: 4px; cursor: col-resize; z-index: 100; transition: background 0.2s; }
         .panel-resizer-v:hover { background: #3b82f6; }
-        .panel-resizer-h { width: 100%; height: 4px; background: #18181b; cursor: row-resize; z-index: 100; transition: background 0.2s; border-top: 1px solid #27272a; border-bottom: 1px solid #27272a; }
+        /* [수정] 타임라인 리사이저 z-index를 모달보다 낮게 설정 */
+        .panel-resizer-h { width: 100%; height: 4px; background: #18181b; cursor: row-resize; z-index: 50; transition: background 0.2s; border-top: 1px solid #27272a; border-bottom: 1px solid #27272a; }
         .panel-resizer-h:hover { background: #3b82f6; }
 
         .tool-btn { @apply p-1 rounded text-text-sub hover:text-text-main hover:bg-bg-hover transition-colors text-xs flex items-center justify-center w-6 h-6; }
         .tool-btn.active { @apply text-ui-accent bg-bg-hover; }
 
-        .nav-btn { @apply px-3 py-1 text-xs text-text-sub hover:text-text-main hover:bg-ui-selected rounded transition-colors cursor-pointer h-full flex items-center; }
-        .nav-btn.active { @apply text-text-main font-bold bg-bg-hover; }
-        /* [작업 4] 메인메뉴 호버 시 백색 보더 */
-        .nav-btn:hover { border: 1px solid #ffffff; }
+        /* [수정] 메뉴 버튼 - 평상시 회색, 호버시 보더 플래시 제거 */
+        .nav-btn { 
+            @apply px-3 py-1 text-xs rounded transition-colors cursor-pointer h-full flex items-center;
+            color: #71717a;
+            border: 1px solid transparent;
+        }
+        .nav-btn:hover { 
+            color: #f4f4f5;
+            background-color: #3f3f46;
+        }
+        .nav-btn.active { 
+            color: #f4f4f5;
+            font-weight: bold;
+            background-color: #27272a;
+        }
 
         .win-btn { 
             width: 46px; 
@@ -286,21 +298,20 @@
             border-bottom-left-radius: 0;
             border-bottom-right-radius: 0;
         }
+        /* [수정] 메뉴 아이템 - 호버시 보더 제거 */
         .header-menu-item {
             padding: 8px 12px;
             font-size: 12px;
-            color: #a1a1aa;
+            color: #71717a;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            transition: background-color 0.15s, color 0.15s, border 0.15s;
-            border: 1px solid transparent;
+            transition: background-color 0.15s, color 0.15s;
         }
         .header-menu-item:hover {
             background-color: #3b82f6;
             color: white;
-            border: 1px solid #ffffff;
         }
         .header-menu-item:last-child {
             border-radius: 0 0 4px 4px;
@@ -325,18 +336,17 @@
         .header-submenu-wrapper.open .header-submenu {
             display: flex;
         }
+        /* [수정] 서브메뉴 아이템 - 호버시 보더 제거 */
         .header-submenu-item {
             padding: 8px 12px;
             font-size: 12px;
-            color: #a1a1aa;
+            color: #71717a;
             cursor: pointer;
-            transition: background-color 0.15s, color 0.15s, border 0.15s;
-            border: 1px solid transparent;
+            transition: background-color 0.15s, color 0.15s;
         }
         .header-submenu-item:hover {
             background-color: #3b82f6;
             color: white;
-            border: 1px solid #ffffff;
         }
         .header-submenu-item:first-child {
             border-radius: 4px 4px 0 0;
@@ -361,6 +371,7 @@
         .playhead-line { position: absolute; top: 0; bottom: 0; width: 1px; background: #ef4444; z-index: 35; pointer-events: none; }
         .playhead-handle { position: absolute; top: 0; width: 11px; height: 12px; background: #ef4444; transform: translateX(-50%); clip-path: polygon(0 0, 100% 0, 50% 100%); cursor: ew-resize; pointer-events: auto; z-index: 36; }
 
+        /* [수정] 모달 오버레이 z-index를 확실히 높게 설정 */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); display: flex; justify-content: center; align-items: center; z-index: 10000; }
         .modal-window { background: #18181b; border: 1px solid #27272a; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; }
         .layer-config-window { width: 640px; height: 520px; max-width: 900px; max-height: 700px; }
@@ -439,14 +450,14 @@
                     <button class="text-lg text-text-sub hover:text-text-main" title="메인 메뉴 (준비 중)"><i class="fa-solid fa-bars"></i></button>
                 </div>
 
-                <!-- [작업 3] 메인메뉴 순서: 탐색, 제작, 자산, 운영, 연구, 설정 -->
+                <!-- 메인메뉴 순서: 탐색, 제작, 자산, 운영, 연구, 설정 -->
                 <nav id="header-nav-container" class="flex items-center gap-[15px] h-full">
                     <!-- 탐색 -->
-                    <button id="header-nav-explore-btn" class="nav-btn hover:text-white text-text-sub" @click="firePython('nav_explore')" data-action="py:nav_explore" title="프로젝트 탐색 열기">탐색</button>
+                    <button id="header-nav-explore-btn" class="nav-btn" @click="firePython('nav_explore')" data-action="py:nav_explore" title="프로젝트 탐색 열기">탐색</button>
                     
                     <!-- 제작 메뉴 -->
                     <div id="header-nav-create-wrapper" class="header-menu-wrapper h-full" :class="{ 'open': headerMenus.create }">
-                        <button id="header-nav-create-btn" class="nav-btn hover:text-white" :class="{ 'active': headerMenus.create }" @click="toggleHeaderMenu('create')" data-action="js:toggleCreateMenu" title="제작 메뉴">
+                        <button id="header-nav-create-btn" class="nav-btn" :class="{ 'active': headerMenus.create }" @click="toggleHeaderMenu('create')" data-action="js:toggleCreateMenu" title="제작 메뉴">
                             제작
                         </button>
                         <div class="header-menu-dropdown">
@@ -458,7 +469,7 @@
                     
                     <!-- 자산 메뉴 -->
                     <div id="header-nav-assets-wrapper" class="header-menu-wrapper h-full" :class="{ 'open': headerMenus.assets }">
-                        <button id="header-nav-assets-btn" class="nav-btn hover:text-white" :class="{ 'active': headerMenus.assets }" @click="toggleHeaderMenu('assets')" data-action="js:toggleAssetsMenu" title="자산 메뉴">
+                        <button id="header-nav-assets-btn" class="nav-btn" :class="{ 'active': headerMenus.assets }" @click="toggleHeaderMenu('assets')" data-action="js:toggleAssetsMenu" title="자산 메뉴">
                             자산
                         </button>
                         <div class="header-menu-dropdown">
@@ -481,14 +492,14 @@
                     </div>
                     
                     <!-- 운영 -->
-                    <button id="header-nav-operation-btn" class="nav-btn hover:text-white text-text-sub" @click="firePython('nav_operation')" data-action="py:nav_operation" title="운영 패널 열기">운영</button>
+                    <button id="header-nav-operation-btn" class="nav-btn" @click="firePython('nav_operation')" data-action="py:nav_operation" title="운영 패널 열기">운영</button>
                     
                     <!-- 연구 -->
-                    <button id="header-nav-research-btn" class="nav-btn hover:text-white text-text-sub" @click="firePython('nav_research')" data-action="py:nav_research" title="연구 패널 열기">연구</button>
+                    <button id="header-nav-research-btn" class="nav-btn" @click="firePython('nav_research')" data-action="py:nav_research" title="연구 패널 열기">연구</button>
                     
                     <!-- 설정 메뉴 -->
                     <div id="header-nav-settings-wrapper" class="header-menu-wrapper h-full" :class="{ 'open': headerMenus.settings }">
-                        <button id="header-nav-settings-btn" class="nav-btn hover:text-white" :class="{ 'active': headerMenus.settings }" @click="toggleHeaderMenu('settings')" data-action="js:toggleSettingsMenu" title="설정 메뉴">
+                        <button id="header-nav-settings-btn" class="nav-btn" :class="{ 'active': headerMenus.settings }" @click="toggleHeaderMenu('settings')" data-action="js:toggleSettingsMenu" title="설정 메뉴">
                             설정
                         </button>
                         <div class="header-menu-dropdown">
