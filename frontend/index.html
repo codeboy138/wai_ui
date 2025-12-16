@@ -159,6 +159,16 @@
             border: 2px solid #ffffff;
             box-shadow: 0 0 40px rgba(0,0,0,0.7);
             overflow: hidden;
+            transition: box-shadow 0.15s ease-out;
+        }
+
+        /* 캔버스 외곽선 접촉 플래시 효과 */
+        @keyframes edgeFlash {
+            0% { box-shadow: 0 0 0 4px rgba(255,255,255,1), 0 0 40px rgba(255,255,255,0.8); }
+            100% { box-shadow: 0 0 0 2px rgba(255,255,255,0.3), 0 0 40px rgba(0,0,0,0.7); }
+        }
+        .canvas-scaler.edge-flash-active {
+            animation: edgeFlash 0.5s ease-out;
         }
 
         /* 비율별 aspect-ratio (향후 용도, 현재는 JS width/height 가 우선) */
@@ -168,7 +178,7 @@
 
         .canvas-box {
             position: absolute;
-            border: 0.5px dashed rgba(255,255,255,0.6);
+            border: 2px dashed rgba(255,255,255,0.6);
             background: rgba(255,255,255,0.05);
             display: flex;
             align-items: flex-start;
@@ -187,17 +197,20 @@
         .canvas-label {
             position: absolute;
             bottom: 0;
-            height: 16px;
-            line-height: 16px;
-            font-size: 10px;
+            left: 0;
+            height: auto;
+            line-height: 1.2;
+            font-size: 12px;
             font-weight: bold;
             font-family: monospace;
             white-space: nowrap;
             pointer-events: none;
             text-shadow: 0 1px 2px black;
-            opacity: 0.9;
+            opacity: 0.95;
             overflow: hidden;
             text-overflow: ellipsis;
+            padding: 2px 6px;
+            border-radius: 2px 2px 0 0;
         }
 
         .canvas-text-content {
@@ -722,6 +735,7 @@
 
                                 <preview-canvas
                                     :canvas-boxes="canvasBoxes"
+                                    :canvas-size="canvasSize"
                                     :selected-box-id="selectedBoxId"
                                     @select-box="setSelectedBoxId"
                                 ></preview-canvas>
