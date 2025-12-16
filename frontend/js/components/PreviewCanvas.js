@@ -45,6 +45,18 @@ const PreviewCanvas = {
         height: ch + 'px',
         overflow: 'visible' 
       };
+    },
+
+    /**
+     * 캔버스 내 텍스트 크기 기준값
+     * - 논리 캔버스 높이 기준 약 3% (1080px 기준 약 32px)
+     * - 화면에서 축소되어도 읽을 수 있는 크기
+     */
+    canvasFontSize() {
+      const ch = (this.canvasSize && this.canvasSize.h) ? this.canvasSize.h : 1080;
+      // 캔버스 높이의 3% (최소 24px, 최대 48px)
+      const size = Math.round(ch * 0.03);
+      return Math.max(24, Math.min(48, size));
     }
   },
 
@@ -93,20 +105,23 @@ const PreviewCanvas = {
 
     /**
      * 레이어 레이블 스타일
-     * - 폰트 크기: 10px
+     * - 폰트 크기: 논리 캔버스 기준 (canvasFontSize)
      * - 위치: rowType에 따라 다름
      *   - EFF(효과): 좌측 (left: 0)
      *   - TXT(텍스트): 중앙 (left: 50%, transform: translateX(-50%))
      *   - BG(배경): 우측 (right: 0)
      */
     labelStyle(box) {
+      const fontSize = this.canvasFontSize;
+      const padding = Math.round(fontSize * 0.2);
+      
       const baseStyle = {
         position: 'absolute',
         bottom: '0',
         backgroundColor: box.color || '#333',
         color: '#fff',
-        padding: '1px 4px',
-        fontSize: '10px',
+        padding: `${padding}px ${padding * 2}px`,
+        fontSize: fontSize + 'px',
         fontWeight: 'bold',
         fontFamily: 'monospace',
         whiteSpace: 'nowrap',
@@ -114,8 +129,8 @@ const PreviewCanvas = {
         textOverflow: 'ellipsis',
         maxWidth: '40%',
         pointerEvents: 'none',
-        textShadow: '0 1px 2px rgba(0,0,0,0.8)',
-        borderRadius: '2px 2px 0 0'
+        textShadow: '0 2px 4px rgba(0,0,0,0.8)',
+        borderRadius: `${Math.round(fontSize * 0.15)}px ${Math.round(fontSize * 0.15)}px 0 0`
       };
 
       // rowType별 위치 지정
@@ -162,21 +177,23 @@ const PreviewCanvas = {
     },
 
     /**
-     * 리사이즈 핸들 스타일 (감지 영역 24px)
+     * 리사이즈 핸들 스타일 (논리 캔버스 기준 크기)
      */
     handleStyle(pos) {
-      const size = 24; 
-      const offset = -12; 
+      // 핸들 크기도 캔버스 기준으로 설정 (높이의 약 2.5%)
+      const ch = (this.canvasSize && this.canvasSize.h) ? this.canvasSize.h : 1080;
+      const size = Math.max(20, Math.min(40, Math.round(ch * 0.025)));
+      const offset = -Math.round(size / 2);
       
       const style = {
         position: 'absolute',
         width: size + 'px',
         height: size + 'px',
         backgroundColor: '#fff', 
-        border: '1px solid #000',
+        border: '2px solid #000',
         zIndex: 9999,
         pointerEvents: 'auto',
-        opacity: 0.8
+        opacity: 0.9
       };
 
       if (pos === 'tl') { style.top = offset + 'px'; style.left = offset + 'px'; style.cursor = 'nwse-resize'; }
@@ -192,11 +209,21 @@ const PreviewCanvas = {
     },
 
     /**
-     * 박스 우클릭 컨텍스트 메뉴
+     * 박스 우클릭 → 레이어 설정 모달 열기
+     * - ID: preview-canvas-box-{boxId}
+     * - data-action: js:openLayerConfig
      */
     onBoxContextMenu(e, box) {
       e.preventDefault();
-      this.$emit('context-menu', e, box.id);
+      e.stopPropagation();
+      
+      // 박스 선택
+      this.$emit('select-box', box.id);
+      
+      // 레이어 설정 모달 열기 (AppRoot의 openLayerConfig 호출)
+      if (this.$parent && typeof this.$parent.openLayerConfig === 'function') {
+        this.$parent.openLayerConfig(box.id);
+      }
     },
 
     /**
