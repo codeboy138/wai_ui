@@ -1,7 +1,6 @@
 const { createApp, reactive, ref, onMounted, computed, nextTick } = Vue;
 
 // 프리뷰 캔버스 기준 긴 변 픽셀 (해상도와 무관, 프리뷰 전용 메타값)
-// ※ 실제 프리뷰 좌표계는 wrapper 크기에 맞춰 동적으로 결정된다.
 const BASE_CANVAS_LONG_SIDE = 1920;
 
 // 해상도별 기준 긴 변 픽셀 (레이블용, 프리뷰 스케일과는 무관)
@@ -44,11 +43,11 @@ const AppRoot = {
         'dropdown-menu': DropdownMenu, 
         'project-modal': ProjectModal, 
         'layer-panel': LayerPanel,
-        'properties-panel': PropertiesPanel,
-        'preview-canvas': PreviewCanvas, // Vue.component 전역 등록되었지만 명시적 선언 유지 가능
+        'preview-canvas': PreviewCanvas,
         'timeline-panel': TimelinePanel,
         'ruler-line': RulerLine,
-        'layer-config-modal': LayerConfigModal
+        'layer-config-modal': LayerConfigModal,
+        'layer-template-modal': LayerTemplateModal
     },
     data() {
         return {
@@ -60,8 +59,8 @@ const AppRoot = {
             isProjectModalOpen: false,
 
             // Dev / Inspector 모드 상태
-            isDevModeActive: false,   // Inspect
-            isDevModeFull: false,     // Dev
+            isDevModeActive: false,
+            isDevModeFull: false,
             
             // Core Timeline/Canvas State
             tracks: [
@@ -94,14 +93,12 @@ const AppRoot = {
             // Preview Toolbar State
             aspectRatio: '16:9',
             resolution: 'FHD',
-            // canvasSize: 실제 프리뷰 px (wrapper 크기 기준, aspectRatio 유지)
             canvasSize: { w: 1920, h: 1080 }, 
             mouseCoord: { x: 0, y: 0 }, 
             isMouseOverCanvas: false,
-            // canvasScale: transform:scale 대신 항상 1.0 유지 (좌표계 = 실제 px)
             canvasScale: 1.0,
 
-            // 박스 드래그 중 여부 (PreviewCanvas에서 제어)
+            // 박스 드래그 중 여부
             isBoxDragging: false,
             
             // Inspector / Dev Overlay State
@@ -126,11 +123,15 @@ const AppRoot = {
                 boxId: null
             },
 
+            // 레이어 템플릿 관리 모달 상태
+            layerTemplateModal: {
+                isOpen: false
+            },
+
             COLORS
         };
     },
     computed: {
-        // 프리뷰 스케일러: transform scale 제거, translate만 사용 (좌표계 = 실제 px)
         canvasScalerStyle() {
             return {
                 width: this.canvasSize.w + 'px',
@@ -139,7 +140,6 @@ const AppRoot = {
                 position: 'absolute',
                 top: '50%',
                 left: '50%',
-                // [수정] scale() 추가하여 화면 배율 적용 -> 드래그 1:1 매핑 문제 해결
                 transform: `translate(-50%, -50%) scale(${this.canvasScale})`,
                 transformOrigin: 'center center'
             };
@@ -557,7 +557,6 @@ const AppRoot = {
             this.updateCanvasSizeFromControls();
         },
 
-        // 해상도 레이블 계산용 (프리뷰 좌표계와는 별개, 메타정보)
         computeResolutionSize(aspectRatio, resolutionKey) {
             const key = resolutionKey || 'FHD';
             const longSide = RESOLUTION_LONG_SIDE[key] || RESOLUTION_LONG_SIDE['FHD'];
@@ -582,7 +581,6 @@ const AppRoot = {
             return `${k} (${size.w} x ${size.h})`;
         },
 
-        // wrapper 크기 + aspectRatio 기반으로 실제 canvasSize(px) 재계산
         recalculateCanvasSizeFromWrapper() {
             const wrapper = document.getElementById('preview-canvas-wrapper');
             if (!wrapper) return;
@@ -602,23 +600,17 @@ const AppRoot = {
                 arW = pw;
                 arH = ph;
             }
-            const targetRatio = arW / arH;
-            const wrapperRatio = innerW / innerH;
 
-            let w, h;
-            let scale;
-
-            // 현재 canvasSize (논리 크기)
             const cw = this.canvasSize.w || 1920;
             const ch = this.canvasSize.h || 1080;
             const cRatio = cw / ch;
+            const wrapperRatio = innerW / innerH;
 
+            let scale;
             if (wrapperRatio > cRatio) {
-                // wrapper가 더 넓음 -> 높이 기준
                 const fitH = innerH;
                 scale = fitH / ch;
             } else {
-                // wrapper가 더 좁음 -> 너비 기준
                 const fitW = innerW;
                 scale = fitW / cw;
             }
@@ -627,16 +619,12 @@ const AppRoot = {
         },
 
         updateCanvasSizeFromControls() {
-            // 해상도 변경 시 논리 크기(canvasSize)를 먼저 설정
             const size = this.computeResolutionSize(this.aspectRatio, this.resolution);
             this.canvasSize = size;
-
-            // 그 후 스케일 계산
             this.recalculateCanvasSizeFromWrapper();
             this.ensureAllBoxesNormalized();
         },
 
-        // 기존 recalculateCanvasScale 은 canvasSize 재계산을 래핑하는 역할만 하도록 단순화
         recalculateCanvasScale() {
             this.recalculateCanvasSizeFromWrapper();
         },
@@ -806,6 +794,80 @@ const AppRoot = {
             this.closeLayerConfig();
         },
 
+        // --- 레이어 템플릿 관리 모달 ---
+        openLayerTemplateModal() {
+            this.layerTemplateModal.isOpen = true;
+        },
+        closeLayerTemplateModal() {
+            this.layerTemplateModal.isOpen = false;
+        },
+        deleteLayerTemplate(templateId) {
+            this.layerTemplates = this.layerTemplates.filter(t => t.id !== templateId);
+            Swal.fire({
+                icon: 'success',
+                title: '삭제됨',
+                text: '템플릿이 삭제되었습니다',
+                background: '#1e1e1e',
+                color: '#fff',
+                confirmButtonColor: '#3b82f6',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        },
+        loadLayerTemplate(template) {
+            if (!template || !template.matrixJson) {
+                Swal.fire({
+                    icon: 'error',
+                    title: '불러오기 실패',
+                    text: '템플릿 데이터가 유효하지 않습니다',
+                    background: '#1e1e1e',
+                    color: '#fff',
+                    confirmButtonColor: '#3b82f6'
+                });
+                return;
+            }
+
+            try {
+                const parsed = JSON.parse(template.matrixJson);
+                
+                // 캔버스 박스 복원
+                if (parsed.canvasBoxes && Array.isArray(parsed.canvasBoxes)) {
+                    // 새로운 ID 생성하여 충돌 방지
+                    const newBoxes = parsed.canvasBoxes.map(box => ({
+                        ...box,
+                        id: `box_${box.slotKey}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+                    }));
+                    
+                    this.canvasBoxes = newBoxes;
+                    this.ensureAllBoxesNormalized();
+                }
+
+                // 레이어 메인 이름 설정
+                this.layerMainName = template.name || '';
+
+                Swal.fire({
+                    icon: 'success',
+                    title: '불러오기 완료',
+                    text: `"${template.name}" 템플릿이 적용되었습니다`,
+                    background: '#1e1e1e',
+                    color: '#fff',
+                    confirmButtonColor: '#3b82f6',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+            } catch (err) {
+                console.error('[loadLayerTemplate] parse error:', err);
+                Swal.fire({
+                    icon: 'error',
+                    title: '불러오기 실패',
+                    text: '템플릿 파싱 중 오류가 발생했습니다',
+                    background: '#1e1e1e',
+                    color: '#fff',
+                    confirmButtonColor: '#3b82f6'
+                });
+            }
+        },
+
         // --- Core Model Methods (Clips/Boxes) ---
         removeBox(id) {
             this.canvasBoxes = this.canvasBoxes.filter(b => b.id !== id);
@@ -816,9 +878,6 @@ const AppRoot = {
             this.selectedClip = null;
         },
 
-        /**
-         * 퍼센트(0~1) 좌표 기반 업데이트 (PreviewCanvas 드래그 전용)
-         */
         updateBoxPositionNormalized(id, nx, ny, nw, nh) {
             const index = this.canvasBoxes.findIndex(b => b.id === id);
             if (index === -1) return;
@@ -826,7 +885,6 @@ const AppRoot = {
             const cw = this.canvasSize.w || 1;
             const ch = this.canvasSize.h || 1;
 
-            // 최소 크기: 논리 캔버스 기준 20px
             const minNw = 20 / cw;
             const minNh = 20 / ch;
 
@@ -855,10 +913,6 @@ const AppRoot = {
             this.canvasBoxes = newBoxes;
         },
 
-        /**
-         * px 기반 업데이트 (PreviewCanvas, 레이어 설정 모달 등에서 사용)
-         * → 항상 nx,ny,nw,nh(0~1)를 함께 갱신
-         */
         updateBoxPosition(id, newX, newY, newW, newH, optNorm) {
             const index = this.canvasBoxes.findIndex(b => b.id === id);
             if (index === -1) return;
@@ -871,7 +925,6 @@ const AppRoot = {
             let nx, ny, nw, nh;
 
             if (optNorm && typeof optNorm === 'object') {
-                // 이미 퍼센트 좌표가 계산된 경우 (PreviewCanvas 등)
                 nx = (typeof optNorm.nx === 'number')
                     ? optNorm.nx
                     : (typeof oldBox.nx === 'number' ? oldBox.nx : (oldBox.x || 0) / cw);
@@ -896,13 +949,11 @@ const AppRoot = {
                 if (nx + nw > 1) nx = Math.max(0, 1 - nw);
                 if (ny + nh > 1) ny = Math.max(0, 1 - nh);
 
-                // **수정된 부분: 여기서 퍼센트 좌표를 픽셀 좌표로 변환**
                 x = nx * cw;
                 y = ny * ch;
                 w = nw * cw;
                 h = nh * ch;
             } else {
-                // 픽셀 좌표가 들어온 경우 (레이어 설정 모달 등)
                 x = (typeof newX === 'number')
                     ? newX
                     : (typeof oldBox.x === 'number' ? oldBox.x : 0);

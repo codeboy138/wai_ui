@@ -20,18 +20,19 @@ const PreviewCanvas = {
   data() {
     return {
       dragging: false,
-      dragMode: null, // 'move' | 'resize'
+      dragMode: null,
       dragHandle: null,
       dragBoxId: null,
       dragStartMouse: { mx: 0, my: 0 },
       dragStartBox: { x0: 0, y0: 0, w0: 0, h0: 0 },
-      // 외곽선 접촉 플래시 상태
       edgeFlash: {
         top: false,
         bottom: false,
         left: false,
         right: false
-      }
+      },
+      magnetEnabled: true,
+      snapDistance: 15
     };
   },
 
@@ -48,22 +49,21 @@ const PreviewCanvas = {
     },
 
     /**
-     * 캔버스 내 텍스트 크기 기준값
-     * - 논리 캔버스 높이 기준 약 3% (1080px 기준 약 32px)
-     * - 화면에서 축소되어도 읽을 수 있는 크기
+     * 표시할 박스 (숨김 상태 제외)
      */
-    canvasFontSize() {
-      const ch = (this.canvasSize && this.canvasSize.h) ? this.canvasSize.h : 1080;
-      // 캔버스 높이의 3% (최소 24px, 최대 48px)
-      const size = Math.round(ch * 0.03);
-      return Math.max(24, Math.min(48, size));
+    visibleBoxes() {
+      return this.canvasBoxes.filter(box => !box.isHidden);
+    },
+
+    isMagnetActive() {
+      if (this.$parent && typeof this.$parent.isMagnet === 'boolean') {
+        return this.$parent.isMagnet;
+      }
+      return this.magnetEnabled;
     }
   },
 
   methods: {
-    /**
-     * 화면 좌표 -> 캔버스 논리 좌표 변환 (스케일 보정)
-     */
     clientToCanvas(e) {
       const scaler = document.getElementById('preview-canvas-scaler');
       if (!scaler) {
@@ -73,20 +73,15 @@ const PreviewCanvas = {
       const rect = scaler.getBoundingClientRect();
       const logicalW = (this.canvasSize && this.canvasSize.w) ? this.canvasSize.w : 1920;
       
-      // 스케일 = (화면상 렌더링된 너비) / (논리적 너비)
       let scaleX = rect.width / logicalW;
       if (!scaleX || scaleX === 0) scaleX = 1;
 
-      // 변환: (현재마우스 - 캔버스시작점) / 스케일
       const mx = (e.clientX - rect.left) / scaleX;
       const my = (e.clientY - rect.top) / scaleX;
       
       return { mx, my };
     },
 
-    /**
-     * 박스 스타일 (위치, 크기, 테두리, 선택 상태)
-     */
     boxStyle(box) {
       const isSelected = (this.selectedBoxId === box.id);
       return {
@@ -104,16 +99,47 @@ const PreviewCanvas = {
     },
 
     /**
+     * 박스 크기에 비례한 폰트 크기 계산
+     * - 기본 크기: 캔버스 높이의 3%
+     * - 비율 조정: 박스 너비/높이에 따라 축소
+     * - 최소 20px, 최대 60px
+     */
+    calculateFontSize(box) {
+      const ch = (this.canvasSize && this.canvasSize.h) ? this.canvasSize.h : 1080;
+      const cw = (this.canvasSize && this.canvasSize.w) ? this.canvasSize.w : 1920;
+      
+      // 기본 폰트 크기 (캔버스 높이의 3%)
+      const baseFontSize = Math.round(ch * 0.03);
+      
+      // 박스 크기
+      const boxW = Number(box.w) || cw;
+      const boxH = Number(box.h) || ch;
+      
+      // 박스 크기 비율 (캔버스 대비)
+      const widthRatio = boxW / cw;
+      const heightRatio = boxH / ch;
+      
+      // 작은 쪽 비율 사용 (더 제한적인 방향 기준)
+      const sizeRatio = Math.min(widthRatio, heightRatio);
+      
+      // 비율 조정 (0.3 이하면 축소, 1.0이면 기본 크기)
+      // 최소 비율 0.15에서 최소 폰트, 비율 0.5 이상이면 최대 폰트
+      const adjustedRatio = Math.max(0.4, Math.min(1.0, sizeRatio * 2));
+      
+      const fontSize = Math.round(baseFontSize * adjustedRatio);
+      
+      // 최소 20px, 최대 60px
+      return Math.max(20, Math.min(60, fontSize));
+    },
+
+    /**
      * 레이어 레이블 스타일
-     * - 폰트 크기: 논리 캔버스 기준 (canvasFontSize)
-     * - 위치: rowType에 따라 다름
-     *   - EFF(효과): 좌측 (left: 0)
-     *   - TXT(텍스트): 중앙 (left: 50%, transform: translateX(-50%))
-     *   - BG(배경): 우측 (right: 0)
+     * - 폰트 크기: 박스 크기에 비례
+     * - 위치: rowType별 (Effect→좌, Text→중앙, BG→우)
      */
     labelStyle(box) {
-      const fontSize = this.canvasFontSize;
-      const padding = Math.round(fontSize * 0.2);
+      const fontSize = this.calculateFontSize(box);
+      const padding = Math.round(fontSize * 0.15);
       
       const baseStyle = {
         position: 'absolute',
@@ -127,27 +153,26 @@ const PreviewCanvas = {
         whiteSpace: 'nowrap',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
-        maxWidth: '40%',
+        maxWidth: '90%',
         pointerEvents: 'none',
         textShadow: '0 2px 4px rgba(0,0,0,0.8)',
-        borderRadius: `${Math.round(fontSize * 0.15)}px ${Math.round(fontSize * 0.15)}px 0 0`
+        borderRadius: `${Math.round(fontSize * 0.1)}px ${Math.round(fontSize * 0.1)}px 0 0`
       };
 
-      // rowType별 위치 지정
       const rowType = box.rowType || '';
       
       if (rowType === 'EFF') {
-        // 효과: 좌측
+        // Effect: 좌측
         baseStyle.left = '0';
         baseStyle.right = 'auto';
         baseStyle.transform = 'none';
       } else if (rowType === 'TXT') {
-        // 텍스트: 중앙
+        // Text: 중앙
         baseStyle.left = '50%';
         baseStyle.right = 'auto';
         baseStyle.transform = 'translateX(-50%)';
       } else if (rowType === 'BG') {
-        // 배경: 우측
+        // BG: 우측
         baseStyle.left = 'auto';
         baseStyle.right = '0';
         baseStyle.transform = 'none';
@@ -163,24 +188,18 @@ const PreviewCanvas = {
 
     /**
      * 레이어 레이블 텍스트 생성
-     * - 형식: "layerName (rowType)" 예: "전체 (텍스트)"
+     * - rowType만 표시 (단 이름 제거)
      */
     getLabelText(box) {
-      const name = box.layerName || box.colRole || 'Layer';
       const typeMap = {
-        'EFF': '효과',
-        'TXT': '텍스트',
-        'BG': '배경'
+        'EFF': 'Effect',
+        'TXT': 'Text',
+        'BG': 'BG'
       };
-      const typeName = typeMap[box.rowType] || box.rowType || '';
-      return typeName ? `${name} (${typeName})` : name;
+      return typeMap[box.rowType] || box.rowType || 'Layer';
     },
 
-    /**
-     * 리사이즈 핸들 스타일 (논리 캔버스 기준 크기)
-     */
     handleStyle(pos) {
-      // 핸들 크기도 캔버스 기준으로 설정 (높이의 약 2.5%)
       const ch = (this.canvasSize && this.canvasSize.h) ? this.canvasSize.h : 1080;
       const size = Math.max(20, Math.min(40, Math.round(ch * 0.025)));
       const offset = -Math.round(size / 2);
@@ -208,27 +227,17 @@ const PreviewCanvas = {
       return style;
     },
 
-    /**
-     * 박스 우클릭 → 레이어 설정 모달 열기
-     * - ID: preview-canvas-box-{boxId}
-     * - data-action: js:openLayerConfig
-     */
     onBoxContextMenu(e, box) {
       e.preventDefault();
       e.stopPropagation();
       
-      // 박스 선택
       this.$emit('select-box', box.id);
       
-      // 레이어 설정 모달 열기 (AppRoot의 openLayerConfig 호출)
       if (this.$parent && typeof this.$parent.openLayerConfig === 'function') {
         this.$parent.openLayerConfig(box.id);
       }
     },
 
-    /**
-     * 박스 마우스다운 (드래그 시작)
-     */
     onBoxMouseDown(e, box) {
       if (e.target.classList.contains('box-handle')) return;
       e.preventDefault();
@@ -237,9 +246,6 @@ const PreviewCanvas = {
       this.startDrag('move', box, mx, my);
     },
 
-    /**
-     * 핸들 마우스다운 (리사이즈 시작)
-     */
     onHandleMouseDown(e, box, handle) {
       e.stopPropagation();
       e.preventDefault();
@@ -248,9 +254,6 @@ const PreviewCanvas = {
       this.startDrag('resize', box, mx, my, handle);
     },
 
-    /**
-     * 드래그/리사이즈 시작
-     */
     startDrag(mode, box, mx, my, handle = null) {
       this.dragging = true;
       this.dragMode = mode;
@@ -265,28 +268,145 @@ const PreviewCanvas = {
         h0: Number(box.h) || 0 
       };
 
-      // 플래시 상태 초기화
       this.edgeFlash = { top: false, bottom: false, left: false, right: false };
+      this.hideAllEdgeFlash();
 
       window.addEventListener('mousemove', this.onWindowMouseMove);
       window.addEventListener('mouseup', this.onWindowMouseUp);
     },
 
-    /**
-     * 외곽선 접촉 감지 및 플래시 트리거
-     * - 박스가 캔버스 경계에 닿으면 해당 방향 플래시
-     */
+    getBgAllowedRegion(colRole) {
+      const ch = (this.canvasSize && this.canvasSize.h) ? this.canvasSize.h : 1080;
+      const third = ch / 3;
+
+      if (colRole === 'high') {
+        return { minY: 0, maxY: third };
+      } else if (colRole === 'mid') {
+        return { minY: third, maxY: third * 2 };
+      } else if (colRole === 'low') {
+        return { minY: third * 2, maxY: ch };
+      }
+      return { minY: 0, maxY: ch };
+    },
+
+    applyBgConstraints(box, x, y, w, h) {
+      if (box.rowType !== 'BG') {
+        return { x, y, w, h };
+      }
+
+      const colRole = box.colRole || 'full';
+      const region = this.getBgAllowedRegion(colRole);
+
+      let newY = y;
+      let newH = h;
+
+      if (newY < region.minY) {
+        newY = region.minY;
+      }
+
+      if (newY + newH > region.maxY) {
+        if (newH > (region.maxY - region.minY)) {
+          newH = region.maxY - region.minY;
+          newY = region.minY;
+        } else {
+          newY = region.maxY - newH;
+        }
+      }
+
+      return { x, y: newY, w, h: newH };
+    },
+
+    applyMagnetSnap(currentBoxId, x, y, w, h) {
+      if (!this.isMagnetActive) {
+        return { x, y, w, h, snappedX: false, snappedY: false };
+      }
+
+      const cw = (this.canvasSize && this.canvasSize.w) ? this.canvasSize.w : 1920;
+      const ch = (this.canvasSize && this.canvasSize.h) ? this.canvasSize.h : 1080;
+      const snapDist = this.snapDistance;
+
+      let newX = x;
+      let newY = y;
+      let snappedX = false;
+      let snappedY = false;
+
+      const xLines = [0, cw / 2, cw];
+      const yLines = [0, ch / 2, ch];
+
+      if (this.canvasBoxes && Array.isArray(this.canvasBoxes)) {
+        this.canvasBoxes.forEach(box => {
+          if (box.id === currentBoxId || box.isHidden) return;
+          const bx = Number(box.x) || 0;
+          const by = Number(box.y) || 0;
+          const bw = Number(box.w) || 0;
+          const bh = Number(box.h) || 0;
+
+          xLines.push(bx);
+          xLines.push(bx + bw);
+          xLines.push(bx + bw / 2);
+
+          yLines.push(by);
+          yLines.push(by + bh);
+          yLines.push(by + bh / 2);
+        });
+      }
+
+      const boxLeft = x;
+      const boxRight = x + w;
+      const boxCenterX = x + w / 2;
+      const boxTop = y;
+      const boxBottom = y + h;
+      const boxCenterY = y + h / 2;
+
+      for (const line of xLines) {
+        if (Math.abs(boxLeft - line) < snapDist) {
+          newX = line;
+          snappedX = true;
+          break;
+        }
+        if (Math.abs(boxRight - line) < snapDist) {
+          newX = line - w;
+          snappedX = true;
+          break;
+        }
+        if (Math.abs(boxCenterX - line) < snapDist) {
+          newX = line - w / 2;
+          snappedX = true;
+          break;
+        }
+      }
+
+      for (const line of yLines) {
+        if (Math.abs(boxTop - line) < snapDist) {
+          newY = line;
+          snappedY = true;
+          break;
+        }
+        if (Math.abs(boxBottom - line) < snapDist) {
+          newY = line - h;
+          snappedY = true;
+          break;
+        }
+        if (Math.abs(boxCenterY - line) < snapDist) {
+          newY = line - h / 2;
+          snappedY = true;
+          break;
+        }
+      }
+
+      return { x: newX, y: newY, w, h, snappedX, snappedY };
+    },
+
     checkEdgeContact(x, y, w, h) {
       const cw = (this.canvasSize && this.canvasSize.w) ? this.canvasSize.w : 1920;
       const ch = (this.canvasSize && this.canvasSize.h) ? this.canvasSize.h : 1080;
-      const threshold = 2; // 접촉 판정 허용 오차 (px)
+      const threshold = 2;
 
       const touchTop = y <= threshold;
       const touchLeft = x <= threshold;
       const touchBottom = (y + h) >= (ch - threshold);
       const touchRight = (x + w) >= (cw - threshold);
 
-      // 새로 접촉한 경우에만 플래시 트리거
       if (touchTop && !this.edgeFlash.top) {
         this.triggerEdgeFlash('top');
       }
@@ -300,7 +420,19 @@ const PreviewCanvas = {
         this.triggerEdgeFlash('right');
       }
 
-      // 현재 접촉 상태 업데이트
+      if (!touchTop && this.edgeFlash.top) {
+        this.hideEdgeFlash('top');
+      }
+      if (!touchBottom && this.edgeFlash.bottom) {
+        this.hideEdgeFlash('bottom');
+      }
+      if (!touchLeft && this.edgeFlash.left) {
+        this.hideEdgeFlash('left');
+      }
+      if (!touchRight && this.edgeFlash.right) {
+        this.hideEdgeFlash('right');
+      }
+
       this.edgeFlash = {
         top: touchTop,
         bottom: touchBottom,
@@ -309,26 +441,49 @@ const PreviewCanvas = {
       };
     },
 
-    /**
-     * 외곽선 플래시 효과 트리거
-     * - 캔버스 scaler 요소에 flash 클래스 추가 후 0.5초 후 제거
-     */
-    triggerEdgeFlash(direction) {
-      const scaler = document.getElementById('preview-canvas-scaler');
-      if (!scaler) return;
+    checkBgRegionContact(box, x, y, w, h) {
+      if (box.rowType !== 'BG') return;
 
-      // 플래시 클래스 추가
-      scaler.classList.add('edge-flash-active');
+      const colRole = box.colRole || 'full';
+      if (colRole === 'full') return;
 
-      // 0.5초 후 제거
-      setTimeout(() => {
-        scaler.classList.remove('edge-flash-active');
-      }, 500);
+      const region = this.getBgAllowedRegion(colRole);
+      const threshold = 2;
+
+      const touchRegionTop = Math.abs(y - region.minY) <= threshold;
+      const touchRegionBottom = Math.abs((y + h) - region.maxY) <= threshold;
+
+      if (touchRegionTop) {
+        this.triggerEdgeFlash('top');
+      }
+      if (touchRegionBottom) {
+        this.triggerEdgeFlash('bottom');
+      }
     },
 
-    /**
-     * 윈도우 마우스 이동 (드래그/리사이즈 중)
-     */
+    triggerEdgeFlash(direction) {
+      const flashEl = document.getElementById(`preview-edge-flash-${direction}`);
+      if (flashEl) {
+        flashEl.classList.add('active');
+        setTimeout(() => {
+          flashEl.classList.remove('active');
+        }, 500);
+      }
+    },
+
+    hideEdgeFlash(direction) {
+      const flashEl = document.getElementById(`preview-edge-flash-${direction}`);
+      if (flashEl) {
+        flashEl.classList.remove('active');
+      }
+    },
+
+    hideAllEdgeFlash() {
+      ['top', 'bottom', 'left', 'right'].forEach(dir => {
+        this.hideEdgeFlash(dir);
+      });
+    },
+
     onWindowMouseMove(e) {
       if (!this.dragging) return;
 
@@ -342,15 +497,28 @@ const PreviewCanvas = {
       const cw = (this.canvasSize && this.canvasSize.w) ? this.canvasSize.w : 1920;
       const ch = (this.canvasSize && this.canvasSize.h) ? this.canvasSize.h : 1080;
 
+      const currentBox = this.canvasBoxes.find(b => b.id === this.dragBoxId);
+
       if (this.dragMode === 'move') {
         x += dx;
         y += dy;
         
-        // Clamping (캔버스 내부 제한)
         if (x < 0) x = 0;
         if (y < 0) y = 0;
         if (x + w > cw) x = cw - w;
         if (y + h > ch) y = ch - h;
+
+        const snapped = this.applyMagnetSnap(this.dragBoxId, x, y, w, h);
+        x = snapped.x;
+        y = snapped.y;
+
+        if (currentBox) {
+          const constrained = this.applyBgConstraints(currentBox, x, y, w, h);
+          x = constrained.x;
+          y = constrained.y;
+          w = constrained.w;
+          h = constrained.h;
+        }
 
       } else if (this.dragMode === 'resize') {
         const hdl = this.dragHandle;
@@ -378,29 +546,35 @@ const PreviewCanvas = {
           h += dy;
           if (y + h > ch) h = ch - y;
         }
+
+        if (currentBox) {
+          const constrained = this.applyBgConstraints(currentBox, x, y, w, h);
+          x = constrained.x;
+          y = constrained.y;
+          w = constrained.w;
+          h = constrained.h;
+        }
       }
 
-      // 최소 크기 제한 (10px)
       if (w < 10) w = 10;
       if (h < 10) h = 10;
 
-      // 외곽선 접촉 감지 및 플래시
       this.checkEdgeContact(x, y, w, h);
 
-      // 부모 컴포넌트에 업데이트 요청
+      if (currentBox) {
+        this.checkBgRegionContact(currentBox, x, y, w, h);
+      }
+
       if (this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
         this.$parent.updateBoxPosition(this.dragBoxId, x, y, w, h, null);
       }
     },
 
-    /**
-     * 윈도우 마우스 업 (드래그/리사이즈 종료)
-     */
     onWindowMouseUp() {
       this.dragging = false;
       this.dragMode = null;
-      // 플래시 상태 초기화
       this.edgeFlash = { top: false, bottom: false, left: false, right: false };
+      this.hideAllEdgeFlash();
       window.removeEventListener('mousemove', this.onWindowMouseMove);
       window.removeEventListener('mouseup', this.onWindowMouseUp);
     }
@@ -413,8 +587,15 @@ const PreviewCanvas = {
 
   template: `
     <div id="preview-canvas-scaler" :style="scalerStyle">
+      <!-- 면별 플래시 오버레이 -->
+      <div id="preview-edge-flash-top" class="edge-flash-overlay edge-flash-top"></div>
+      <div id="preview-edge-flash-bottom" class="edge-flash-overlay edge-flash-bottom"></div>
+      <div id="preview-edge-flash-left" class="edge-flash-overlay edge-flash-left"></div>
+      <div id="preview-edge-flash-right" class="edge-flash-overlay edge-flash-right"></div>
+
+      <!-- 레이어 박스들 (숨김 상태 제외) -->
       <div
-        v-for="box in canvasBoxes"
+        v-for="box in visibleBoxes"
         :key="box.id"
         :id="'preview-canvas-box-' + box.id"
         class="canvas-box"
@@ -423,7 +604,7 @@ const PreviewCanvas = {
         @contextmenu="onBoxContextMenu($event, box)"
         data-action="js:selectCanvasBox"
       >
-        <!-- 레이어 레이블 (하단 내부, rowType별 위치) -->
+        <!-- 레이어 레이블 (rowType만 표시, 위치별 배치) -->
         <div 
           class="canvas-label"
           :style="labelStyle(box)"

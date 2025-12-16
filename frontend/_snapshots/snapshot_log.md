@@ -57,3 +57,6 @@
 | 2025-12-16 10:01:54 | 20251216_100154_P381_SNAP | cell_context_menu_label_size_english |
 | 2025-12-16 10:06:32 | 20251216_100632_P383_SNAP | label_rowtype_only_size_ratio |
 | 2025-12-16 10:12:09 | 20251216_101209_P385_SNAP | remove_assets_header_properties_panel |
+| 2025-12-16 10:17:20 | 20251216_101720_P387_SNAP | fix_properties_panel_reference_error |
+| 2025-12-16 10:29:57 | 20251216_102957_P388_SNAP | 설명 |
+| 2025-12-16 10:41:52 | 20251216_104152_P394_SNAP | window-btn-chrome-style-layer-template-modal |
