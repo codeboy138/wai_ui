@@ -1,4 +1,4 @@
-// Image Asset Modal Component - 이미지 관리 (배경/인물/사물 탭) + 리사이징
+// Image Asset Modal Component - 이미지 관리 (배경/인물/사물 탭) + 리사이징 + 드래그
 
 const ImageAssetModal = {
     emits: ['close'],
@@ -88,12 +88,16 @@ const ImageAssetModal = {
                             <div 
                                 v-for="folder in assetFolders"
                                 :key="folder.id"
-                                class="flex items-center gap-1 px-2 py-1.5 rounded cursor-pointer text-[11px] transition-colors"
+                                class="flex items-center gap-1 px-2 py-1.5 rounded cursor-pointer text-[11px] transition-colors folder-drop-zone"
                                 :class="{
                                     'bg-ui-selected text-white': currentFolderId === folder.id,
-                                    'hover:bg-bg-hover': currentFolderId !== folder.id
+                                    'hover:bg-bg-hover': currentFolderId !== folder.id,
+                                    'drag-over': dragOverFolderId === folder.id
                                 }"
                                 @click="currentFolderId = folder.id"
+                                @dragover.prevent="onFolderDragOver($event, folder)"
+                                @dragleave="onFolderDragLeave($event, folder)"
+                                @drop.prevent="onFolderDrop($event, folder)"
                             >
                                 <i class="fa-solid fa-folder text-yellow-500"></i>
                                 <span class="truncate flex-1">{{ folder.name }}</span>
@@ -109,7 +113,11 @@ const ImageAssetModal = {
                     </div>
 
                     <!-- 우측: 이미지 목록 -->
-                    <div class="flex-1 flex flex-col bg-bg-dark overflow-hidden">
+                    <div 
+                        class="flex-1 flex flex-col bg-bg-dark overflow-hidden"
+                        @dragover.prevent="onContentPanelDragOver"
+                        @drop.prevent="onContentPanelDrop"
+                    >
                         <div class="flex items-center justify-between px-3 py-1.5 border-b border-ui-border bg-bg-panel text-[10px]">
                             <div class="flex items-center gap-4">
                                 <span class="cursor-pointer hover:text-ui-accent flex items-center gap-1" :class="{ 'text-ui-accent': sortBy === 'name' }" @click="toggleSort('name')">
@@ -122,7 +130,7 @@ const ImageAssetModal = {
                             <span class="text-text-sub">{{ filteredAssets.length }}개 항목</span>
                         </div>
 
-                        <div class="flex-1 overflow-auto p-3">
+                        <div class="flex-1 overflow-auto p-3" :class="{ 'drag-over': isContentPanelDragOver }">
                             <div v-if="filteredAssets.length === 0" class="flex flex-col items-center justify-center h-full text-text-sub opacity-50">
                                 <i class="fa-solid fa-image text-4xl mb-3"></i>
                                 <p class="text-[12px]">{{ currentCategoryLabel }} 이미지가 없습니다</p>
@@ -135,7 +143,7 @@ const ImageAssetModal = {
                                     v-for="asset in filteredAssets"
                                     :key="asset.id"
                                     class="asset-card"
-                                    :class="{ 'selected': selectedAssetId === asset.id, 'dragging': draggingAssetId === asset.id }"
+                                    :class="{ 'selected': selectedAssetId === asset.id }"
                                     @click="selectAsset(asset)"
                                     @dblclick="useAsset(asset)"
                                     draggable="true"
@@ -143,7 +151,7 @@ const ImageAssetModal = {
                                     @dragend="onDragEnd"
                                 >
                                     <div class="asset-thumbnail">
-                                        <img v-if="asset.src" :src="asset.src" class="w-full h-full object-cover" />
+                                        <img v-if="asset.src" :src="asset.src" class="w-full h-full object-cover" draggable="false" />
                                         <i v-else class="asset-thumbnail-icon fa-solid fa-image"></i>
                                     </div>
                                     <div class="asset-info">
@@ -159,7 +167,7 @@ const ImageAssetModal = {
                                     v-for="asset in filteredAssets"
                                     :key="asset.id"
                                     class="asset-card"
-                                    :class="{ 'selected': selectedAssetId === asset.id, 'dragging': draggingAssetId === asset.id }"
+                                    :class="{ 'selected': selectedAssetId === asset.id }"
                                     @click="selectAsset(asset)"
                                     @dblclick="useAsset(asset)"
                                     draggable="true"
@@ -185,7 +193,7 @@ const ImageAssetModal = {
                 <!-- 상태바 -->
                 <div class="px-4 py-2 border-t border-ui-border bg-bg-panel flex justify-between items-center text-[11px] rounded-b-lg">
                     <div class="text-text-sub">
-                        <span v-if="selectedAssetId">1개 선택됨 - 캔버스로 드래그하세요</span>
+                        <span v-if="selectedAssetId">1개 선택됨</span>
                         <span v-else>{{ currentCategoryLabel }} · {{ currentFolderName }}</span>
                     </div>
                     <div class="flex items-center gap-2">
@@ -212,7 +220,11 @@ const ImageAssetModal = {
             sortAsc: true,
             
             selectedAssetId: null,
-            draggingAssetId: null,
+            
+            // 드래그 상태
+            dragData: null,
+            dragOverFolderId: null,
+            isContentPanelDragOver: false,
             
             categoryTabs: [
                 { id: 'background', label: '배경', icon: 'fa-solid fa-panorama' },
@@ -345,29 +357,6 @@ const ImageAssetModal = {
             if (asset) this.useAsset(asset); 
         },
         
-        // 드래그앤드롭 - 캔버스로
-        onAssetDragStart(e, asset) {
-            this.draggingAssetId = asset.id;
-            e.dataTransfer.effectAllowed = 'copy';
-            e.dataTransfer.setData('text/wai-asset', JSON.stringify({ 
-                type: 'image', 
-                id: asset.id, 
-                name: asset.name,
-                resolution: asset.resolution,
-                category: asset.category
-            }));
-            
-            const dragImage = document.createElement('div');
-            dragImage.textContent = asset.name;
-            dragImage.style.cssText = 'position:absolute;top:-1000px;padding:8px 12px;background:#3b82f6;color:white;border-radius:4px;font-size:12px;';
-            document.body.appendChild(dragImage);
-            e.dataTransfer.setDragImage(dragImage, 0, 0);
-            setTimeout(() => document.body.removeChild(dragImage), 0);
-        },
-        onDragEnd() {
-            this.draggingAssetId = null;
-        },
-        
         async addAsset() {
             const { value: name } = await Swal.fire({ 
                 title: '새 이미지 추가', 
@@ -406,6 +395,56 @@ const ImageAssetModal = {
             const assets = this.dummyAssets.filter(a => a.category === this.currentCategory);
             if (folderId === 'all') return assets.length;
             return assets.filter(a => a.folderId === folderId).length;
+        },
+        
+        // 드래그앤드롭
+        onAssetDragStart(e, asset) {
+            this.dragData = { type: 'asset', asset };
+            e.dataTransfer.effectAllowed = 'copyMove';
+            e.dataTransfer.setData('text/wai-asset', JSON.stringify({ 
+                type: 'image', 
+                id: asset.id, 
+                name: asset.name,
+                src: asset.src || '',
+                resolution: asset.resolution || '',
+                category: asset.category
+            }));
+        },
+        onDragEnd() {
+            this.dragData = null;
+            this.dragOverFolderId = null;
+            this.isContentPanelDragOver = false;
+        },
+        onFolderDragOver(e, folder) {
+            e.preventDefault();
+            if (this.dragData) this.dragOverFolderId = folder.id;
+        },
+        onFolderDragLeave(e, folder) {
+            if (this.dragOverFolderId === folder.id) this.dragOverFolderId = null;
+        },
+        onFolderDrop(e, folder) {
+            e.preventDefault();
+            if (this.dragData && this.dragData.type === 'asset') {
+                this.moveAssetToFolder(this.dragData.asset, folder.id);
+            }
+            this.dragOverFolderId = null;
+            this.dragData = null;
+        },
+        onContentPanelDragOver(e) {
+            e.preventDefault();
+            this.isContentPanelDragOver = true;
+        },
+        onContentPanelDrop(e) {
+            e.preventDefault();
+            if (this.dragData && this.dragData.type === 'asset') {
+                this.moveAssetToFolder(this.dragData.asset, this.currentFolderId);
+            }
+            this.isContentPanelDragOver = false;
+            this.dragData = null;
+        },
+        moveAssetToFolder(asset, targetFolderId) {
+            const idx = this.dummyAssets.findIndex(a => a.id === asset.id);
+            if (idx !== -1) this.dummyAssets[idx].folderId = targetFolderId;
         }
     }
 };
