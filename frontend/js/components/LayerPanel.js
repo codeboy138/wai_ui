@@ -36,13 +36,13 @@ const LayerPanel = {
                 <div class="flex justify-between items-center mb-2">
                     <span
                         id="panel-right-layer-matrix-label"
-                        class="text-[10px] text-text-sub"
+                        class="text-xs text-text-sub"
                     >
                         매트릭스 (우클릭: 색상)
                     </span>
                     <button
                         id="panel-right-layer-addcol-btn"
-                        class="text-[10px] hover:text-white bg-ui-selected px-2 rounded"
+                        class="text-xs hover:text-white bg-ui-selected px-2 rounded"
                         @click.stop="addColumn"
                         data-action="js:layerAddColumn"
                     >
@@ -56,12 +56,12 @@ const LayerPanel = {
                     class="overflow-x-auto pb-2"
                 >
                     <div class="flex gap-1 mb-1 min-w-max">
-                        <div class="w-10 shrink-0"></div>
+                        <div class="w-16 shrink-0"></div>
                         <div
                             v-for="(col, i) in vm.layerCols"
                             :key="col.id"
                             :id="'panel-right-layer-col-' + col.id"
-                            class="w-[50px] text-center py-1 rounded text-[10px] font-bold text-white cursor-context-menu hover:brightness-110 relative group"
+                            class="w-16 text-center py-1 rounded text-xs font-bold text-white cursor-context-menu hover:brightness-110 relative group"
                             :style="{ backgroundColor: col.color }"
                             @contextmenu.prevent="openContextMenu($event, col.id, i)"
                         >
@@ -70,7 +70,7 @@ const LayerPanel = {
                                 type="text"
                                 :value="col.name"
                                 @input="updateColName(col.id, $event.target.value)"
-                                class="bg-transparent text-center w-full outline-none"
+                                class="bg-transparent text-center w-full outline-none text-xs font-bold"
                                 @click.stop
                             />
                             <div
@@ -90,7 +90,7 @@ const LayerPanel = {
                     >
                         <div
                             :id="'panel-right-layer-rowlabel-' + row.type"
-                            class="w-10 shrink-0 text-[9px] flex items-center justify-end pr-2 font-bold"
+                            class="w-16 shrink-0 text-xs flex items-center justify-end pr-2 font-bold"
                             :style="{ color: row.color }"
                         >
                             {{ row.label }}
@@ -103,13 +103,13 @@ const LayerPanel = {
                                 'opacity-100': isActive(i, row.type),
                                 'opacity-40 grayscale': !isActive(i, row.type)
                             }"
-                            class="w-[50px] h-6 border rounded flex flex-col items-center justify-center cursor-pointer hover:border-white transition-all"
+                            class="w-16 h-8 border rounded flex flex-col items-center justify-center cursor-pointer hover:border-white transition-all"
                             :style="cellStyle(i, row.type, col.color)"
                             @click="handleCellClick(i, row.type, col.color)"
                             data-action="js:layerAddBox"
                         >
                             <span
-                                class="text-[10px] font-bold text-white drop-shadow-md"
+                                class="text-xs font-bold text-white drop-shadow-md"
                                 style="text-shadow: 0 0 3px black"
                             >
                                 {{ getZIndexForCell(i, row.type) }}
@@ -156,10 +156,11 @@ const LayerPanel = {
             isCollapsed: false,
             contextMenu: null,
             // 12셀 구성: 전체(full) / 상단(high) / 중단(mid) / 하단(low) × EFF/TXT/BG
+            // 행 라벨 한글화: Effect→효과, Text→텍스트, BG→배경
             rows: [
-                { type: 'EFF', label: 'Effect', color: '#ef4444', zOffset: 80 },
-                { type: 'TXT', label: 'Text',   color: '#eab308', zOffset: 40 },
-                { type: 'BG',  label: 'BG',     color: '#3b82f6', zOffset: 20 }
+                { type: 'EFF', label: '효과', color: '#ef4444', zOffset: 80 },
+                { type: 'TXT', label: '텍스트', color: '#eab308', zOffset: 40 },
+                { type: 'BG',  label: '배경', color: '#3b82f6', zOffset: 20 }
             ],
             COLORS: COLORS
         };
