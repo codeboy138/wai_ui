@@ -14,13 +14,13 @@ const LayerPanel = {
                 data-action="js:toggleLayerPanelCollapse"
             >
                 <div class="flex items-center gap-2">
-                    <span class="text-xs font-bold text-text-main flex items-center gap-2">
+                    <span class="text-sm font-bold text-text-main flex items-center gap-2">
                         <i class="fa-solid fa-layer-group"></i> 레이어 관리
                     </span>
                     <span
                         v-if="vm.layerMainName"
                         id="panel-right-layer-mainname-badge"
-                        class="text-[10px] text-ui-accent border border-ui-accent px-1 rounded"
+                        class="text-xs text-ui-accent border border-ui-accent px-1 rounded"
                     >
                         {{ vm.layerMainName }}
                     </span>
@@ -32,17 +32,17 @@ const LayerPanel = {
             </div>
 
             <!-- 본문: 매트릭스 / 컬럼 / 템플릿 저장 -->
-            <div v-if="!isCollapsed" id="panel-right-layer-body" class="p-3">
-                <div class="flex justify-between items-center mb-2">
+            <div v-if="!isCollapsed" id="panel-right-layer-body" class="p-2">
+                <div class="flex justify-between items-center mb-1">
                     <span
                         id="panel-right-layer-matrix-label"
-                        class="text-xs text-text-sub"
+                        class="text-sm text-text-sub"
                     >
                         매트릭스 (우클릭: 색상)
                     </span>
                     <button
                         id="panel-right-layer-addcol-btn"
-                        class="text-xs hover:text-white bg-ui-selected px-2 rounded"
+                        class="text-sm hover:text-white bg-ui-selected px-2 rounded"
                         @click.stop="addColumn"
                         data-action="js:layerAddColumn"
                     >
@@ -53,15 +53,15 @@ const LayerPanel = {
                 <!-- 컬럼 헤더 행 -->
                 <div
                     id="panel-right-layer-matrix-container"
-                    class="overflow-x-auto pb-2"
+                    class="overflow-x-auto pb-1"
                 >
-                    <div class="flex gap-1 mb-1 min-w-max">
-                        <div class="w-16 shrink-0"></div>
+                    <div class="flex gap-px mb-px min-w-max">
+                        <div class="w-14 shrink-0"></div>
                         <div
                             v-for="(col, i) in vm.layerCols"
                             :key="col.id"
                             :id="'panel-right-layer-col-' + col.id"
-                            class="w-16 text-center py-1 rounded text-xs font-bold text-white cursor-context-menu hover:brightness-110 relative group"
+                            class="w-14 text-center py-px rounded text-sm font-bold text-white cursor-context-menu hover:brightness-110 relative group"
                             :style="{ backgroundColor: col.color }"
                             @contextmenu.prevent="openContextMenu($event, col.id, i)"
                         >
@@ -70,7 +70,7 @@ const LayerPanel = {
                                 type="text"
                                 :value="col.name"
                                 @input="updateColName(col.id, $event.target.value)"
-                                class="bg-transparent text-center w-full outline-none text-xs font-bold"
+                                class="bg-transparent text-center w-full outline-none text-sm font-bold"
                                 @click.stop
                             />
                             <div
@@ -86,11 +86,11 @@ const LayerPanel = {
                         v-for="row in rows"
                         :key="row.type"
                         :id="'panel-right-layer-row-' + row.type"
-                        class="flex gap-1 mb-1 min-w-max"
+                        class="flex gap-px mb-px min-w-max"
                     >
                         <div
                             :id="'panel-right-layer-rowlabel-' + row.type"
-                            class="w-16 shrink-0 text-xs flex items-center justify-end pr-2 font-bold"
+                            class="w-14 shrink-0 text-sm flex items-center justify-end pr-1 font-bold"
                             :style="{ color: row.color }"
                         >
                             {{ row.label }}
@@ -103,13 +103,13 @@ const LayerPanel = {
                                 'opacity-100': isActive(i, row.type),
                                 'opacity-40 grayscale': !isActive(i, row.type)
                             }"
-                            class="w-16 h-8 border rounded flex flex-col items-center justify-center cursor-pointer hover:border-white transition-all"
+                            class="w-14 h-6 border rounded flex flex-col items-center justify-center cursor-pointer hover:border-white transition-all"
                             :style="cellStyle(i, row.type, col.color)"
                             @click="handleCellClick(i, row.type, col.color)"
                             data-action="js:layerAddBox"
                         >
                             <span
-                                class="text-xs font-bold text-white drop-shadow-md"
+                                class="text-sm font-bold text-white drop-shadow-md"
                                 style="text-shadow: 0 0 3px black"
                             >
                                 {{ getZIndexForCell(i, row.type) }}
@@ -118,11 +118,20 @@ const LayerPanel = {
                     </div>
                 </div>
 
-                <!-- 템플릿 저장 버튼 -->
-                <div class="mt-2 flex justify-end">
+                <!-- 초기화 + 저장 버튼 -->
+                <div class="mt-2 flex justify-end gap-2">
+                    <button
+                        id="panel-right-layer-reset-btn"
+                        class="text-sm bg-ui-border text-text-sub hover:bg-ui-danger hover:text-white px-3 py-1 rounded transition-colors"
+                        @click="resetAllLayers"
+                        data-action="js:layerResetAll"
+                        title="캔버스의 모든 레이어를 삭제합니다"
+                    >
+                        초기화
+                    </button>
                     <button
                         id="panel-right-layer-save-template-btn"
-                        class="text-xs bg-ui-accent text-white px-3 py-1 rounded hover:bg-blue-600"
+                        class="text-sm bg-ui-accent text-white px-3 py-1 rounded hover:bg-blue-600"
                         @click="saveLayerTemplate"
                         data-action="js:layerSaveTemplate"
                     >
@@ -234,6 +243,56 @@ const LayerPanel = {
                 box.colId === colId ? { ...box, color: color } : box
             );
             this.contextMenu = null;
+        },
+
+        /**
+         * 초기화: 캔버스의 모든 레이어(박스)를 삭제
+         * - ID: panel-right-layer-reset-btn
+         * - data-action: js:layerResetAll
+         * - 기능: vm.canvasBoxes 배열을 빈 배열로 초기화
+         * - 확인 다이얼로그 표시 후 실행
+         */
+        async resetAllLayers() {
+            if (this.vm.canvasBoxes.length === 0) {
+                Swal.fire({
+                    icon: 'info',
+                    title: '삭제할 레이어가 없습니다',
+                    background: '#1e1e1e',
+                    color: '#fff',
+                    confirmButtonColor: '#3b82f6'
+                });
+                return;
+            }
+
+            const result = await Swal.fire({
+                title: '레이어 초기화',
+                text: `캔버스의 모든 레이어(${this.vm.canvasBoxes.length}개)를 삭제하시겠습니까?`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: '초기화',
+                cancelButtonText: '취소',
+                background: '#1e1e1e',
+                color: '#fff',
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#3b82f6'
+            });
+
+            if (result.isConfirmed) {
+                // 모든 레이어 삭제
+                this.vm.canvasBoxes = [];
+                this.vm.selectedBoxId = null;
+
+                Swal.fire({
+                    icon: 'success',
+                    title: '초기화 완료',
+                    text: '모든 레이어가 삭제되었습니다',
+                    background: '#1e1e1e',
+                    color: '#fff',
+                    confirmButtonColor: '#3b82f6',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+            }
         },
 
         // 레이어 매트릭스 JSON 스냅샷 생성
