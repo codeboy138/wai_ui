@@ -231,6 +231,8 @@
 
         .nav-btn { @apply px-3 py-1 text-xs text-text-sub hover:text-text-main hover:bg-ui-selected rounded transition-colors cursor-pointer h-full flex items-center; }
         .nav-btn.active { @apply text-text-main font-bold bg-bg-hover; }
+        /* [작업 4] 메인메뉴 호버 시 백색 보더 */
+        .nav-btn:hover { border: 1px solid #ffffff; }
 
         .win-btn { 
             width: 46px; 
@@ -292,11 +294,13 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            transition: background-color 0.15s, color 0.15s;
+            transition: background-color 0.15s, color 0.15s, border 0.15s;
+            border: 1px solid transparent;
         }
         .header-menu-item:hover {
             background-color: #3b82f6;
             color: white;
+            border: 1px solid #ffffff;
         }
         .header-menu-item:last-child {
             border-radius: 0 0 4px 4px;
@@ -326,11 +330,13 @@
             font-size: 12px;
             color: #a1a1aa;
             cursor: pointer;
-            transition: background-color 0.15s, color 0.15s;
+            transition: background-color 0.15s, color 0.15s, border 0.15s;
+            border: 1px solid transparent;
         }
         .header-submenu-item:hover {
             background-color: #3b82f6;
             color: white;
+            border: 1px solid #ffffff;
         }
         .header-submenu-item:first-child {
             border-radius: 4px 4px 0 0;
@@ -361,6 +367,7 @@
         .layer-template-window-large { width: 900px; height: 600px; max-width: 95vw; max-height: 90vh; }
         .project-manager-window { width: 900px; height: 600px; max-width: 95vw; max-height: 90vh; }
         .asset-manager-window { width: 1000px; height: 650px; max-width: 95vw; max-height: 90vh; }
+        .api-manager-window { width: 800px; height: 600px; max-width: 95vw; max-height: 90vh; }
 
         .animate-fade-in { animation: fadeIn 0.2s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -402,6 +409,21 @@
 
         .folder-drop-zone { transition: background-color 0.15s, border-color 0.15s; }
         .folder-drop-zone.drag-over { background-color: rgba(59, 130, 246, 0.2); border-color: #3b82f6; }
+        
+        /* API Manager Styles */
+        .api-card {
+            background: #27272a;
+            border: 1px solid #3f3f46;
+            border-radius: 8px;
+            padding: 16px;
+            transition: border-color 0.15s;
+        }
+        .api-card:hover { border-color: #3b82f6; }
+        .api-card.active { border-color: #22c55e; box-shadow: 0 0 0 1px #22c55e; }
+        .api-key-input {
+            font-family: monospace;
+            letter-spacing: 1px;
+        }
     </style>
 </head>
 
@@ -417,10 +439,12 @@
                     <button class="text-lg text-text-sub hover:text-text-main" title="메인 메뉴 (준비 중)"><i class="fa-solid fa-bars"></i></button>
                 </div>
 
+                <!-- [작업 3] 메인메뉴 순서: 탐색, 제작, 자산, 운영, 연구, 설정 -->
                 <nav id="header-nav-container" class="flex items-center gap-[15px] h-full">
+                    <!-- 탐색 -->
                     <button id="header-nav-explore-btn" class="nav-btn hover:text-white text-text-sub" @click="firePython('nav_explore')" data-action="py:nav_explore" title="프로젝트 탐색 열기">탐색</button>
                     
-                    <!-- 제작 메뉴 (화살표 제거) -->
+                    <!-- 제작 메뉴 -->
                     <div id="header-nav-create-wrapper" class="header-menu-wrapper h-full" :class="{ 'open': headerMenus.create }">
                         <button id="header-nav-create-btn" class="nav-btn hover:text-white" :class="{ 'active': headerMenus.create }" @click="toggleHeaderMenu('create')" data-action="js:toggleCreateMenu" title="제작 메뉴">
                             제작
@@ -432,7 +456,7 @@
                         </div>
                     </div>
                     
-                    <!-- 자산 메뉴 (화살표 제거) -->
+                    <!-- 자산 메뉴 -->
                     <div id="header-nav-assets-wrapper" class="header-menu-wrapper h-full" :class="{ 'open': headerMenus.assets }">
                         <button id="header-nav-assets-btn" class="nav-btn hover:text-white" :class="{ 'active': headerMenus.assets }" @click="toggleHeaderMenu('assets')" data-action="js:toggleAssetsMenu" title="자산 메뉴">
                             자산
@@ -445,15 +469,40 @@
                                 </div>
                                 <div class="header-submenu">
                                     <div id="header-submenu-asset-video" class="header-submenu-item" @click="openAssetManager('video')" data-action="js:openAssetManagerVideo">영상</div>
-                                    <div id="header-submenu-asset-image" class="header-submenu-item" @click="openAssetManager('image')" data-action="js:openAssetManagerImage">이미지</div>
+                                    <div id="header-submenu-asset-image" class="header-submenu-item" @click="openImageAssetModal" data-action="js:openImageAssetModal">이미지</div>
                                     <div id="header-submenu-asset-sound" class="header-submenu-item" @click="openAssetManager('sound')" data-action="js:openAssetManagerSound">사운드</div>
+                                    <div id="header-submenu-asset-effect" class="header-submenu-item" @click="openImageEffectModal" data-action="js:openImageEffectModal">이미지효과</div>
                                 </div>
+                            </div>
+                            <div id="header-menu-assets-visualization" class="header-menu-item" @click="openVisualizationModal" data-action="js:openVisualizationModal">
+                                <span>시각화</span>
                             </div>
                         </div>
                     </div>
                     
-                    <button id="header-nav-settings-btn" class="nav-btn hover:text-white text-text-sub" @click="firePython('nav_settings')" data-action="py:nav_settings" title="설정 패널 열기">설정</button>
+                    <!-- 운영 -->
+                    <button id="header-nav-operation-btn" class="nav-btn hover:text-white text-text-sub" @click="firePython('nav_operation')" data-action="py:nav_operation" title="운영 패널 열기">운영</button>
+                    
+                    <!-- 연구 -->
                     <button id="header-nav-research-btn" class="nav-btn hover:text-white text-text-sub" @click="firePython('nav_research')" data-action="py:nav_research" title="연구 패널 열기">연구</button>
+                    
+                    <!-- 설정 메뉴 -->
+                    <div id="header-nav-settings-wrapper" class="header-menu-wrapper h-full" :class="{ 'open': headerMenus.settings }">
+                        <button id="header-nav-settings-btn" class="nav-btn hover:text-white" :class="{ 'active': headerMenus.settings }" @click="toggleHeaderMenu('settings')" data-action="js:toggleSettingsMenu" title="설정 메뉴">
+                            설정
+                        </button>
+                        <div class="header-menu-dropdown">
+                            <div id="header-menu-settings-api" class="header-menu-item" @click="openApiManagerModal" data-action="js:openApiManagerModal">
+                                <span>API 관리</span>
+                            </div>
+                            <div id="header-menu-settings-account" class="header-menu-item" @click="openAccountManager" data-action="js:openAccountManager">
+                                <span>계정관리</span>
+                            </div>
+                            <div id="header-menu-settings-logout" class="header-menu-item" @click="handleLogout" data-action="js:handleLogout">
+                                <span>로그아웃</span>
+                            </div>
+                        </div>
+                    </div>
                 </nav>
             </div>
 
@@ -554,12 +603,36 @@
             @update-folders="updateLayerTemplateFolders"
         ></layer-template-modal>
 
-        <!-- 자산 관리 모달 -->
+        <!-- 자산 관리 모달 (영상/사운드) -->
         <asset-manager-modal
             v-if="assetManagerModal.isOpen"
             :asset-type="assetManagerModal.assetType"
             @close="closeAssetManager"
         ></asset-manager-modal>
+
+        <!-- 이미지 자산 관리 모달 -->
+        <image-asset-modal
+            v-if="imageAssetModal.isOpen"
+            @close="closeImageAssetModal"
+        ></image-asset-modal>
+
+        <!-- 이미지효과 관리 모달 -->
+        <image-effect-modal
+            v-if="imageEffectModal.isOpen"
+            @close="closeImageEffectModal"
+        ></image-effect-modal>
+
+        <!-- 시각화 관리 모달 -->
+        <visualization-modal
+            v-if="visualizationModal.isOpen"
+            @close="closeVisualizationModal"
+        ></visualization-modal>
+
+        <!-- API 관리 모달 -->
+        <api-manager-modal
+            v-if="apiManagerModal.isOpen"
+            @close="closeApiManagerModal"
+        ></api-manager-modal>
 
         <!-- Inspector / Dev Overlay -->
         <div class="dev-overlay" id="dev-overlay-root" v-if="inspector.tag">
@@ -589,6 +662,10 @@
     <script src="js/components/RulerLine.js"></script>
     <script src="js/components/ProjectModal.js"></script>
     <script src="js/components/AssetManagerModal.js"></script>
+    <script src="js/components/ImageAssetModal.js"></script>
+    <script src="js/components/ImageEffectModal.js"></script>
+    <script src="js/components/VisualizationModal.js"></script>
+    <script src="js/components/ApiManagerModal.js"></script>
     <script src="js/components/LayerConfigModal.js"></script>
     <script src="js/components/LayerTemplateModal.js"></script>
     <script src="js/components/LayerPanel.js"></script>
