@@ -142,4 +142,303 @@ const AssetManagerModal = {
                             <div v-if="filteredAssets.length === 0" class="flex flex-col items-center justify-center h-full text-text-sub opacity-50">
                                 <i :class="assetTypeIcon" class="text-4xl mb-3"></i>
                                 <p class="text-[12px]">{{ assetTypeLabel }}이(가) 없습니다</p>
-                                <p class="text-[11px] mt-
+                                <p class="text-[11px] mt-1">파일을 추가하거나 드래그하여 가져오세요</p>
+                            </div>
+
+                            <!-- 그리드 보기 -->
+                            <div v-else-if="viewMode === 'grid'" class="asset-grid view-grid">
+                                <div
+                                    v-for="asset in filteredAssets"
+                                    :key="asset.id"
+                                    class="asset-card"
+                                    :class="{ 'selected': selectedAssetId === asset.id, 'dragging': draggingAssetId === asset.id }"
+                                    @click="selectAsset(asset)"
+                                    @dblclick="useAsset(asset)"
+                                    draggable="true"
+                                    @dragstart="onAssetDragStart($event, asset)"
+                                    @dragend="onDragEnd"
+                                >
+                                    <div class="asset-thumbnail" :class="{ 'aspect-square': assetType === 'sound' }">
+                                        <template v-if="assetType === 'video'">
+                                            <video v-if="previewEnabled && asset.src" :src="asset.src" class="w-full h-full object-cover" muted loop @mouseenter="$event.target.play()" @mouseleave="$event.target.pause(); $event.target.currentTime = 0;"></video>
+                                            <i v-else class="asset-thumbnail-icon fa-solid fa-film"></i>
+                                        </template>
+                                        <template v-else-if="assetType === 'sound'">
+                                            <div v-if="previewEnabled" class="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-900/30 to-blue-900/30 relative" @click.stop="toggleAudioPreview(asset)">
+                                                <div class="flex items-end gap-0.5 h-8">
+                                                    <div v-for="i in 5" :key="i" class="w-1 bg-ui-accent rounded-t" :style="{ height: '30%' }"></div>
+                                                </div>
+                                                <i class="fa-solid fa-play absolute text-white text-xl drop-shadow-lg"></i>
+                                            </div>
+                                            <i v-else class="asset-thumbnail-icon fa-solid fa-music"></i>
+                                        </template>
+                                    </div>
+                                    <div class="asset-info">
+                                        <div class="asset-name">{{ asset.name }}</div>
+                                        <div class="asset-meta">{{ asset.duration || '' }}<span v-if="asset.resolution"> · {{ asset.resolution }}</span></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 리스트 보기 -->
+                            <div v-else class="asset-grid view-list">
+                                <div
+                                    v-for="asset in filteredAssets"
+                                    :key="asset.id"
+                                    class="asset-card"
+                                    :class="{ 'selected': selectedAssetId === asset.id, 'dragging': draggingAssetId === asset.id }"
+                                    @click="selectAsset(asset)"
+                                    @dblclick="useAsset(asset)"
+                                    draggable="true"
+                                    @dragstart="onAssetDragStart($event, asset)"
+                                    @dragend="onDragEnd"
+                                >
+                                    <div class="asset-thumbnail">
+                                        <i :class="assetTypeIcon" class="asset-thumbnail-icon"></i>
+                                    </div>
+                                    <div class="asset-info">
+                                        <div class="flex-1">
+                                            <div class="asset-name">{{ asset.name }}</div>
+                                            <div class="asset-meta">{{ asset.duration || '' }}</div>
+                                        </div>
+                                        <div class="text-[10px] text-text-sub">{{ asset.resolution || '' }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 상태바 -->
+                <div class="px-4 py-2 border-t border-ui-border bg-bg-panel flex justify-between items-center text-[11px] rounded-b-lg">
+                    <div class="text-text-sub">
+                        <span v-if="selectedAssetId">1개 선택됨 - 캔버스나 타임라인으로 드래그하세요</span>
+                        <span v-else>{{ currentFolderName }}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button v-if="selectedAssetId" class="px-3 py-1 bg-ui-accent text-white rounded hover:bg-blue-600 transition-colors" @click="useSelectedAsset">사용</button>
+                        <button class="px-3 py-1 bg-bg-input border border-ui-border text-text-sub rounded hover:bg-bg-hover transition-colors" @click="$emit('close')">닫기</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `,
+    data() {
+        return {
+            posX: 0, posY: 0,
+            width: 1000, height: 650,
+            minWidth: 600, minHeight: 400,
+            dragging: false, dragStartMouseX: 0, dragStartMouseY: 0, dragStartPosX: 0, dragStartPosY: 0,
+            resizing: false, resizeDir: '', resizeStartX: 0, resizeStartY: 0, resizeStartW: 0, resizeStartH: 0, resizeStartPosX: 0, resizeStartPosY: 0,
+            
+            currentFolderId: 'all',
+            viewMode: 'grid',
+            searchQuery: '',
+            sortBy: 'name',
+            sortAsc: true,
+            previewEnabled: true,
+            
+            selectedAssetId: null,
+            draggingAssetId: null,
+            
+            dragData: null,
+            dragOverFolderId: null,
+            isContentPanelDragOver: false,
+            
+            assetFolders: [
+                { id: 'all', name: '전체' },
+                { id: 'recent', name: '최근 사용' },
+                { id: 'favorites', name: '즐겨찾기' }
+            ],
+            
+            dummyAssets: {
+                video: [
+                    { id: 'v1', name: 'intro_animation.mp4', duration: '00:15', resolution: '4K', folderId: 'all' },
+                    { id: 'v2', name: 'background_loop.mp4', duration: '00:30', resolution: 'FHD', folderId: 'all' },
+                    { id: 'v3', name: 'transition_01.mov', duration: '00:02', resolution: '4K', folderId: 'all' }
+                ],
+                sound: [
+                    { id: 's1', name: 'bgm_corporate.mp3', duration: '03:24', folderId: 'all' },
+                    { id: 's2', name: 'sfx_whoosh.wav', duration: '00:02', folderId: 'all' },
+                    { id: 's3', name: 'voiceover_intro.mp3', duration: '00:45', folderId: 'all' }
+                ]
+            }
+        };
+    },
+    computed: {
+        windowStyle() { 
+            return { 
+                position: 'absolute', 
+                left: this.posX + 'px', 
+                top: this.posY + 'px',
+                width: this.width + 'px',
+                height: this.height + 'px'
+            }; 
+        },
+        assetTypeIcon() { return { video: 'fa-solid fa-film', sound: 'fa-solid fa-music' }[this.assetType] || 'fa-solid fa-file'; },
+        assetTypeTitle() { return { video: '영상', sound: '사운드' }[this.assetType] || '자산'; },
+        assetTypeLabel() { return { video: '영상', sound: '사운드' }[this.assetType] || '자산'; },
+        previewToggleLabel() { return this.assetType === 'sound' ? '미리듣기' : '미리보기'; },
+        currentFolderName() { const folder = this.assetFolders.find(f => f.id === this.currentFolderId); return folder ? folder.name : '전체'; },
+        filteredAssets() {
+            let assets = this.dummyAssets[this.assetType] || [];
+            if (this.currentFolderId !== 'all') assets = assets.filter(a => a.folderId === this.currentFolderId);
+            if (this.searchQuery) { const q = this.searchQuery.toLowerCase(); assets = assets.filter(a => a.name.toLowerCase().includes(q)); }
+            assets = [...assets].sort((a, b) => { let cmp = this.sortBy === 'name' ? a.name.localeCompare(b.name) : 0; return this.sortAsc ? cmp : -cmp; });
+            return assets;
+        }
+    },
+    mounted() {
+        this.centerWindow();
+        document.addEventListener('mousemove', this.onGlobalMouseMove);
+        document.addEventListener('mouseup', this.onGlobalMouseUp);
+    },
+    beforeUnmount() {
+        document.removeEventListener('mousemove', this.onGlobalMouseMove);
+        document.removeEventListener('mouseup', this.onGlobalMouseUp);
+    },
+    methods: {
+        centerWindow() {
+            const vw = window.innerWidth || 1280;
+            const vh = window.innerHeight || 720;
+            this.posX = Math.max(20, (vw - this.width) / 2);
+            this.posY = Math.max(20, (vh - this.height) / 2);
+        },
+        onHeaderMouseDown(e) {
+            this.dragging = true;
+            this.dragStartMouseX = e.clientX; this.dragStartMouseY = e.clientY;
+            this.dragStartPosX = this.posX; this.dragStartPosY = this.posY;
+        },
+        startResize(e, dir) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.resizing = true;
+            this.resizeDir = dir;
+            this.resizeStartX = e.clientX;
+            this.resizeStartY = e.clientY;
+            this.resizeStartW = this.width;
+            this.resizeStartH = this.height;
+            this.resizeStartPosX = this.posX;
+            this.resizeStartPosY = this.posY;
+        },
+        onGlobalMouseMove(e) {
+            if (this.dragging) {
+                this.posX = this.dragStartPosX + (e.clientX - this.dragStartMouseX);
+                this.posY = this.dragStartPosY + (e.clientY - this.dragStartMouseY);
+            }
+            if (this.resizing) {
+                const dx = e.clientX - this.resizeStartX;
+                const dy = e.clientY - this.resizeStartY;
+                const dir = this.resizeDir;
+                
+                let newW = this.resizeStartW;
+                let newH = this.resizeStartH;
+                let newX = this.resizeStartPosX;
+                let newY = this.resizeStartPosY;
+                
+                if (dir.includes('e')) newW = Math.max(this.minWidth, this.resizeStartW + dx);
+                if (dir.includes('w')) { newW = Math.max(this.minWidth, this.resizeStartW - dx); newX = this.resizeStartPosX + (this.resizeStartW - newW); }
+                if (dir.includes('s')) newH = Math.max(this.minHeight, this.resizeStartH + dy);
+                if (dir.includes('n')) { newH = Math.max(this.minHeight, this.resizeStartH - dy); newY = this.resizeStartPosY + (this.resizeStartH - newH); }
+                
+                this.width = newW;
+                this.height = newH;
+                this.posX = newX;
+                this.posY = newY;
+            }
+        },
+        onGlobalMouseUp() { this.dragging = false; this.resizing = false; },
+        
+        toggleSort(field) { if (this.sortBy === field) this.sortAsc = !this.sortAsc; else { this.sortBy = field; this.sortAsc = true; } },
+        selectAsset(asset) { this.selectedAssetId = asset.id; },
+        
+        useAsset(asset) {
+            Swal.fire({ icon: 'success', title: '자산 사용', text: `"${asset.name}"을(를) 타임라인에 추가합니다.`, background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6', timer: 1500, showConfirmButton: false });
+            this.$emit('close');
+        },
+        useSelectedAsset() { const asset = this.filteredAssets.find(a => a.id === this.selectedAssetId); if (asset) this.useAsset(asset); },
+        
+        async addAsset() {
+            const { value: name } = await Swal.fire({ title: '새 ' + this.assetTypeLabel + ' 추가', input: 'text', inputPlaceholder: '파일명', showCancelButton: true, background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6' });
+            if (name) { 
+                if (!this.dummyAssets[this.assetType]) this.dummyAssets[this.assetType] = [];
+                this.dummyAssets[this.assetType].push({ id: `${this.assetType}_${Date.now()}`, name, folderId: this.currentFolderId, duration: '00:00' }); 
+            }
+        },
+        
+        async createFolder() {
+            const { value: name } = await Swal.fire({ title: '새 폴더', input: 'text', inputPlaceholder: '폴더 이름', showCancelButton: true, background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6' });
+            if (name) { this.assetFolders.push({ id: `folder_${Date.now()}`, name }); }
+        },
+        
+        getFolderAssetCount(folderId) {
+            const assets = this.dummyAssets[this.assetType] || [];
+            if (folderId === 'all') return assets.length;
+            return assets.filter(a => a.folderId === folderId).length;
+        },
+        
+        toggleAudioPreview(asset) { console.log('Playing audio:', asset.name); },
+        
+        // 드래그앤드롭 - 캔버스/타임라인으로
+        onAssetDragStart(e, asset) {
+            this.draggingAssetId = asset.id;
+            this.dragData = { type: 'asset', asset };
+            e.dataTransfer.effectAllowed = 'copyMove';
+            e.dataTransfer.setData('text/wai-asset', JSON.stringify({ 
+                type: this.assetType, 
+                id: asset.id, 
+                name: asset.name,
+                duration: asset.duration,
+                resolution: asset.resolution
+            }));
+            
+            // 드래그 이미지 설정
+            const dragImage = document.createElement('div');
+            dragImage.textContent = asset.name;
+            dragImage.style.cssText = 'position:absolute;top:-1000px;padding:8px 12px;background:#3b82f6;color:white;border-radius:4px;font-size:12px;';
+            document.body.appendChild(dragImage);
+            e.dataTransfer.setDragImage(dragImage, 0, 0);
+            setTimeout(() => document.body.removeChild(dragImage), 0);
+        },
+        onDragEnd() {
+            this.dragData = null;
+            this.dragOverFolderId = null;
+            this.isContentPanelDragOver = false;
+            this.draggingAssetId = null;
+        },
+        onFolderDragOver(e, folder) {
+            e.preventDefault();
+            if (this.dragData) this.dragOverFolderId = folder.id;
+        },
+        onFolderDragLeave(e, folder) {
+            if (this.dragOverFolderId === folder.id) this.dragOverFolderId = null;
+        },
+        onFolderDrop(e, folder) {
+            e.preventDefault();
+            if (this.dragData && this.dragData.type === 'asset') {
+                this.moveAssetToFolder(this.dragData.asset, folder.id);
+            }
+            this.dragOverFolderId = null;
+            this.dragData = null;
+        },
+        onContentPanelDragOver(e) {
+            e.preventDefault();
+            this.isContentPanelDragOver = true;
+        },
+        onContentPanelDrop(e) {
+            e.preventDefault();
+            if (this.dragData && this.dragData.type === 'asset') {
+                this.moveAssetToFolder(this.dragData.asset, this.currentFolderId);
+            }
+            this.isContentPanelDragOver = false;
+            this.dragData = null;
+        },
+        moveAssetToFolder(asset, targetFolderId) {
+            const assets = this.dummyAssets[this.assetType] || [];
+            const idx = assets.findIndex(a => a.id === asset.id);
+            if (idx !== -1) assets[idx].folderId = targetFolderId;
+        }
+    }
+};
+
+window.AssetManagerModal = AssetManagerModal;
