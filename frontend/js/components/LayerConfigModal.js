@@ -132,6 +132,55 @@ const LayerConfigModal = {
                 </div>
 
                 <div class="flex-1 overflow-auto px-3 py-2 space-y-3">
+                    <!-- 미디어 설정 (이미지/동영상) -->
+                    <div class="border border-ui-border rounded p-2 bg-bg-dark/30">
+                        <div class="text-[10px] text-text-sub mb-2 font-bold">미디어</div>
+                        <div class="space-y-2">
+                            <div class="flex items-center gap-2">
+                                <select 
+                                    v-model="box.mediaType" 
+                                    class="flex-1 h-6 bg-bg-input border border-ui-border rounded px-2 text-[10px]"
+                                    @mousedown.stop @click.stop
+                                >
+                                    <option value="none">없음</option>
+                                    <option value="image">이미지</option>
+                                    <option value="video">동영상</option>
+                                </select>
+                                <select 
+                                    v-model="box.mediaFit" 
+                                    class="w-20 h-6 bg-bg-input border border-ui-border rounded px-1 text-[10px]"
+                                    @mousedown.stop @click.stop
+                                >
+                                    <option value="cover">채우기</option>
+                                    <option value="contain">맞추기</option>
+                                    <option value="fill">늘리기</option>
+                                </select>
+                            </div>
+                            <div v-if="box.mediaType && box.mediaType !== 'none'" class="flex items-center gap-2">
+                                <input 
+                                    type="text" 
+                                    v-model="box.mediaSrc"
+                                    class="flex-1 h-6 bg-bg-input border border-ui-border rounded px-2 text-[10px]"
+                                    placeholder="URL 또는 파일 경로..."
+                                    @mousedown.stop @click.stop
+                                />
+                                <label class="px-2 h-6 bg-ui-accent text-white rounded text-[10px] flex items-center cursor-pointer hover:bg-blue-600">
+                                    <i class="fa-solid fa-upload mr-1"></i>
+                                    <span>선택</span>
+                                    <input 
+                                        type="file" 
+                                        :accept="box.mediaType === 'image' ? 'image/*' : 'video/*'"
+                                        class="hidden"
+                                        @change="onMediaFileSelect"
+                                    />
+                                </label>
+                            </div>
+                            <div v-if="box.mediaSrc" class="text-[9px] text-text-sub truncate">
+                                {{ box.mediaSrc.substring(0, 50) }}{{ box.mediaSrc.length > 50 ? '...' : '' }}
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- 텍스트 입력 필드 (텍스트 레이어만) -->
                     <div v-if="isTextLayer">
                         <label class="block text-[10px] mb-1 text-text-sub">텍스트 내용</label>
@@ -150,17 +199,31 @@ const LayerConfigModal = {
                     <div v-if="isTextLayer" class="border border-ui-border rounded p-2 bg-bg-dark/30">
                         <div class="text-[10px] text-text-sub mb-2 font-bold">텍스트 스타일</div>
                         <div class="space-y-2">
+                            <!-- 폰트 크기, 테두리 두께 -->
                             <div class="grid grid-cols-2 gap-2">
                                 <div class="flex flex-col">
-                                    <span class="text-[10px] text-text-sub mb-0.5">폰트 크기 (px)</span>
-                                    <input type="number" min="1" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]" v-model.number="pixelFontSize" @mousedown.stop @click.stop />
+                                    <span class="text-[9px] text-text-sub mb-0.5">폰트 크기 (px)</span>
+                                    <input type="number" min="1" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="pixelFontSize" @mousedown.stop @click.stop />
                                 </div>
                                 <div class="flex flex-col">
-                                    <span class="text-[10px] text-text-sub mb-0.5">테두리 두께 (px)</span>
-                                    <input type="number" min="0" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]" v-model.number="box.textStyle.strokeWidth" @mousedown.stop @click.stop />
+                                    <span class="text-[9px] text-text-sub mb-0.5">테두리 (px)</span>
+                                    <input type="number" min="0" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="box.textStyle.strokeWidth" @mousedown.stop @click.stop />
                                 </div>
                             </div>
 
+                            <!-- 글자간, 행간 -->
+                            <div class="grid grid-cols-2 gap-2">
+                                <div class="flex flex-col">
+                                    <span class="text-[9px] text-text-sub mb-0.5">글자간격 (px)</span>
+                                    <input type="number" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="letterSpacing" @mousedown.stop @click.stop />
+                                </div>
+                                <div class="flex flex-col">
+                                    <span class="text-[9px] text-text-sub mb-0.5">행간 (배수)</span>
+                                    <input type="number" min="0.5" max="5" step="0.1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="lineHeight" @mousedown.stop @click.stop />
+                                </div>
+                            </div>
+
+                            <!-- 색상들 -->
                             <div class="grid grid-cols-3 gap-1">
                                 <div class="flex flex-col">
                                     <span class="text-[9px] text-text-sub mb-0.5">텍스트 색상</span>
@@ -226,20 +289,20 @@ const LayerConfigModal = {
                         <label class="block text-[10px] mb-1 text-text-sub">좌표 / 크기 (px)</label>
                         <div class="grid grid-cols-4 gap-1">
                             <div class="flex flex-col">
-                                <span class="text-[10px] text-text-sub mb-0.5">X</span>
-                                <input type="number" min="0" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]" v-model.number="pixelX" @mousedown.stop @click.stop />
+                                <span class="text-[9px] text-text-sub mb-0.5">X</span>
+                                <input type="number" min="0" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="pixelX" @mousedown.stop @click.stop />
                             </div>
                             <div class="flex flex-col">
-                                <span class="text-[10px] text-text-sub mb-0.5">Y</span>
-                                <input type="number" min="0" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]" v-model.number="pixelY" @mousedown.stop @click.stop />
+                                <span class="text-[9px] text-text-sub mb-0.5">Y</span>
+                                <input type="number" min="0" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="pixelY" @mousedown.stop @click.stop />
                             </div>
                             <div class="flex flex-col">
-                                <span class="text-[10px] text-text-sub mb-0.5">W</span>
-                                <input type="number" min="10" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]" v-model.number="pixelW" @mousedown.stop @click.stop />
+                                <span class="text-[9px] text-text-sub mb-0.5">W</span>
+                                <input type="number" min="10" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="pixelW" @mousedown.stop @click.stop />
                             </div>
                             <div class="flex flex-col">
-                                <span class="text-[10px] text-text-sub mb-0.5">H</span>
-                                <input type="number" min="10" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[11px]" v-model.number="pixelH" @mousedown.stop @click.stop />
+                                <span class="text-[9px] text-text-sub mb-0.5">H</span>
+                                <input type="number" min="10" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="pixelH" @mousedown.stop @click.stop />
                             </div>
                         </div>
                         <div class="text-[9px] text-text-sub mt-1 opacity-60">캔버스: {{ canvasWidth }} × {{ canvasHeight }}px</div>
@@ -280,12 +343,12 @@ const LayerConfigModal = {
     `,
     data() {
         return {
-            baseWidth: 340,
-            baseHeight: 580,
+            baseWidth: 360,
+            baseHeight: 650,
             posX: 0,
             posY: 0,
-            width: 340,
-            height: 580,
+            width: 360,
+            height: 650,
             dragging: false,
             dragStartMouseX: 0,
             dragStartMouseY: 0,
@@ -309,9 +372,9 @@ const LayerConfigModal = {
                 width: this.width + 'px',
                 height: this.height + 'px',
                 maxWidth: '90vw',
-                maxHeight: '85vh',
-                minWidth: '300px',
-                minHeight: '400px'
+                maxHeight: '90vh',
+                minWidth: '320px',
+                minHeight: '500px'
             };
         },
         isTextLayer() { return this.box && this.box.rowType === 'TXT'; },
@@ -424,6 +487,28 @@ const LayerConfigModal = {
                 this.box.textStyle.fontSize = Math.max(1, parseInt(v) || 1);
             }
         },
+        letterSpacing: {
+            get() {
+                if (!this.box || !this.box.textStyle) return 0;
+                return this.box.textStyle.letterSpacing || 0;
+            },
+            set(v) {
+                if (!this.box) return;
+                if (!this.box.textStyle) this.box.textStyle = {};
+                this.box.textStyle.letterSpacing = parseInt(v) || 0;
+            }
+        },
+        lineHeight: {
+            get() {
+                if (!this.box || !this.box.textStyle) return 1.4;
+                return this.box.textStyle.lineHeight || 1.4;
+            },
+            set(v) {
+                if (!this.box) return;
+                if (!this.box.textStyle) this.box.textStyle = {};
+                this.box.textStyle.lineHeight = Math.max(0.5, parseFloat(v) || 1.4);
+            }
+        },
         shadowOffsetX: {
             get() {
                 if (!this.box || !this.box.textStyle || !this.box.textStyle.shadow) return 2;
@@ -467,6 +552,7 @@ const LayerConfigModal = {
     },
     mounted() {
         this.centerWindow();
+        this.ensureBoxDefaults();
         document.addEventListener('mousemove', this.onGlobalMouseMove);
         document.addEventListener('mouseup', this.onGlobalMouseUp);
     },
@@ -475,6 +561,15 @@ const LayerConfigModal = {
         document.removeEventListener('mouseup', this.onGlobalMouseUp);
     },
     methods: {
+        ensureBoxDefaults() {
+            if (!this.box) return;
+            if (!this.box.mediaType) this.box.mediaType = 'none';
+            if (!this.box.mediaFit) this.box.mediaFit = 'cover';
+            if (!this.box.mediaSrc) this.box.mediaSrc = '';
+            if (!this.box.textStyle) this.box.textStyle = {};
+            if (this.box.textStyle.letterSpacing === undefined) this.box.textStyle.letterSpacing = 0;
+            if (this.box.textStyle.lineHeight === undefined) this.box.textStyle.lineHeight = 1.4;
+        },
         ensureShadow() {
             if (!this.box) return;
             if (!this.box.textStyle) this.box.textStyle = {};
@@ -511,8 +606,8 @@ const LayerConfigModal = {
             } else if (this.resizing) {
                 let newW = this.resizeStartW + (e.clientX - this.resizeStartMouseX);
                 let newH = this.resizeStartH + (e.clientY - this.resizeStartMouseY);
-                if (newW < 300) newW = 300;
-                if (newH < 400) newH = 400;
+                if (newW < 320) newW = 320;
+                if (newH < 500) newH = 500;
                 this.width = newW;
                 this.height = newH;
             }
@@ -520,6 +615,20 @@ const LayerConfigModal = {
         onGlobalMouseUp() { this.dragging = false; this.resizing = false; },
         onClose() { this.$emit('close'); },
         onDelete() { this.$emit('delete'); this.$emit('delete-layer'); },
+        onMediaFileSelect(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const url = URL.createObjectURL(file);
+            this.box.mediaSrc = url;
+            
+            // 파일 타입에 따라 mediaType 자동 설정
+            if (file.type.startsWith('image/')) {
+                this.box.mediaType = 'image';
+            } else if (file.type.startsWith('video/')) {
+                this.box.mediaType = 'video';
+            }
+        },
         colorLabel(c) {
             if (!c || c === 'transparent') return '투명';
             const code = c.toUpperCase();
