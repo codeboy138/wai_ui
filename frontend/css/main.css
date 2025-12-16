@@ -83,49 +83,66 @@ html, body {
 .text-ui-accent { color: var(--color-ui-accent); }
 
 /* ================================
-   헤더 메뉴 스타일
+   네비게이션 버튼
    ================================ */
-.header-menu-wrapper {
-    position: relative;
-}
-
-.header-menu-trigger {
-    padding: 6px 12px;
-    border-radius: 4px;
+.nav-btn {
+    height: 100%;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    font-size: 12px;
+    color: var(--color-text-sub);
     cursor: pointer;
-    transition: background-color 0.15s;
-    user-select: none;
+    transition: all 0.15s;
+    border: none;
+    background: transparent;
+    white-space: nowrap;
 }
 
-.header-menu-trigger:hover,
-.header-menu-trigger.active {
+.nav-btn:hover,
+.nav-btn.active {
+    color: var(--color-text-main);
     background-color: var(--color-bg-hover);
 }
 
-.header-menu-panel {
+/* ================================
+   헤더 메뉴 드롭다운 (수정됨)
+   ================================ */
+.header-menu-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.header-menu-dropdown {
+    display: none;
     position: absolute;
     top: 100%;
     left: 0;
-    min-width: 200px;
+    min-width: 160px;
     background: var(--color-bg-panel);
     border: 1px solid var(--color-ui-border);
     border-radius: 6px;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
     z-index: 1000;
     padding: 4px 0;
-    margin-top: 2px;
+    margin-top: 0;
+}
+
+.header-menu-wrapper.open > .header-menu-dropdown {
+    display: block;
 }
 
 .header-menu-item {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 10px;
     padding: 8px 14px;
     cursor: pointer;
     transition: background-color 0.1s;
     font-size: 12px;
     color: var(--color-text-main);
-    position: relative;
 }
 
 .header-menu-item:hover {
@@ -133,39 +150,93 @@ html, body {
 }
 
 .header-menu-item i {
-    width: 16px;
-    text-align: center;
     color: var(--color-text-sub);
 }
 
-.header-menu-item:hover i {
-    color: var(--color-ui-accent);
+/* 서브메뉴 */
+.header-submenu-wrapper {
+    position: relative;
 }
 
-.header-menu-item .submenu-arrow {
-    margin-left: auto;
-    font-size: 10px;
-    color: var(--color-text-sub);
-}
-
-.header-submenu-panel {
+.header-submenu {
+    display: none;
     position: absolute;
     left: 100%;
     top: 0;
-    min-width: 180px;
+    min-width: 140px;
     background: var(--color-bg-panel);
     border: 1px solid var(--color-ui-border);
     border-radius: 6px;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
     z-index: 1001;
     padding: 4px 0;
-    margin-left: 2px;
+    margin-left: 0;
 }
 
-.header-menu-divider {
-    height: 1px;
-    background: var(--color-ui-border);
-    margin: 4px 0;
+.header-submenu-wrapper.open > .header-submenu {
+    display: block;
+}
+
+.header-submenu-item {
+    padding: 8px 14px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--color-text-main);
+    transition: background-color 0.1s;
+}
+
+.header-submenu-item:hover {
+    background-color: var(--color-bg-hover);
+}
+
+/* 윈도우 컨트롤 버튼 */
+.win-btn {
+    width: 40px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-text-sub);
+    cursor: pointer;
+    transition: all 0.15s;
+    border: none;
+    background: transparent;
+}
+
+.win-btn:hover {
+    color: var(--color-text-main);
+    background-color: var(--color-bg-hover);
+}
+
+.win-btn.close:hover {
+    background-color: var(--color-ui-danger);
+    color: white;
+}
+
+/* 패널 리사이저 */
+.panel-resizer-v {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    cursor: col-resize;
+    z-index: 10;
+    transition: background-color 0.15s;
+}
+
+.panel-resizer-v:hover {
+    background-color: var(--color-ui-accent);
+}
+
+.panel-resizer-h {
+    height: 4px;
+    cursor: row-resize;
+    z-index: 10;
+    transition: background-color 0.15s;
+}
+
+.panel-resizer-h:hover {
+    background-color: var(--color-ui-accent);
 }
 
 /* ================================
@@ -178,7 +249,6 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: center;
-    /* 배경만 표시, 포인터 이벤트는 모달 창에서만 */
     background: rgba(0, 0, 0, 0.5);
     pointer-events: none;
 }
@@ -210,45 +280,14 @@ html, body {
     z-index: 100;
 }
 
-.modal-resize-handle.resize-n {
-    top: 0; left: 8px; right: 8px; height: 4px;
-    cursor: ns-resize;
-}
-
-.modal-resize-handle.resize-s {
-    bottom: 0; left: 8px; right: 8px; height: 4px;
-    cursor: ns-resize;
-}
-
-.modal-resize-handle.resize-e {
-    right: 0; top: 8px; bottom: 8px; width: 4px;
-    cursor: ew-resize;
-}
-
-.modal-resize-handle.resize-w {
-    left: 0; top: 8px; bottom: 8px; width: 4px;
-    cursor: ew-resize;
-}
-
-.modal-resize-handle.resize-nw {
-    top: 0; left: 0; width: 12px; height: 12px;
-    cursor: nwse-resize;
-}
-
-.modal-resize-handle.resize-ne {
-    top: 0; right: 0; width: 12px; height: 12px;
-    cursor: nesw-resize;
-}
-
-.modal-resize-handle.resize-sw {
-    bottom: 0; left: 0; width: 12px; height: 12px;
-    cursor: nesw-resize;
-}
-
-.modal-resize-handle.resize-se {
-    bottom: 0; right: 0; width: 12px; height: 12px;
-    cursor: nwse-resize;
-}
+.modal-resize-handle.resize-n { top: 0; left: 8px; right: 8px; height: 4px; cursor: ns-resize; }
+.modal-resize-handle.resize-s { bottom: 0; left: 8px; right: 8px; height: 4px; cursor: ns-resize; }
+.modal-resize-handle.resize-e { right: 0; top: 8px; bottom: 8px; width: 4px; cursor: ew-resize; }
+.modal-resize-handle.resize-w { left: 0; top: 8px; bottom: 8px; width: 4px; cursor: ew-resize; }
+.modal-resize-handle.resize-nw { top: 0; left: 0; width: 12px; height: 12px; cursor: nwse-resize; }
+.modal-resize-handle.resize-ne { top: 0; right: 0; width: 12px; height: 12px; cursor: nesw-resize; }
+.modal-resize-handle.resize-sw { bottom: 0; left: 0; width: 12px; height: 12px; cursor: nesw-resize; }
+.modal-resize-handle.resize-se { bottom: 0; right: 0; width: 12px; height: 12px; cursor: nwse-resize; }
 
 .modal-resize-handle:hover {
     background: rgba(59, 130, 246, 0.3);
@@ -293,7 +332,7 @@ html, body {
 .asset-thumbnail {
     position: relative;
     width: 100%;
-    padding-top: 56.25%; /* 16:9 비율 */
+    padding-top: 56.25%;
     background: var(--color-bg-dark);
     overflow: hidden;
 }
@@ -340,7 +379,6 @@ html, body {
     color: var(--color-text-sub);
 }
 
-/* 리스트 뷰 */
 .asset-grid.view-list .asset-card {
     display: flex;
     align-items: center;
@@ -360,14 +398,12 @@ html, body {
     align-items: center;
 }
 
-/* 폴더 드롭 영역 */
 .folder-drop-zone.drag-over {
     background: rgba(59, 130, 246, 0.2) !important;
     outline: 2px dashed var(--color-ui-accent);
     outline-offset: -2px;
 }
 
-/* 콘텐츠 패널 드롭 영역 */
 .drag-over {
     background: rgba(59, 130, 246, 0.1);
 }
@@ -466,6 +502,16 @@ html, body {
     opacity: 0.6;
 }
 
+/* 클립 스냅 플래시 효과 */
+@keyframes clipSnapFlash {
+    0% { box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.8); }
+    100% { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2); }
+}
+
+.clip.snap-flash {
+    animation: clipSnapFlash 0.5s ease-out;
+}
+
 /* 트랙 컨트롤 버튼 */
 .track-control-btn {
     width: 20px;
@@ -478,6 +524,8 @@ html, body {
     color: var(--color-text-sub);
     cursor: pointer;
     transition: all 0.1s;
+    border: none;
+    background: transparent;
 }
 
 .track-control-btn:hover {
@@ -497,7 +545,6 @@ html, body {
     color: #eab308;
 }
 
-/* 트랙 레인 */
 .track-lane {
     transition: background-color 0.15s;
 }
@@ -592,13 +639,11 @@ html, body {
     background-color: var(--color-ui-accent) !important;
 }
 
-/* 캔버스 드롭 타겟 */
 .canvas-drop-target {
     outline: 3px dashed var(--color-ui-accent);
     outline-offset: -3px;
 }
 
-/* 엣지 플래시 */
 .edge-flash-overlay {
     position: absolute;
     pointer-events: none;
@@ -611,25 +656,10 @@ html, body {
     opacity: 1;
 }
 
-.edge-flash-top {
-    top: 0; left: 0; right: 0; height: 3px;
-    background: linear-gradient(to bottom, var(--color-ui-accent), transparent);
-}
-
-.edge-flash-bottom {
-    bottom: 0; left: 0; right: 0; height: 3px;
-    background: linear-gradient(to top, var(--color-ui-accent), transparent);
-}
-
-.edge-flash-left {
-    top: 0; bottom: 0; left: 0; width: 3px;
-    background: linear-gradient(to right, var(--color-ui-accent), transparent);
-}
-
-.edge-flash-right {
-    top: 0; bottom: 0; right: 0; width: 3px;
-    background: linear-gradient(to left, var(--color-ui-accent), transparent);
-}
+.edge-flash-top { top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(to bottom, var(--color-ui-accent), transparent); }
+.edge-flash-bottom { bottom: 0; left: 0; right: 0; height: 3px; background: linear-gradient(to top, var(--color-ui-accent), transparent); }
+.edge-flash-left { top: 0; bottom: 0; left: 0; width: 3px; background: linear-gradient(to right, var(--color-ui-accent), transparent); }
+.edge-flash-right { top: 0; bottom: 0; right: 0; width: 3px; background: linear-gradient(to left, var(--color-ui-accent), transparent); }
 
 /* ================================
    DEV 모드 스타일
@@ -658,23 +688,13 @@ html, body {
     max-width: 300px;
 }
 
-.dev-tooltip .label {
-    color: #888;
-    margin-right: 6px;
-}
-
-.dev-tooltip .value {
-    color: #4ade80;
-}
+.dev-tooltip .label { color: #888; margin-right: 6px; }
+.dev-tooltip .value { color: #4ade80; }
 
 body.dev-mode-active .dev-highlight,
-body.dev-mode-full .dev-highlight {
-    display: block;
-}
+body.dev-mode-full .dev-highlight { display: block; }
 
-body:not(.dev-mode-active):not(.dev-mode-full) .dev-highlight {
-    display: none;
-}
+body:not(.dev-mode-active):not(.dev-mode-full) .dev-highlight { display: none; }
 
 /* ================================
    레이어 패널
@@ -690,53 +710,23 @@ body:not(.dev-mode-active):not(.dev-mode-full) .dev-highlight {
     font-size: 10px;
 }
 
-.layer-grid-cell:hover {
-    transform: scale(1.02);
-}
-
-.layer-grid-cell.empty {
-    border: 1px dashed var(--color-ui-border);
-    opacity: 0.5;
-}
-
-.layer-grid-cell.empty:hover {
-    opacity: 0.8;
-    border-color: var(--color-ui-accent);
-}
-
-.layer-grid-cell.filled {
-    border: 1px solid;
-    opacity: 0.9;
-}
-
-.layer-grid-cell.filled:hover {
-    opacity: 1;
-}
-
-.layer-grid-cell.selected {
-    box-shadow: 0 0 0 2px var(--color-ui-accent);
-}
+.layer-grid-cell:hover { transform: scale(1.02); }
+.layer-grid-cell.empty { border: 1px dashed var(--color-ui-border); opacity: 0.5; }
+.layer-grid-cell.empty:hover { opacity: 0.8; border-color: var(--color-ui-accent); }
+.layer-grid-cell.filled { border: 1px solid; opacity: 0.9; }
+.layer-grid-cell.filled:hover { opacity: 1; }
+.layer-grid-cell.selected { box-shadow: 0 0 0 2px var(--color-ui-accent); }
 
 /* ================================
    유틸리티 클래스
    ================================ */
-.truncate {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.no-select { user-select: none; }
 
-.no-select {
-    user-select: none;
-}
-
-/* 숨김 처리 (스크린 리더 접근 가능) */
 .sr-only {
     position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
     overflow: hidden;
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
@@ -746,35 +736,19 @@ body:not(.dev-mode-active):not(.dev-mode-full) .dev-highlight {
 /* ================================
    애니메이션
    ================================ */
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
 
-@keyframes slideDown {
-    from { opacity: 0; transform: translateY(-10px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-.animate-fadeIn {
-    animation: fadeIn 0.2s ease-out;
-}
-
-.animate-slideDown {
-    animation: slideDown 0.2s ease-out;
-}
+.animate-fadeIn { animation: fadeIn 0.2s ease-out; }
+.animate-slideDown { animation: slideDown 0.2s ease-out; }
 
 /* ================================
    반응형 조정
    ================================ */
 @media (max-width: 1200px) {
-    .asset-grid.view-grid {
-        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    }
+    .asset-grid.view-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
 }
 
 @media (max-width: 800px) {
-    .asset-grid.view-grid {
-        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-    }
+    .asset-grid.view-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
 }
