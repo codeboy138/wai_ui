@@ -1,16 +1,17 @@
 // Timeline Panel Component - Enhanced
-// 트랙간 클립 이동, 자석 기능, 초단위 눈금, 트랙 기능(눈/잠금/메인/추가/삭제), 퀵바 자르기 기능, 사운드 속도 조절
+// 트랙간 클립 이동, 자석 기능, 초단위 눈금, 트랙 기능(눈/잠금/메인), 퀵바 자르기 기능, 사운드 속도 조절
 
 const TimelinePanel = {
     props: ['vm'],
     template: `
         <div
             id="timeline-main-panel"
-            class="flex flex-col h-full bg-bg-panel select-none"
+            class="flex flex-col bg-bg-panel select-none"
+            :class="{ 'h-8': vm.isTimelineCollapsed, 'h-full': !vm.isTimelineCollapsed }"
             @wheel.prevent="handleWheel"
             data-action="js:timelineWheelScroll"
         >
-            <!-- 타임라인 헤더 (접기, 타임코드, 줌 슬라이더) -->
+            <!-- 타임라인 헤더 (접기, 타임코드, 줌 슬라이더) - 항상 표시 -->
             <div
                 id="timeline-header-bar"
                 class="h-8 bg-bg-panel border-b border-ui-border flex items-center px-2 justify-between shrink-0"
@@ -21,6 +22,7 @@ const TimelinePanel = {
                         class="hover:text-text-main w-6 h-6 flex items-center justify-center rounded hover:bg-bg-hover"
                         @click="toggleCollapse"
                         data-action="js:toggleTimelineCollapse"
+                        :title="vm.isTimelineCollapsed ? '타임라인 펼치기' : '타임라인 접기'"
                     >
                         <i :class="['fa-solid', vm.isTimelineCollapsed ? 'fa-chevron-up' : 'fa-chevron-down']"></i>
                     </button>
@@ -70,14 +72,13 @@ const TimelinePanel = {
                 </div>
             </div>
             
-            <!-- 타임라인 퀵 툴바 -->
+            <!-- 타임라인 퀵 툴바 - 접히면 숨김 -->
             <div
                 v-show="!vm.isTimelineCollapsed"
                 id="timeline-toolbar-quick-bar"
                 class="h-6 bg-bg-hover border-b border-ui-border flex items-center px-2 justify-between shrink-0 text-[10px]"
             >
                 <div class="flex gap-1 items-center">
-                    <!-- 자르기+좌삭제 -->
                     <button
                         id="timeline-tool-cut-left-btn"
                         class="tool-btn relative"
@@ -88,7 +89,6 @@ const TimelinePanel = {
                         <i class="fa-solid fa-scissors"></i>
                         <span class="absolute -left-1 top-0 text-[8px] text-red-400">◀</span>
                     </button>
-                    <!-- 자르기+우삭제 -->
                     <button
                         id="timeline-tool-cut-right-btn"
                         class="tool-btn relative"
@@ -166,7 +166,7 @@ const TimelinePanel = {
                 </div>
             </div>
             
-            <!-- 타임라인 스크롤/트랙/클립 영역 -->
+            <!-- 타임라인 스크롤/트랙/클립 영역 - 접히면 숨김 -->
             <div
                 v-show="!vm.isTimelineCollapsed"
                 id="timeline-scroll-container"
@@ -183,12 +183,6 @@ const TimelinePanel = {
                     class="sticky-col bg-bg-panel border-r border-ui-border relative"
                     style="z-index: 30;"
                 >
-                    <!-- 헤더 폭 조절 핸들 -->
-                    <div
-                        class="track-header-resizer"
-                        @mousedown.prevent="startHeaderResize"
-                    ></div>
-                    
                     <div
                         id="timeline-track-header-row"
                         class="h-6 border-b border-ui-border flex items-center justify-between px-2 text-[9px] font-bold text-text-sub bg-bg-panel sticky top-0"
@@ -207,7 +201,6 @@ const TimelinePanel = {
                     >
                         <!-- 트랙 컨트롤 버튼들 -->
                         <div class="flex items-center gap-0.5 mr-2">
-                            <!-- 눈 표시 (가시성) -->
                             <button
                                 class="track-control-btn"
                                 :class="{ 'active': !track.isHidden }"
@@ -216,7 +209,6 @@ const TimelinePanel = {
                             >
                                 <i :class="track.isHidden ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'"></i>
                             </button>
-                            <!-- 잠금 -->
                             <button
                                 class="track-control-btn"
                                 :class="{ 'locked': track.isLocked }"
@@ -225,7 +217,6 @@ const TimelinePanel = {
                             >
                                 <i :class="track.isLocked ? 'fa-solid fa-lock' : 'fa-solid fa-lock-open'"></i>
                             </button>
-                            <!-- 메인 트랙: 채워진 별 / 빈 별 -->
                             <button
                                 class="track-control-btn"
                                 :class="{ 'main-track': track.isMain }"
@@ -255,16 +246,23 @@ const TimelinePanel = {
                             :disabled="track.isLocked"
                         />
                     </div>
+                    
+                    <!-- 헤더 전체 폭 조절 핸들 (우측 끝) -->
+                    <div
+                        class="absolute top-0 bottom-0 w-1 cursor-col-resize hover:bg-ui-accent/50 transition-colors"
+                        style="right: 0; z-index: 50;"
+                        @mousedown.prevent="startHeaderResize"
+                    ></div>
                 </div>
 
                 <!-- 타임라인 레인 & 클립 영역 -->
                 <div
                     id="timeline-lane-container"
                     class="relative bg-bg-dark min-w-max"
-                    @mousedown="handlePlayheadDrag($event)"
+                    @mousedown="handleLaneMouseDown"
                     data-action="js:timelineDragPlayhead"
                 >
-                    <!-- 시간 눈금 룰러 (초단위 작은 눈금 추가) -->
+                    <!-- 시간 눈금 룰러 -->
                     <div
                         id="timeline-time-ruler-row"
                         class="h-6 border-b border-ui-border sticky top-0 bg-bg-dark flex text-[9px] text-text-sub sticky-ruler"
@@ -276,7 +274,6 @@ const TimelinePanel = {
                                 :style="{ width: (vm.zoom * 5) + 'px' }"
                             >
                                 <span class="absolute top-0 left-1">{{ formatRulerTime((i - 1) * 5) }}</span>
-                                <!-- 초단위 작은 눈금 (1초 간격) -->
                                 <template v-if="vm.zoom >= 20">
                                     <div
                                         v-for="j in 4"
@@ -285,7 +282,6 @@ const TimelinePanel = {
                                         :style="{ left: (j * vm.zoom) + 'px' }"
                                     ></div>
                                 </template>
-                                <!-- 0.5초 눈금 (줌이 높을 때) -->
                                 <template v-if="vm.zoom >= 40">
                                     <div
                                         v-for="j in 9"
@@ -306,11 +302,10 @@ const TimelinePanel = {
                         class="h-10 border-b border-ui-border relative"
                         :class="{ 
                             'opacity-30': track.isHidden,
-                            'track-lane-drop-target': dragOverTrackId === track.id
+                            'bg-ui-accent/10': dragOverTrackId === track.id && isDraggingClip
                         }"
-                        @dragover.prevent="onClipDragOverTrack($event, track)"
-                        @dragleave="onClipDragLeaveTrack($event, track)"
-                        @drop.prevent="onClipDropOnTrack($event, track)"
+                        @mouseenter="onLaneMouseEnter(track)"
+                        @mouseleave="onLaneMouseLeave"
                     >
                         <div
                             v-for="clip in vm.clips.filter(c => c.trackId === track.id)"
@@ -319,7 +314,8 @@ const TimelinePanel = {
                             class="clip absolute top-1 h-8 rounded cursor-pointer overflow-hidden"
                             :class="{ 
                                 'selected': vm.selectedClip && vm.selectedClip.id === clip.id,
-                                'snapped': snappedClipId === clip.id
+                                'snapped': snappedClipId === clip.id,
+                                'opacity-50': isDraggingClip && draggingClip && draggingClip.id === clip.id
                             }"
                             :style="{
                                 left: clip.start * vm.zoom + 'px',
@@ -336,7 +332,6 @@ const TimelinePanel = {
                                 :style="{backgroundColor: track.type === 'audio' ? '#3b82f6' : track.color}"
                             ></div>
                             
-                            <!-- 오디오 클립: 파형 + 속도 조절 -->
                             <template v-if="track.type === 'audio'">
                                 <svg class="waveform" viewBox="0 0 100 100" preserveAspectRatio="none">
                                     <path
@@ -349,7 +344,6 @@ const TimelinePanel = {
                                 </svg>
                                 <div class="volume-line" title="Volume"></div>
                                 
-                                <!-- 속도 조절 포인트 -->
                                 <template v-if="clip.speedPoints && clip.speedPoints.length > 0">
                                     <div
                                         v-for="(point, pIdx) in clip.speedPoints"
@@ -364,7 +358,6 @@ const TimelinePanel = {
                                     ></div>
                                 </template>
                                 
-                                <!-- 속도 라인 -->
                                 <svg 
                                     v-if="clip.speedPoints && clip.speedPoints.length > 1"
                                     class="absolute inset-0 w-full h-full pointer-events-none"
@@ -384,7 +377,6 @@ const TimelinePanel = {
                                 {{ clip.name }}
                             </div>
                             
-                            <!-- 클립 리사이즈 핸들 -->
                             <div 
                                 class="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/30"
                                 @mousedown.stop="startClipResize($event, clip, 'left')"
@@ -407,6 +399,13 @@ const TimelinePanel = {
                         class="playhead-handle"
                         :style="{ left: vm.currentTime * vm.zoom + 'px', zIndex: 36 }"
                         data-action="js:timelineDragPlayhead"
+                    ></div>
+                    
+                    <!-- 클립 드래그 시 대상 트랙 표시선 -->
+                    <div
+                        v-if="isDraggingClip && dragOverTrackId"
+                        class="absolute left-0 right-0 h-0.5 bg-ui-accent pointer-events-none"
+                        :style="{ top: (getTrackIndex(dragOverTrackId) * 40 + 6) + 'px', zIndex: 40 }"
                     ></div>
                 </div>
             </div>
@@ -453,10 +452,12 @@ const TimelinePanel = {
             // 클립 드래그
             isDraggingClip: false,
             draggingClip: null,
-            draggingClipOriginalTrack: null,
+            draggingClipOriginalTrackId: null,
             dragStartX: 0,
+            dragStartY: 0,
             dragStartClipStart: 0,
             dragOverTrackId: null,
+            hoverTrackId: null,
             snappedClipId: null,
             
             // 클립 리사이즈
@@ -469,7 +470,10 @@ const TimelinePanel = {
             // 속도 포인트 드래그
             isDraggingSpeedPoint: false,
             draggingSpeedClip: null,
-            draggingSpeedPointIndex: null
+            draggingSpeedPointIndex: null,
+            
+            // 플레이헤드 드래그
+            isDraggingPlayhead: false
         };
     },
     computed: {
@@ -489,7 +493,6 @@ const TimelinePanel = {
     },
     mounted() {
         this.$nextTick(() => {
-            this.initClipInteractions();
             this.adjustLayout();
             window.addEventListener('resize', this.adjustLayout);
             document.addEventListener('click', this.closeContextMenus);
@@ -506,10 +509,6 @@ const TimelinePanel = {
             clearInterval(this.playInterval);
         }
     },
-    watch: {
-        'vm.clips': { handler() { this.$nextTick(this.initClipInteractions); }, deep: true },
-        'vm.isMagnet': { handler() { this.$nextTick(this.initClipInteractions); } }
-    },
     methods: {
         // === 레이아웃 ===
         adjustLayout() {
@@ -524,7 +523,9 @@ const TimelinePanel = {
         
         toggleCollapse() {
             this.vm.isTimelineCollapsed = !this.vm.isTimelineCollapsed;
-            this.adjustLayout();
+            this.$nextTick(() => {
+                this.adjustLayout();
+            });
         },
         
         // === 헤더 폭 조절 ===
@@ -700,6 +701,10 @@ const TimelinePanel = {
             this.trackContextMenu = null;
         },
         
+        getTrackIndex(trackId) {
+            return this.vm.tracks.findIndex(t => t.id === trackId);
+        },
+        
         // === 트랙 순서 드래그 ===
         onTrackDragStart(e, index) {
             this.vm.dragItemIndex = index;
@@ -718,35 +723,42 @@ const TimelinePanel = {
             this.vm.dragOverItemIndex = null;
         },
         
-        // === 클립 드래그 (트랙간 이동) ===
+        // === 레인 마우스 이벤트 ===
+        onLaneMouseEnter(track) {
+            this.hoverTrackId = track.id;
+            if (this.isDraggingClip && !track.isLocked) {
+                this.dragOverTrackId = track.id;
+            }
+        },
+        
+        onLaneMouseLeave() {
+            this.hoverTrackId = null;
+        },
+        
+        handleLaneMouseDown(e) {
+            const target = e.target;
+            // 룰러나 플레이헤드 영역 클릭시 플레이헤드 드래그
+            if (
+                target.className.includes('sticky-ruler') ||
+                target.className.includes('playhead-handle') ||
+                target.id.includes('timeline-time-ruler') ||
+                target.closest('#timeline-time-ruler-row')
+            ) {
+                this.startPlayheadDrag(e);
+            }
+        },
+        
+        // === 클립 드래그 (트랙간 이동 지원) ===
         startClipDrag(e, clip, track) {
             if (track.isLocked) return;
             
             this.isDraggingClip = true;
             this.draggingClip = clip;
-            this.draggingClipOriginalTrack = track;
+            this.draggingClipOriginalTrackId = track.id;
             this.dragStartX = e.clientX;
+            this.dragStartY = e.clientY;
             this.dragStartClipStart = clip.start;
-        },
-        
-        onClipDragOverTrack(e, track) {
-            if (!this.isDraggingClip) return;
-            if (track.isLocked) return;
             this.dragOverTrackId = track.id;
-        },
-        
-        onClipDragLeaveTrack(e, track) {
-            if (this.dragOverTrackId === track.id) {
-                this.dragOverTrackId = null;
-            }
-        },
-        
-        onClipDropOnTrack(e, track) {
-            if (!this.isDraggingClip || !this.draggingClip) return;
-            if (track.isLocked) return;
-            
-            this.draggingClip.trackId = track.id;
-            this.dragOverTrackId = null;
         },
         
         // === 클립 리사이즈 ===
@@ -762,18 +774,69 @@ const TimelinePanel = {
             this.resizeStartClipDuration = clip.duration;
         },
         
+        // === 플레이헤드 드래그 ===
+        startPlayheadDrag(e) {
+            this.isDraggingPlayhead = true;
+            this.updatePlayheadPosition(e);
+        },
+        
+        updatePlayheadPosition(e) {
+            const scrollArea = document.getElementById('timeline-scroll-container');
+            if (!scrollArea) return;
+            
+            const rect = scrollArea.getBoundingClientRect();
+            const scrollLeft = scrollArea.scrollLeft;
+            const headerWidth = this.trackHeaderWidth;
+            const zoom = this.vm.zoom;
+            
+            let newX = e.clientX - rect.left + scrollLeft - headerWidth;
+            
+            if (this.vm.isMagnet) {
+                let minDiff = Infinity;
+                let snapTime = null;
+
+                this.vm.clips.forEach(clip => {
+                    const startPx = clip.start * zoom;
+                    const endPx = (clip.start + clip.duration) * zoom;
+                    
+                    [startPx, endPx].forEach(px => {
+                        const diff = Math.abs(newX - px);
+                        if (diff < 10 && diff < minDiff) {
+                            minDiff = diff;
+                            snapTime = px / zoom;
+                        }
+                    });
+                });
+
+                if (snapTime !== null) {
+                    this.vm.currentTime = snapTime;
+                    return;
+                }
+            }
+
+            this.vm.currentTime = Math.max(0, newX / zoom);
+        },
+        
         // === 글로벌 마우스 이벤트 ===
         handleGlobalMouseMove(e) {
+            // 헤더 리사이즈
             if (this.isResizingHeader) {
                 const dx = e.clientX - this.resizeStartX;
                 this.trackHeaderWidth = Math.max(120, Math.min(400, this.resizeStartWidth + dx));
             }
             
+            // 플레이헤드 드래그
+            if (this.isDraggingPlayhead) {
+                this.updatePlayheadPosition(e);
+            }
+            
+            // 클립 드래그 (수평 이동 + 트랙간 이동)
             if (this.isDraggingClip && this.draggingClip) {
                 const dx = e.clientX - this.dragStartX;
                 let newStart = this.dragStartClipStart + (dx / this.vm.zoom);
                 newStart = Math.max(0, newStart);
                 
+                // 자석 스냅
                 if (this.vm.isMagnet) {
                     const snapResult = this.findSnapPosition(newStart, this.draggingClip);
                     if (snapResult.snapped) {
@@ -785,8 +848,24 @@ const TimelinePanel = {
                 }
                 
                 this.draggingClip.start = newStart;
+                
+                // 수직 이동으로 트랙 변경 감지
+                const laneContainer = document.getElementById('timeline-lane-container');
+                if (laneContainer) {
+                    const rect = laneContainer.getBoundingClientRect();
+                    const relY = e.clientY - rect.top - 24; // 룰러 높이 제외
+                    const trackIndex = Math.floor(relY / 40);
+                    
+                    if (trackIndex >= 0 && trackIndex < this.vm.tracks.length) {
+                        const targetTrack = this.vm.tracks[trackIndex];
+                        if (!targetTrack.isLocked) {
+                            this.dragOverTrackId = targetTrack.id;
+                        }
+                    }
+                }
             }
             
+            // 클립 리사이즈
             if (this.isResizingClip && this.resizingClip) {
                 const dx = e.clientX - this.dragStartX;
                 const timeChange = dx / this.vm.zoom;
@@ -813,6 +892,7 @@ const TimelinePanel = {
                 }
             }
             
+            // 속도 포인트 드래그
             if (this.isDraggingSpeedPoint && this.draggingSpeedClip) {
                 const clip = this.draggingSpeedClip;
                 const clipEl = document.getElementById('timeline-clip-' + clip.id);
@@ -833,17 +913,28 @@ const TimelinePanel = {
         },
         
         handleGlobalMouseUp() {
+            // 클립 드래그 종료 시 트랙 변경 적용
+            if (this.isDraggingClip && this.draggingClip && this.dragOverTrackId) {
+                if (this.dragOverTrackId !== this.draggingClipOriginalTrackId) {
+                    const targetTrack = this.vm.tracks.find(t => t.id === this.dragOverTrackId);
+                    if (targetTrack && !targetTrack.isLocked) {
+                        this.draggingClip.trackId = this.dragOverTrackId;
+                    }
+                }
+            }
+            
             this.isResizingHeader = false;
+            this.isDraggingPlayhead = false;
             this.isDraggingClip = false;
             this.draggingClip = null;
-            this.draggingClipOriginalTrack = null;
+            this.draggingClipOriginalTrackId = null;
             this.snappedClipId = null;
+            this.dragOverTrackId = null;
             this.isResizingClip = false;
             this.resizingClip = null;
             this.isDraggingSpeedPoint = false;
             this.draggingSpeedClip = null;
             this.draggingSpeedPointIndex = null;
-            this.dragOverTrackId = null;
         },
         
         // === 자석 스냅 ===
@@ -1028,8 +1119,6 @@ const TimelinePanel = {
         },
         
         // === 기존 메서드 ===
-        initClipInteractions() {},
-        
         handleDragOver(e) {
             e.preventDefault();
             e.dataTransfer.dropEffect = "copy";
@@ -1063,62 +1152,6 @@ const TimelinePanel = {
             } else {
                 scrollArea.scrollLeft += e.deltaY;
             }
-        },
-        
-        handlePlayheadDrag(e) {
-            const target = e.target;
-            if (
-                !target.className.includes('sticky-ruler') &&
-                !target.className.includes('playhead-handle') &&
-                !target.id.includes('timeline-time-ruler')
-            ) return;
-
-            e.preventDefault();
-            
-            const scrollArea = document.getElementById('timeline-scroll-container');
-            const rect = scrollArea.getBoundingClientRect();
-            const scrollLeft = scrollArea.scrollLeft;
-            const headerWidth = this.trackHeaderWidth;
-            const zoom = this.vm.zoom;
-
-            const updateTime = (event) => {
-                let newX = event.clientX - rect.left + scrollLeft - headerWidth;
-                
-                if (this.vm.isMagnet) {
-                    let minDiff = Infinity;
-                    let snapTime = null;
-
-                    this.vm.clips.forEach(clip => {
-                        const startPx = clip.start * zoom;
-                        const endPx = (clip.start + clip.duration) * zoom;
-                        
-                        [startPx, endPx].forEach(px => {
-                            const diff = Math.abs(newX - px);
-                            if (diff < 10 && diff < minDiff) {
-                                minDiff = diff;
-                                snapTime = px / zoom;
-                            }
-                        });
-                    });
-
-                    if (snapTime !== null) {
-                        this.vm.currentTime = snapTime;
-                        return;
-                    }
-                }
-
-                this.vm.currentTime = Math.max(0, newX / zoom);
-            };
-
-            const onMove = (event) => updateTime(event);
-            const onUp = () => {
-                document.removeEventListener('mousemove', onMove);
-                document.removeEventListener('mouseup', onUp);
-            };
-
-            updateTime(e);
-            document.addEventListener('mousemove', onMove);
-            document.addEventListener('mouseup', onUp);
         }
     }
 };
