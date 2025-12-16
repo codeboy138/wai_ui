@@ -48,9 +48,6 @@ const PreviewCanvas = {
       };
     },
 
-    /**
-     * 표시할 박스 (숨김 상태 제외)
-     */
     visibleBoxes() {
       return this.canvasBoxes.filter(box => !box.isHidden);
     },
@@ -99,47 +96,11 @@ const PreviewCanvas = {
     },
 
     /**
-     * 박스 크기에 비례한 폰트 크기 계산
-     * - 기본 크기: 캔버스 높이의 3%
-     * - 비율 조정: 박스 너비/높이에 따라 축소
-     * - 최소 20px, 최대 60px
-     */
-    calculateFontSize(box) {
-      const ch = (this.canvasSize && this.canvasSize.h) ? this.canvasSize.h : 1080;
-      const cw = (this.canvasSize && this.canvasSize.w) ? this.canvasSize.w : 1920;
-      
-      // 기본 폰트 크기 (캔버스 높이의 3%)
-      const baseFontSize = Math.round(ch * 0.03);
-      
-      // 박스 크기
-      const boxW = Number(box.w) || cw;
-      const boxH = Number(box.h) || ch;
-      
-      // 박스 크기 비율 (캔버스 대비)
-      const widthRatio = boxW / cw;
-      const heightRatio = boxH / ch;
-      
-      // 작은 쪽 비율 사용 (더 제한적인 방향 기준)
-      const sizeRatio = Math.min(widthRatio, heightRatio);
-      
-      // 비율 조정 (0.3 이하면 축소, 1.0이면 기본 크기)
-      // 최소 비율 0.15에서 최소 폰트, 비율 0.5 이상이면 최대 폰트
-      const adjustedRatio = Math.max(0.4, Math.min(1.0, sizeRatio * 2));
-      
-      const fontSize = Math.round(baseFontSize * adjustedRatio);
-      
-      // 최소 20px, 최대 60px
-      return Math.max(20, Math.min(60, fontSize));
-    },
-
-    /**
-     * 레이어 레이블 스타일
-     * - 폰트 크기: 박스 크기에 비례
-     * - 위치: rowType별 (Effect→좌, Text→중앙, BG→우)
+     * 레이어 레이블 스타일 - 고정 30px 폰트
      */
     labelStyle(box) {
-      const fontSize = this.calculateFontSize(box);
-      const padding = Math.round(fontSize * 0.15);
+      const fontSize = 30;
+      const padding = 4;
       
       const baseStyle = {
         position: 'absolute',
@@ -156,28 +117,24 @@ const PreviewCanvas = {
         maxWidth: '90%',
         pointerEvents: 'none',
         textShadow: '0 2px 4px rgba(0,0,0,0.8)',
-        borderRadius: `${Math.round(fontSize * 0.1)}px ${Math.round(fontSize * 0.1)}px 0 0`
+        borderRadius: '3px 3px 0 0'
       };
 
       const rowType = box.rowType || '';
       
       if (rowType === 'EFF') {
-        // Effect: 좌측
         baseStyle.left = '0';
         baseStyle.right = 'auto';
         baseStyle.transform = 'none';
       } else if (rowType === 'TXT') {
-        // Text: 중앙
         baseStyle.left = '50%';
         baseStyle.right = 'auto';
         baseStyle.transform = 'translateX(-50%)';
       } else if (rowType === 'BG') {
-        // BG: 우측
         baseStyle.left = 'auto';
         baseStyle.right = '0';
         baseStyle.transform = 'none';
       } else {
-        // 기본: 좌측
         baseStyle.left = '0';
         baseStyle.right = 'auto';
         baseStyle.transform = 'none';
@@ -186,10 +143,6 @@ const PreviewCanvas = {
       return baseStyle;
     },
 
-    /**
-     * 레이어 레이블 텍스트 생성
-     * - rowType만 표시 (단 이름 제거)
-     */
     getLabelText(box) {
       const typeMap = {
         'EFF': 'Effect',
@@ -200,8 +153,7 @@ const PreviewCanvas = {
     },
 
     handleStyle(pos) {
-      const ch = (this.canvasSize && this.canvasSize.h) ? this.canvasSize.h : 1080;
-      const size = Math.max(20, Math.min(40, Math.round(ch * 0.025)));
+      const size = 24;
       const offset = -Math.round(size / 2);
       
       const style = {
@@ -587,13 +539,11 @@ const PreviewCanvas = {
 
   template: `
     <div id="preview-canvas-scaler" :style="scalerStyle">
-      <!-- 면별 플래시 오버레이 -->
       <div id="preview-edge-flash-top" class="edge-flash-overlay edge-flash-top"></div>
       <div id="preview-edge-flash-bottom" class="edge-flash-overlay edge-flash-bottom"></div>
       <div id="preview-edge-flash-left" class="edge-flash-overlay edge-flash-left"></div>
       <div id="preview-edge-flash-right" class="edge-flash-overlay edge-flash-right"></div>
 
-      <!-- 레이어 박스들 (숨김 상태 제외) -->
       <div
         v-for="box in visibleBoxes"
         :key="box.id"
@@ -604,7 +554,6 @@ const PreviewCanvas = {
         @contextmenu="onBoxContextMenu($event, box)"
         data-action="js:selectCanvasBox"
       >
-        <!-- 레이어 레이블 (rowType만 표시, 위치별 배치) -->
         <div 
           class="canvas-label"
           :style="labelStyle(box)"
@@ -612,7 +561,6 @@ const PreviewCanvas = {
           {{ getLabelText(box) }}
         </div>
 
-        <!-- 리사이즈 핸들 (선택 시에만 표시) -->
         <template v-if="selectedBoxId === box.id">
           <div class="box-handle" :style="handleStyle('tl')" @mousedown="onHandleMouseDown($event, box, 'tl')"></div>
           <div class="box-handle" :style="handleStyle('t')"  @mousedown="onHandleMouseDown($event, box, 't')"></div>
