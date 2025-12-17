@@ -49,14 +49,13 @@ const PreviewCanvas = {
   },
 
   computed: {
-    scalerStyle() {
-      const cw = this.canvasSize?.w || 1920;
-      const ch = this.canvasSize?.h || 1080;
+    // 오버레이는 부모 scaler를 꽉 채움
+    overlayStyle() {
       return {
-        position: 'relative',
-        width: cw + 'px',
-        height: ch + 'px',
-        overflow: 'visible' 
+        position: 'absolute',
+        inset: '0',
+        pointerEvents: 'auto',
+        overflow: 'visible'
       };
     },
 
@@ -738,8 +737,8 @@ const PreviewCanvas = {
 
   template: `
     <div 
-      id="preview-canvas-scaler" 
-      :style="scalerStyle"
+      class="preview-canvas-overlay"
+      :style="overlayStyle"
       :class="{ 'canvas-drop-target': isDropTarget }"
       @dragover="onCanvasDragOver"
       @dragleave="onCanvasDragLeave"
