@@ -130,13 +130,7 @@
                         <div id="preview-canvas-viewport">
                             <div id="preview-canvas-scaler" :class="['canvas-scaler', 'canvas-ar-' + (aspectRatio || '16:9').replace(':','-')]" :style="canvasScalerStyle">
                                 <canvas id="preview-render-canvas"></canvas>
-                                <preview-canvas 
-                                    :vm="$data"
-                                    :canvas-boxes="canvasBoxes" 
-                                    :canvas-size="canvasSize" 
-                                    :selected-box-id="selectedBoxId" 
-                                    @select-box="setSelectedBoxId"
-                                ></preview-canvas>
+                                <preview-canvas :canvas-boxes="canvasBoxes" :canvas-size="canvasSize" :selected-box-id="selectedBoxId" @select-box="setSelectedBoxId"></preview-canvas>
                             </div>
                         </div>
                     </div>
