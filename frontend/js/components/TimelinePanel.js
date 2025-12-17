@@ -151,6 +151,9 @@ const TimelinePanel = {
                             <div v-else-if="mark.isMid" class="absolute bottom-0 h-3 border-l border-ui-border opacity-50" :style="{ left: mark.position + 'px' }"></div>
                             <div v-else class="absolute bottom-0 h-1.5 border-l border-ui-border opacity-30" :style="{ left: mark.position + 'px' }"></div>
                         </template>
+                        
+                        <!-- 플레이헤드 헤드 (룰러 영역에 배치, 테두리만 투명 속) -->
+                        <div class="playhead-head" :style="{ left: vm.currentTime * vm.zoom + 'px' }" @mousedown.stop.prevent="startPlayheadDrag"></div>
                     </div>
                     
                     <div 
@@ -183,10 +186,8 @@ const TimelinePanel = {
                         </div>
                     </div>
                     
-                    <!-- 플레이헤드 세로선 (트랙 영역만, 헤드 아래부터 시작) -->
+                    <!-- 플레이헤드 세로선 (트랙 영역만) -->
                     <div class="playhead-line-body" :style="{ left: vm.currentTime * vm.zoom + 'px' }"></div>
-                    <!-- 플레이헤드 헤드 (테두리만, 속 투명) -->
-                    <div class="playhead-handle-outline" :style="{ left: vm.currentTime * vm.zoom + 'px' }" @mousedown.stop.prevent="startPlayheadDrag"></div>
                 </div>
             </div>
             
@@ -267,7 +268,7 @@ const TimelinePanel = {
                 .clip.multi-selected { outline: 2px solid #f59e0b !important; outline-offset: 1px; }
                 [draggable="true"] { cursor: grab; } [draggable="true"]:active { cursor: grabbing; }
                 
-                /* 플레이헤드 세로선 - 헤드 아래(24px)부터 시작하여 트랙 전체를 가로지름 */
+                /* 플레이헤드 세로선 - 룰러 아래(트랙 영역)만 */
                 .playhead-line-body {
                     position: absolute;
                     top: 24px;
@@ -279,29 +280,29 @@ const TimelinePanel = {
                     transform: translateX(-1px);
                 }
                 
-                /* 플레이헤드 헤드 - 테두리만, 속은 완전 투명 (배경색으로 채움) */
-                .playhead-handle-outline {
+                /* 플레이헤드 헤드 - 테두리만, 속은 완전 투명 */
+                .playhead-head {
                     position: absolute;
-                    top: 0;
-                    width: 14px;
-                    height: 22px;
-                    background: #0a0a0a;
+                    top: 2px;
+                    width: 12px;
+                    height: 20px;
+                    background: transparent;
                     border: 2px solid #ef4444;
                     border-radius: 0 0 4px 4px;
-                    transform: translateX(-7px);
+                    transform: translateX(-6px);
                     cursor: ew-resize;
-                    z-index: 36;
+                    z-index: 50;
                     box-sizing: border-box;
                 }
-                .playhead-handle-outline::after {
+                .playhead-head::after {
                     content: '';
                     position: absolute;
                     bottom: -6px;
                     left: 50%;
                     transform: translateX(-50%);
-                    border-left: 6px solid transparent;
-                    border-right: 6px solid transparent;
-                    border-top: 6px solid #ef4444;
+                    border-left: 5px solid transparent;
+                    border-right: 5px solid transparent;
+                    border-top: 5px solid #ef4444;
                 }
                 
                 .timeline-select-no-arrow { -webkit-appearance: none; -moz-appearance: none; appearance: none; background-image: none !important; padding-right: 8px !important; }
