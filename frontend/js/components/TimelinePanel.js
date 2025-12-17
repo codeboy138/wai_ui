@@ -1,5 +1,5 @@
 // Timeline Panel Component - Enhanced
-// 드롭 수정, 재생 연동, 클립 스냅 플래시 효과
+// 드롭 수정, 재생 연동, 클립 스냅 플래시 효과 (백색 1초)
 
 const TimelinePanel = {
     props: ['vm'],
@@ -98,7 +98,7 @@ const TimelinePanel = {
                     
                     <!-- 트랙 레인 -->
                     <div v-for="(track, idx) in vm.tracks" :key="track.id" class="h-10 border-b border-ui-border relative track-lane" :class="{ 'opacity-30': track.isHidden }">
-                        <div v-for="clip in getClipsForTrack(track.id)" :key="clip.id" :ref="'clip-' + clip.id" class="clip absolute top-1 h-8 rounded cursor-pointer overflow-hidden" :class="{ 'selected': vm.selectedClip && vm.selectedClip.id === clip.id, 'clip-active': clip.isActive }" :style="clipStyle(clip)" @click.stop="vm.setSelectedClip(clip)" @mousedown.stop="startClipDrag($event, clip, track)">
+                        <div v-for="clip in getClipsForTrack(track.id)" :key="clip.id" :data-clip-id="clip.id" class="clip absolute top-1 h-8 rounded cursor-pointer overflow-hidden" :class="{ 'selected': vm.selectedClip && vm.selectedClip.id === clip.id, 'clip-active': clip.isActive }" :style="clipStyle(clip)" @click.stop="vm.setSelectedClip(clip)" @mousedown.stop="startClipDrag($event, clip, track)">
                             <div class="absolute inset-0 opacity-30" :style="{backgroundColor: track.type === 'audio' ? '#3b82f6' : track.color}"></div>
                             <div v-if="clip.type === 'video'" class="absolute inset-0 flex items-center justify-center"><i class="fa-solid fa-film text-white/50 text-lg"></i></div>
                             <template v-if="track.type === 'audio'">
@@ -143,7 +143,8 @@ const TimelinePanel = {
             resizeStartClipStart: 0,
             resizeStartClipDuration: 0,
             isDraggingPlayhead: false,
-            lastSnappedClipId: null
+            lastSnappedClipId: null,
+            snapFlashTimeouts: {}
         };
     },
     computed: {
@@ -160,6 +161,7 @@ const TimelinePanel = {
     mounted() {
         this.$nextTick(() => {
             this.adjustLayout();
+            this.injectSnapFlashStyles();
             window.addEventListener('resize', this.adjustLayout);
             document.addEventListener('click', this.closeContextMenus);
             document.addEventListener('mousemove', this.handleGlobalMouseMove);
@@ -171,8 +173,28 @@ const TimelinePanel = {
         document.removeEventListener('click', this.closeContextMenus);
         document.removeEventListener('mousemove', this.handleGlobalMouseMove);
         document.removeEventListener('mouseup', this.handleGlobalMouseUp);
+        Object.values(this.snapFlashTimeouts).forEach(t => clearTimeout(t));
     },
     methods: {
+        // 스냅 플래시 CSS 동적 주입
+        injectSnapFlashStyles() {
+            if (document.getElementById('snap-flash-styles')) return;
+            const style = document.createElement('style');
+            style.id = 'snap-flash-styles';
+            style.textContent = `
+                @keyframes snapFlashWhite {
+                    0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+                    10% { box-shadow: 0 0 20px 8px rgba(255, 255, 255, 0.9), inset 0 0 30px rgba(255, 255, 255, 0.8); }
+                    30% { box-shadow: 0 0 15px 5px rgba(255, 255, 255, 0.6), inset 0 0 20px rgba(255, 255, 255, 0.5); }
+                    100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+                }
+                .clip.snap-flash {
+                    animation: snapFlashWhite 1s ease-out forwards !important;
+                }
+            `;
+            document.head.appendChild(style);
+        },
+        
         getClipsForTrack(trackId) { return this.vm.clips.filter(c => c.trackId === trackId); },
         clipStyle(clip) { return { left: clip.start * this.vm.zoom + 'px', width: Math.max(20, clip.duration * this.vm.zoom) + 'px' }; },
         
@@ -262,15 +284,31 @@ const TimelinePanel = {
             this.seekToTime(time);
         },
         
-        // 클립 스냅 플래시 효과
-        triggerSnapFlash(clipId) {
-            if (this.lastSnappedClipId === clipId) return;
-            this.lastSnappedClipId = clipId;
-            
-            const clipEl = document.querySelector(`[ref="clip-${clipId}"]`) || this.$el.querySelector(`.clip.selected`);
-            if (clipEl) {
+        // 클립 스냅 시 백색 플래시 효과 (1초)
+        triggerSnapFlash(clipId, snappedToClipId) {
+            const triggerFlashOnClip = (id) => {
+                if (!id || id === 'playhead') return;
+                const clipEl = this.$el.querySelector(`[data-clip-id="${id}"]`);
+                if (!clipEl) return;
+                
+                // 기존 애니메이션 취소 후 재시작
+                if (this.snapFlashTimeouts[id]) {
+                    clearTimeout(this.snapFlashTimeouts[id]);
+                    clipEl.classList.remove('snap-flash');
+                    void clipEl.offsetWidth; // reflow 강제
+                }
+                
                 clipEl.classList.add('snap-flash');
-                setTimeout(() => clipEl.classList.remove('snap-flash'), 500);
+                this.snapFlashTimeouts[id] = setTimeout(() => {
+                    clipEl.classList.remove('snap-flash');
+                    delete this.snapFlashTimeouts[id];
+                }, 1000);
+            };
+            
+            // 드래그 중인 클립과 접촉한 상대 클립 양쪽 모두 플래시
+            triggerFlashOnClip(clipId);
+            if (snappedToClipId && snappedToClipId !== 'playhead') {
+                triggerFlashOnClip(snappedToClipId);
             }
         },
         
@@ -292,7 +330,11 @@ const TimelinePanel = {
                     const snap = this.findSnapPosition(newStart, this.draggingClip);
                     if (snap.snapped) {
                         newStart = snap.position;
-                        this.triggerSnapFlash(this.draggingClip.id);
+                        // 새로운 스냅 대상일 때만 플래시
+                        if (this.lastSnappedClipId !== snap.snappedToClipId) {
+                            this.triggerSnapFlash(this.draggingClip.id, snap.snappedToClipId);
+                            this.lastSnappedClipId = snap.snappedToClipId;
+                        }
                     } else {
                         this.lastSnappedClipId = null;
                     }
@@ -345,24 +387,39 @@ const TimelinePanel = {
         findSnapPosition(newStart, clip) {
             const snapDist = 10 / this.vm.zoom;
             const clipEnd = newStart + clip.duration;
-            let snapped = false, pos = newStart;
+            let snapped = false, pos = newStart, snappedToClipId = null;
             
-            // 플레이헤드
-            if (Math.abs(newStart - this.vm.currentTime) < snapDist) { pos = this.vm.currentTime; snapped = true; }
-            else if (Math.abs(clipEnd - this.vm.currentTime) < snapDist) { pos = this.vm.currentTime - clip.duration; snapped = true; }
+            // 플레이헤드 스냅
+            if (Math.abs(newStart - this.vm.currentTime) < snapDist) { 
+                pos = this.vm.currentTime; 
+                snapped = true; 
+                snappedToClipId = 'playhead';
+            } else if (Math.abs(clipEnd - this.vm.currentTime) < snapDist) { 
+                pos = this.vm.currentTime - clip.duration; 
+                snapped = true; 
+                snappedToClipId = 'playhead';
+            }
             
-            // 다른 클립
+            // 다른 클립 스냅
             if (!snapped) {
                 for (const c of this.vm.clips) {
                     if (c.id === clip.id) continue;
                     const os = c.start, oe = c.start + c.duration;
-                    if (Math.abs(newStart - oe) < snapDist) { pos = oe; snapped = true; break; }
-                    if (Math.abs(newStart - os) < snapDist) { pos = os; snapped = true; break; }
-                    if (Math.abs(clipEnd - os) < snapDist) { pos = os - clip.duration; snapped = true; break; }
-                    if (Math.abs(clipEnd - oe) < snapDist) { pos = oe - clip.duration; snapped = true; break; }
+                    if (Math.abs(newStart - oe) < snapDist) { 
+                        pos = oe; snapped = true; snappedToClipId = c.id; break; 
+                    }
+                    if (Math.abs(newStart - os) < snapDist) { 
+                        pos = os; snapped = true; snappedToClipId = c.id; break; 
+                    }
+                    if (Math.abs(clipEnd - os) < snapDist) { 
+                        pos = os - clip.duration; snapped = true; snappedToClipId = c.id; break; 
+                    }
+                    if (Math.abs(clipEnd - oe) < snapDist) { 
+                        pos = oe - clip.duration; snapped = true; snappedToClipId = c.id; break; 
+                    }
                 }
             }
-            return { snapped, position: pos };
+            return { snapped, position: pos, snappedToClipId };
         },
         
         cutAtPlayhead() { if (this.vm.selectedClip && typeof this.vm.splitClip === 'function') this.vm.splitClip(this.vm.selectedClip.id, this.vm.currentTime); },
