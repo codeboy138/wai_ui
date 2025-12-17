@@ -135,15 +135,16 @@ const PreviewCanvas = {
     },
 
     labelStyle(box) {
-      const fontSize = 120;
-      const padding = 6;
+      const fontSize = 40;
+      const paddingV = 4;
+      const paddingH = 10;
       
       const baseStyle = {
         position: 'absolute',
         bottom: '0',
         backgroundColor: box.color || '#333',
         color: '#fff',
-        padding: `${padding}px ${padding * 2}px`,
+        padding: `${paddingV}px ${paddingH}px`,
         fontSize: fontSize + 'px',
         fontWeight: 'bold',
         fontFamily: 'monospace',
@@ -152,9 +153,10 @@ const PreviewCanvas = {
         textOverflow: 'ellipsis',
         maxWidth: '90%',
         pointerEvents: 'none',
-        textShadow: '0 2px 4px rgba(0,0,0,0.8)',
-        borderRadius: '4px 4px 0 0',
-        zIndex: 10
+        textShadow: '0 1px 2px rgba(0,0,0,0.8)',
+        borderRadius: '3px 3px 0 0',
+        zIndex: 10,
+        lineHeight: '1.2'
       };
 
       const rowType = box.rowType || '';
