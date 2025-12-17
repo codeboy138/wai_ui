@@ -1,5 +1,5 @@
 // Timeline Panel Component - Enhanced
-// 룰러 세분화, 클립 충돌 방지, 다중 선택, 스냅 플래시
+// 룰러 세분화, 클립 충돌 방지, 다중 선택, 트랙 높이 조절, 수직 보조선
 
 const TimelinePanel = {
     props: ['vm'],
@@ -68,20 +68,36 @@ const TimelinePanel = {
                     <div class="h-6 border-b border-ui-border flex items-center justify-between px-2 text-[9px] font-bold text-text-sub bg-bg-panel sticky top-0" style="z-index: 40;">
                         <span>TRACKS</span><span class="text-[8px]">{{ vm.tracks.length }}</span>
                     </div>
-                    <div v-for="(track, index) in vm.tracks" :key="track.id" class="h-10 border-b border-ui-border flex items-center px-2 group hover:bg-bg-hover bg-bg-panel" :class="{ 'opacity-50': track.isLocked, 'bg-bg-input': track.isMain }" @contextmenu.prevent="openTrackContextMenu($event, track, index)">
-                        <div class="flex items-center gap-0.5 mr-2">
+                    <div 
+                        v-for="(track, index) in vm.tracks" 
+                        :key="track.id" 
+                        class="border-b border-ui-border flex items-center px-1 group hover:bg-bg-hover bg-bg-panel relative" 
+                        :class="{ 'opacity-50': track.isLocked, 'bg-bg-input': track.isMain }" 
+                        :style="{ height: (trackHeights[track.id] || 40) + 'px' }"
+                        @contextmenu.prevent="openTrackContextMenu($event, track, index)"
+                    >
+                        <div class="flex items-center gap-0.5 mr-1 shrink-0" v-show="(trackHeights[track.id] || 40) >= 24">
                             <button class="track-control-btn" :class="{ 'active': !track.isHidden }" @click="track.isHidden = !track.isHidden" title="가시성">
-                                <i :class="track.isHidden ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'"></i>
+                                <i :class="track.isHidden ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'" style="font-size: 8px;"></i>
                             </button>
                             <button class="track-control-btn" :class="{ 'locked': track.isLocked }" @click="track.isLocked = !track.isLocked" title="잠금">
-                                <i :class="track.isLocked ? 'fa-solid fa-lock' : 'fa-solid fa-lock-open'"></i>
-                            </button>
-                            <button class="track-control-btn" @click="setMainTrack(track)" title="메인 트랙">
-                                <i :class="track.isMain ? 'fa-solid fa-star text-yellow-400' : 'fa-regular fa-star text-text-sub'"></i>
+                                <i :class="track.isLocked ? 'fa-solid fa-lock' : 'fa-solid fa-lock-open'" style="font-size: 8px;"></i>
                             </button>
                         </div>
-                        <div class="w-1 h-2/3 rounded mr-2" :style="{ backgroundColor: track.color || '#666' }"></div>
-                        <input type="text" class="text-xs truncate flex-1 text-text-main bg-transparent border-none outline-none" :value="track.name" @input="track.name = $event.target.value" :disabled="track.isLocked" />
+                        <div class="w-1 h-2/3 rounded mr-1 shrink-0" :style="{ backgroundColor: track.color || '#666' }"></div>
+                        <input 
+                            v-show="(trackHeights[track.id] || 40) >= 20"
+                            type="text" 
+                            class="text-[10px] truncate flex-1 text-text-main bg-transparent border-none outline-none min-w-0" 
+                            :value="track.name" 
+                            @input="track.name = $event.target.value" 
+                            :disabled="track.isLocked" 
+                        />
+                        <!-- 트랙 높이 조절 핸들 -->
+                        <div 
+                            class="absolute left-0 right-0 bottom-0 h-1 cursor-ns-resize hover:bg-ui-accent/50 z-10"
+                            @mousedown.prevent="startTrackResize($event, track)"
+                        ></div>
                     </div>
                     <div class="absolute top-0 bottom-0 w-1 cursor-col-resize hover:bg-ui-accent/50" style="right: 0; z-index: 50;" @mousedown.prevent="startHeaderResize"></div>
                 </div>
@@ -91,30 +107,49 @@ const TimelinePanel = {
                     <!-- 룰러 (세분화) -->
                     <div id="timeline-ruler" class="h-6 border-b border-ui-border sticky top-0 bg-bg-dark relative" style="z-index: 20;" :style="{ width: totalTimelineWidth + 'px' }">
                         <template v-for="mark in rulerMarks" :key="'ruler-' + mark.time">
-                            <!-- 주눈금 (1초 단위) -->
                             <div v-if="mark.isMajor" class="absolute top-0 bottom-0 border-l border-ui-border" :style="{ left: mark.position + 'px' }">
                                 <span class="absolute top-0 left-1 text-[9px] text-text-sub">{{ mark.label }}</span>
                             </div>
-                            <!-- 중간눈금 (0.5초) -->
                             <div v-else-if="mark.isMid" class="absolute bottom-0 h-3 border-l border-ui-border opacity-50" :style="{ left: mark.position + 'px' }"></div>
-                            <!-- 세부눈금 (0.1초) -->
                             <div v-else class="absolute bottom-0 h-1.5 border-l border-ui-border opacity-30" :style="{ left: mark.position + 'px' }"></div>
                         </template>
                     </div>
                     
                     <!-- 트랙 레인 -->
-                    <div v-for="(track, idx) in vm.tracks" :key="track.id" class="h-10 border-b border-ui-border relative track-lane" :class="{ 'opacity-30': track.isHidden }">
-                        <div v-for="clip in getClipsForTrack(track.id)" :key="clip.id" :data-clip-id="clip.id" class="clip absolute top-1 h-8 rounded cursor-pointer overflow-hidden" :class="getClipClasses(clip)" :style="clipStyle(clip)" @click.stop="handleClipClick($event, clip)" @mousedown.stop="startClipDrag($event, clip, track)">
+                    <div 
+                        v-for="(track, idx) in vm.tracks" 
+                        :key="track.id" 
+                        class="border-b border-ui-border relative track-lane" 
+                        :class="{ 'opacity-30': track.isHidden }"
+                        :style="{ height: (trackHeights[track.id] || 40) + 'px' }"
+                    >
+                        <div 
+                            v-for="clip in getClipsForTrack(track.id)" 
+                            :key="clip.id" 
+                            :data-clip-id="clip.id" 
+                            class="clip absolute rounded cursor-pointer overflow-hidden" 
+                            :class="getClipClasses(clip)" 
+                            :style="clipStyle(clip, track.id)" 
+                            @click.stop="handleClipClick($event, clip)" 
+                            @mousedown.stop="startClipDrag($event, clip, track)"
+                        >
                             <div class="absolute inset-0 opacity-30" :style="{backgroundColor: track.type === 'audio' ? '#3b82f6' : track.color}"></div>
-                            <div v-if="clip.type === 'video'" class="absolute inset-0 flex items-center justify-center"><i class="fa-solid fa-film text-white/50 text-lg"></i></div>
+                            <div v-if="clip.type === 'video' && (trackHeights[track.id] || 40) >= 24" class="absolute inset-0 flex items-center justify-center"><i class="fa-solid fa-film text-white/50"></i></div>
                             <template v-if="track.type === 'audio'">
                                 <svg class="waveform" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M0 50 Q 10 20, 20 50 T 40 50 T 60 50 T 80 50 T 100 50" stroke="white" fill="transparent" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>
                             </template>
-                            <div class="text-[9px] px-2 text-white truncate font-bold drop-shadow-md relative z-10 pointer-events-none">{{ clip.name }}</div>
+                            <div v-show="(trackHeights[track.id] || 40) >= 16" class="text-[9px] px-1 text-white truncate font-bold drop-shadow-md relative z-10 pointer-events-none">{{ clip.name }}</div>
                             <div class="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/30" @mousedown.stop="startClipResize($event, clip, 'left')"></div>
                             <div class="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/30" @mousedown.stop="startClipResize($event, clip, 'right')"></div>
                         </div>
                     </div>
+                    
+                    <!-- 수직 스냅 보조선 -->
+                    <div 
+                        v-if="snapLinePosition !== null" 
+                        class="snap-vertical-line"
+                        :style="{ left: snapLinePosition + 'px' }"
+                    ></div>
                     
                     <!-- 플레이헤드 -->
                     <div class="playhead-line" :style="{ left: vm.currentTime * vm.zoom + 'px' }"></div>
@@ -126,6 +161,7 @@ const TimelinePanel = {
             <div v-if="trackContextMenu" class="context-menu" :style="{ top: trackContextMenu.y + 'px', left: trackContextMenu.x + 'px' }" @click.stop>
                 <div class="ctx-item" @click="duplicateTrack(trackContextMenu.track)"><i class="fa-solid fa-copy w-4"></i><span>트랙 복제</span></div>
                 <div class="ctx-item" @click="changeTrackColor(trackContextMenu.track)"><i class="fa-solid fa-palette w-4"></i><span>색상 변경</span></div>
+                <div class="ctx-item" @click="resetTrackHeight(trackContextMenu.track)"><i class="fa-solid fa-arrows-up-down w-4"></i><span>높이 초기화</span></div>
                 <div class="h-px bg-ui-border my-1"></div>
                 <div class="ctx-item text-red-400 hover:!bg-ui-danger" @click="deleteTrack(trackContextMenu.track, trackContextMenu.index)"><i class="fa-solid fa-trash w-4"></i><span>삭제</span></div>
             </div>
@@ -138,6 +174,15 @@ const TimelinePanel = {
             resizeStartX: 0,
             resizeStartWidth: 0,
             trackContextMenu: null,
+            
+            // 트랙 높이
+            trackHeights: {},
+            isResizingTrack: false,
+            resizingTrackId: null,
+            resizeStartY: 0,
+            resizeStartHeight: 0,
+            minTrackHeight: 12,
+            defaultTrackHeight: 40,
             
             // 다중 선택
             selectedClipIds: [],
@@ -158,6 +203,10 @@ const TimelinePanel = {
             
             // 플레이헤드
             isDraggingPlayhead: false,
+            
+            // 스냅 보조선
+            snapLinePosition: null,
+            snapLineTimeout: null,
             
             // 스냅 플래시
             lastSnappedClipId: null,
@@ -182,14 +231,12 @@ const TimelinePanel = {
             return this.totalDuration * this.vm.zoom;
         },
         
-        // 룰러 눈금 생성 (세분화)
         rulerMarks() {
             const marks = [];
             const zoom = this.vm.zoom;
             const duration = this.totalDuration;
             
-            // 줌 레벨에 따라 눈금 간격 조정
-            let majorInterval = 1; // 기본 1초
+            let majorInterval = 1;
             let showMid = true;
             let showMinor = true;
             
@@ -231,7 +278,8 @@ const TimelinePanel = {
     mounted() {
         this.$nextTick(() => {
             this.adjustLayout();
-            this.injectSnapFlashStyles();
+            this.injectStyles();
+            this.initTrackHeights();
             window.addEventListener('resize', this.adjustLayout);
             document.addEventListener('click', this.closeContextMenus);
             document.addEventListener('mousemove', this.handleGlobalMouseMove);
@@ -246,13 +294,13 @@ const TimelinePanel = {
         document.removeEventListener('mouseup', this.handleGlobalMouseUp);
         document.removeEventListener('keydown', this.handleKeyDown);
         Object.values(this.snapFlashTimeouts).forEach(t => clearTimeout(t));
+        if (this.snapLineTimeout) clearTimeout(this.snapLineTimeout);
     },
     methods: {
-        // 스냅 플래시 CSS 동적 주입
-        injectSnapFlashStyles() {
-            if (document.getElementById('snap-flash-styles')) return;
+        injectStyles() {
+            if (document.getElementById('timeline-custom-styles')) return;
             const style = document.createElement('style');
-            style.id = 'snap-flash-styles';
+            style.id = 'timeline-custom-styles';
             style.textContent = `
                 @keyframes snapFlashWhite {
                     0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
@@ -267,18 +315,46 @@ const TimelinePanel = {
                     outline: 2px solid #f59e0b !important;
                     outline-offset: 1px;
                 }
+                @keyframes snapLineFlash {
+                    0% { opacity: 0; }
+                    10% { opacity: 1; }
+                    100% { opacity: 0; }
+                }
+                .snap-vertical-line {
+                    position: absolute;
+                    top: 0;
+                    bottom: 0;
+                    width: 2px;
+                    background: linear-gradient(to bottom, rgba(255,255,255,0.9), rgba(255,255,255,0.3));
+                    box-shadow: 0 0 8px 2px rgba(255, 255, 255, 0.6);
+                    z-index: 100;
+                    pointer-events: none;
+                    animation: snapLineFlash 0.8s ease-out forwards;
+                }
             `;
             document.head.appendChild(style);
+        },
+        
+        initTrackHeights() {
+            this.vm.tracks.forEach(track => {
+                if (!this.trackHeights[track.id]) {
+                    this.trackHeights[track.id] = this.defaultTrackHeight;
+                }
+            });
         },
         
         getClipsForTrack(trackId) { 
             return this.vm.clips.filter(c => c.trackId === trackId); 
         },
         
-        clipStyle(clip) { 
+        clipStyle(clip, trackId) {
+            const height = this.trackHeights[trackId] || this.defaultTrackHeight;
+            const padding = Math.max(2, Math.min(4, height * 0.1));
             return { 
                 left: clip.start * this.vm.zoom + 'px', 
-                width: Math.max(20, clip.duration * this.vm.zoom) + 'px' 
+                width: Math.max(20, clip.duration * this.vm.zoom) + 'px',
+                top: padding + 'px',
+                height: (height - padding * 2) + 'px'
             }; 
         },
         
@@ -290,10 +366,21 @@ const TimelinePanel = {
             };
         },
         
-        // 클립 클릭 핸들러 (다중 선택 지원)
+        // 트랙 높이 조절
+        startTrackResize(e, track) {
+            this.isResizingTrack = true;
+            this.resizingTrackId = track.id;
+            this.resizeStartY = e.clientY;
+            this.resizeStartHeight = this.trackHeights[track.id] || this.defaultTrackHeight;
+        },
+        
+        resetTrackHeight(track) {
+            this.trackHeights[track.id] = this.defaultTrackHeight;
+            this.closeContextMenus();
+        },
+        
         handleClipClick(e, clip) {
             if (e.ctrlKey || e.metaKey) {
-                // Ctrl+클릭: 개별 토글
                 const idx = this.selectedClipIds.indexOf(clip.id);
                 if (idx >= 0) {
                     this.selectedClipIds.splice(idx, 1);
@@ -302,7 +389,6 @@ const TimelinePanel = {
                 }
                 this.lastSelectedClipId = clip.id;
             } else if (e.shiftKey && this.lastSelectedClipId) {
-                // Shift+클릭: 범위 선택 (같은 트랙 내)
                 const trackClips = this.getClipsForTrack(clip.trackId).sort((a, b) => a.start - b.start);
                 const lastClip = trackClips.find(c => c.id === this.lastSelectedClipId);
                 
@@ -318,16 +404,13 @@ const TimelinePanel = {
                         }
                     }
                 } else {
-                    // 다른 트랙이면 단일 선택
                     this.selectedClipIds = [clip.id];
                 }
             } else {
-                // 일반 클릭: 단일 선택
                 this.selectedClipIds = [clip.id];
                 this.lastSelectedClipId = clip.id;
             }
             
-            // vm.selectedClip 동기화
             if (this.selectedClipIds.length === 1) {
                 this.vm.selectedClip = this.vm.clips.find(c => c.id === this.selectedClipIds[0]);
             } else {
@@ -335,7 +418,6 @@ const TimelinePanel = {
             }
         },
         
-        // 레인 클릭 (선택 해제)
         handleLaneClick(e) {
             if (e.target.id === 'timeline-lane-container' || e.target.classList.contains('track-lane')) {
                 this.selectedClipIds = [];
@@ -343,18 +425,14 @@ const TimelinePanel = {
             }
         },
         
-        // 키보드 이벤트
         handleKeyDown(e) {
-            // Delete 키로 선택된 클립 삭제
             if (e.key === 'Delete' && this.selectedClipIds.length > 0) {
                 this.deleteSelectedClips();
             }
-            // Ctrl+A: 전체 선택
             if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
                 e.preventDefault();
                 this.selectedClipIds = this.vm.clips.map(c => c.id);
             }
-            // Escape: 선택 해제
             if (e.key === 'Escape') {
                 this.selectedClipIds = [];
                 this.vm.selectedClip = null;
@@ -400,7 +478,7 @@ const TimelinePanel = {
         
         addTrack() {
             const colors = ['#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899'];
-            this.vm.tracks.push({ 
+            const newTrack = { 
                 id: `t_${Date.now()}`, 
                 name: `Track ${this.vm.tracks.length + 1}`, 
                 type: 'video', 
@@ -408,7 +486,9 @@ const TimelinePanel = {
                 isHidden: false, 
                 isLocked: false, 
                 isMain: false 
-            });
+            };
+            this.vm.tracks.push(newTrack);
+            this.trackHeights[newTrack.id] = this.defaultTrackHeight;
         },
         
         deleteTrack(track, idx) {
@@ -417,18 +497,21 @@ const TimelinePanel = {
                 return; 
             }
             this.vm.clips = this.vm.clips.filter(c => c.trackId !== track.id);
+            delete this.trackHeights[track.id];
             this.vm.tracks.splice(idx, 1);
             this.closeContextMenus();
         },
         
         duplicateTrack(track) {
             const idx = this.vm.tracks.findIndex(t => t.id === track.id);
-            this.vm.tracks.splice(idx + 1, 0, { 
+            const newTrack = { 
                 ...track, 
                 id: `t_${Date.now()}`, 
                 name: track.name + ' (복사)', 
                 isMain: false 
-            });
+            };
+            this.vm.tracks.splice(idx + 1, 0, newTrack);
+            this.trackHeights[newTrack.id] = this.trackHeights[track.id] || this.defaultTrackHeight;
             this.closeContextMenus();
         },
         
@@ -466,7 +549,6 @@ const TimelinePanel = {
         startClipDrag(e, clip, track) {
             if (track.isLocked) return;
             
-            // 선택되지 않은 클립을 드래그하면 해당 클립만 선택
             if (!this.selectedClipIds.includes(clip.id)) {
                 this.selectedClipIds = [clip.id];
                 this.vm.selectedClip = clip;
@@ -476,7 +558,6 @@ const TimelinePanel = {
             this.draggingClipIds = [...this.selectedClipIds];
             this.dragStartX = e.clientX;
             
-            // 각 클립의 시작 위치 저장
             this.dragStartPositions = {};
             this.draggingClipIds.forEach(id => {
                 const c = this.vm.clips.find(clip => clip.id === id);
@@ -513,7 +594,6 @@ const TimelinePanel = {
             this.seekToTime(time);
         },
         
-        // 클립 충돌 검사
         checkClipCollision(clip, newStart, excludeIds = []) {
             const trackClips = this.getClipsForTrack(clip.trackId);
             const newEnd = newStart + clip.duration;
@@ -522,7 +602,6 @@ const TimelinePanel = {
                 if (other.id === clip.id || excludeIds.includes(other.id)) continue;
                 const otherEnd = other.start + other.duration;
                 
-                // 겹침 검사
                 if (newStart < otherEnd && newEnd > other.start) {
                     return other;
                 }
@@ -530,15 +609,12 @@ const TimelinePanel = {
             return null;
         },
         
-        // 충돌 없는 위치 찾기
         findNonCollidingPosition(clip, desiredStart, excludeIds = []) {
             const collision = this.checkClipCollision(clip, desiredStart, excludeIds);
             if (!collision) return desiredStart;
             
-            // 충돌 시 스냅 위치로 조정
             const collisionEnd = collision.start + collision.duration;
             
-            // 원래 위치가 충돌 클립의 왼쪽이면 왼쪽에 붙이고, 오른쪽이면 오른쪽에 붙임
             if (desiredStart < collision.start) {
                 return collision.start - clip.duration;
             } else {
@@ -546,7 +622,17 @@ const TimelinePanel = {
             }
         },
         
-        // 클립 스냅 시 백색 플래시 효과 (1초)
+        // 수직 스냅 보조선 표시
+        showSnapLine(position) {
+            if (this.snapLineTimeout) {
+                clearTimeout(this.snapLineTimeout);
+            }
+            this.snapLinePosition = position;
+            this.snapLineTimeout = setTimeout(() => {
+                this.snapLinePosition = null;
+            }, 800);
+        },
+        
         triggerSnapFlash(clipId, snappedToClipId) {
             const triggerFlashOnClip = (id) => {
                 if (!id || id === 'playhead') return;
@@ -573,8 +659,16 @@ const TimelinePanel = {
         },
         
         handleGlobalMouseMove(e) {
+            // 헤더 리사이즈
             if (this.isResizingHeader) {
                 this.trackHeaderWidth = Math.max(120, Math.min(400, this.resizeStartWidth + (e.clientX - this.resizeStartX)));
+            }
+            
+            // 트랙 높이 리사이즈
+            if (this.isResizingTrack && this.resizingTrackId) {
+                const dy = e.clientY - this.resizeStartY;
+                const newHeight = Math.max(this.minTrackHeight, this.resizeStartHeight + dy);
+                this.trackHeights[this.resizingTrackId] = newHeight;
             }
             
             if (this.isDraggingPlayhead) {
@@ -585,18 +679,21 @@ const TimelinePanel = {
                 const dx = e.clientX - this.dragStartX;
                 const dt = dx / this.vm.zoom;
                 
-                // 모든 선택된 클립 이동
                 this.draggingClipIds.forEach(id => {
                     const clip = this.vm.clips.find(c => c.id === id);
                     if (!clip) return;
                     
                     let newStart = Math.max(0, this.dragStartPositions[id] + dt);
                     
-                    // 스냅
                     if (this.vm.isMagnet) {
                         const snap = this.findSnapPosition(newStart, clip, this.draggingClipIds);
                         if (snap.snapped) {
                             newStart = snap.position;
+                            
+                            // 수직 보조선 표시
+                            const snapPixelPos = snap.snapTime * this.vm.zoom;
+                            this.showSnapLine(snapPixelPos);
+                            
                             if (this.lastSnappedClipId !== snap.snappedToClipId) {
                                 this.triggerSnapFlash(clip.id, snap.snappedToClipId);
                                 this.lastSnappedClipId = snap.snappedToClipId;
@@ -606,27 +703,34 @@ const TimelinePanel = {
                         }
                     }
                     
-                    // 충돌 검사 및 조정
                     const finalStart = this.findNonCollidingPosition(clip, newStart, this.draggingClipIds);
                     clip.start = Math.max(0, finalStart);
                 });
                 
-                // 트랙 변경 (단일 클립 드래그 시에만)
                 if (this.draggingClipIds.length === 1) {
                     const lane = document.getElementById('timeline-lane-container');
                     if (lane) {
                         const rect = lane.getBoundingClientRect();
                         const relY = e.clientY - rect.top - 24;
-                        const trackIdx = Math.max(0, Math.min(this.vm.tracks.length - 1, Math.floor(relY / 40)));
-                        const target = this.vm.tracks[trackIdx];
+                        
+                        let accHeight = 0;
+                        let targetTrack = null;
+                        for (const track of this.vm.tracks) {
+                            const trackHeight = this.trackHeights[track.id] || this.defaultTrackHeight;
+                            if (relY >= accHeight && relY < accHeight + trackHeight) {
+                                targetTrack = track;
+                                break;
+                            }
+                            accHeight += trackHeight;
+                        }
+                        
                         const clip = this.vm.clips.find(c => c.id === this.draggingClipIds[0]);
                         
-                        if (target && !target.isLocked && clip && target.id !== clip.trackId) {
-                            // 새 트랙에서 충돌 검사
-                            const tempClip = { ...clip, trackId: target.id };
+                        if (targetTrack && !targetTrack.isLocked && clip && targetTrack.id !== clip.trackId) {
+                            const tempClip = { ...clip, trackId: targetTrack.id };
                             const collision = this.checkClipCollision(tempClip, clip.start, []);
                             if (!collision) {
-                                clip.trackId = target.id;
+                                clip.trackId = targetTrack.id;
                             }
                         }
                     }
@@ -643,7 +747,6 @@ const TimelinePanel = {
                     if (ns < 0) { nd += ns; ns = 0; }
                     if (nd < 0.5) { nd = 0.5; ns = this.resizeStartClipStart + this.resizeStartClipDuration - 0.5; }
                     
-                    // 충돌 검사
                     const tempClip = { ...this.resizingClip, start: ns, duration: nd };
                     const collision = this.checkClipCollision(tempClip, ns, [this.resizingClip.id]);
                     if (!collision) {
@@ -654,7 +757,6 @@ const TimelinePanel = {
                     let nd = this.resizeStartClipDuration + dt;
                     if (nd < 0.5) nd = 0.5;
                     
-                    // 충돌 검사
                     const tempClip = { ...this.resizingClip, duration: nd };
                     const collision = this.checkClipCollision(tempClip, this.resizingClip.start, [this.resizingClip.id]);
                     if (!collision) {
@@ -666,6 +768,8 @@ const TimelinePanel = {
         
         handleGlobalMouseUp() {
             this.isResizingHeader = false;
+            this.isResizingTrack = false;
+            this.resizingTrackId = null;
             this.isDraggingPlayhead = false;
             this.isDraggingClip = false;
             this.draggingClipIds = [];
@@ -678,39 +782,46 @@ const TimelinePanel = {
         findSnapPosition(newStart, clip, excludeIds = []) {
             const snapDist = 10 / this.vm.zoom;
             const clipEnd = newStart + clip.duration;
-            let snapped = false, pos = newStart, snappedToClipId = null;
+            let snapped = false, pos = newStart, snappedToClipId = null, snapTime = null;
             
             // 플레이헤드 스냅
             if (Math.abs(newStart - this.vm.currentTime) < snapDist) { 
                 pos = this.vm.currentTime; 
                 snapped = true; 
                 snappedToClipId = 'playhead';
+                snapTime = this.vm.currentTime;
             } else if (Math.abs(clipEnd - this.vm.currentTime) < snapDist) { 
                 pos = this.vm.currentTime - clip.duration; 
                 snapped = true; 
                 snappedToClipId = 'playhead';
+                snapTime = this.vm.currentTime;
             }
             
-            // 다른 클립 스냅
+            // 다른 클립 스냅 (모든 트랙)
             if (!snapped) {
                 for (const c of this.vm.clips) {
                     if (c.id === clip.id || excludeIds.includes(c.id)) continue;
                     const os = c.start, oe = c.start + c.duration;
+                    
+                    // 드래그 클립 시작 -> 다른 클립 끝
                     if (Math.abs(newStart - oe) < snapDist) { 
-                        pos = oe; snapped = true; snappedToClipId = c.id; break; 
+                        pos = oe; snapped = true; snappedToClipId = c.id; snapTime = oe; break; 
                     }
+                    // 드래그 클립 시작 -> 다른 클립 시작
                     if (Math.abs(newStart - os) < snapDist) { 
-                        pos = os; snapped = true; snappedToClipId = c.id; break; 
+                        pos = os; snapped = true; snappedToClipId = c.id; snapTime = os; break; 
                     }
+                    // 드래그 클립 끝 -> 다른 클립 시작
                     if (Math.abs(clipEnd - os) < snapDist) { 
-                        pos = os - clip.duration; snapped = true; snappedToClipId = c.id; break; 
+                        pos = os - clip.duration; snapped = true; snappedToClipId = c.id; snapTime = os; break; 
                     }
+                    // 드래그 클립 끝 -> 다른 클립 끝
                     if (Math.abs(clipEnd - oe) < snapDist) { 
-                        pos = oe - clip.duration; snapped = true; snappedToClipId = c.id; break; 
+                        pos = oe - clip.duration; snapped = true; snappedToClipId = c.id; snapTime = oe; break; 
                     }
                 }
             }
-            return { snapped, position: pos, snappedToClipId };
+            return { snapped, position: pos, snappedToClipId, snapTime };
         },
         
         cutAtPlayhead() { 
@@ -740,7 +851,6 @@ const TimelinePanel = {
         deleteSelectedClips() {
             if (this.selectedClipIds.length === 0) return;
             
-            // 잠긴 트랙 클립 필터링
             const deletableIds = this.selectedClipIds.filter(id => {
                 const clip = this.vm.clips.find(c => c.id === id);
                 if (!clip) return false;
@@ -774,13 +884,25 @@ const TimelinePanel = {
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top - 24;
             const time = Math.max(0, x / this.vm.zoom);
-            const trackIdx = Math.max(0, Math.min(this.vm.tracks.length - 1, Math.floor(y / 40)));
-            const track = this.vm.tracks[trackIdx];
-            if (!track) return;
+            
+            // 높이 기반 트랙 찾기
+            let accHeight = 0;
+            let targetTrack = null;
+            for (const track of this.vm.tracks) {
+                const trackHeight = this.trackHeights[track.id] || this.defaultTrackHeight;
+                if (y >= accHeight && y < accHeight + trackHeight) {
+                    targetTrack = track;
+                    break;
+                }
+                accHeight += trackHeight;
+            }
+            
+            if (!targetTrack) targetTrack = this.vm.tracks[this.vm.tracks.length - 1];
+            if (!targetTrack) return;
             
             const newClip = { 
                 id: `c_${Date.now()}`, 
-                trackId: track.id, 
+                trackId: targetTrack.id, 
                 name: data.name || 'Clip', 
                 start: time, 
                 duration: 10, 
@@ -789,23 +911,12 @@ const TimelinePanel = {
                 isActive: false 
             };
             
-            // 충돌 검사 후 위치 조정
             const finalStart = this.findNonCollidingPosition(newClip, time, []);
             newClip.start = finalStart;
             
             this.vm.clips.push(newClip);
             this.selectedClipIds = [newClip.id];
             this.vm.selectedClip = newClip;
-            
-            Swal.fire({ 
-                icon:'success', 
-                title:'클립 추가', 
-                text:`"${data.name}" → ${track.name}`, 
-                background:'#1e1e1e', 
-                color:'#fff', 
-                timer:1500, 
-                showConfirmButton:false 
-            });
         },
         
         handleWheel(e) {
