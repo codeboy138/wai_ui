@@ -45,7 +45,7 @@
                     <button class="text-lg text-text-sub hover:text-text-main" title="메인 메뉴 (준비 중)"><i class="fa-solid fa-bars"></i></button>
                 </div>
 
-                <!-- 메인메뉴 - 간격 60% 축소 (gap-[15px] → gap-[6px]) -->
+                <!-- 메인메뉴 -->
                 <nav id="header-nav-container" class="flex items-center gap-[6px] h-full">
                     <button id="header-nav-explore-btn" class="nav-btn" @click="firePython('nav_explore')" data-action="py:nav_explore" title="프로젝트 탐색 열기">탐색</button>
                     
@@ -117,20 +117,18 @@
             <!-- Center Panel -->
             <section id="main-center-panel" class="flex-1 flex flex-col bg-bg-dark min-w-[400px] relative overflow-hidden">
                 <div id="preview-main-container" class="relative flex flex-col" :style="{ height: previewContainerHeight }">
-                    <div id="preview-toolbar-panel" class="h-8 bg-bg-panel border-b border-ui-border flex items-center justify-center px-2 gap-3 shrink-0 z-20">
-                        <div class="flex items-center gap-2 bg-bg-input rounded px-3 h-6 border border-ui-border">
-                            <dropdown-menu id="preview-toolbar-ratio-dropdown" label="화면비율" :current-value="aspectRatio" :items="['16:9', '9:16', '1:1']" @select="setAspect" title="캔버스 화면비율 (메타데이터)"></dropdown-menu>
-                            <div class="w-px h-3 bg-ui-border"></div>
-                            <dropdown-menu id="preview-toolbar-resolution-dropdown" label="해상도" :current-value="currentResolutionLabel" :items="resolutionOptions" @select="setResolution" title="캔버스 해상도 선택 (메타데이터)"></dropdown-menu>
-                            <div class="w-px h-3 bg-ui-border"></div>
-                            <div id="preview-zoom-indicator" class="flex items-center pl-2 text-xxs text-text-sub" title="프리뷰 화면 배율 (표시용)">화면 배율&nbsp;<span id="preview-zoom-indicator-value">100%</span></div>
-                        </div>
-                    </div>
                     <div id="preview-canvas-wrapper" class="flex-1 relative overflow-hidden bg-black flex items-center justify-center" @mouseleave="mouseCoord = {x: 0, y: 0}; isMouseOverCanvas = false">
                         <div id="preview-canvas-viewport">
                             <div id="preview-canvas-scaler" :class="['canvas-scaler', 'canvas-ar-' + (aspectRatio || '16:9').replace(':','-')]" :style="canvasScalerStyle">
                                 <canvas id="preview-render-canvas"></canvas>
-                                <preview-canvas :canvas-boxes="canvasBoxes" :canvas-size="canvasSize" :selected-box-id="selectedBoxId" @select-box="setSelectedBoxId"></preview-canvas>
+                                <preview-canvas 
+                                    :canvas-boxes="canvasBoxes" 
+                                    :canvas-size="canvasSize" 
+                                    :selected-box-id="selectedBoxId"
+                                    :current-time="currentTime"
+                                    :is-playing="isPlaying"
+                                    @select-box="setSelectedBoxId"
+                                ></preview-canvas>
                             </div>
                         </div>
                     </div>
