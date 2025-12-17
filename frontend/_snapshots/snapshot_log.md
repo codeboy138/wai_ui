@@ -80,3 +80,32 @@
 | 2025-12-16 20:48:57 | 20251216_204857_P452_SNAP | text-display-menu-style-update |
 | 2025-12-16 20:55:39 | 20251216_205539_P454_SNAP | menu-padding-reduce-rounded |
 | 2025-12-16 21:27:17 | 20251216_212717_P458_SNAP | media-layer-text-spacing-menu-style |
+| 2025-12-16 22:44:03 | 20251216_224403_P459_SNAP | 설명 |
+| 2025-12-16 22:46:31 | 20251216_224631_P460_SNAP | 설명 |
+| 2025-12-16 23:35:30 | 20251216_233530_P470_SNAP | 설명 |
+| 2025-12-17 00:12:08 | 20251217_001208_P483_SNAP | 설명 |
+| 2025-12-17 00:25:17 | 20251217_002517_P486_SNAP | ApiModal-resize-playback-timeline-sync |
+| 2025-12-17 00:33:26 | 20251217_003326_P491_SNAP | remove-crosshair-guides-cleanup |
+| 2025-12-17 00:49:24 | 20251217_004924_P493_SNAP | 설명 |
+| 2025-12-17 01:03:57 | 20251217_010357_P495_SNAP | fix_element_specs_syntax_error |
+| 2025-12-17 01:22:05 | 20251217_012205_P496_SNAP | NORMAL BEFORE FRONTEND DUPL FIX |
+| 2025-12-17 01:22:05 | 20251217_012205_P497_SNAP | NORMAL BEFORE FRONTEND DUPL FIX |
+| 2025-12-17 01:22:05 | 20251217_012205_P498_SNAP | NORMAL BEFORE FRONTEND DUPL FIX |
+| 2025-12-17 01:44:41 | 20251217_014441_P500_SNAP | 설명 |
+| 2025-12-17 02:04:19 | 20251217_020419_P503_SNAP | timeline-maintrack-star-template-modal-resize |
+| 2025-12-17 02:09:20 | 20251217_020920_P504_SNAP | timeline-maintrack-star-template-modal-resize |
+| 2025-12-17 02:17:38 | 20251217_021738_P506_SNAP | timeline-clip-track-move-header-resize-collapse |
+| 2025-12-17 02:44:49 | 20251217_024449_P509_SNAP | asset-modal-sample-videos-timeline-playback-sync |
+| 2025-12-17 02:53:11 | 20251217_025311_P511_SNAP | timeline-drop-fix-playback-smooth-drag |
+| 2025-12-17 02:53:11 | 20251217_025311_P512_SNAP | timeline-drop-fix-playback-smooth-drag |
+| 2025-12-17 03:01:23 | 20251217_030123_P515_SNAP | modal-overlay-drag-through-responsive-grid |
+| 2025-12-17 03:13:05 | 20251217_031305_P518_SNAP | fix-header-menu-clip-snap-flash |
+| 2025-12-17 10:16:18 | 20251217_101618_P519_SNAP | 설명 |
+| 2025-12-17 10:33:00 | 20251217_103300_P521_SNAP | clip_snap_white_flash_effect |
+| 2025-12-17 11:04:58 | 20251217_110458_P524_SNAP | timeline_snap_collision_frames_resize |
+| 2025-12-17 11:04:58 | 20251217_110458_P525_SNAP | timeline_snap_collision_frames_resize |
+| 2025-12-17 12:05:40 | 20251217_120540_P530_SNAP | fix_preview_canvas_vm_props_error |
+| 2025-12-17 12:05:40 | 20251217_120540_P531_SNAP | fix_preview_canvas_vm_props_error |
+| 2025-12-17 12:06:46 | 20251217_120646_P532_SNAP | 설명 |
+| 2025-12-17 12:06:46 | 20251217_120646_P533_SNAP | 설명 |
+| 2025-12-17 13:04:45 | 20251217_130445_P540_SNAP | RESTORE:20251217_120540_P530_SNAP - fix_preview_canvas_vm_props_error |
