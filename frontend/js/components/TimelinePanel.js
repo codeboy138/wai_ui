@@ -83,10 +83,10 @@ const TimelinePanel = {
                 </div>
             </div>
             
-            <div v-if="!vm.isTimelineCollapsed" id="timeline-scroll-container" class="flex-1 overflow-auto timeline-grid relative" :style="{ gridTemplateColumns: trackHeaderWidth + 'px 1fr' }">
+            <div v-if="!vm.isTimelineCollapsed" id="timeline-scroll-container" class="flex-1 overflow-auto timeline-grid relative" :style="{ gridTemplateColumns: currentHeaderWidth + 'px 1fr' }">
                 <div class="sticky-col bg-bg-panel border-r border-ui-border relative" style="z-index: 30;">
                     <div class="h-6 border-b border-ui-border flex items-center justify-between px-2 text-[9px] font-bold text-text-sub bg-bg-panel sticky top-0" style="z-index: 40;">
-                        <span>TRACKS</span>
+                        <span v-show="!isTrackNamesCollapsed">TRACKS</span>
                         <div class="flex items-center gap-1">
                             <button class="w-4 h-4 flex items-center justify-center rounded hover:bg-bg-hover text-[8px]" @click="toggleAllTrackNames" :title="isTrackNamesCollapsed ? '이름 펼치기' : '이름 접기'">
                                 <i :class="isTrackNamesCollapsed ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash'" style="font-size: 8px;"></i>
@@ -108,14 +108,14 @@ const TimelinePanel = {
                         @dragend="endTrackDrag"
                         @contextmenu.prevent="openTrackContextMenu($event, track, index)"
                     >
+                        <!-- 별표: 맨 하단(마지막) 트랙에만 표시되거나, 메인 트랙에 표시 - 흰색 테두리만 -->
                         <button 
                             v-if="track.isMain || (index === vm.tracks.length - 1 && !hasMainTrack)"
-                            class="w-4 h-4 flex items-center justify-center rounded mr-1 shrink-0" 
-                            :class="track.isMain ? 'text-yellow-400' : 'text-text-sub hover:text-yellow-400'"
+                            class="w-4 h-4 flex items-center justify-center rounded mr-1 shrink-0 text-white hover:text-white"
                             @click.stop="setMainTrack(track)" 
                             title="메인 트랙"
                         >
-                            <i :class="track.isMain ? 'fa-solid fa-star' : 'fa-regular fa-star'" style="font-size: 10px;"></i>
+                            <i class="fa-regular fa-star" style="font-size: 10px;"></i>
                         </button>
                         <div v-else class="w-4 mr-1 shrink-0"></div>
                         
@@ -127,7 +127,7 @@ const TimelinePanel = {
                                 <i :class="track.isLocked ? 'fa-solid fa-lock' : 'fa-solid fa-lock-open'" style="font-size: 8px;"></i>
                             </button>
                         </div>
-                        <div class="w-1 h-2/3 rounded mr-1 shrink-0" :style="{ backgroundColor: track.color || '#666' }"></div>
+                        <div v-show="!isTrackNamesCollapsed" class="w-1 h-2/3 rounded mr-1 shrink-0" :style="{ backgroundColor: track.color || '#666' }"></div>
                         <input 
                             v-show="!isTrackNamesCollapsed && (trackHeights[track.id] || 40) >= 24"
                             type="text" 
@@ -139,7 +139,7 @@ const TimelinePanel = {
                         />
                         <div class="absolute left-0 right-0 bottom-0 h-1 cursor-ns-resize hover:bg-ui-accent/50 z-10" @mousedown.prevent.stop="startTrackResize($event, track)"></div>
                     </div>
-                    <div class="absolute top-0 bottom-0 w-1 cursor-col-resize hover:bg-ui-accent/50" style="right: 0; z-index: 50;" @mousedown.prevent="startHeaderResize"></div>
+                    <div v-show="!isTrackNamesCollapsed" class="absolute top-0 bottom-0 w-1 cursor-col-resize hover:bg-ui-accent/50" style="right: 0; z-index: 50;" @mousedown.prevent="startHeaderResize"></div>
                 </div>
 
                 <div id="timeline-lane-container" class="relative bg-bg-dark min-w-max" @mousedown="handleLaneMouseDown" @dragover.prevent="handleDragOver" @drop.prevent="handleDrop" @click="handleLaneClick">
@@ -206,7 +206,9 @@ const TimelinePanel = {
     `,
     data() {
         return {
-            trackHeaderWidth: 180, isResizingHeader: false, resizeStartX: 0, resizeStartWidth: 0,
+            trackHeaderWidth: 180,
+            collapsedHeaderWidth: 70,
+            isResizingHeader: false, resizeStartX: 0, resizeStartWidth: 0,
             trackContextMenu: null, draggingTrackId: null, draggingTrackIndex: null, dragOverTrackId: null,
             trackHeights: {}, isResizingTrack: false, resizingTrackId: null, resizeStartY: 0, resizeStartHeight: 0,
             minTrackHeight: 12, defaultTrackHeight: 40, selectedClipIds: [], lastSelectedClipId: null,
@@ -225,6 +227,9 @@ const TimelinePanel = {
         },
         totalTimelineWidth() { return this.totalDuration * this.vm.zoom; },
         hasMainTrack() { return this.vm.tracks.some(t => t.isMain); },
+        currentHeaderWidth() {
+            return this.isTrackNamesCollapsed ? this.collapsedHeaderWidth : this.trackHeaderWidth;
+        },
         rulerMarks() {
             const marks = [], zoom = this.vm.zoom, duration = this.totalDuration;
             let majorInterval = 1, showMid = true, showMinor = true;
@@ -364,7 +369,10 @@ const TimelinePanel = {
         seekToTime(t) { this.vm.currentTime = Math.max(0, t); },
         adjustLayout() { const p = document.getElementById('preview-main-container'); if (p) p.style.height = this.vm.isTimelineCollapsed ? 'calc(100% - 32px)' : '50%'; },
         toggleCollapse() { this.vm.isTimelineCollapsed = !this.vm.isTimelineCollapsed; this.$nextTick(() => this.adjustLayout()); },
-        startHeaderResize(e) { this.isResizingHeader = true; this.resizeStartX = e.clientX; this.resizeStartWidth = this.trackHeaderWidth; },
+        startHeaderResize(e) { 
+            if (this.isTrackNamesCollapsed) return;
+            this.isResizingHeader = true; this.resizeStartX = e.clientX; this.resizeStartWidth = this.trackHeaderWidth; 
+        },
         formatRulerTime(s) { if (s < 60) return s + 's'; const m = Math.floor(s / 60); const sec = Math.round(s % 60); return m + ':' + String(sec).padStart(2, '0'); },
         addTrack() {
             const colors = ['#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899'];
@@ -421,7 +429,7 @@ const TimelinePanel = {
         },
         showSnapEdgeFlash(clipId, side) { this.snapFlashEdge = { clipId, side }; setTimeout(() => { if (this.snapFlashEdge.clipId === clipId && this.snapFlashEdge.side === side) this.snapFlashEdge = { clipId: null, side: null }; }, 200); },
         handleGlobalMouseMove(e) {
-            if (this.isResizingHeader) this.trackHeaderWidth = Math.max(120, Math.min(400, this.resizeStartWidth + (e.clientX - this.resizeStartX)));
+            if (this.isResizingHeader && !this.isTrackNamesCollapsed) this.trackHeaderWidth = Math.max(120, Math.min(400, this.resizeStartWidth + (e.clientX - this.resizeStartX)));
             if (this.isResizingTrack && this.resizingTrackId) { const dy = e.clientY - this.resizeStartY; this.trackHeights[this.resizingTrackId] = Math.max(this.minTrackHeight, this.resizeStartHeight + dy); }
             if (this.isDraggingPlayhead) this.updatePlayheadPosition(e);
             if (this.isDraggingClip && this.draggingClipIds.length > 0) {
