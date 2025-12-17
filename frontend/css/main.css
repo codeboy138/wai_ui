@@ -604,47 +604,18 @@ html, body {
     z-index: 10;
 }
 
-/* Timeline Ruler - 세분화된 눈금 */
-.timeline-ruler {
-    position: relative;
-    background: var(--bg-dark);
+.timeline-ruler-major {
+    border-color: var(--ui-border);
 }
 
-.ruler-mark-major {
-    position: absolute;
-    top: 0;
-    width: 1px;
-    height: 100%;
-    background: var(--ui-border);
-}
-
-.ruler-mark-minor {
-    position: absolute;
-    bottom: 0;
-    width: 1px;
-    height: 40%;
-    background: rgba(255, 255, 255, 0.15);
-}
-
-.ruler-mark-sub {
-    position: absolute;
-    bottom: 0;
-    width: 1px;
-    height: 20%;
-    background: rgba(255, 255, 255, 0.08);
-}
-
-.ruler-time-label {
-    position: absolute;
-    top: 2px;
-    font-size: 9px;
-    color: var(--text-sub);
-    white-space: nowrap;
-}
-
-/* Track Lane - 눈금 제거 (배경만) */
 .track-lane {
-    background: var(--bg-dark);
+    background: repeating-linear-gradient(
+        90deg,
+        transparent 0px,
+        transparent 49px,
+        var(--ui-border) 49px,
+        var(--ui-border) 50px
+    );
 }
 
 .track-control-btn {
@@ -678,8 +649,7 @@ html, body {
 /* Clips */
 .clip {
     border: 1px solid rgba(255, 255, 255, 0.2);
-    transition: border-color 0.1s ease;
-    position: relative;
+    transition: box-shadow 0.1s ease, border-color 0.1s ease;
 }
 
 .clip:hover {
@@ -689,11 +659,6 @@ html, body {
 .clip.selected {
     border-color: var(--ui-accent);
     box-shadow: 0 0 0 1px var(--ui-accent);
-}
-
-.clip.multi-selected {
-    border-color: var(--ui-warning);
-    box-shadow: 0 0 0 1px var(--ui-warning);
 }
 
 .clip.clip-active {
@@ -767,66 +732,34 @@ html, body {
 }
 
 /* -----------------------------------------------
-   Snap Flash Effect - 좌우 끝에만 적용
+   Snap Flash Effect (Enhanced - Thick White Line)
    ----------------------------------------------- */
-@keyframes snapFlashEdge {
+@keyframes snapFlashWhite {
     0% { 
-        opacity: 0;
+        box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
     }
-    10% { 
-        opacity: 1;
+    5% { 
+        box-shadow: 0 0 25px 12px rgba(255, 255, 255, 1), 
+                    inset 0 0 40px rgba(255, 255, 255, 0.9),
+                    0 0 3px 3px #fff;
+    }
+    15% { 
+        box-shadow: 0 0 20px 10px rgba(255, 255, 255, 0.8), 
+                    inset 0 0 30px rgba(255, 255, 255, 0.7),
+                    0 0 2px 2px #fff;
+    }
+    50% { 
+        box-shadow: 0 0 12px 6px rgba(255, 255, 255, 0.4), 
+                    inset 0 0 15px rgba(255, 255, 255, 0.3);
     }
     100% { 
-        opacity: 0;
+        box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
     }
 }
 
-.clip.snap-flash::before,
-.clip.snap-flash::after {
-    content: '';
-    position: absolute;
-    top: -2px;
-    bottom: -2px;
-    width: 2px;
-    background: #fff;
-    box-shadow: 0 0 6px 1px rgba(255, 255, 255, 0.8);
-    animation: snapFlashEdge 1s ease-out forwards;
-    z-index: 10;
-}
-
-.clip.snap-flash::before {
-    left: -2px;
-}
-
-.clip.snap-flash::after {
-    right: -2px;
-}
-
-/* 스냅된 쪽만 표시 */
-.clip.snap-flash-left::before {
-    content: '';
-    position: absolute;
-    top: -2px;
-    bottom: -2px;
-    left: -2px;
-    width: 2px;
-    background: #fff;
-    box-shadow: 0 0 6px 1px rgba(255, 255, 255, 0.8);
-    animation: snapFlashEdge 1s ease-out forwards;
-    z-index: 10;
-}
-
-.clip.snap-flash-right::after {
-    content: '';
-    position: absolute;
-    top: -2px;
-    bottom: -2px;
-    right: -2px;
-    width: 2px;
-    background: #fff;
-    box-shadow: 0 0 6px 1px rgba(255, 255, 255, 0.8);
-    animation: snapFlashEdge 1s ease-out forwards;
-    z-index: 10;
+.clip.snap-flash {
+    animation: snapFlashWhite 1s ease-out forwards !important;
+    border-color: #fff !important;
 }
 
 /* Snap Vertical Alignment Line */
@@ -834,12 +767,17 @@ html, body {
     position: absolute;
     top: 0;
     bottom: 0;
-    width: 2px;
-    background: rgba(255, 255, 255, 0.9);
+    width: 3px;
+    background: linear-gradient(180deg, 
+        rgba(255, 255, 255, 0) 0%, 
+        rgba(255, 255, 255, 1) 20%, 
+        rgba(255, 255, 255, 1) 80%, 
+        rgba(255, 255, 255, 0) 100%);
     z-index: 100;
     pointer-events: none;
-    transform: translateX(-1px);
-    box-shadow: 0 0 8px 1px rgba(255, 255, 255, 0.6);
+    transform: translateX(-1.5px);
+    box-shadow: 0 0 10px 2px rgba(255, 255, 255, 0.8),
+                0 0 20px 4px rgba(255, 255, 255, 0.4);
 }
 
 /* -----------------------------------------------
@@ -1046,11 +984,6 @@ html, body {
     border-bottom-color: transparent;
 }
 
-.wai-dropdown-trigger.active-resolution {
-    border-color: var(--ui-accent);
-    box-shadow: 0 0 0 1px var(--ui-accent);
-}
-
 .wai-dropdown-menu {
     position: absolute;
     top: 100%;
@@ -1083,8 +1016,7 @@ html, body {
 }
 
 .wai-dropdown-item.selected {
-    border-color: var(--ui-accent);
-    background: rgba(0, 212, 255, 0.1);
+    border-color: var(--text-sub);
 }
 
 /* -----------------------------------------------
@@ -1564,60 +1496,13 @@ input[type="range"]::-moz-range-thumb {
 }
 
 /* -----------------------------------------------
-   SweetAlert2 Custom - 작은 토스트
+   Timeline Collapsed State
    ----------------------------------------------- */
-.swal2-popup.swal2-toast {
-    padding: 8px 12px !important;
-    font-size: 12px !important;
-}
-
-.swal2-popup.swal2-toast .swal2-title {
-    font-size: 13px !important;
-    margin: 0 !important;
-}
-
-.swal2-popup.swal2-toast .swal2-html-container {
-    font-size: 11px !important;
-    margin: 4px 0 0 0 !important;
-}
-
-.swal2-popup.swal2-toast .swal2-icon {
-    width: 24px !important;
-    height: 24px !important;
-    margin: 0 8px 0 0 !important;
-}
-
-/* 일반 팝업도 작게 */
-.swal2-popup {
-    font-size: 13px !important;
-    padding: 16px !important;
-    max-width: 280px !important;
-}
-
-.swal2-popup .swal2-title {
-    font-size: 15px !important;
-}
-
-.swal2-popup .swal2-html-container {
-    font-size: 12px !important;
-}
-
-.swal2-popup .swal2-icon {
-    width: 40px !important;
-    height: 40px !important;
-    margin: 0 auto 8px !important;
-}
-
-.swal2-popup .swal2-icon .swal2-icon-content {
-    font-size: 28px !important;
-}
-
-/* -----------------------------------------------
-   Canvas Layer Label - 고정 크기
-   ----------------------------------------------- */
-.canvas-layer-label {
-    font-size: 6px !important;
-    padding: 1px 3px !important;
-    white-space: nowrap;
-    pointer-events: none;
+.timeline-collapsed-bar {
+    height: 32px;
+    background: var(--bg-panel);
+    border-top: 1px solid var(--ui-border);
+    display: flex;
+    align-items: center;
+    padding: 0 var(--spacing-sm);
 }
