@@ -1,5 +1,5 @@
 // Timeline Panel Component - Enhanced
-// 룰러 세분화, 클립 충돌 방지, 다중 선택, 트랙 높이 조절, 수직 보조선
+// 트랙 드래그 순서 변경, Z-Index 연동, 메인트랙 표시 수정
 
 const TimelinePanel = {
     props: ['vm'],
@@ -65,37 +65,76 @@ const TimelinePanel = {
                 <!-- 트랙 헤더 -->
                 <div class="sticky-col bg-bg-panel border-r border-ui-border relative" style="z-index: 30;">
                     <div class="h-6 border-b border-ui-border flex items-center justify-between px-2 text-[9px] font-bold text-text-sub bg-bg-panel sticky top-0" style="z-index: 40;">
-                        <span>TRACKS</span><span class="text-[8px]">{{ vm.tracks.length }}</span>
+                        <span>TRACKS</span>
+                        <span class="text-[8px]">Z: 상↑ 하↓</span>
                     </div>
                     <div 
                         v-for="(track, index) in vm.tracks" 
-                        :key="track.id" 
-                        class="border-b border-ui-border flex items-center px-1 group hover:bg-bg-hover bg-bg-panel relative" 
-                        :class="{ 'opacity-50': track.isLocked, 'bg-bg-input': track.isMain }" 
+                        :key="track.id"
+                        :data-track-id="track.id"
+                        class="border-b border-ui-border flex items-center px-1 group bg-bg-panel relative transition-all duration-150" 
+                        :class="{ 
+                            'opacity-50': track.isLocked, 
+                            'bg-yellow-900/30 border-l-2 border-l-yellow-400': track.isMain,
+                            'bg-ui-accent/20': dragOverTrackId === track.id && dragOverTrackId !== draggingTrackId
+                        }" 
                         :style="{ height: (trackHeights[track.id] || 40) + 'px' }"
+                        draggable="true"
+                        @dragstart="startTrackDrag($event, track, index)"
+                        @dragover.prevent="handleTrackDragOver($event, track, index)"
+                        @dragleave="handleTrackDragLeave"
+                        @drop.prevent="handleTrackDrop($event, track, index)"
+                        @dragend="endTrackDrag"
                         @contextmenu.prevent="openTrackContextMenu($event, track, index)"
                     >
-                        <div class="flex items-center gap-0.5 mr-1 shrink-0" v-show="(trackHeights[track.id] || 40) >= 24">
-                            <button class="track-control-btn" :class="{ 'active': !track.isHidden }" @click="track.isHidden = !track.isHidden" title="가시성">
+                        <!-- 드래그 핸들 -->
+                        <div class="flex items-center justify-center w-4 h-full cursor-grab active:cursor-grabbing mr-1 text-text-sub hover:text-text-main">
+                            <i class="fa-solid fa-grip-vertical text-[8px]"></i>
+                        </div>
+                        
+                        <!-- Z-Index 표시 -->
+                        <div class="w-4 h-4 flex items-center justify-center text-[8px] font-bold rounded mr-1" :style="{ backgroundColor: track.color || '#666', color: '#fff' }">
+                            {{ vm.tracks.length - index }}
+                        </div>
+                        
+                        <!-- 메인 트랙 표시 (항상 보임) -->
+                        <button 
+                            class="w-4 h-4 flex items-center justify-center rounded mr-1 shrink-0" 
+                            :class="track.isMain ? 'text-yellow-400' : 'text-text-sub hover:text-yellow-400'"
+                            @click.stop="setMainTrack(track)" 
+                            title="메인 트랙 (캔버스 전체 배경)"
+                        >
+                            <i :class="track.isMain ? 'fa-solid fa-star' : 'fa-regular fa-star'" style="font-size: 10px;"></i>
+                        </button>
+                        
+                        <!-- 컨트롤 버튼 (높이 충분할 때만) -->
+                        <div class="flex items-center gap-0.5 mr-1 shrink-0" v-show="(trackHeights[track.id] || 40) >= 30">
+                            <button class="track-control-btn" :class="{ 'active': !track.isHidden }" @click.stop="track.isHidden = !track.isHidden" title="가시성">
                                 <i :class="track.isHidden ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'" style="font-size: 8px;"></i>
                             </button>
-                            <button class="track-control-btn" :class="{ 'locked': track.isLocked }" @click="track.isLocked = !track.isLocked" title="잠금">
+                            <button class="track-control-btn" :class="{ 'locked': track.isLocked }" @click.stop="track.isLocked = !track.isLocked" title="잠금">
                                 <i :class="track.isLocked ? 'fa-solid fa-lock' : 'fa-solid fa-lock-open'" style="font-size: 8px;"></i>
                             </button>
                         </div>
+                        
+                        <!-- 트랙 색상 바 -->
                         <div class="w-1 h-2/3 rounded mr-1 shrink-0" :style="{ backgroundColor: track.color || '#666' }"></div>
+                        
+                        <!-- 트랙 이름 -->
                         <input 
-                            v-show="(trackHeights[track.id] || 40) >= 20"
+                            v-show="(trackHeights[track.id] || 40) >= 24"
                             type="text" 
                             class="text-[10px] truncate flex-1 text-text-main bg-transparent border-none outline-none min-w-0" 
                             :value="track.name" 
                             @input="track.name = $event.target.value" 
-                            :disabled="track.isLocked" 
+                            :disabled="track.isLocked"
+                            @mousedown.stop
                         />
+                        
                         <!-- 트랙 높이 조절 핸들 -->
                         <div 
                             class="absolute left-0 right-0 bottom-0 h-1 cursor-ns-resize hover:bg-ui-accent/50 z-10"
-                            @mousedown.prevent="startTrackResize($event, track)"
+                            @mousedown.prevent.stop="startTrackResize($event, track)"
                         ></div>
                     </div>
                     <div class="absolute top-0 bottom-0 w-1 cursor-col-resize hover:bg-ui-accent/50" style="right: 0; z-index: 50;" @mousedown.prevent="startHeaderResize"></div>
@@ -158,9 +197,13 @@ const TimelinePanel = {
             
             <!-- 컨텍스트 메뉴 -->
             <div v-if="trackContextMenu" class="context-menu" :style="{ top: trackContextMenu.y + 'px', left: trackContextMenu.x + 'px' }" @click.stop>
+                <div class="ctx-item" @click="setMainTrack(trackContextMenu.track); closeContextMenus()"><i class="fa-solid fa-star w-4"></i><span>메인 트랙 설정</span></div>
                 <div class="ctx-item" @click="duplicateTrack(trackContextMenu.track)"><i class="fa-solid fa-copy w-4"></i><span>트랙 복제</span></div>
                 <div class="ctx-item" @click="changeTrackColor(trackContextMenu.track)"><i class="fa-solid fa-palette w-4"></i><span>색상 변경</span></div>
                 <div class="ctx-item" @click="resetTrackHeight(trackContextMenu.track)"><i class="fa-solid fa-arrows-up-down w-4"></i><span>높이 초기화</span></div>
+                <div class="h-px bg-ui-border my-1"></div>
+                <div class="ctx-item" @click="moveTrackUp(trackContextMenu.index)"><i class="fa-solid fa-arrow-up w-4"></i><span>위로 이동 (Z+)</span></div>
+                <div class="ctx-item" @click="moveTrackDown(trackContextMenu.index)"><i class="fa-solid fa-arrow-down w-4"></i><span>아래로 이동 (Z-)</span></div>
                 <div class="h-px bg-ui-border my-1"></div>
                 <div class="ctx-item text-red-400 hover:!bg-ui-danger" @click="deleteTrack(trackContextMenu.track, trackContextMenu.index)"><i class="fa-solid fa-trash w-4"></i><span>삭제</span></div>
             </div>
@@ -173,6 +216,11 @@ const TimelinePanel = {
             resizeStartX: 0,
             resizeStartWidth: 0,
             trackContextMenu: null,
+            
+            // 트랙 드래그 순서 변경
+            draggingTrackId: null,
+            draggingTrackIndex: null,
+            dragOverTrackId: null,
             
             // 트랙 높이
             trackHeights: {},
@@ -330,6 +378,12 @@ const TimelinePanel = {
                     pointer-events: none;
                     animation: snapLineFlash 0.8s ease-out forwards;
                 }
+                [draggable="true"] {
+                    cursor: grab;
+                }
+                [draggable="true"]:active {
+                    cursor: grabbing;
+                }
             `;
             document.head.appendChild(style);
         },
@@ -340,6 +394,79 @@ const TimelinePanel = {
                     this.trackHeights[track.id] = this.defaultTrackHeight;
                 }
             });
+        },
+        
+        // ========== 트랙 드래그 순서 변경 ==========
+        startTrackDrag(e, track, index) {
+            this.draggingTrackId = track.id;
+            this.draggingTrackIndex = index;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', track.id);
+            
+            // 드래그 이미지 투명하게 (선택사항)
+            const dragImage = document.createElement('div');
+            dragImage.style.opacity = '0';
+            document.body.appendChild(dragImage);
+            e.dataTransfer.setDragImage(dragImage, 0, 0);
+            setTimeout(() => document.body.removeChild(dragImage), 0);
+        },
+        
+        handleTrackDragOver(e, track, index) {
+            if (this.draggingTrackId && this.draggingTrackId !== track.id) {
+                this.dragOverTrackId = track.id;
+            }
+        },
+        
+        handleTrackDragLeave() {
+            this.dragOverTrackId = null;
+        },
+        
+        handleTrackDrop(e, targetTrack, targetIndex) {
+            if (!this.draggingTrackId || this.draggingTrackId === targetTrack.id) {
+                this.endTrackDrag();
+                return;
+            }
+            
+            const fromIndex = this.draggingTrackIndex;
+            const toIndex = targetIndex;
+            
+            if (fromIndex !== toIndex) {
+                // 트랙 순서 변경
+                const tracks = [...this.vm.tracks];
+                const [movedTrack] = tracks.splice(fromIndex, 1);
+                tracks.splice(toIndex, 0, movedTrack);
+                this.vm.tracks = tracks;
+            }
+            
+            this.endTrackDrag();
+        },
+        
+        endTrackDrag() {
+            this.draggingTrackId = null;
+            this.draggingTrackIndex = null;
+            this.dragOverTrackId = null;
+        },
+        
+        moveTrackUp(index) {
+            if (index <= 0) return;
+            const tracks = [...this.vm.tracks];
+            [tracks[index - 1], tracks[index]] = [tracks[index], tracks[index - 1]];
+            this.vm.tracks = tracks;
+            this.closeContextMenus();
+        },
+        
+        moveTrackDown(index) {
+            if (index >= this.vm.tracks.length - 1) return;
+            const tracks = [...this.vm.tracks];
+            [tracks[index], tracks[index + 1]] = [tracks[index + 1], tracks[index]];
+            this.vm.tracks = tracks;
+            this.closeContextMenus();
+        },
+        
+        // ========== 트랙 Z-Index 계산 ==========
+        getTrackZIndex(trackId) {
+            const index = this.vm.tracks.findIndex(t => t.id === trackId);
+            return this.vm.tracks.length - index; // 위에 있을수록 높은 Z-Index
         },
         
         getClipsForTrack(trackId) { 
@@ -456,8 +583,6 @@ const TimelinePanel = {
         adjustLayout() {
             const p = document.getElementById('preview-main-container');
             if (p) {
-                // 접힌 상태: 프리뷰가 타임라인 헤더(32px)만 남기고 나머지 차지
-                // 펼친 상태: 50%씩 나눔
                 p.style.height = this.vm.isTimelineCollapsed ? 'calc(100% - 32px)' : '50%';
             }
         },
