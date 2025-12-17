@@ -1,665 +1,531 @@
+// Preview Canvas Component - Enhanced
+// 캔버스 센터 유지, 레이어 라벨 크기 축소, 해상도 하이라이트, 영상 재생 연동
+
 const PreviewCanvas = {
-  name: 'PreviewCanvas',
-
-  props: {
-    canvasBoxes: {
-      type: Array,
-      required: true
-    },
-    canvasSize: {
-      type: Object,
-      required: false,
-      default: () => ({ w: 1920, h: 1080 })
-    },
-    selectedBoxId: {
-      type: String,
-      default: null
-    }
-  },
-
-  data() {
-    return {
-      dragging: false,
-      dragMode: null,
-      dragHandle: null,
-      dragBoxId: null,
-      dragStartMouse: { mx: 0, my: 0 },
-      dragStartBox: { x0: 0, y0: 0, w0: 0, h0: 0 },
-      edgeFlash: {
-        top: false,
-        bottom: false,
-        left: false,
-        right: false
-      },
-      magnetEnabled: true,
-      snapDistance: 15
-    };
-  },
-
-  computed: {
-    scalerStyle() {
-      const cw = this.canvasSize?.w || 1920;
-      const ch = this.canvasSize?.h || 1080;
-      return {
-        position: 'relative',
-        width: cw + 'px',
-        height: ch + 'px',
-        overflow: 'visible' 
-      };
-    },
-
-    visibleBoxes() {
-      return this.canvasBoxes.filter(box => !box.isHidden);
-    },
-
-    isMagnetActive() {
-      if (this.$parent && typeof this.$parent.isMagnet === 'boolean') {
-        return this.$parent.isMagnet;
-      }
-      return this.magnetEnabled;
-    }
-  },
-
-  methods: {
-    clientToCanvas(e) {
-      const scaler = document.getElementById('preview-canvas-scaler');
-      if (!scaler) {
-        return { mx: 0, my: 0 };
-      }
-      
-      const rect = scaler.getBoundingClientRect();
-      const logicalW = (this.canvasSize && this.canvasSize.w) ? this.canvasSize.w : 1920;
-      
-      let scaleX = rect.width / logicalW;
-      if (!scaleX || scaleX === 0) scaleX = 1;
-
-      const mx = (e.clientX - rect.left) / scaleX;
-      const my = (e.clientY - rect.top) / scaleX;
-      
-      return { mx, my };
-    },
-
-    boxStyle(box) {
-      const isSelected = (this.selectedBoxId === box.id);
-      return {
-        position: 'absolute',
-        left: (Number(box.x) || 0) + 'px',
-        top: (Number(box.y) || 0) + 'px',
-        width: (Number(box.w) || 0) + 'px',
-        height: (Number(box.h) || 0) + 'px',
-        border: `2px dashed ${box.color || '#fff'}`,
-        zIndex: box.zIndex || 0,
-        cursor: 'move',
-        boxShadow: isSelected ? '0 0 0 2px #fff, 0 0 12px rgba(59,130,246,0.5)' : 'none',
-        backgroundColor: box.layerBgColor || 'transparent',
-        overflow: 'hidden'
-      };
-    },
-
-    // 미디어 스타일 (이미지/동영상)
-    mediaStyle(box) {
-      const fit = box.mediaFit || 'cover';
-      return {
-        position: 'absolute',
-        inset: '0',
-        width: '100%',
-        height: '100%',
-        objectFit: fit,
-        pointerEvents: 'none'
-      };
-    },
-
-    // 미디어 존재 여부
-    hasMedia(box) {
-      return box.mediaType && box.mediaType !== 'none' && box.mediaSrc;
-    },
-
-    // 미디어 타입 확인
-    isImage(box) {
-      return box.mediaType === 'image';
-    },
-
-    isVideo(box) {
-      return box.mediaType === 'video';
-    },
-
-    labelStyle(box) {
-      const fontSize = 120;
-      const padding = 6;
-      
-      const baseStyle = {
-        position: 'absolute',
-        bottom: '0',
-        backgroundColor: box.color || '#333',
-        color: '#fff',
-        padding: `${padding}px ${padding * 2}px`,
-        fontSize: fontSize + 'px',
-        fontWeight: 'bold',
-        fontFamily: 'monospace',
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        maxWidth: '90%',
-        pointerEvents: 'none',
-        textShadow: '0 2px 4px rgba(0,0,0,0.8)',
-        borderRadius: '4px 4px 0 0',
-        zIndex: 10
-      };
-
-      const rowType = box.rowType || '';
-      
-      if (rowType === 'EFF') {
-        baseStyle.left = '0';
-        baseStyle.right = 'auto';
-        baseStyle.transform = 'none';
-      } else if (rowType === 'TXT') {
-        baseStyle.left = '50%';
-        baseStyle.right = 'auto';
-        baseStyle.transform = 'translateX(-50%)';
-      } else if (rowType === 'BG') {
-        baseStyle.left = 'auto';
-        baseStyle.right = '0';
-        baseStyle.transform = 'none';
-      } else {
-        baseStyle.left = '0';
-        baseStyle.right = 'auto';
-        baseStyle.transform = 'none';
-      }
-
-      return baseStyle;
-    },
-
-    // 텍스트 콘텐츠 스타일 - 글자간/행간 추가, 겹침 해결
-    textContentStyle(box) {
-      const ts = box.textStyle || {};
-      const fontSize = ts.fontSize || 48;
-      const fillColor = ts.fillColor || '#ffffff';
-      const strokeColor = ts.strokeColor || '#000000';
-      const strokeWidth = ts.strokeWidth || 0;
-      const textAlign = ts.textAlign || 'center';
-      const vAlign = ts.vAlign || 'middle';
-      const bgColor = ts.backgroundColor || 'transparent';
-      const letterSpacing = ts.letterSpacing || 0;
-      const lineHeight = ts.lineHeight || 1.4;
-      
-      // 그림자 설정
-      let textShadow = 'none';
-      if (ts.shadow) {
-        const sx = ts.shadow.offsetX || 0;
-        const sy = ts.shadow.offsetY || 0;
-        const blur = ts.shadow.blur || 0;
-        const scolor = ts.shadow.color || '#000000';
-        textShadow = `${sx}px ${sy}px ${blur}px ${scolor}`;
-      }
-      
-      // 세로 정렬을 위한 justify-content
-      let justifyContent = 'center';
-      if (vAlign === 'top') justifyContent = 'flex-start';
-      if (vAlign === 'bottom') justifyContent = 'flex-end';
-      
-      return {
-        position: 'absolute',
-        inset: '0',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: textAlign === 'left' ? 'flex-start' : textAlign === 'right' ? 'flex-end' : 'center',
-        justifyContent: justifyContent,
-        padding: '20px',
-        fontSize: fontSize + 'px',
-        fontFamily: ts.fontFamily || 'Pretendard, system-ui, sans-serif',
-        fontWeight: 'bold',
-        color: fillColor,
-        textAlign: textAlign,
-        whiteSpace: 'pre-wrap',
-        wordBreak: 'break-word',
-        overflow: 'hidden',
-        pointerEvents: 'none',
-        textShadow: textShadow,
-        backgroundColor: bgColor,
-        WebkitTextStroke: strokeWidth > 0 ? `${strokeWidth}px ${strokeColor}` : 'none',
-        paintOrder: 'stroke fill',
-        letterSpacing: letterSpacing + 'px',
-        lineHeight: lineHeight,
-        zIndex: 5
-      };
-    },
-
-    getLabelText(box) {
-      const typeMap = {
-        'EFF': 'Effect',
-        'TXT': 'Text',
-        'BG': 'BG'
-      };
-      return typeMap[box.rowType] || box.rowType || 'Layer';
-    },
-
-    // 텍스트 콘텐츠 가져오기
-    getTextContent(box) {
-      if (box.rowType !== 'TXT') return '';
-      const content = box.textContent || '';
-      return content.trim() || '';
-    },
-
-    // 텍스트 표시 여부
-    hasTextContent(box) {
-      return box.rowType === 'TXT' && this.getTextContent(box).length > 0;
-    },
-
-    handleStyle(pos) {
-      const size = 28;
-      const offset = -Math.round(size / 2);
-      
-      const style = {
-        position: 'absolute',
-        width: size + 'px',
-        height: size + 'px',
-        backgroundColor: '#fff', 
-        border: '2px solid #000',
-        zIndex: 9999,
-        pointerEvents: 'auto',
-        opacity: 0.9
-      };
-
-      if (pos === 'tl') { style.top = offset + 'px'; style.left = offset + 'px'; style.cursor = 'nwse-resize'; }
-      if (pos === 't')  { style.top = offset + 'px'; style.left = '50%'; style.marginLeft = offset + 'px'; style.cursor = 'ns-resize'; }
-      if (pos === 'tr') { style.top = offset + 'px'; style.right = offset + 'px'; style.cursor = 'nesw-resize'; }
-      if (pos === 'l')  { style.top = '50%'; style.marginTop = offset + 'px'; style.left = offset + 'px'; style.cursor = 'ew-resize'; }
-      if (pos === 'r')  { style.top = '50%'; style.marginTop = offset + 'px'; style.right = offset + 'px'; style.cursor = 'ew-resize'; }
-      if (pos === 'bl') { style.bottom = offset + 'px'; style.left = offset + 'px'; style.cursor = 'nesw-resize'; }
-      if (pos === 'b')  { style.bottom = offset + 'px'; style.left = '50%'; style.marginLeft = offset + 'px'; style.cursor = 'ns-resize'; }
-      if (pos === 'br') { style.bottom = offset + 'px'; style.right = offset + 'px'; style.cursor = 'nwse-resize'; }
-      
-      return style;
-    },
-
-    onBoxContextMenu(e, box) {
-      e.preventDefault();
-      e.stopPropagation();
-      
-      this.$emit('select-box', box.id);
-      
-      if (this.$parent && typeof this.$parent.openLayerConfig === 'function') {
-        this.$parent.openLayerConfig(box.id);
-      }
-    },
-
-    onBoxMouseDown(e, box) {
-      if (e.target.classList.contains('box-handle')) return;
-      e.preventDefault();
-      this.$emit('select-box', box.id);
-      const { mx, my } = this.clientToCanvas(e);
-      this.startDrag('move', box, mx, my);
-    },
-
-    onHandleMouseDown(e, box, handle) {
-      e.stopPropagation();
-      e.preventDefault();
-      this.$emit('select-box', box.id);
-      const { mx, my } = this.clientToCanvas(e);
-      this.startDrag('resize', box, mx, my, handle);
-    },
-
-    startDrag(mode, box, mx, my, handle = null) {
-      this.dragging = true;
-      this.dragMode = mode;
-      this.dragHandle = handle;
-      this.dragBoxId = box.id;
-      this.dragStartMouse = { mx, my };
-      
-      this.dragStartBox = { 
-        x0: Number(box.x) || 0, 
-        y0: Number(box.y) || 0, 
-        w0: Number(box.w) || 0, 
-        h0: Number(box.h) || 0 
-      };
-
-      this.edgeFlash = { top: false, bottom: false, left: false, right: false };
-      this.hideAllEdgeFlash();
-
-      window.addEventListener('mousemove', this.onWindowMouseMove);
-      window.addEventListener('mouseup', this.onWindowMouseUp);
-    },
-
-    getBgAllowedRegion(colRole) {
-      const ch = (this.canvasSize && this.canvasSize.h) ? this.canvasSize.h : 1080;
-      const third = ch / 3;
-
-      if (colRole === 'high') {
-        return { minY: 0, maxY: third };
-      } else if (colRole === 'mid') {
-        return { minY: third, maxY: third * 2 };
-      } else if (colRole === 'low') {
-        return { minY: third * 2, maxY: ch };
-      }
-      return { minY: 0, maxY: ch };
-    },
-
-    applyBgConstraints(box, x, y, w, h) {
-      if (box.rowType !== 'BG') {
-        return { x, y, w, h };
-      }
-
-      const colRole = box.colRole || 'full';
-      const region = this.getBgAllowedRegion(colRole);
-
-      let newY = y;
-      let newH = h;
-
-      if (newY < region.minY) {
-        newY = region.minY;
-      }
-
-      if (newY + newH > region.maxY) {
-        if (newH > (region.maxY - region.minY)) {
-          newH = region.maxY - region.minY;
-          newY = region.minY;
-        } else {
-          newY = region.maxY - newH;
-        }
-      }
-
-      return { x, y: newY, w, h: newH };
-    },
-
-    applyMagnetSnap(currentBoxId, x, y, w, h) {
-      if (!this.isMagnetActive) {
-        return { x, y, w, h, snappedX: false, snappedY: false };
-      }
-
-      const cw = (this.canvasSize && this.canvasSize.w) ? this.canvasSize.w : 1920;
-      const ch = (this.canvasSize && this.canvasSize.h) ? this.canvasSize.h : 1080;
-      const snapDist = this.snapDistance;
-
-      let newX = x;
-      let newY = y;
-      let snappedX = false;
-      let snappedY = false;
-
-      const xLines = [0, cw / 2, cw];
-      const yLines = [0, ch / 2, ch];
-
-      if (this.canvasBoxes && Array.isArray(this.canvasBoxes)) {
-        this.canvasBoxes.forEach(box => {
-          if (box.id === currentBoxId || box.isHidden) return;
-          const bx = Number(box.x) || 0;
-          const by = Number(box.y) || 0;
-          const bw = Number(box.w) || 0;
-          const bh = Number(box.h) || 0;
-
-          xLines.push(bx);
-          xLines.push(bx + bw);
-          xLines.push(bx + bw / 2);
-
-          yLines.push(by);
-          yLines.push(by + bh);
-          yLines.push(by + bh / 2);
-        });
-      }
-
-      const boxLeft = x;
-      const boxRight = x + w;
-      const boxCenterX = x + w / 2;
-      const boxTop = y;
-      const boxBottom = y + h;
-      const boxCenterY = y + h / 2;
-
-      for (const line of xLines) {
-        if (Math.abs(boxLeft - line) < snapDist) {
-          newX = line;
-          snappedX = true;
-          break;
-        }
-        if (Math.abs(boxRight - line) < snapDist) {
-          newX = line - w;
-          snappedX = true;
-          break;
-        }
-        if (Math.abs(boxCenterX - line) < snapDist) {
-          newX = line - w / 2;
-          snappedX = true;
-          break;
-        }
-      }
-
-      for (const line of yLines) {
-        if (Math.abs(boxTop - line) < snapDist) {
-          newY = line;
-          snappedY = true;
-          break;
-        }
-        if (Math.abs(boxBottom - line) < snapDist) {
-          newY = line - h;
-          snappedY = true;
-          break;
-        }
-        if (Math.abs(boxCenterY - line) < snapDist) {
-          newY = line - h / 2;
-          snappedY = true;
-          break;
-        }
-      }
-
-      return { x: newX, y: newY, w, h, snappedX, snappedY };
-    },
-
-    checkEdgeContact(x, y, w, h) {
-      const cw = (this.canvasSize && this.canvasSize.w) ? this.canvasSize.w : 1920;
-      const ch = (this.canvasSize && this.canvasSize.h) ? this.canvasSize.h : 1080;
-      const threshold = 2;
-
-      const touchTop = y <= threshold;
-      const touchLeft = x <= threshold;
-      const touchBottom = (y + h) >= (ch - threshold);
-      const touchRight = (x + w) >= (cw - threshold);
-
-      if (touchTop && !this.edgeFlash.top) this.triggerEdgeFlash('top');
-      if (touchBottom && !this.edgeFlash.bottom) this.triggerEdgeFlash('bottom');
-      if (touchLeft && !this.edgeFlash.left) this.triggerEdgeFlash('left');
-      if (touchRight && !this.edgeFlash.right) this.triggerEdgeFlash('right');
-
-      if (!touchTop && this.edgeFlash.top) this.hideEdgeFlash('top');
-      if (!touchBottom && this.edgeFlash.bottom) this.hideEdgeFlash('bottom');
-      if (!touchLeft && this.edgeFlash.left) this.hideEdgeFlash('left');
-      if (!touchRight && this.edgeFlash.right) this.hideEdgeFlash('right');
-
-      this.edgeFlash = { top: touchTop, bottom: touchBottom, left: touchLeft, right: touchRight };
-    },
-
-    checkBgRegionContact(box, x, y, w, h) {
-      if (box.rowType !== 'BG') return;
-
-      const colRole = box.colRole || 'full';
-      if (colRole === 'full') return;
-
-      const region = this.getBgAllowedRegion(colRole);
-      const threshold = 2;
-
-      const touchRegionTop = Math.abs(y - region.minY) <= threshold;
-      const touchRegionBottom = Math.abs((y + h) - region.maxY) <= threshold;
-
-      if (touchRegionTop) this.triggerEdgeFlash('top');
-      if (touchRegionBottom) this.triggerEdgeFlash('bottom');
-    },
-
-    triggerEdgeFlash(direction) {
-      const flashEl = document.getElementById(`preview-edge-flash-${direction}`);
-      if (flashEl) {
-        flashEl.classList.add('active');
-        setTimeout(() => { flashEl.classList.remove('active'); }, 500);
-      }
-    },
-
-    hideEdgeFlash(direction) {
-      const flashEl = document.getElementById(`preview-edge-flash-${direction}`);
-      if (flashEl) flashEl.classList.remove('active');
-    },
-
-    hideAllEdgeFlash() {
-      ['top', 'bottom', 'left', 'right'].forEach(dir => this.hideEdgeFlash(dir));
-    },
-
-    onWindowMouseMove(e) {
-      if (!this.dragging) return;
-
-      const { mx, my } = this.clientToCanvas(e);
-      const dx = mx - this.dragStartMouse.mx;
-      const dy = my - this.dragStartMouse.my;
-      
-      const { x0, y0, w0, h0 } = this.dragStartBox;
-      let x = x0, y = y0, w = w0, h = h0;
-
-      const cw = (this.canvasSize && this.canvasSize.w) ? this.canvasSize.w : 1920;
-      const ch = (this.canvasSize && this.canvasSize.h) ? this.canvasSize.h : 1080;
-
-      const currentBox = this.canvasBoxes.find(b => b.id === this.dragBoxId);
-
-      if (this.dragMode === 'move') {
-        x += dx;
-        y += dy;
-        
-        if (x < 0) x = 0;
-        if (y < 0) y = 0;
-        if (x + w > cw) x = cw - w;
-        if (y + h > ch) y = ch - h;
-
-        const snapped = this.applyMagnetSnap(this.dragBoxId, x, y, w, h);
-        x = snapped.x;
-        y = snapped.y;
-
-        if (currentBox) {
-          const constrained = this.applyBgConstraints(currentBox, x, y, w, h);
-          x = constrained.x;
-          y = constrained.y;
-          w = constrained.w;
-          h = constrained.h;
-        }
-
-      } else if (this.dragMode === 'resize') {
-        const hdl = this.dragHandle;
-        
-        if (hdl.includes('l')) { 
-          let newX = x + dx;
-          if (newX < 0) newX = 0;
-          const rightEdge = x0 + w0;
-          let newW = rightEdge - newX;
-          x = newX;
-          w = newW;
-        } else if (hdl.includes('r')) {
-          w += dx;
-          if (x + w > cw) w = cw - x;
-        }
-
-        if (hdl.includes('t')) {
-          let newY = y + dy;
-          if (newY < 0) newY = 0;
-          const bottomEdge = y0 + h0;
-          let newH = bottomEdge - newY;
-          y = newY;
-          h = newH;
-        } else if (hdl.includes('b')) {
-          h += dy;
-          if (y + h > ch) h = ch - y;
-        }
-
-        if (currentBox) {
-          const constrained = this.applyBgConstraints(currentBox, x, y, w, h);
-          x = constrained.x;
-          y = constrained.y;
-          w = constrained.w;
-          h = constrained.h;
-        }
-      }
-
-      if (w < 10) w = 10;
-      if (h < 10) h = 10;
-
-      this.checkEdgeContact(x, y, w, h);
-
-      if (currentBox) this.checkBgRegionContact(currentBox, x, y, w, h);
-
-      if (this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
-        this.$parent.updateBoxPosition(this.dragBoxId, x, y, w, h, null);
-      }
-    },
-
-    onWindowMouseUp() {
-      this.dragging = false;
-      this.dragMode = null;
-      this.edgeFlash = { top: false, bottom: false, left: false, right: false };
-      this.hideAllEdgeFlash();
-      window.removeEventListener('mousemove', this.onWindowMouseMove);
-      window.removeEventListener('mouseup', this.onWindowMouseUp);
-    }
-  },
-
-  beforeUnmount() {
-    window.removeEventListener('mousemove', this.onWindowMouseMove);
-    window.removeEventListener('mouseup', this.onWindowMouseUp);
-  },
-
-  template: `
-    <div id="preview-canvas-scaler" :style="scalerStyle">
-      <div id="preview-edge-flash-top" class="edge-flash-overlay edge-flash-top"></div>
-      <div id="preview-edge-flash-bottom" class="edge-flash-overlay edge-flash-bottom"></div>
-      <div id="preview-edge-flash-left" class="edge-flash-overlay edge-flash-left"></div>
-      <div id="preview-edge-flash-right" class="edge-flash-overlay edge-flash-right"></div>
-
-      <div
-        v-for="box in visibleBoxes"
-        :key="box.id"
-        :id="'preview-canvas-box-' + box.id"
-        class="canvas-box"
-        :style="boxStyle(box)"
-        @mousedown="onBoxMouseDown($event, box)"
-        @contextmenu="onBoxContextMenu($event, box)"
-        data-action="js:selectCanvasBox"
-      >
-        <!-- 미디어: 이미지 -->
-        <img 
-          v-if="hasMedia(box) && isImage(box)"
-          :src="box.mediaSrc"
-          :style="mediaStyle(box)"
-          draggable="false"
-        />
-        
-        <!-- 미디어: 동영상 -->
-        <video 
-          v-if="hasMedia(box) && isVideo(box)"
-          :src="box.mediaSrc"
-          :style="mediaStyle(box)"
-          autoplay
-          muted
-          loop
-          playsinline
-        ></video>
-
-        <!-- 텍스트 콘텐츠 표시 -->
-        <div 
-          v-if="hasTextContent(box)"
-          :style="textContentStyle(box)"
-        >{{ getTextContent(box) }}</div>
-
-        <!-- 레이어 라벨 -->
-        <div 
-          class="canvas-label"
-          :style="labelStyle(box)"
-        >
-          {{ getLabelText(box) }}
+    props: ['vm'],
+    template: `
+        <div id="preview-main-container" class="flex flex-col h-full bg-bg-dark overflow-hidden">
+            <!-- 프리뷰 툴바 -->
+            <div class="h-8 bg-bg-panel border-b border-ui-border flex items-center px-2 justify-between shrink-0">
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-text-sub">프리뷰</span>
+                    <div class="w-px h-4 bg-ui-border"></div>
+                    <!-- 해상도 드롭다운 -->
+                    <div class="wai-dropdown" ref="resolutionDropdown">
+                        <button 
+                            class="wai-dropdown-trigger text-[10px]" 
+                            :class="{ 'open': isResolutionOpen, 'active-resolution': true }"
+                            @click="isResolutionOpen = !isResolutionOpen"
+                        >
+                            <span>{{ currentResolutionLabel }}</span>
+                            <i class="fa-solid fa-chevron-down text-[8px]"></i>
+                        </button>
+                        <div v-show="isResolutionOpen" class="wai-dropdown-menu">
+                            <div 
+                                v-for="res in resolutions" 
+                                :key="res.value"
+                                class="wai-dropdown-item"
+                                :class="{ 'selected': vm.canvasResolution === res.value }"
+                                @click="setResolution(res.value)"
+                            >
+                                {{ res.label }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="w-px h-4 bg-ui-border"></div>
+                    <span class="text-[10px] text-text-sub">{{ canvasWidth }} × {{ canvasHeight }}</span>
+                </div>
+                <div class="flex items-center gap-1">
+                    <button class="tool-btn" :class="{ 'active': vm.showSafeZone }" @click="vm.showSafeZone = !vm.showSafeZone" title="안전 영역">
+                        <i class="fa-solid fa-border-all"></i>
+                    </button>
+                    <button class="tool-btn" :class="{ 'active': vm.showGrid }" @click="vm.showGrid = !vm.showGrid" title="그리드">
+                        <i class="fa-solid fa-grip"></i>
+                    </button>
+                    <button class="tool-btn" @click="fitToScreen" title="화면에 맞추기">
+                        <i class="fa-solid fa-expand"></i>
+                    </button>
+                    <div class="w-px h-4 bg-ui-border"></div>
+                    <span class="text-[10px] text-text-sub">{{ Math.round(previewScale * 100) }}%</span>
+                </div>
+            </div>
+            
+            <!-- 캔버스 영역 -->
+            <div 
+                ref="canvasContainer" 
+                class="flex-1 relative overflow-hidden flex items-center justify-center"
+                @wheel.prevent="handleWheel"
+            >
+                <!-- 캔버스 래퍼 (센터 유지) -->
+                <div 
+                    ref="canvasWrapper"
+                    class="relative"
+                    :style="canvasWrapperStyle"
+                >
+                    <!-- 메인 캔버스 -->
+                    <div 
+                        ref="canvas"
+                        class="preview-canvas relative overflow-hidden"
+                        :style="canvasStyle"
+                        @mousedown="handleCanvasMouseDown"
+                    >
+                        <!-- 비디오 요소 (타임라인 영상 재생) -->
+                        <video
+                            v-if="activeVideoClip"
+                            ref="videoPlayer"
+                            class="absolute inset-0 w-full h-full object-contain"
+                            :src="activeVideoClip.src"
+                            @loadedmetadata="onVideoLoaded"
+                            @timeupdate="onVideoTimeUpdate"
+                            @ended="onVideoEnded"
+                            muted
+                        ></video>
+                        
+                        <!-- 레이어들 -->
+                        <div 
+                            v-for="layer in visibleLayers" 
+                            :key="layer.id"
+                            class="absolute"
+                            :style="getLayerStyle(layer)"
+                            @mousedown.stop="selectLayer(layer, $event)"
+                        >
+                            <!-- 레이어 컨텐츠 -->
+                            <div v-if="layer.type === 'text'" class="w-full h-full flex items-center justify-center" :style="getTextStyle(layer)">
+                                {{ layer.content || layer.name }}
+                            </div>
+                            <div v-else-if="layer.type === 'image' && layer.src" class="w-full h-full">
+                                <img :src="layer.src" class="w-full h-full object-contain" draggable="false" />
+                            </div>
+                            <div v-else-if="layer.type === 'shape'" class="w-full h-full" :style="getShapeStyle(layer)"></div>
+                            <div v-else class="w-full h-full bg-gray-600/50 flex items-center justify-center">
+                                <i class="fa-solid fa-cube text-white/50"></i>
+                            </div>
+                            
+                            <!-- 레이어 라벨 (크기 고정) -->
+                            <div class="canvas-layer-label absolute -top-3 left-0 bg-black/70 text-white rounded px-1">
+                                {{ layer.name }}
+                            </div>
+                        </div>
+                        
+                        <!-- 선택된 레이어 핸들 -->
+                        <div 
+                            v-if="vm.selectedLayer && !vm.selectedLayer.isLocked"
+                            class="absolute pointer-events-none"
+                            :style="getSelectionStyle(vm.selectedLayer)"
+                        >
+                            <div class="absolute inset-0 border-2 border-ui-accent pointer-events-none"></div>
+                            <!-- 리사이즈 핸들 -->
+                            <div class="transform-handle tl pointer-events-auto" @mousedown.stop="startResize($event, 'tl')"></div>
+                            <div class="transform-handle tr pointer-events-auto" @mousedown.stop="startResize($event, 'tr')"></div>
+                            <div class="transform-handle bl pointer-events-auto" @mousedown.stop="startResize($event, 'bl')"></div>
+                            <div class="transform-handle br pointer-events-auto" @mousedown.stop="startResize($event, 'br')"></div>
+                            <div class="transform-handle tm pointer-events-auto" @mousedown.stop="startResize($event, 'tm')"></div>
+                            <div class="transform-handle bm pointer-events-auto" @mousedown.stop="startResize($event, 'bm')"></div>
+                            <div class="transform-handle ml pointer-events-auto" @mousedown.stop="startResize($event, 'ml')"></div>
+                            <div class="transform-handle mr pointer-events-auto" @mousedown.stop="startResize($event, 'mr')"></div>
+                            <!-- 회전 핸들 -->
+                            <div class="rotation-handle pointer-events-auto" @mousedown.stop="startRotate($event)"></div>
+                        </div>
+                        
+                        <!-- 안전 영역 -->
+                        <template v-if="vm.showSafeZone">
+                            <div class="safe-zone action"></div>
+                            <div class="safe-zone title"></div>
+                        </template>
+                        
+                        <!-- 그리드 -->
+                        <div v-if="vm.showGrid" class="absolute inset-0 pointer-events-none" :style="gridStyle"></div>
+                    </div>
+                </div>
+            </div>
         </div>
-
-        <template v-if="selectedBoxId === box.id">
-          <div class="box-handle" :style="handleStyle('tl')" @mousedown="onHandleMouseDown($event, box, 'tl')"></div>
-          <div class="box-handle" :style="handleStyle('t')"  @mousedown="onHandleMouseDown($event, box, 't')"></div>
-          <div class="box-handle" :style="handleStyle('tr')" @mousedown="onHandleMouseDown($event, box, 'tr')"></div>
-          <div class="box-handle" :style="handleStyle('l')"  @mousedown="onHandleMouseDown($event, box, 'l')"></div>
-          <div class="box-handle" :style="handleStyle('r')"  @mousedown="onHandleMouseDown($event, box, 'r')"></div>
-          <div class="box-handle" :style="handleStyle('bl')" @mousedown="onHandleMouseDown($event, box, 'bl')"></div>
-          <div class="box-handle" :style="handleStyle('b')"  @mousedown="onHandleMouseDown($event, box, 'b')"></div>
-          <div class="box-handle" :style="handleStyle('br')" @mousedown="onHandleMouseDown($event, box, 'br')"></div>
-        </template>
-      </div>
-    </div>
-  `
+    `,
+    data() {
+        return {
+            previewScale: 1,
+            minPadding: 40,
+            isResolutionOpen: false,
+            resolutions: [
+                { label: '4K (3840×2160)', value: '4k' },
+                { label: 'FHD (1920×1080)', value: 'fhd' },
+                { label: 'HD (1280×720)', value: 'hd' },
+                { label: 'SD (854×480)', value: 'sd' },
+                { label: '정사각형 (1080×1080)', value: 'square' },
+                { label: '세로 (1080×1920)', value: 'vertical' }
+            ],
+            isDraggingLayer: false,
+            dragStartX: 0,
+            dragStartY: 0,
+            dragStartLayerX: 0,
+            dragStartLayerY: 0,
+            isResizing: false,
+            resizeHandle: null,
+            resizeStartX: 0,
+            resizeStartY: 0,
+            resizeStartLayer: null,
+            isRotating: false,
+            rotateStartAngle: 0,
+            rotateStartLayerRotation: 0,
+            rotateCenterX: 0,
+            rotateCenterY: 0,
+            videoSyncInterval: null
+        };
+    },
+    computed: {
+        canvasWidth() {
+            const res = this.vm.canvasResolution || 'fhd';
+            const sizes = { '4k': 3840, 'fhd': 1920, 'hd': 1280, 'sd': 854, 'square': 1080, 'vertical': 1080 };
+            return sizes[res] || 1920;
+        },
+        canvasHeight() {
+            const res = this.vm.canvasResolution || 'fhd';
+            const sizes = { '4k': 2160, 'fhd': 1080, 'hd': 720, 'sd': 480, 'square': 1080, 'vertical': 1920 };
+            return sizes[res] || 1080;
+        },
+        currentResolutionLabel() {
+            const res = this.resolutions.find(r => r.value === this.vm.canvasResolution);
+            return res ? res.label.split(' ')[0] : 'FHD';
+        },
+        canvasWrapperStyle() {
+            return {
+                width: this.canvasWidth * this.previewScale + 'px',
+                height: this.canvasHeight * this.previewScale + 'px'
+            };
+        },
+        canvasStyle() {
+            return {
+                width: this.canvasWidth + 'px',
+                height: this.canvasHeight + 'px',
+                transform: `scale(${this.previewScale})`,
+                transformOrigin: 'top left',
+                background: '#000'
+            };
+        },
+        gridStyle() {
+            const size = 50;
+            return {
+                backgroundImage: `
+                    linear-gradient(to right, rgba(255,255,255,0.1) 1px, transparent 1px),
+                    linear-gradient(to bottom, rgba(255,255,255,0.1) 1px, transparent 1px)
+                `,
+                backgroundSize: `${size}px ${size}px`
+            };
+        },
+        visibleLayers() {
+            if (!this.vm.layers) return [];
+            return this.vm.layers.filter(l => l.isVisible !== false).reverse();
+        },
+        activeVideoClip() {
+            if (!this.vm.clips || this.vm.clips.length === 0) return null;
+            const currentTime = this.vm.currentTime || 0;
+            
+            // 현재 시간에 해당하는 비디오 클립 찾기
+            for (const clip of this.vm.clips) {
+                if (clip.type === 'video' && clip.src) {
+                    if (currentTime >= clip.start && currentTime < clip.start + clip.duration) {
+                        return clip;
+                    }
+                }
+            }
+            return null;
+        }
+    },
+    watch: {
+        'vm.canvasResolution'() {
+            this.$nextTick(() => this.fitToScreen());
+        },
+        'vm.isPlaying'(newVal) {
+            if (newVal) {
+                this.startVideoSync();
+            } else {
+                this.stopVideoSync();
+                this.pauseVideo();
+            }
+        },
+        'vm.currentTime'() {
+            this.syncVideoToTime();
+        },
+        activeVideoClip(newClip, oldClip) {
+            if (newClip !== oldClip) {
+                this.$nextTick(() => {
+                    this.syncVideoToTime();
+                });
+            }
+        }
+    },
+    mounted() {
+        this.$nextTick(() => {
+            this.fitToScreen();
+            window.addEventListener('resize', this.fitToScreen);
+            document.addEventListener('mousemove', this.handleMouseMove);
+            document.addEventListener('mouseup', this.handleMouseUp);
+            document.addEventListener('click', this.handleDocumentClick);
+        });
+    },
+    beforeUnmount() {
+        window.removeEventListener('resize', this.fitToScreen);
+        document.removeEventListener('mousemove', this.handleMouseMove);
+        document.removeEventListener('mouseup', this.handleMouseUp);
+        document.removeEventListener('click', this.handleDocumentClick);
+        this.stopVideoSync();
+    },
+    methods: {
+        fitToScreen() {
+            const container = this.$refs.canvasContainer;
+            if (!container) return;
+            
+            const containerWidth = container.clientWidth - this.minPadding * 2;
+            const containerHeight = container.clientHeight - this.minPadding * 2;
+            
+            if (containerWidth <= 0 || containerHeight <= 0) return;
+            
+            const scaleX = containerWidth / this.canvasWidth;
+            const scaleY = containerHeight / this.canvasHeight;
+            
+            this.previewScale = Math.min(scaleX, scaleY, 1);
+        },
+        
+        handleWheel(e) {
+            const delta = e.deltaY > 0 ? -0.05 : 0.05;
+            this.previewScale = Math.max(0.1, Math.min(2, this.previewScale + delta));
+        },
+        
+        setResolution(value) {
+            this.vm.canvasResolution = value;
+            this.isResolutionOpen = false;
+        },
+        
+        handleDocumentClick(e) {
+            if (this.$refs.resolutionDropdown && !this.$refs.resolutionDropdown.contains(e.target)) {
+                this.isResolutionOpen = false;
+            }
+        },
+        
+        getLayerStyle(layer) {
+            return {
+                left: (layer.x || 0) + 'px',
+                top: (layer.y || 0) + 'px',
+                width: (layer.width || 100) + 'px',
+                height: (layer.height || 100) + 'px',
+                transform: `rotate(${layer.rotation || 0}deg)`,
+                opacity: layer.opacity !== undefined ? layer.opacity / 100 : 1,
+                cursor: layer.isLocked ? 'not-allowed' : 'move'
+            };
+        },
+        
+        getTextStyle(layer) {
+            return {
+                fontSize: (layer.fontSize || 24) + 'px',
+                fontFamily: layer.fontFamily || 'Arial',
+                fontWeight: layer.fontWeight || 'normal',
+                color: layer.color || '#ffffff',
+                textAlign: layer.textAlign || 'center'
+            };
+        },
+        
+        getShapeStyle(layer) {
+            const style = {
+                backgroundColor: layer.fill || '#666666'
+            };
+            if (layer.shapeType === 'circle') {
+                style.borderRadius = '50%';
+            } else if (layer.shapeType === 'rounded') {
+                style.borderRadius = '8px';
+            }
+            return style;
+        },
+        
+        getSelectionStyle(layer) {
+            return {
+                left: (layer.x || 0) + 'px',
+                top: (layer.y || 0) + 'px',
+                width: (layer.width || 100) + 'px',
+                height: (layer.height || 100) + 'px',
+                transform: `rotate(${layer.rotation || 0}deg)`
+            };
+        },
+        
+        selectLayer(layer, e) {
+            if (layer.isLocked) return;
+            this.vm.setSelectedLayer(layer);
+            
+            this.isDraggingLayer = true;
+            this.dragStartX = e.clientX;
+            this.dragStartY = e.clientY;
+            this.dragStartLayerX = layer.x || 0;
+            this.dragStartLayerY = layer.y || 0;
+        },
+        
+        handleCanvasMouseDown(e) {
+            if (e.target === this.$refs.canvas) {
+                this.vm.setSelectedLayer(null);
+            }
+        },
+        
+        startResize(e, handle) {
+            this.isResizing = true;
+            this.resizeHandle = handle;
+            this.resizeStartX = e.clientX;
+            this.resizeStartY = e.clientY;
+            this.resizeStartLayer = {
+                x: this.vm.selectedLayer.x || 0,
+                y: this.vm.selectedLayer.y || 0,
+                width: this.vm.selectedLayer.width || 100,
+                height: this.vm.selectedLayer.height || 100
+            };
+        },
+        
+        startRotate(e) {
+            if (!this.vm.selectedLayer) return;
+            this.isRotating = true;
+            
+            const layer = this.vm.selectedLayer;
+            this.rotateCenterX = (layer.x || 0) + (layer.width || 100) / 2;
+            this.rotateCenterY = (layer.y || 0) + (layer.height || 100) / 2;
+            
+            const rect = this.$refs.canvas.getBoundingClientRect();
+            const mouseX = (e.clientX - rect.left) / this.previewScale;
+            const mouseY = (e.clientY - rect.top) / this.previewScale;
+            
+            this.rotateStartAngle = Math.atan2(mouseY - this.rotateCenterY, mouseX - this.rotateCenterX);
+            this.rotateStartLayerRotation = layer.rotation || 0;
+        },
+        
+        handleMouseMove(e) {
+            if (this.isDraggingLayer && this.vm.selectedLayer) {
+                const dx = (e.clientX - this.dragStartX) / this.previewScale;
+                const dy = (e.clientY - this.dragStartY) / this.previewScale;
+                
+                this.vm.selectedLayer.x = this.dragStartLayerX + dx;
+                this.vm.selectedLayer.y = this.dragStartLayerY + dy;
+            }
+            
+            if (this.isResizing && this.vm.selectedLayer) {
+                const dx = (e.clientX - this.resizeStartX) / this.previewScale;
+                const dy = (e.clientY - this.resizeStartY) / this.previewScale;
+                const layer = this.vm.selectedLayer;
+                const start = this.resizeStartLayer;
+                
+                switch (this.resizeHandle) {
+                    case 'br':
+                        layer.width = Math.max(20, start.width + dx);
+                        layer.height = Math.max(20, start.height + dy);
+                        break;
+                    case 'bl':
+                        layer.x = start.x + dx;
+                        layer.width = Math.max(20, start.width - dx);
+                        layer.height = Math.max(20, start.height + dy);
+                        break;
+                    case 'tr':
+                        layer.y = start.y + dy;
+                        layer.width = Math.max(20, start.width + dx);
+                        layer.height = Math.max(20, start.height - dy);
+                        break;
+                    case 'tl':
+                        layer.x = start.x + dx;
+                        layer.y = start.y + dy;
+                        layer.width = Math.max(20, start.width - dx);
+                        layer.height = Math.max(20, start.height - dy);
+                        break;
+                    case 'tm':
+                        layer.y = start.y + dy;
+                        layer.height = Math.max(20, start.height - dy);
+                        break;
+                    case 'bm':
+                        layer.height = Math.max(20, start.height + dy);
+                        break;
+                    case 'ml':
+                        layer.x = start.x + dx;
+                        layer.width = Math.max(20, start.width - dx);
+                        break;
+                    case 'mr':
+                        layer.width = Math.max(20, start.width + dx);
+                        break;
+                }
+            }
+            
+            if (this.isRotating && this.vm.selectedLayer) {
+                const rect = this.$refs.canvas.getBoundingClientRect();
+                const mouseX = (e.clientX - rect.left) / this.previewScale;
+                const mouseY = (e.clientY - rect.top) / this.previewScale;
+                
+                const currentAngle = Math.atan2(mouseY - this.rotateCenterY, mouseX - this.rotateCenterX);
+                const angleDiff = (currentAngle - this.rotateStartAngle) * (180 / Math.PI);
+                
+                this.vm.selectedLayer.rotation = this.rotateStartLayerRotation + angleDiff;
+            }
+        },
+        
+        handleMouseUp() {
+            this.isDraggingLayer = false;
+            this.isResizing = false;
+            this.resizeHandle = null;
+            this.isRotating = false;
+        },
+        
+        // 비디오 재생 관련 메서드
+        startVideoSync() {
+            this.stopVideoSync();
+            this.playVideo();
+            
+            this.videoSyncInterval = setInterval(() => {
+                if (this.vm.isPlaying) {
+                    this.vm.currentTime += 1/30; // 30fps 기준
+                }
+            }, 1000/30);
+        },
+        
+        stopVideoSync() {
+            if (this.videoSyncInterval) {
+                clearInterval(this.videoSyncInterval);
+                this.videoSyncInterval = null;
+            }
+        },
+        
+        playVideo() {
+            const video = this.$refs.videoPlayer;
+            if (video && this.activeVideoClip) {
+                video.play().catch(e => console.log('Video play error:', e));
+            }
+        },
+        
+        pauseVideo() {
+            const video = this.$refs.videoPlayer;
+            if (video) {
+                video.pause();
+            }
+        },
+        
+        syncVideoToTime() {
+            const video = this.$refs.videoPlayer;
+            if (!video || !this.activeVideoClip) return;
+            
+            const clip = this.activeVideoClip;
+            const clipLocalTime = this.vm.currentTime - clip.start;
+            
+            if (clipLocalTime >= 0 && clipLocalTime < clip.duration) {
+                if (Math.abs(video.currentTime - clipLocalTime) > 0.5) {
+                    video.currentTime = clipLocalTime;
+                }
+                
+                if (this.vm.isPlaying && video.paused) {
+                    video.play().catch(e => console.log('Video play error:', e));
+                }
+            }
+        },
+        
+        onVideoLoaded() {
+            this.syncVideoToTime();
+        },
+        
+        onVideoTimeUpdate() {
+            // 비디오 시간 업데이트는 interval에서 처리
+        },
+        
+        onVideoEnded() {
+            // 클립 끝나면 다음 클립으로 또는 정지
+        }
+    }
 };
 
 window.PreviewCanvas = PreviewCanvas;
