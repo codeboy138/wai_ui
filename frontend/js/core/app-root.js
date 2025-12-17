@@ -97,7 +97,6 @@ const AppRoot = {
             playbackFPS: 30,
             totalDuration: 60,
             
-            // 클립-박스 매핑
             clipBoxMap: {}
         };
     },
@@ -162,6 +161,20 @@ const AppRoot = {
         clips: {
             handler(newClips) { this.cleanupOrphanedBoxes(newClips); },
             deep: true
+        },
+        aspectRatio: {
+            handler() { 
+                this.$nextTick(() => {
+                    this.updateCanvasSizeFromControls();
+                });
+            }
+        },
+        resolution: {
+            handler() { 
+                this.$nextTick(() => {
+                    this.updateCanvasSizeFromControls();
+                });
+            }
         }
     },
     mounted() {
@@ -185,7 +198,6 @@ const AppRoot = {
         this.stopPlayback();
     },
     methods: {
-        // === Header Menu ===
         setupHeaderMenuClose() {
             this._headerMenuCloseHandler = (e) => {
                 const isInsideMenu = e.target.closest('.header-menu-wrapper');
@@ -206,7 +218,6 @@ const AppRoot = {
         },
         toggleHeaderSubmenu(submenu) { this.headerSubmenus[submenu] = !this.headerSubmenus[submenu]; },
         
-        // === Modals ===
         openProjectManager() { this.closeAllHeaderMenus(); this.projectManagerModal.isOpen = true; },
         closeProjectManager() { this.projectManagerModal.isOpen = false; },
         openAssetManager(assetType) { this.closeAllHeaderMenus(); this.assetManagerModal.assetType = assetType || 'video'; this.assetManagerModal.isOpen = true; },
@@ -226,7 +237,6 @@ const AppRoot = {
             if (result.isConfirmed) Swal.fire({ icon: 'success', title: '로그아웃 완료', background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6', timer: 1500, showConfirmButton: false });
         },
 
-        // === Box Normalization ===
         ensureBoxNormalized(box) {
             const cw = this.canvasSize.w || 1;
             const ch = this.canvasSize.h || 1;
@@ -245,7 +255,6 @@ const AppRoot = {
         },
         ensureAllBoxesNormalized() { this.canvasBoxes.forEach(box => { this.ensureBoxNormalized(box); this.applyBoxNormalizedToPx(box); }); },
 
-        // === Preview Renderer ===
         initPreviewRenderer() {
             try {
                 const canvas = document.getElementById('preview-render-canvas');
@@ -262,7 +271,6 @@ const AppRoot = {
             else console.log(`[DUMMY] Python call: ${f}`); 
         },
 
-        // === Dev Mode ===
         toggleDevMode(mode) {
             if (mode === 'active') {
                 this.isDevModeActive = !this.isDevModeActive;
@@ -285,12 +293,10 @@ const AppRoot = {
             }
         },
 
-        // === Layer Columns ===
         addCol() { this.layerCols.push({ id: `lc_${Date.now()}`, name: 'New', color: '#333' }); },
         openCtx(e, id) { this.ctxMenu = { x: e.clientX, y: e.clientY, id }; },
         setColColor(c) { const col = this.layerCols.find(x => x.id === this.ctxMenu?.id); if (col) col.color = c; this.ctxMenu = null; },
 
-        // === Inspector Mode ===
         setupInspectorMode() {
             const self = this;
             document.addEventListener('mousemove', (e) => {
@@ -325,7 +331,6 @@ const AppRoot = {
             return lines.join('\n');
         },
 
-        // === Layer Helpers ===
         getColRole(colIdx) { return LAYER_COLUMN_ROLES[colIdx] || `col${colIdx}`; },
         getRowName(rowType) { const meta = LAYER_ROW_META[rowType]; return meta ? meta.name : (rowType || '').toLowerCase(); },
         getSlotKey(colIdx, rowType) { return `${this.getColRole(colIdx)}_${this.getRowName(rowType)}`; },
@@ -361,13 +366,23 @@ const AppRoot = {
             this.selectedClip = null;
         },
 
-        // === Aspect / Resolution ===
-        setAspect(r) { this.aspectRatio = r; this.updateCanvasSizeFromControls(); },
+        setAspect(r) { 
+            this.aspectRatio = r; 
+            this.canvasSize = this.computeResolutionSize(r, this.resolution);
+            this.$nextTick(() => {
+                this.recalculateCanvasSizeFromWrapper(); 
+                this.ensureAllBoxesNormalized(); 
+            });
+        },
         setResolution(labelOrKey) { 
             const str = (labelOrKey || '').toString().trim(); 
             const match = str.match(/^(\S+)/); 
             this.resolution = match ? match[1] : (str || this.resolution); 
-            this.updateCanvasSizeFromControls(); 
+            this.canvasSize = this.computeResolutionSize(this.aspectRatio, this.resolution);
+            this.$nextTick(() => {
+                this.recalculateCanvasSizeFromWrapper(); 
+                this.ensureAllBoxesNormalized(); 
+            });
         },
         computeResolutionSize(aspectRatio, resolutionKey) {
             const key = resolutionKey || 'FHD';
@@ -389,7 +404,13 @@ const AppRoot = {
             const cRatio = cw / ch; const wrapperRatio = innerW / innerH;
             this.canvasScale = wrapperRatio > cRatio ? innerH / ch : innerW / cw;
         },
-        updateCanvasSizeFromControls() { this.canvasSize = this.computeResolutionSize(this.aspectRatio, this.resolution); this.recalculateCanvasSizeFromWrapper(); this.ensureAllBoxesNormalized(); },
+        updateCanvasSizeFromControls() { 
+            this.canvasSize = this.computeResolutionSize(this.aspectRatio, this.resolution); 
+            this.$nextTick(() => {
+                this.recalculateCanvasSizeFromWrapper(); 
+                this.ensureAllBoxesNormalized(); 
+            });
+        },
         recalculateCanvasScale() { this.recalculateCanvasSizeFromWrapper(); },
         updateCanvasMouseCoord(e) {
             if (this.isBoxDragging) return;
@@ -405,7 +426,6 @@ const AppRoot = {
             this.mouseCoord = { x: Math.min(this.canvasSize.w, Math.max(0, canvasX / scale)), y: Math.min(this.canvasSize.h, Math.max(0, canvasY / scale)) };
         },
 
-        // === Panel Resizers ===
         setupPanelResizers() {
             const setup = (rid, stateKey, minSize, dir, isReverse = false) => {
                 const r = document.getElementById(rid); if (!r) return;
@@ -446,7 +466,6 @@ const AppRoot = {
             this._spinWheelHandler = handler;
         },
 
-        // === Keyboard Shortcuts ===
         setupKeyboardShortcuts() {
             this._keyboardHandler = (e) => {
                 if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
@@ -462,7 +481,6 @@ const AppRoot = {
             document.addEventListener('keydown', this._keyboardHandler);
         },
 
-        // === Playback Control ===
         togglePlayback() { if (this.isPlaying) this.stopPlayback(); else this.startPlayback(); },
         startPlayback() {
             if (this.isPlaying) return;
@@ -480,7 +498,6 @@ const AppRoot = {
         seekRelative(seconds) { const newTime = this.currentTime + seconds; this.currentTime = Math.max(0, Math.min(this.computedTotalDuration, newTime)); },
         seekToTime(time) { this.currentTime = Math.max(0, Math.min(this.computedTotalDuration, time)); },
 
-        // === 클립-박스 연동 ===
         addClipWithBox(clipData) {
             this.clips.push(clipData);
             if (clipData.type === 'video' || clipData.type === 'image') {
@@ -576,7 +593,6 @@ const AppRoot = {
             else if (this.selectedBoxId) this.removeBox(this.selectedBoxId);
         },
 
-        // === Global Drop Handler ===
         setupGlobalDropHandler() {
             const previewWrapper = document.getElementById('preview-canvas-wrapper');
             if (!previewWrapper) return;
@@ -616,12 +632,10 @@ const AppRoot = {
             else if (assetData.type === 'video') { box.mediaSrc = assetData.src || assetData.url; box.mediaType = 'video'; box.mediaName = assetData.name; }
         },
 
-        // === Layer Config Modal ===
         openLayerConfig(boxId) { this.layerConfig.isOpen = true; this.layerConfig.boxId = boxId; this.setSelectedBoxId(boxId); },
         closeLayerConfig() { this.layerConfig.isOpen = false; this.layerConfig.boxId = null; },
         deleteLayerFromConfig() { const box = this.layerConfigBox; if (box) this.removeBox(box.id); this.closeLayerConfig(); },
 
-        // === Layer Template Modal ===
         openLayerTemplateModal() { this.layerTemplateModal.isOpen = true; },
         closeLayerTemplateModal() { this.layerTemplateModal.isOpen = false; },
         deleteLayerTemplate(templateId) {
@@ -655,7 +669,6 @@ const AppRoot = {
             this.layerMainName = name;
         },
 
-        // === Box Operations ===
         removeBox(id) {
             const box = this.canvasBoxes.find(b => b.id === id);
             if (box && box.clipId) delete this.clipBoxMap[box.clipId];
@@ -696,7 +709,6 @@ const AppRoot = {
             this.canvasBoxes = newBoxes;
         },
 
-        // === Clip Operations ===
         removeClip(id) {
             this.clips = this.clips.filter(c => c.id !== id);
             if (this.selectedClip && this.selectedClip.id === id) this.selectedClip = null;
