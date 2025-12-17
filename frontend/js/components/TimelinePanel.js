@@ -7,10 +7,9 @@ const TimelinePanel = {
         <div
             id="timeline-main-panel"
             class="flex flex-col bg-bg-panel select-none"
-            :class="{ 'h-8': vm.isTimelineCollapsed, 'h-full': !vm.isTimelineCollapsed }"
             @wheel.prevent="handleWheel"
         >
-            <!-- 타임라인 헤더 -->
+            <!-- 타임라인 헤더 (항상 표시) -->
             <div class="h-8 bg-bg-panel border-b border-ui-border flex items-center px-2 justify-between shrink-0">
                 <div class="flex items-center gap-2">
                     <button
@@ -35,8 +34,8 @@ const TimelinePanel = {
                 </div>
             </div>
             
-            <!-- 퀵 툴바 -->
-            <div v-show="!vm.isTimelineCollapsed" class="h-6 bg-bg-hover border-b border-ui-border flex items-center px-2 justify-between shrink-0 text-[10px]">
+            <!-- 퀵 툴바 (접히면 숨김) -->
+            <div v-if="!vm.isTimelineCollapsed" class="h-6 bg-bg-hover border-b border-ui-border flex items-center px-2 justify-between shrink-0 text-[10px]">
                 <div class="flex gap-1 items-center">
                     <button class="tool-btn relative" title="자르기+왼쪽삭제" @click="cutAndDeleteLeft">
                         <i class="fa-solid fa-scissors"></i><span class="absolute -left-1 top-0 text-[8px] text-red-400">◀</span>
@@ -61,8 +60,8 @@ const TimelinePanel = {
                 </div>
             </div>
             
-            <!-- 타임라인 영역 -->
-            <div v-show="!vm.isTimelineCollapsed" id="timeline-scroll-container" class="flex-1 overflow-auto timeline-grid relative" :style="{ gridTemplateColumns: trackHeaderWidth + 'px 1fr' }">
+            <!-- 타임라인 영역 (접히면 숨김) -->
+            <div v-if="!vm.isTimelineCollapsed" id="timeline-scroll-container" class="flex-1 overflow-auto timeline-grid relative" :style="{ gridTemplateColumns: trackHeaderWidth + 'px 1fr' }">
                 <!-- 트랙 헤더 -->
                 <div class="sticky-col bg-bg-panel border-r border-ui-border relative" style="z-index: 30;">
                     <div class="h-6 border-b border-ui-border flex items-center justify-between px-2 text-[9px] font-bold text-text-sub bg-bg-panel sticky top-0" style="z-index: 40;">
@@ -456,8 +455,13 @@ const TimelinePanel = {
         
         adjustLayout() {
             const p = document.getElementById('preview-main-container');
-            if (p) p.style.height = this.vm.isTimelineCollapsed ? 'calc(100% - 32px)' : '50%';
+            if (p) {
+                // 접힌 상태: 프리뷰가 타임라인 헤더(32px)만 남기고 나머지 차지
+                // 펼친 상태: 50%씩 나눔
+                p.style.height = this.vm.isTimelineCollapsed ? 'calc(100% - 32px)' : '50%';
+            }
         },
+        
         toggleCollapse() { 
             this.vm.isTimelineCollapsed = !this.vm.isTimelineCollapsed; 
             this.$nextTick(() => this.adjustLayout()); 
@@ -622,7 +626,6 @@ const TimelinePanel = {
             }
         },
         
-        // 수직 스냅 보조선 표시
         showSnapLine(position) {
             if (this.snapLineTimeout) {
                 clearTimeout(this.snapLineTimeout);
@@ -659,12 +662,10 @@ const TimelinePanel = {
         },
         
         handleGlobalMouseMove(e) {
-            // 헤더 리사이즈
             if (this.isResizingHeader) {
                 this.trackHeaderWidth = Math.max(120, Math.min(400, this.resizeStartWidth + (e.clientX - this.resizeStartX)));
             }
             
-            // 트랙 높이 리사이즈
             if (this.isResizingTrack && this.resizingTrackId) {
                 const dy = e.clientY - this.resizeStartY;
                 const newHeight = Math.max(this.minTrackHeight, this.resizeStartHeight + dy);
@@ -690,7 +691,6 @@ const TimelinePanel = {
                         if (snap.snapped) {
                             newStart = snap.position;
                             
-                            // 수직 보조선 표시
                             const snapPixelPos = snap.snapTime * this.vm.zoom;
                             this.showSnapLine(snapPixelPos);
                             
@@ -784,7 +784,6 @@ const TimelinePanel = {
             const clipEnd = newStart + clip.duration;
             let snapped = false, pos = newStart, snappedToClipId = null, snapTime = null;
             
-            // 플레이헤드 스냅
             if (Math.abs(newStart - this.vm.currentTime) < snapDist) { 
                 pos = this.vm.currentTime; 
                 snapped = true; 
@@ -797,25 +796,20 @@ const TimelinePanel = {
                 snapTime = this.vm.currentTime;
             }
             
-            // 다른 클립 스냅 (모든 트랙)
             if (!snapped) {
                 for (const c of this.vm.clips) {
                     if (c.id === clip.id || excludeIds.includes(c.id)) continue;
                     const os = c.start, oe = c.start + c.duration;
                     
-                    // 드래그 클립 시작 -> 다른 클립 끝
                     if (Math.abs(newStart - oe) < snapDist) { 
                         pos = oe; snapped = true; snappedToClipId = c.id; snapTime = oe; break; 
                     }
-                    // 드래그 클립 시작 -> 다른 클립 시작
                     if (Math.abs(newStart - os) < snapDist) { 
                         pos = os; snapped = true; snappedToClipId = c.id; snapTime = os; break; 
                     }
-                    // 드래그 클립 끝 -> 다른 클립 시작
                     if (Math.abs(clipEnd - os) < snapDist) { 
                         pos = os - clip.duration; snapped = true; snappedToClipId = c.id; snapTime = os; break; 
                     }
-                    // 드래그 클립 끝 -> 다른 클립 끝
                     if (Math.abs(clipEnd - oe) < snapDist) { 
                         pos = oe - clip.duration; snapped = true; snappedToClipId = c.id; snapTime = oe; break; 
                     }
@@ -885,7 +879,6 @@ const TimelinePanel = {
             const y = e.clientY - rect.top - 24;
             const time = Math.max(0, x / this.vm.zoom);
             
-            // 높이 기반 트랙 찾기
             let accHeight = 0;
             let targetTrack = null;
             for (const track of this.vm.tracks) {
