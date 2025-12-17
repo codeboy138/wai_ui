@@ -124,7 +124,7 @@ html, body {
 }
 
 /* -----------------------------------------------
-   Header Bar
+   Header Bar & Navigation
    ----------------------------------------------- */
 .header-bar {
     height: 40px;
@@ -145,8 +145,177 @@ html, body {
     margin-right: var(--spacing-md);
 }
 
+/* Nav Button */
+.nav-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+    color: var(--text-sub);
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    height: 100%;
+    display: flex;
+    align-items: center;
+}
+
+.nav-btn:hover,
+.nav-btn.active {
+    color: var(--text-main);
+    background: var(--bg-hover);
+}
+
+/* Window Control Buttons */
+.win-btn {
+    width: 40px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--text-sub);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.win-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-main);
+}
+
+.win-btn.close:hover {
+    background: var(--ui-danger);
+    color: #fff;
+}
+
 /* -----------------------------------------------
-   Menu System
+   Header Menu System (Dropdowns)
+   ----------------------------------------------- */
+.header-menu-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.header-menu-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 160px;
+    background: var(--bg-panel);
+    border: 1px solid var(--ui-border);
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    z-index: 1000;
+    padding: 4px 0;
+    margin-top: 0;
+    display: none;
+}
+
+.header-menu-wrapper.open > .header-menu-dropdown {
+    display: block;
+}
+
+.header-menu-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: var(--text-main);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    border: 1px solid transparent;
+    margin: 2px 4px;
+    border-radius: var(--radius-sm);
+}
+
+.header-menu-item:hover {
+    background: var(--bg-hover);
+    border-color: var(--ui-border);
+}
+
+/* Header Submenu */
+.header-submenu-wrapper {
+    position: relative;
+}
+
+.header-submenu {
+    position: absolute;
+    top: 0;
+    left: 100%;
+    min-width: 140px;
+    background: var(--bg-panel);
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-md);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    padding: 4px 0;
+    margin-left: 0;
+    display: none;
+}
+
+.header-submenu-wrapper.open > .header-submenu {
+    display: block;
+}
+
+.header-submenu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: var(--text-main);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    border: 1px solid transparent;
+    margin: 2px 4px;
+    border-radius: var(--radius-sm);
+}
+
+.header-submenu-item:hover {
+    background: var(--bg-hover);
+    border-color: var(--ui-border);
+}
+
+/* -----------------------------------------------
+   Panel Resizers
+   ----------------------------------------------- */
+.panel-resizer-v {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    cursor: col-resize;
+    background: transparent;
+    z-index: 20;
+    transition: background var(--transition-fast);
+}
+
+.panel-resizer-v:hover,
+.panel-resizer-v.active {
+    background: var(--ui-accent);
+}
+
+.panel-resizer-h {
+    position: relative;
+    height: 4px;
+    cursor: row-resize;
+    background: var(--ui-border);
+    z-index: 20;
+    flex-shrink: 0;
+    transition: background var(--transition-fast);
+}
+
+.panel-resizer-h:hover,
+.panel-resizer-h.active {
+    background: var(--ui-accent);
+}
+
+/* -----------------------------------------------
+   Menu System (Generic)
    ----------------------------------------------- */
 .menu-bar {
     display: flex;
@@ -232,7 +401,7 @@ html, body {
 }
 
 .has-submenu::after {
-    content: '›';
+    content: '';
     margin-left: auto;
     color: var(--text-sub);
 }
@@ -544,6 +713,11 @@ html, body {
     inset: 10%;
 }
 
+/* Canvas Scaler */
+.canvas-scaler {
+    position: relative;
+}
+
 /* Transform handles */
 .transform-handle {
     position: absolute;
@@ -604,7 +778,6 @@ html, body {
     z-index: 10;
 }
 
-/* Timeline Ruler - 세분화된 눈금 */
 .timeline-ruler {
     position: relative;
     background: var(--bg-dark);
@@ -642,7 +815,6 @@ html, body {
     white-space: nowrap;
 }
 
-/* Track Lane - 눈금 제거 (배경만) */
 .track-lane {
     background: var(--bg-dark);
 }
@@ -767,42 +939,14 @@ html, body {
 }
 
 /* -----------------------------------------------
-   Snap Flash Effect - 좌우 끝에만 적용
+   Snap Flash Effect
    ----------------------------------------------- */
 @keyframes snapFlashEdge {
-    0% { 
-        opacity: 0;
-    }
-    10% { 
-        opacity: 1;
-    }
-    100% { 
-        opacity: 0;
-    }
+    0% { opacity: 0; }
+    10% { opacity: 1; }
+    100% { opacity: 0; }
 }
 
-.clip.snap-flash::before,
-.clip.snap-flash::after {
-    content: '';
-    position: absolute;
-    top: -2px;
-    bottom: -2px;
-    width: 2px;
-    background: #fff;
-    box-shadow: 0 0 6px 1px rgba(255, 255, 255, 0.8);
-    animation: snapFlashEdge 1s ease-out forwards;
-    z-index: 10;
-}
-
-.clip.snap-flash::before {
-    left: -2px;
-}
-
-.clip.snap-flash::after {
-    right: -2px;
-}
-
-/* 스냅된 쪽만 표시 */
 .clip.snap-flash-left::before {
     content: '';
     position: absolute;
@@ -1358,119 +1502,63 @@ input[type="range"]::-moz-range-thumb {
 }
 
 /* -----------------------------------------------
-   Drag & Drop Indicators
+   Dev Overlay
    ----------------------------------------------- */
-.drop-zone {
-    border: 2px dashed var(--ui-border);
-    border-radius: var(--radius-md);
-    transition: all var(--transition-fast);
+.dev-overlay {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 99999;
 }
 
-.drop-zone.drag-over {
-    border-color: var(--ui-accent);
-    background: rgba(0, 212, 255, 0.1);
-}
-
-.drag-ghost {
-    opacity: 0.8;
-    transform: rotate(2deg);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-}
-
-/* -----------------------------------------------
-   Selection Box
-   ----------------------------------------------- */
-.selection-box {
+.dev-highlight {
     position: absolute;
-    border: 1px solid var(--ui-accent);
+    border: 2px solid var(--ui-accent);
     background: rgba(0, 212, 255, 0.1);
     pointer-events: none;
-    z-index: 1000;
+    transition: all 0.1s ease;
 }
 
-/* -----------------------------------------------
-   Resizable Panels
-   ----------------------------------------------- */
-.resize-handle {
+.dev-tooltip {
     position: absolute;
-    z-index: 10;
-}
-
-.resize-handle-h {
-    width: 4px;
-    cursor: col-resize;
-    top: 0;
-    bottom: 0;
-}
-
-.resize-handle-v {
-    height: 4px;
-    cursor: row-resize;
-    left: 0;
-    right: 0;
-}
-
-.resize-handle:hover,
-.resize-handle.active {
-    background: var(--ui-accent);
-}
-
-/* -----------------------------------------------
-   Empty States
-   ----------------------------------------------- */
-.empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: var(--spacing-xl);
-    text-align: center;
-    color: var(--text-sub);
-}
-
-.empty-state-icon {
-    font-size: 48px;
-    margin-bottom: var(--spacing-md);
-    opacity: 0.5;
-}
-
-.empty-state-title {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--text-main);
-    margin-bottom: var(--spacing-xs);
-}
-
-.empty-state-text {
-    font-size: 13px;
-}
-
-/* -----------------------------------------------
-   Keyboard Shortcuts Display
-   ----------------------------------------------- */
-.kbd {
-    display: inline-block;
-    padding: 2px 6px;
-    font-family: monospace;
-    font-size: 11px;
-    background: var(--bg-input);
+    background: var(--bg-panel);
     border: 1px solid var(--ui-border);
-    border-radius: var(--radius-sm);
-    color: var(--text-sub);
+    border-radius: var(--radius-md);
+    padding: 8px 12px;
+    font-size: 11px;
+    color: var(--text-main);
+    max-width: 300px;
+    pointer-events: auto;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
-/* -----------------------------------------------
-   Z-Index Layers
-   ----------------------------------------------- */
-.z-base { z-index: 1; }
-.z-dropdown { z-index: 100; }
-.z-sticky { z-index: 200; }
-.z-fixed { z-index: 300; }
-.z-modal-backdrop { z-index: 400; }
-.z-modal { z-index: 500; }
-.z-popover { z-index: 600; }
-.z-tooltip { z-index: 700; }
-.z-toast { z-index: 800; }
+.dev-tooltip-header {
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.dev-tooltip-meta {
+    color: var(--text-sub);
+    font-size: 10px;
+}
+
+.dev-tooltip-hint {
+    color: var(--text-sub);
+    font-size: 9px;
+    margin-top: 4px;
+    font-style: italic;
+}
+
+.dev-tooltip-devinfo {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--ui-border);
+    font-family: monospace;
+    font-size: 10px;
+    white-space: pre-wrap;
+    color: var(--ui-accent);
+}
 
 /* -----------------------------------------------
    Utility Classes
@@ -1564,7 +1652,7 @@ input[type="range"]::-moz-range-thumb {
 }
 
 /* -----------------------------------------------
-   SweetAlert2 Custom - 작은 토스트
+   SweetAlert2 Custom - Small Toast
    ----------------------------------------------- */
 .swal2-popup.swal2-toast {
     padding: 8px 12px !important;
@@ -1587,7 +1675,7 @@ input[type="range"]::-moz-range-thumb {
     margin: 0 8px 0 0 !important;
 }
 
-/* 일반 팝업도 작게 */
+/* Small popup */
 .swal2-popup {
     font-size: 13px !important;
     padding: 16px !important;
@@ -1613,7 +1701,7 @@ input[type="range"]::-moz-range-thumb {
 }
 
 /* -----------------------------------------------
-   Canvas Layer Label - 고정 크기
+   Canvas Layer Label - Fixed Size
    ----------------------------------------------- */
 .canvas-layer-label {
     font-size: 6px !important;
@@ -1621,3 +1709,16 @@ input[type="range"]::-moz-range-thumb {
     white-space: nowrap;
     pointer-events: none;
 }
+
+/* -----------------------------------------------
+   Z-Index Layers
+   ----------------------------------------------- */
+.z-base { z-index: 1; }
+.z-dropdown { z-index: 100; }
+.z-sticky { z-index: 200; }
+.z-fixed { z-index: 300; }
+.z-modal-backdrop { z-index: 400; }
+.z-modal { z-index: 500; }
+.z-popover { z-index: 600; }
+.z-tooltip { z-index: 700; }
+.z-toast { z-index: 800; }
