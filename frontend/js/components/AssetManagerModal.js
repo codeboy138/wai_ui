@@ -1,4 +1,4 @@
-// Asset Manager Modal Component - 드래그앤드롭 지원 + 리사이징
+// Asset Manager Modal Component - 드래그앤드롭 지원 + 리사이징 + 복수선택 + 파일업로드
 // 모달 오버레이 드래그 통과 가능하도록 수정
 
 const AssetManagerModal = {
@@ -13,6 +13,16 @@ const AssetManagerModal = {
             @click.self="$emit('close')"
             @contextmenu.prevent
         >
+            <!-- 숨겨진 파일 입력 -->
+            <input 
+                type="file" 
+                ref="fileInput" 
+                :accept="fileAcceptTypes" 
+                multiple 
+                style="display:none;" 
+                @change="onFileSelected"
+            />
+            
             <div
                 id="asset-manager-modal-window"
                 class="asset-manager-window bg-bg-panel border border-ui-border rounded-lg shadow-2xl text-[12px] text-text-main flex flex-col"
@@ -53,7 +63,7 @@ const AssetManagerModal = {
                 <div class="flex items-center justify-between px-4 py-2 border-b border-ui-border bg-bg-panel">
                     <div class="flex items-center gap-2">
                         <span class="text-[11px] text-text-sub">{{ assetTypeTitle }} 목록</span>
-                        <span class="text-[10px] text-ui-accent">(드래그하여 타임라인에 추가)</span>
+                        <span class="text-[10px] text-ui-accent">(Ctrl+클릭: 복수선택 / 드래그: 타임라인 추가)</span>
                     </div>
                     
                     <div class="flex items-center gap-2">
@@ -136,7 +146,7 @@ const AssetManagerModal = {
                                     추가일 <i v-if="sortBy === 'date'" :class="sortAsc ? 'fa-solid fa-arrow-up' : 'fa-solid fa-arrow-down'" class="text-[8px]"></i>
                                 </span>
                             </div>
-                            <span class="text-text-sub">{{ filteredAssets.length }}개 항목</span>
+                            <span class="text-text-sub">{{ selectedAssetIds.length > 0 ? selectedAssetIds.length + '개 선택됨' : filteredAssets.length + '개 항목' }}</span>
                         </div>
 
                         <div class="flex-1 overflow-auto p-3" :class="{ 'drag-over': isContentPanelDragOver }">
@@ -152,8 +162,8 @@ const AssetManagerModal = {
                                     v-for="asset in filteredAssets"
                                     :key="asset.id"
                                     class="asset-card"
-                                    :class="{ 'selected': selectedAssetId === asset.id }"
-                                    @click="selectAsset(asset)"
+                                    :class="{ 'selected': isAssetSelected(asset.id) }"
+                                    @click="selectAsset($event, asset)"
                                     @dblclick="useAsset(asset)"
                                     draggable="true"
                                     @dragstart="onAssetDragStart($event, asset)"
@@ -170,16 +180,16 @@ const AssetManagerModal = {
                                                 @mouseenter="$event.target.play()" 
                                                 @mouseleave="$event.target.pause(); $event.target.currentTime = 0;"
                                             ></video>
-                                            <div v-else class="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-900/30 to-purple-900/30">
-                                                <i class="fa-solid fa-film text-2xl text-text-sub opacity-50"></i>
+                                            <div v-else class="asset-thumbnail-placeholder">
+                                                <i class="fa-solid fa-film asset-thumbnail-icon-center"></i>
                                             </div>
                                         </template>
                                         <template v-else-if="assetType === 'sound'">
-                                            <div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-900/30 to-blue-900/30 relative" @click.stop="toggleAudioPreview(asset)">
+                                            <div class="asset-thumbnail-placeholder sound" @click.stop="toggleAudioPreview(asset)">
                                                 <div class="flex items-end gap-0.5 h-8">
                                                     <div v-for="i in 5" :key="i" class="w-1 bg-ui-accent rounded-t" :style="{ height: (20 + Math.random() * 60) + '%' }"></div>
                                                 </div>
-                                                <i class="fa-solid fa-play absolute text-white text-xl drop-shadow-lg"></i>
+                                                <i class="fa-solid fa-play asset-thumbnail-icon-center"></i>
                                             </div>
                                         </template>
                                     </div>
@@ -196,15 +206,15 @@ const AssetManagerModal = {
                                     v-for="asset in filteredAssets"
                                     :key="asset.id"
                                     class="asset-card"
-                                    :class="{ 'selected': selectedAssetId === asset.id }"
-                                    @click="selectAsset(asset)"
+                                    :class="{ 'selected': isAssetSelected(asset.id) }"
+                                    @click="selectAsset($event, asset)"
                                     @dblclick="useAsset(asset)"
                                     draggable="true"
                                     @dragstart="onAssetDragStart($event, asset)"
                                     @dragend="onDragEnd"
                                 >
                                     <div class="asset-thumbnail">
-                                        <i :class="assetTypeIcon" class="asset-thumbnail-icon"></i>
+                                        <i :class="assetTypeIcon" class="asset-thumbnail-icon-center"></i>
                                     </div>
                                     <div class="asset-info">
                                         <div class="flex-1">
@@ -222,11 +232,11 @@ const AssetManagerModal = {
                 <!-- 상태바 -->
                 <div class="px-4 py-2 border-t border-ui-border bg-bg-panel flex justify-between items-center text-[11px] rounded-b-lg">
                     <div class="text-text-sub">
-                        <span v-if="selectedAssetId">1개 선택됨 - 드래그하여 타임라인에 추가</span>
+                        <span v-if="selectedAssetIds.length > 0">{{ selectedAssetIds.length }}개 선택됨 - 드래그하여 타임라인에 추가</span>
                         <span v-else>{{ currentFolderName }}</span>
                     </div>
                     <div class="flex items-center gap-2">
-                        <button v-if="selectedAssetId" class="px-3 py-1 bg-ui-accent text-white rounded hover:bg-blue-600 transition-colors" @click="useSelectedAsset">사용</button>
+                        <button v-if="selectedAssetIds.length > 0" class="px-3 py-1 bg-ui-accent text-white rounded hover:bg-blue-600 transition-colors" @click="useSelectedAssets">사용</button>
                         <button class="px-3 py-1 bg-bg-input border border-ui-border text-text-sub rounded hover:bg-bg-hover transition-colors" @click="$emit('close')">닫기</button>
                     </div>
                 </div>
@@ -248,7 +258,8 @@ const AssetManagerModal = {
             sortAsc: true,
             previewEnabled: true,
             
-            selectedAssetId: null,
+            // 복수 선택 지원
+            selectedAssetIds: [],
             
             dragData: null,
             dragOverFolderId: null,
@@ -285,9 +296,8 @@ const AssetManagerModal = {
                 height: this.height + 'px'
             }; 
         },
-        // 그리드 스타일 - 창 크기에 따라 컬럼 수 조정
         gridStyle() {
-            const contentWidth = this.width - 176 - 24; // 폴더 패널 폭 + 패딩
+            const contentWidth = this.width - 176 - 24;
             const minCardWidth = 140;
             const cols = Math.max(2, Math.floor(contentWidth / minCardWidth));
             return {
@@ -299,6 +309,11 @@ const AssetManagerModal = {
         assetTypeLabel() { return { video: '영상', sound: '사운드' }[this.assetType] || '자산'; },
         previewToggleLabel() { return this.assetType === 'sound' ? '미리듣기' : '미리보기'; },
         currentFolderName() { const folder = this.assetFolders.find(f => f.id === this.currentFolderId); return folder ? folder.name : '전체'; },
+        fileAcceptTypes() {
+            if (this.assetType === 'video') return 'video/*';
+            if (this.assetType === 'sound') return 'audio/*';
+            return '*/*';
+        },
         filteredAssets() {
             let assets = this.dummyAssets[this.assetType] || [];
             if (this.currentFolderId !== 'all') assets = assets.filter(a => a.folderId === this.currentFolderId);
@@ -371,20 +386,89 @@ const AssetManagerModal = {
         onGlobalMouseUp() { this.dragging = false; this.resizing = false; },
         
         toggleSort(field) { if (this.sortBy === field) this.sortAsc = !this.sortAsc; else { this.sortBy = field; this.sortAsc = true; } },
-        selectAsset(asset) { this.selectedAssetId = asset.id; },
+        
+        // 복수 선택 지원
+        isAssetSelected(assetId) {
+            return this.selectedAssetIds.includes(assetId);
+        },
+        selectAsset(e, asset) {
+            if (e.ctrlKey || e.metaKey) {
+                // Ctrl+클릭: 토글 선택
+                const idx = this.selectedAssetIds.indexOf(asset.id);
+                if (idx > -1) {
+                    this.selectedAssetIds.splice(idx, 1);
+                } else {
+                    this.selectedAssetIds.push(asset.id);
+                }
+            } else {
+                // 일반 클릭: 단일 선택
+                this.selectedAssetIds = [asset.id];
+            }
+        },
         
         useAsset(asset) {
             Swal.fire({ icon: 'success', title: '자산 사용', text: `"${asset.name}"을(를) 타임라인에 추가합니다.`, background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6', timer: 1500, showConfirmButton: false });
             this.$emit('close');
         },
-        useSelectedAsset() { const asset = this.filteredAssets.find(a => a.id === this.selectedAssetId); if (asset) this.useAsset(asset); },
-        
-        async addAsset() {
-            const { value: name } = await Swal.fire({ title: '새 ' + this.assetTypeLabel + ' 추가', input: 'text', inputPlaceholder: '파일명', showCancelButton: true, background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6' });
-            if (name) { 
-                if (!this.dummyAssets[this.assetType]) this.dummyAssets[this.assetType] = [];
-                this.dummyAssets[this.assetType].push({ id: `${this.assetType}_${Date.now()}`, name, folderId: this.currentFolderId, duration: '00:00', src: '' }); 
+        useSelectedAssets() { 
+            const assets = this.filteredAssets.filter(a => this.selectedAssetIds.includes(a.id)); 
+            if (assets.length > 0) {
+                const names = assets.map(a => a.name).join(', ');
+                Swal.fire({ icon: 'success', title: '자산 사용', text: `${assets.length}개 자산을 타임라인에 추가합니다: ${names}`, background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6', timer: 1500, showConfirmButton: false });
+                this.$emit('close');
             }
+        },
+        
+        // 추가 버튼: 모달 닫고 파일 탐색기 열기
+        addAsset() {
+            this.$emit('close');
+            this.$nextTick(() => {
+                const fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.accept = this.fileAcceptTypes;
+                fileInput.multiple = true;
+                fileInput.style.display = 'none';
+                fileInput.addEventListener('change', (e) => {
+                    this.handleFileUpload(e.target.files);
+                    document.body.removeChild(fileInput);
+                });
+                document.body.appendChild(fileInput);
+                fileInput.click();
+            });
+        },
+        
+        onFileSelected(e) {
+            this.handleFileUpload(e.target.files);
+        },
+        
+        handleFileUpload(files) {
+            if (!files || files.length === 0) return;
+            
+            const fileNames = Array.from(files).map(f => f.name).join(', ');
+            Swal.fire({ 
+                icon: 'success', 
+                title: '파일 업로드', 
+                text: `${files.length}개 파일 선택됨: ${fileNames}`, 
+                background: '#1e1e1e', 
+                color: '#fff', 
+                confirmButtonColor: '#3b82f6',
+                timer: 2000,
+                showConfirmButton: false
+            });
+            
+            // 실제 구현 시 여기서 파일 처리 로직 추가
+            Array.from(files).forEach(file => {
+                const newAsset = {
+                    id: `${this.assetType}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    name: file.name,
+                    folderId: 'all',
+                    duration: '00:00',
+                    resolution: '',
+                    src: URL.createObjectURL(file)
+                };
+                if (!this.dummyAssets[this.assetType]) this.dummyAssets[this.assetType] = [];
+                this.dummyAssets[this.assetType].push(newAsset);
+            });
         },
         
         async createFolder() {
@@ -400,25 +484,34 @@ const AssetManagerModal = {
         
         toggleAudioPreview(asset) { console.log('Playing audio:', asset.name); },
         
-        // 자산 드래그 시작 - 타임라인으로 드래그
+        // 자산 드래그 시작 - 복수 선택 지원
         onAssetDragStart(e, asset) {
-            this.dragData = { type: 'asset', asset };
+            // 드래그 시작 시 선택되지 않은 항목이면 해당 항목만 선택
+            if (!this.selectedAssetIds.includes(asset.id)) {
+                this.selectedAssetIds = [asset.id];
+            }
+            
+            const selectedAssets = this.filteredAssets.filter(a => this.selectedAssetIds.includes(a.id));
+            this.dragData = { type: 'asset', assets: selectedAssets };
             e.dataTransfer.effectAllowed = 'copy';
             
-            const transferData = { 
+            const transferData = selectedAssets.map(a => ({ 
                 type: this.assetType, 
-                id: asset.id, 
-                name: asset.name,
-                src: asset.src || '',
-                duration: asset.duration || '',
-                resolution: asset.resolution || ''
-            };
+                id: a.id, 
+                name: a.name,
+                src: a.src || '',
+                duration: a.duration || '',
+                resolution: a.resolution || ''
+            }));
             
             e.dataTransfer.setData('text/wai-asset', JSON.stringify(transferData));
             
             // 드래그 이미지
             const dragImage = document.createElement('div');
-            dragImage.textContent = '🎬 ' + asset.name;
+            const icon = this.assetType === 'video' ? '🎬' : '🎵';
+            dragImage.textContent = selectedAssets.length > 1 
+                ? `${icon} ${selectedAssets.length}개 항목` 
+                : `${icon} ${asset.name}`;
             dragImage.style.cssText = 'position:absolute;top:-1000px;padding:8px 16px;background:#3b82f6;color:#fff;border-radius:6px;font-size:12px;font-weight:bold;white-space:nowrap;';
             document.body.appendChild(dragImage);
             e.dataTransfer.setDragImage(dragImage, 0, 0);
@@ -438,8 +531,10 @@ const AssetManagerModal = {
         },
         onFolderDrop(e, folder) {
             e.preventDefault();
-            if (this.dragData && this.dragData.type === 'asset') {
-                this.moveAssetToFolder(this.dragData.asset, folder.id);
+            if (this.dragData && this.dragData.type === 'asset' && this.dragData.assets) {
+                this.dragData.assets.forEach(asset => {
+                    this.moveAssetToFolder(asset, folder.id);
+                });
             }
             this.dragOverFolderId = null;
             this.dragData = null;
@@ -450,8 +545,10 @@ const AssetManagerModal = {
         },
         onContentPanelDrop(e) {
             e.preventDefault();
-            if (this.dragData && this.dragData.type === 'asset') {
-                this.moveAssetToFolder(this.dragData.asset, this.currentFolderId);
+            if (this.dragData && this.dragData.type === 'asset' && this.dragData.assets) {
+                this.dragData.assets.forEach(asset => {
+                    this.moveAssetToFolder(asset, this.currentFolderId);
+                });
             }
             this.isContentPanelDragOver = false;
             this.dragData = null;
