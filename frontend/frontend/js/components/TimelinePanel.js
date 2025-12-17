@@ -203,7 +203,7 @@ const TimelinePanel = {
                             <div v-show="(trackHeights[track.id] || 40) >= 16" class="text-[9px] px-1 text-white truncate font-bold drop-shadow-md relative z-10 pointer-events-none">{{ clip.name }}</div>
                             <div class="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/30" @mousedown.stop="startClipResize($event, clip, 'left')"></div>
                             <div class="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/30" @mousedown.stop="startClipResize($event, clip, 'right')"></div>
-                            <!-- 스냅 접촉면 플래시 -->
+                            <!-- 스냅 접촉면 플래시 (좌/우 측면만) -->
                             <div v-if="snapFlashEdge.clipId === clip.id && snapFlashEdge.side === 'left'" class="snap-edge-flash-left"></div>
                             <div v-if="snapFlashEdge.clipId === clip.id && snapFlashEdge.side === 'right'" class="snap-edge-flash-right"></div>
                         </div>
@@ -277,38 +277,22 @@ const TimelinePanel = {
             const pad = n => String(n).padStart(2, '0');
             return `${pad(h)}:${pad(m)}:${pad(s)}:${pad(f)}`;
         },
-        totalTimelineWidth() {
-            return this.totalDuration * this.vm.zoom;
-        },
+        totalTimelineWidth() { return this.totalDuration * this.vm.zoom; },
         rulerMarks() {
             const marks = [];
             const zoom = this.vm.zoom;
             const duration = this.totalDuration;
-            let majorInterval = 1;
-            let showMid = true;
-            let showMinor = true;
-            if (zoom < 20) {
-                majorInterval = 5;
-                showMid = false;
-                showMinor = false;
-            } else if (zoom < 40) {
-                majorInterval = 2;
-                showMid = true;
-                showMinor = false;
-            } else {
-                majorInterval = 1;
-                showMid = true;
-                showMinor = zoom >= 60;
-            }
+            let majorInterval = 1, showMid = true, showMinor = true;
+            if (zoom < 20) { majorInterval = 5; showMid = false; showMinor = false; }
+            else if (zoom < 40) { majorInterval = 2; showMid = true; showMinor = false; }
+            else { majorInterval = 1; showMid = true; showMinor = zoom >= 60; }
             for (let t = 0; t <= duration; t += 0.1) {
                 const time = Math.round(t * 10) / 10;
                 const position = time * zoom;
                 const isMajor = time % majorInterval === 0;
                 const isMid = showMid && !isMajor && time % 0.5 === 0;
                 const isMinor = showMinor && !isMajor && !isMid;
-                if (isMajor || isMid || isMinor) {
-                    marks.push({ time, position, isMajor, isMid, label: isMajor ? this.formatRulerTime(time) : '' });
-                }
+                if (isMajor || isMid || isMinor) marks.push({ time, position, isMajor, isMid, label: isMajor ? this.formatRulerTime(time) : '' });
             }
             return marks;
         }
@@ -342,11 +326,11 @@ const TimelinePanel = {
                     position: absolute;
                     top: 0;
                     bottom: 0;
-                    width: 2px;
-                    background: #fff;
+                    width: 1px;
+                    background: rgba(255, 255, 255, 0.2);
                     z-index: 50;
                     pointer-events: none;
-                    animation: snapEdgeFlash 0.3s ease-out forwards;
+                    animation: snapEdgeFlash 0.2s ease-out forwards;
                 }
                 .snap-edge-flash-left { left: 0; }
                 .snap-edge-flash-right { right: 0; }
@@ -364,16 +348,8 @@ const TimelinePanel = {
             `;
             document.head.appendChild(style);
         },
-        initTrackHeights() {
-            this.vm.tracks.forEach(track => {
-                if (!this.trackHeights[track.id]) {
-                    this.trackHeights[track.id] = this.defaultTrackHeight;
-                }
-            });
-        },
-        toggleAllTrackNames() {
-            this.isTrackNamesCollapsed = !this.isTrackNamesCollapsed;
-        },
+        initTrackHeights() { this.vm.tracks.forEach(track => { if (!this.trackHeights[track.id]) this.trackHeights[track.id] = this.defaultTrackHeight; }); },
+        toggleAllTrackNames() { this.isTrackNamesCollapsed = !this.isTrackNamesCollapsed; },
         startTrackDrag(e, track, index) {
             this.draggingTrackId = track.id;
             this.draggingTrackIndex = index;
@@ -385,17 +361,10 @@ const TimelinePanel = {
             e.dataTransfer.setDragImage(dragImage, 0, 0);
             setTimeout(() => document.body.removeChild(dragImage), 0);
         },
-        handleTrackDragOver(e, track, index) {
-            if (this.draggingTrackId && this.draggingTrackId !== track.id) {
-                this.dragOverTrackId = track.id;
-            }
-        },
+        handleTrackDragOver(e, track, index) { if (this.draggingTrackId && this.draggingTrackId !== track.id) this.dragOverTrackId = track.id; },
         handleTrackDragLeave() { this.dragOverTrackId = null; },
         handleTrackDrop(e, targetTrack, targetIndex) {
-            if (!this.draggingTrackId || this.draggingTrackId === targetTrack.id) {
-                this.endTrackDrag();
-                return;
-            }
+            if (!this.draggingTrackId || this.draggingTrackId === targetTrack.id) { this.endTrackDrag(); return; }
             const fromIndex = this.draggingTrackIndex;
             const toIndex = targetIndex;
             if (fromIndex !== toIndex) {
@@ -406,11 +375,7 @@ const TimelinePanel = {
             }
             this.endTrackDrag();
         },
-        endTrackDrag() {
-            this.draggingTrackId = null;
-            this.draggingTrackIndex = null;
-            this.dragOverTrackId = null;
-        },
+        endTrackDrag() { this.draggingTrackId = null; this.draggingTrackIndex = null; this.dragOverTrackId = null; },
         moveTrackUp(index) {
             if (index <= 0) return;
             const tracks = [...this.vm.tracks];
@@ -429,12 +394,7 @@ const TimelinePanel = {
         clipStyle(clip, trackId) {
             const height = this.trackHeights[trackId] || this.defaultTrackHeight;
             const padding = Math.max(2, Math.min(4, height * 0.1));
-            return { 
-                left: clip.start * this.vm.zoom + 'px', 
-                width: Math.max(20, clip.duration * this.vm.zoom) + 'px',
-                top: padding + 'px',
-                height: (height - padding * 2) + 'px'
-            }; 
+            return { left: clip.start * this.vm.zoom + 'px', width: Math.max(20, clip.duration * this.vm.zoom) + 'px', top: padding + 'px', height: (height - padding * 2) + 'px' };
         },
         getClipClasses(clip) {
             return {
@@ -449,10 +409,7 @@ const TimelinePanel = {
             this.resizeStartY = e.clientY;
             this.resizeStartHeight = this.trackHeights[track.id] || this.defaultTrackHeight;
         },
-        resetTrackHeight(track) {
-            this.trackHeights[track.id] = this.defaultTrackHeight;
-            this.closeContextMenus();
-        },
+        resetTrackHeight(track) { this.trackHeights[track.id] = this.defaultTrackHeight; this.closeContextMenus(); },
         handleClipClick(e, clip) {
             if (e.ctrlKey || e.metaKey) {
                 const idx = this.selectedClipIds.indexOf(clip.id);
@@ -467,18 +424,9 @@ const TimelinePanel = {
                     const endIdx = trackClips.indexOf(clip);
                     const minIdx = Math.min(startIdx, endIdx);
                     const maxIdx = Math.max(startIdx, endIdx);
-                    for (let i = minIdx; i <= maxIdx; i++) {
-                        if (!this.selectedClipIds.includes(trackClips[i].id)) {
-                            this.selectedClipIds.push(trackClips[i].id);
-                        }
-                    }
-                } else {
-                    this.selectedClipIds = [clip.id];
-                }
-            } else {
-                this.selectedClipIds = [clip.id];
-                this.lastSelectedClipId = clip.id;
-            }
+                    for (let i = minIdx; i <= maxIdx; i++) { if (!this.selectedClipIds.includes(trackClips[i].id)) this.selectedClipIds.push(trackClips[i].id); }
+                } else this.selectedClipIds = [clip.id];
+            } else { this.selectedClipIds = [clip.id]; this.lastSelectedClipId = clip.id; }
             this.vm.selectedClip = this.selectedClipIds.length === 1 ? this.vm.clips.find(c => c.id === this.selectedClipIds[0]) : null;
         },
         handleLaneClick(e) {
@@ -492,39 +440,14 @@ const TimelinePanel = {
             if ((e.ctrlKey || e.metaKey) && e.key === 'a') { e.preventDefault(); this.selectedClipIds = this.vm.clips.map(c => c.id); }
             if (e.key === 'Escape') { this.selectedClipIds = []; this.vm.selectedClip = null; }
         },
-        togglePlayback() { 
-            if (typeof this.vm.togglePlayback === 'function') this.vm.togglePlayback(); 
-            else this.vm.isPlaying = !this.vm.isPlaying; 
-        },
-        seekToStart() { 
-            if (typeof this.vm.seekToStart === 'function') this.vm.seekToStart(); 
-            else this.vm.currentTime = 0; 
-        },
-        seekToEnd() {
-            let max = 0;
-            this.vm.clips.forEach(c => { if (c.start + c.duration > max) max = c.start + c.duration; });
-            this.vm.currentTime = max;
-        },
+        togglePlayback() { if (typeof this.vm.togglePlayback === 'function') this.vm.togglePlayback(); else this.vm.isPlaying = !this.vm.isPlaying; },
+        seekToStart() { if (typeof this.vm.seekToStart === 'function') this.vm.seekToStart(); else this.vm.currentTime = 0; },
+        seekToEnd() { let max = 0; this.vm.clips.forEach(c => { if (c.start + c.duration > max) max = c.start + c.duration; }); this.vm.currentTime = max; },
         seekToTime(t) { this.vm.currentTime = Math.max(0, t); },
-        adjustLayout() {
-            const p = document.getElementById('preview-main-container');
-            if (p) p.style.height = this.vm.isTimelineCollapsed ? 'calc(100% - 32px)' : '50%';
-        },
-        toggleCollapse() { 
-            this.vm.isTimelineCollapsed = !this.vm.isTimelineCollapsed; 
-            this.$nextTick(() => this.adjustLayout()); 
-        },
-        startHeaderResize(e) { 
-            this.isResizingHeader = true; 
-            this.resizeStartX = e.clientX; 
-            this.resizeStartWidth = this.trackHeaderWidth; 
-        },
-        formatRulerTime(s) { 
-            if (s < 60) return s + 's';
-            const m = Math.floor(s / 60);
-            const sec = Math.round(s % 60);
-            return m + ':' + String(sec).padStart(2, '0');
-        },
+        adjustLayout() { const p = document.getElementById('preview-main-container'); if (p) p.style.height = this.vm.isTimelineCollapsed ? 'calc(100% - 32px)' : '50%'; },
+        toggleCollapse() { this.vm.isTimelineCollapsed = !this.vm.isTimelineCollapsed; this.$nextTick(() => this.adjustLayout()); },
+        startHeaderResize(e) { this.isResizingHeader = true; this.resizeStartX = e.clientX; this.resizeStartWidth = this.trackHeaderWidth; },
+        formatRulerTime(s) { if (s < 60) return s + 's'; const m = Math.floor(s / 60); const sec = Math.round(s % 60); return m + ':' + String(sec).padStart(2, '0'); },
         addTrack() {
             const colors = ['#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899'];
             const newTrack = { id: `t_${Date.now()}`, name: `Track ${this.vm.tracks.length + 1}`, type: 'video', color: colors[this.vm.tracks.length % colors.length], isHidden: false, isLocked: false, isMain: false };
@@ -557,24 +480,15 @@ const TimelinePanel = {
             const isRuler = e.target.id === 'timeline-ruler' || e.target.closest('#timeline-ruler');
             if (isRuler) this.updatePlayheadPosition(e);
         },
-        startPlayheadDrag(e) {
-            this.isDraggingPlayhead = true;
-            this.updatePlayheadPosition(e);
-        },
+        startPlayheadDrag(e) { this.isDraggingPlayhead = true; this.updatePlayheadPosition(e); },
         startClipDrag(e, clip, track) {
             if (track.isLocked) return;
-            if (!this.selectedClipIds.includes(clip.id)) {
-                this.selectedClipIds = [clip.id];
-                this.vm.selectedClip = clip;
-            }
+            if (!this.selectedClipIds.includes(clip.id)) { this.selectedClipIds = [clip.id]; this.vm.selectedClip = clip; }
             this.isDraggingClip = true;
             this.draggingClipIds = [...this.selectedClipIds];
             this.dragStartX = e.clientX;
             this.dragStartPositions = {};
-            this.draggingClipIds.forEach(id => {
-                const c = this.vm.clips.find(clip => clip.id === id);
-                if (c) this.dragStartPositions[id] = c.start;
-            });
+            this.draggingClipIds.forEach(id => { const c = this.vm.clips.find(clip => clip.id === id); if (c) this.dragStartPositions[id] = c.start; });
         },
         startClipResize(e, clip, dir) {
             const track = this.vm.tracks.find(t => t.id === clip.trackId);
@@ -620,24 +534,16 @@ const TimelinePanel = {
         },
         showSnapEdgeFlash(clipId, side) {
             this.snapFlashEdge = { clipId, side };
-            setTimeout(() => {
-                if (this.snapFlashEdge.clipId === clipId && this.snapFlashEdge.side === side) {
-                    this.snapFlashEdge = { clipId: null, side: null };
-                }
-            }, 300);
+            setTimeout(() => { if (this.snapFlashEdge.clipId === clipId && this.snapFlashEdge.side === side) this.snapFlashEdge = { clipId: null, side: null }; }, 200);
         },
         handleGlobalMouseMove(e) {
-            if (this.isResizingHeader) {
-                this.trackHeaderWidth = Math.max(120, Math.min(400, this.resizeStartWidth + (e.clientX - this.resizeStartX)));
-            }
+            if (this.isResizingHeader) this.trackHeaderWidth = Math.max(120, Math.min(400, this.resizeStartWidth + (e.clientX - this.resizeStartX)));
             if (this.isResizingTrack && this.resizingTrackId) {
                 const dy = e.clientY - this.resizeStartY;
                 const newHeight = Math.max(this.minTrackHeight, this.resizeStartHeight + dy);
                 this.trackHeights[this.resizingTrackId] = newHeight;
             }
-            if (this.isDraggingPlayhead) {
-                this.updatePlayheadPosition(e);
-            }
+            if (this.isDraggingPlayhead) this.updatePlayheadPosition(e);
             if (this.isDraggingClip && this.draggingClipIds.length > 0) {
                 const dx = e.clientX - this.dragStartX;
                 const dt = dx / this.vm.zoom;
@@ -653,9 +559,7 @@ const TimelinePanel = {
                                 this.showSnapEdgeFlash(clip.id, snap.dragSide);
                                 this.lastSnappedClipId = snap.snappedToClipId;
                             }
-                        } else {
-                            this.lastSnappedClipId = null;
-                        }
+                        } else this.lastSnappedClipId = null;
                     }
                     const finalStart = this.findNonCollidingPosition(clip, newStart, this.draggingClipIds);
                     clip.start = Math.max(0, finalStart);
@@ -665,8 +569,7 @@ const TimelinePanel = {
                     if (lane) {
                         const rect = lane.getBoundingClientRect();
                         const relY = e.clientY - rect.top - 24;
-                        let accHeight = 0;
-                        let targetTrack = null;
+                        let accHeight = 0, targetTrack = null;
                         for (const track of this.vm.tracks) {
                             const trackHeight = this.trackHeights[track.id] || this.defaultTrackHeight;
                             if (relY >= accHeight && relY < accHeight + trackHeight) { targetTrack = track; break; }
@@ -718,11 +621,8 @@ const TimelinePanel = {
             const snapDist = 10 / this.vm.zoom;
             const clipEnd = newStart + clip.duration;
             let snapped = false, pos = newStart, snappedToClipId = null, dragSide = null;
-            if (Math.abs(newStart - this.vm.currentTime) < snapDist) { 
-                pos = this.vm.currentTime; snapped = true; snappedToClipId = 'playhead'; dragSide = 'left';
-            } else if (Math.abs(clipEnd - this.vm.currentTime) < snapDist) { 
-                pos = this.vm.currentTime - clip.duration; snapped = true; snappedToClipId = 'playhead'; dragSide = 'right';
-            }
+            if (Math.abs(newStart - this.vm.currentTime) < snapDist) { pos = this.vm.currentTime; snapped = true; snappedToClipId = 'playhead'; dragSide = 'left'; }
+            else if (Math.abs(clipEnd - this.vm.currentTime) < snapDist) { pos = this.vm.currentTime - clip.duration; snapped = true; snappedToClipId = 'playhead'; dragSide = 'right'; }
             if (!snapped) {
                 for (const c of this.vm.clips) {
                     if (c.id === clip.id || excludeIds.includes(c.id)) continue;
@@ -735,11 +635,7 @@ const TimelinePanel = {
             }
             return { snapped, position: pos, snappedToClipId, dragSide };
         },
-        cutAtPlayhead() { 
-            if (this.selectedClipIds.length === 1 && typeof this.vm.splitClip === 'function') {
-                this.vm.splitClip(this.selectedClipIds[0], this.vm.currentTime);
-            }
-        },
+        cutAtPlayhead() { if (this.selectedClipIds.length === 1 && typeof this.vm.splitClip === 'function') this.vm.splitClip(this.selectedClipIds[0], this.vm.currentTime); },
         cutAndDeleteLeft() {
             const t = this.vm.currentTime;
             this.vm.clips = this.vm.clips.filter(c => {
@@ -780,8 +676,7 @@ const TimelinePanel = {
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top - 24;
             const time = Math.max(0, x / this.vm.zoom);
-            let accHeight = 0;
-            let targetTrack = null;
+            let accHeight = 0, targetTrack = null;
             for (const track of this.vm.tracks) {
                 const trackHeight = this.trackHeights[track.id] || this.defaultTrackHeight;
                 if (y >= accHeight && y < accHeight + trackHeight) { targetTrack = track; break; }
