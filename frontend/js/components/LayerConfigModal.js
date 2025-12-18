@@ -122,220 +122,227 @@ const LayerConfigModal = {
     emits: ['close', 'delete', 'delete-layer'],
     template: `
         <div v-if="box" class="fixed inset-0 z-[10000] bg-black/60" @click.self="onClose">
-            <div ref="win" class="layer-config-window bg-bg-panel border border-ui-border rounded shadow-lg text-xs text-text-main flex flex-col" :style="combinedWindowStyle" @mousedown.stop>
-                <div class="flex items-center justify-between px-3 py-2 border-b border-ui-border bg-bg-hover cursor-move" @mousedown.stop.prevent="onHeaderMouseDown">
+            <div ref="win" class="layer-config-window bg-bg-panel border border-ui-border rounded shadow-lg text-xs text-text-main flex flex-col" :style="combinedWindowStyle" @mousedown="onWindowMouseDown">
+                <div class="flex items-center justify-between px-3 py-2 border-b border-ui-border bg-bg-hover" :class="isMinimized ? 'cursor-pointer' : 'cursor-move'" @mousedown.stop="onHeaderMouseDown" @dblclick="toggleMinimize">
                     <div class="flex flex-col">
                         <span class="text-[11px] font-bold">레이어 설정</span>
-                        <span class="text-[10px] text-text-sub">{{ headerLabel }}</span>
+                        <span v-if="!isMinimized" class="text-[10px] text-text-sub">{{ headerLabel }}</span>
                     </div>
-                    <button class="text-[10px] text-text-sub hover:text-white" @click.stop="onClose">✕</button>
+                    <div class="flex items-center gap-1">
+                        <button class="text-[10px] text-text-sub hover:text-white w-6 h-6 flex items-center justify-center rounded hover:bg-bg-input" @click.stop="toggleMinimize" :title="isMinimized ? '확장' : '최소화'">
+                            <i :class="isMinimized ? 'fa-solid fa-expand' : 'fa-solid fa-minus'"></i>
+                        </button>
+                        <button class="text-[10px] text-text-sub hover:text-white w-6 h-6 flex items-center justify-center rounded hover:bg-ui-danger" @click.stop="onClose">✕</button>
+                    </div>
                 </div>
 
-                <div class="flex-1 overflow-auto px-3 py-2 space-y-3">
-                    <!-- 미디어 설정 (이미지/동영상) -->
-                    <div class="border border-ui-border rounded p-2 bg-bg-dark/30">
-                        <div class="text-[10px] text-text-sub mb-2 font-bold">미디어</div>
-                        <div class="space-y-2">
-                            <div class="flex items-center gap-2">
-                                <select 
-                                    v-model="box.mediaType" 
-                                    class="flex-1 h-6 bg-bg-input border border-ui-border rounded px-2 text-[10px]"
-                                    @mousedown.stop @click.stop
-                                >
-                                    <option value="none">없음</option>
-                                    <option value="image">이미지</option>
-                                    <option value="video">동영상</option>
-                                </select>
-                                <select 
-                                    v-model="box.mediaFit" 
-                                    class="w-20 h-6 bg-bg-input border border-ui-border rounded px-1 text-[10px]"
-                                    @mousedown.stop @click.stop
-                                >
-                                    <option value="cover">채우기</option>
-                                    <option value="contain">맞추기</option>
-                                    <option value="fill">늘리기</option>
-                                </select>
-                            </div>
-                            <div v-if="box.mediaType && box.mediaType !== 'none'" class="flex items-center gap-2">
-                                <input 
-                                    type="text" 
-                                    v-model="box.mediaSrc"
-                                    class="flex-1 h-6 bg-bg-input border border-ui-border rounded px-2 text-[10px]"
-                                    placeholder="URL 또는 파일 경로..."
-                                    @mousedown.stop @click.stop
-                                />
-                                <label class="px-2 h-6 bg-ui-accent text-white rounded text-[10px] flex items-center cursor-pointer hover:bg-blue-600">
-                                    <i class="fa-solid fa-upload mr-1"></i>
-                                    <span>선택</span>
+                <template v-if="!isMinimized">
+                    <div class="flex-1 overflow-auto px-3 py-2 space-y-3">
+                        <!-- 미디어 설정 (이미지/동영상) -->
+                        <div class="border border-ui-border rounded p-2 bg-bg-dark/30">
+                            <div class="text-[10px] text-text-sub mb-2 font-bold">미디어</div>
+                            <div class="space-y-2">
+                                <div class="flex items-center gap-2">
+                                    <select 
+                                        v-model="box.mediaType" 
+                                        class="flex-1 h-6 bg-bg-input border border-ui-border rounded px-2 text-[10px]"
+                                        @mousedown.stop @click.stop
+                                    >
+                                        <option value="none">없음</option>
+                                        <option value="image">이미지</option>
+                                        <option value="video">동영상</option>
+                                    </select>
+                                    <select 
+                                        v-model="box.mediaFit" 
+                                        class="w-20 h-6 bg-bg-input border border-ui-border rounded px-1 text-[10px]"
+                                        @mousedown.stop @click.stop
+                                    >
+                                        <option value="cover">채우기</option>
+                                        <option value="contain">맞추기</option>
+                                        <option value="fill">늘리기</option>
+                                    </select>
+                                </div>
+                                <div v-if="box.mediaType && box.mediaType !== 'none'" class="flex items-center gap-2">
                                     <input 
-                                        type="file" 
-                                        :accept="box.mediaType === 'image' ? 'image/*' : 'video/*'"
-                                        class="hidden"
-                                        @change="onMediaFileSelect"
+                                        type="text" 
+                                        v-model="box.mediaSrc"
+                                        class="flex-1 h-6 bg-bg-input border border-ui-border rounded px-2 text-[10px]"
+                                        placeholder="URL 또는 파일 경로..."
+                                        @mousedown.stop @click.stop
                                     />
-                                </label>
-                            </div>
-                            <div v-if="box.mediaSrc" class="text-[9px] text-text-sub truncate">
-                                {{ box.mediaSrc.substring(0, 50) }}{{ box.mediaSrc.length > 50 ? '...' : '' }}
+                                    <label class="px-2 h-6 bg-ui-accent text-white rounded text-[10px] flex items-center cursor-pointer hover:bg-blue-600">
+                                        <i class="fa-solid fa-upload mr-1"></i>
+                                        <span>선택</span>
+                                        <input 
+                                            type="file" 
+                                            :accept="box.mediaType === 'image' ? 'image/*' : 'video/*'"
+                                            class="hidden"
+                                            @change="onMediaFileSelect"
+                                        />
+                                    </label>
+                                </div>
+                                <div v-if="box.mediaSrc" class="text-[9px] text-text-sub truncate">
+                                    {{ box.mediaSrc.substring(0, 50) }}{{ box.mediaSrc.length > 50 ? '...' : '' }}
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- 텍스트 입력 필드 (텍스트 레이어만) -->
-                    <div v-if="isTextLayer">
-                        <label class="block text-[10px] mb-1 text-text-sub">텍스트 내용</label>
-                        <textarea 
-                            class="w-full bg-bg-input border border-ui-border rounded px-2 py-2 text-[11px] resize-y text-text-main" 
-                            rows="3" 
-                            v-model="box.textContent" 
-                            :placeholder="textPlaceholder"
-                            @mousedown.stop
-                            @click.stop
-                            @focus.stop
-                        ></textarea>
-                    </div>
+                        <!-- 텍스트 입력 필드 (텍스트 레이어만) -->
+                        <div v-if="isTextLayer">
+                            <label class="block text-[10px] mb-1 text-text-sub">텍스트 내용</label>
+                            <textarea 
+                                class="w-full bg-bg-input border border-ui-border rounded px-2 py-2 text-[11px] resize-y text-text-main" 
+                                rows="3" 
+                                v-model="box.textContent" 
+                                :placeholder="textPlaceholder"
+                                @mousedown.stop
+                                @click.stop
+                                @focus.stop
+                            ></textarea>
+                        </div>
 
-                    <!-- 텍스트 스타일 (텍스트 입력 바로 아래) -->
-                    <div v-if="isTextLayer" class="border border-ui-border rounded p-2 bg-bg-dark/30">
-                        <div class="text-[10px] text-text-sub mb-2 font-bold">텍스트 스타일</div>
-                        <div class="space-y-2">
-                            <!-- 폰트 크기, 테두리 두께 -->
+                        <!-- 텍스트 스타일 (텍스트 입력 바로 아래) -->
+                        <div v-if="isTextLayer" class="border border-ui-border rounded p-2 bg-bg-dark/30">
+                            <div class="text-[10px] text-text-sub mb-2 font-bold">텍스트 스타일</div>
+                            <div class="space-y-2">
+                                <!-- 폰트 크기, 테두리 두께 -->
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div class="flex flex-col">
+                                        <span class="text-[9px] text-text-sub mb-0.5">폰트 크기 (px)</span>
+                                        <input type="number" min="1" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="pixelFontSize" @mousedown.stop @click.stop />
+                                    </div>
+                                    <div class="flex flex-col">
+                                        <span class="text-[9px] text-text-sub mb-0.5">테두리 (px)</span>
+                                        <input type="number" min="0" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="box.textStyle.strokeWidth" @mousedown.stop @click.stop />
+                                    </div>
+                                </div>
+
+                                <!-- 글자간, 행간 -->
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div class="flex flex-col">
+                                        <span class="text-[9px] text-text-sub mb-0.5">글자간격 (px)</span>
+                                        <input type="number" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="letterSpacing" @mousedown.stop @click.stop />
+                                    </div>
+                                    <div class="flex flex-col">
+                                        <span class="text-[9px] text-text-sub mb-0.5">행간 (배수)</span>
+                                        <input type="number" min="0.5" max="5" step="0.1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="lineHeight" @mousedown.stop @click.stop />
+                                    </div>
+                                </div>
+
+                                <!-- 색상들 -->
+                                <div class="grid grid-cols-3 gap-1">
+                                    <div class="flex flex-col">
+                                        <span class="text-[9px] text-text-sub mb-0.5">텍스트 색상</span>
+                                        <button type="button" class="h-6 rounded border border-ui-border text-[9px] px-1 truncate" :style="colorButtonStyle(box.textStyle.fillColor)" @click.stop="openColorPicker('textFill')">{{ colorLabelShort(box.textStyle.fillColor || '#ffffff') }}</button>
+                                    </div>
+                                    <div class="flex flex-col">
+                                        <span class="text-[9px] text-text-sub mb-0.5">테두리 색상</span>
+                                        <button type="button" class="h-6 rounded border border-ui-border text-[9px] px-1 truncate" :style="colorButtonStyle(box.textStyle.strokeColor)" @click.stop="openColorPicker('textStroke')">{{ colorLabelShort(box.textStyle.strokeColor || '#000000') }}</button>
+                                    </div>
+                                    <div class="flex flex-col">
+                                        <span class="text-[9px] text-text-sub mb-0.5">텍스트 배경</span>
+                                        <button type="button" class="h-6 rounded border border-ui-border text-[9px] px-1 truncate" :style="colorButtonStyle(box.textStyle.backgroundColor)" @click.stop="openColorPicker('textBg')">{{ colorLabelShort(box.textStyle.backgroundColor || 'transparent') }}</button>
+                                    </div>
+                                </div>
+
+                                <!-- 정렬 -->
+                                <div class="flex items-center gap-4">
+                                    <div class="flex items-center gap-1">
+                                        <span class="text-[9px] text-text-sub">가로</span>
+                                        <div class="flex gap-0.5">
+                                            <button type="button" class="w-5 h-5 rounded text-[9px] flex items-center justify-center" :class="alignButtonClass('left')" @click.stop="setTextAlign('left')"><i class="fa-solid fa-align-left"></i></button>
+                                            <button type="button" class="w-5 h-5 rounded text-[9px] flex items-center justify-center" :class="alignButtonClass('center')" @click.stop="setTextAlign('center')"><i class="fa-solid fa-align-center"></i></button>
+                                            <button type="button" class="w-5 h-5 rounded text-[9px] flex items-center justify-center" :class="alignButtonClass('right')" @click.stop="setTextAlign('right')"><i class="fa-solid fa-align-right"></i></button>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-1">
+                                        <span class="text-[9px] text-text-sub">세로</span>
+                                        <div class="flex gap-0.5">
+                                            <button type="button" class="w-5 h-5 rounded text-[9px] flex items-center justify-center" :class="vAlignButtonClass('top')" @click.stop="setTextVAlign('top')">상</button>
+                                            <button type="button" class="w-5 h-5 rounded text-[9px] flex items-center justify-center" :class="vAlignButtonClass('middle')" @click.stop="setTextVAlign('middle')">중</button>
+                                            <button type="button" class="w-5 h-5 rounded text-[9px] flex items-center justify-center" :class="vAlignButtonClass('bottom')" @click.stop="setTextVAlign('bottom')">하</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 그림자 설정 -->
+                                <div class="border-t border-ui-border pt-2 mt-1">
+                                    <div class="text-[9px] text-text-sub mb-1">그림자</div>
+                                    <div class="grid grid-cols-4 gap-1">
+                                        <div class="flex flex-col">
+                                            <span class="text-[9px] text-text-sub mb-0.5">X</span>
+                                            <input type="number" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="shadowOffsetX" @mousedown.stop @click.stop />
+                                        </div>
+                                        <div class="flex flex-col">
+                                            <span class="text-[9px] text-text-sub mb-0.5">Y</span>
+                                            <input type="number" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="shadowOffsetY" @mousedown.stop @click.stop />
+                                        </div>
+                                        <div class="flex flex-col">
+                                            <span class="text-[9px] text-text-sub mb-0.5">블러</span>
+                                            <input type="number" min="0" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="shadowBlur" @mousedown.stop @click.stop />
+                                        </div>
+                                        <div class="flex flex-col">
+                                            <span class="text-[9px] text-text-sub mb-0.5">색상</span>
+                                            <button type="button" class="h-6 rounded border border-ui-border text-[9px] px-1" :style="colorButtonStyle(shadowColor)" @click.stop="openColorPicker('shadowColor')"></button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 좌표 / 크기 (픽셀 단위) -->
+                        <div>
+                            <label class="block text-[10px] mb-1 text-text-sub">좌표 / 크기 (px)</label>
+                            <div class="grid grid-cols-4 gap-1">
+                                <div class="flex flex-col">
+                                    <span class="text-[9px] text-text-sub mb-0.5">X</span>
+                                    <input type="number" min="0" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="pixelX" @mousedown.stop @click.stop />
+                                </div>
+                                <div class="flex flex-col">
+                                    <span class="text-[9px] text-text-sub mb-0.5">Y</span>
+                                    <input type="number" min="0" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="pixelY" @mousedown.stop @click.stop />
+                                </div>
+                                <div class="flex flex-col">
+                                    <span class="text-[9px] text-text-sub mb-0.5">W</span>
+                                    <input type="number" min="10" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="pixelW" @mousedown.stop @click.stop />
+                                </div>
+                                <div class="flex flex-col">
+                                    <span class="text-[9px] text-text-sub mb-0.5">H</span>
+                                    <input type="number" min="10" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="pixelH" @mousedown.stop @click.stop />
+                                </div>
+                            </div>
+                            <div class="text-[9px] text-text-sub mt-1 opacity-60">캔버스: {{ canvasWidth }} × {{ canvasHeight }}px</div>
+                        </div>
+
+                        <!-- 레이어 숨기기 -->
+                        <div class="flex items-center gap-2">
+                            <input id="layer-config-hidden" type="checkbox" class="w-3 h-3" v-model="box.isHidden" @click.stop />
+                            <label for="layer-config-hidden" class="text-[10px] text-text-sub select-none">레이어 숨기기</label>
+                        </div>
+
+                        <!-- 레이어 색상 / 배경 -->
+                        <div>
+                            <label class="block text-[10px] mb-1 text-text-sub">레이어 색상 / 배경</label>
                             <div class="grid grid-cols-2 gap-2">
                                 <div class="flex flex-col">
-                                    <span class="text-[9px] text-text-sub mb-0.5">폰트 크기 (px)</span>
-                                    <input type="number" min="1" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="pixelFontSize" @mousedown.stop @click.stop />
+                                    <span class="text-[9px] text-text-sub mb-0.5">레이어 색상</span>
+                                    <button type="button" class="h-6 rounded border border-ui-border text-[10px] px-1" :style="colorButtonStyle(box.color)" @click.stop="openColorPicker('layerColor')">{{ colorLabelShort(box.color || '#000000') }}</button>
                                 </div>
                                 <div class="flex flex-col">
-                                    <span class="text-[9px] text-text-sub mb-0.5">테두리 (px)</span>
-                                    <input type="number" min="0" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="box.textStyle.strokeWidth" @mousedown.stop @click.stop />
-                                </div>
-                            </div>
-
-                            <!-- 글자간, 행간 -->
-                            <div class="grid grid-cols-2 gap-2">
-                                <div class="flex flex-col">
-                                    <span class="text-[9px] text-text-sub mb-0.5">글자간격 (px)</span>
-                                    <input type="number" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="letterSpacing" @mousedown.stop @click.stop />
-                                </div>
-                                <div class="flex flex-col">
-                                    <span class="text-[9px] text-text-sub mb-0.5">행간 (배수)</span>
-                                    <input type="number" min="0.5" max="5" step="0.1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="lineHeight" @mousedown.stop @click.stop />
-                                </div>
-                            </div>
-
-                            <!-- 색상들 -->
-                            <div class="grid grid-cols-3 gap-1">
-                                <div class="flex flex-col">
-                                    <span class="text-[9px] text-text-sub mb-0.5">텍스트 색상</span>
-                                    <button type="button" class="h-6 rounded border border-ui-border text-[9px] px-1 truncate" :style="colorButtonStyle(box.textStyle.fillColor)" @click.stop="openColorPicker('textFill')">{{ colorLabelShort(box.textStyle.fillColor || '#ffffff') }}</button>
-                                </div>
-                                <div class="flex flex-col">
-                                    <span class="text-[9px] text-text-sub mb-0.5">테두리 색상</span>
-                                    <button type="button" class="h-6 rounded border border-ui-border text-[9px] px-1 truncate" :style="colorButtonStyle(box.textStyle.strokeColor)" @click.stop="openColorPicker('textStroke')">{{ colorLabelShort(box.textStyle.strokeColor || '#000000') }}</button>
-                                </div>
-                                <div class="flex flex-col">
-                                    <span class="text-[9px] text-text-sub mb-0.5">텍스트 배경</span>
-                                    <button type="button" class="h-6 rounded border border-ui-border text-[9px] px-1 truncate" :style="colorButtonStyle(box.textStyle.backgroundColor)" @click.stop="openColorPicker('textBg')">{{ colorLabelShort(box.textStyle.backgroundColor || 'transparent') }}</button>
-                                </div>
-                            </div>
-
-                            <!-- 정렬 -->
-                            <div class="flex items-center gap-4">
-                                <div class="flex items-center gap-1">
-                                    <span class="text-[9px] text-text-sub">가로</span>
-                                    <div class="flex gap-0.5">
-                                        <button type="button" class="w-5 h-5 rounded text-[9px] flex items-center justify-center" :class="alignButtonClass('left')" @click.stop="setTextAlign('left')"><i class="fa-solid fa-align-left"></i></button>
-                                        <button type="button" class="w-5 h-5 rounded text-[9px] flex items-center justify-center" :class="alignButtonClass('center')" @click.stop="setTextAlign('center')"><i class="fa-solid fa-align-center"></i></button>
-                                        <button type="button" class="w-5 h-5 rounded text-[9px] flex items-center justify-center" :class="alignButtonClass('right')" @click.stop="setTextAlign('right')"><i class="fa-solid fa-align-right"></i></button>
-                                    </div>
-                                </div>
-                                <div class="flex items-center gap-1">
-                                    <span class="text-[9px] text-text-sub">세로</span>
-                                    <div class="flex gap-0.5">
-                                        <button type="button" class="w-5 h-5 rounded text-[9px] flex items-center justify-center" :class="vAlignButtonClass('top')" @click.stop="setTextVAlign('top')">상</button>
-                                        <button type="button" class="w-5 h-5 rounded text-[9px] flex items-center justify-center" :class="vAlignButtonClass('middle')" @click.stop="setTextVAlign('middle')">중</button>
-                                        <button type="button" class="w-5 h-5 rounded text-[9px] flex items-center justify-center" :class="vAlignButtonClass('bottom')" @click.stop="setTextVAlign('bottom')">하</button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- 그림자 설정 -->
-                            <div class="border-t border-ui-border pt-2 mt-1">
-                                <div class="text-[9px] text-text-sub mb-1">그림자</div>
-                                <div class="grid grid-cols-4 gap-1">
-                                    <div class="flex flex-col">
-                                        <span class="text-[9px] text-text-sub mb-0.5">X</span>
-                                        <input type="number" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="shadowOffsetX" @mousedown.stop @click.stop />
-                                    </div>
-                                    <div class="flex flex-col">
-                                        <span class="text-[9px] text-text-sub mb-0.5">Y</span>
-                                        <input type="number" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="shadowOffsetY" @mousedown.stop @click.stop />
-                                    </div>
-                                    <div class="flex flex-col">
-                                        <span class="text-[9px] text-text-sub mb-0.5">블러</span>
-                                        <input type="number" min="0" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="shadowBlur" @mousedown.stop @click.stop />
-                                    </div>
-                                    <div class="flex flex-col">
-                                        <span class="text-[9px] text-text-sub mb-0.5">색상</span>
-                                        <button type="button" class="h-6 rounded border border-ui-border text-[9px] px-1" :style="colorButtonStyle(shadowColor)" @click.stop="openColorPicker('shadowColor')"></button>
-                                    </div>
+                                    <span class="text-[9px] text-text-sub mb-0.5">레이어 배경</span>
+                                    <button type="button" class="h-6 rounded border border-ui-border text-[10px] px-1" :style="colorButtonStyle(box.layerBgColor)" @click.stop="openColorPicker('layerBg')">{{ colorLabelShort(box.layerBgColor || '#000000') }}</button>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- 좌표 / 크기 (픽셀 단위) -->
-                    <div>
-                        <label class="block text-[10px] mb-1 text-text-sub">좌표 / 크기 (px)</label>
-                        <div class="grid grid-cols-4 gap-1">
-                            <div class="flex flex-col">
-                                <span class="text-[9px] text-text-sub mb-0.5">X</span>
-                                <input type="number" min="0" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="pixelX" @mousedown.stop @click.stop />
-                            </div>
-                            <div class="flex flex-col">
-                                <span class="text-[9px] text-text-sub mb-0.5">Y</span>
-                                <input type="number" min="0" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="pixelY" @mousedown.stop @click.stop />
-                            </div>
-                            <div class="flex flex-col">
-                                <span class="text-[9px] text-text-sub mb-0.5">W</span>
-                                <input type="number" min="10" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="pixelW" @mousedown.stop @click.stop />
-                            </div>
-                            <div class="flex flex-col">
-                                <span class="text-[9px] text-text-sub mb-0.5">H</span>
-                                <input type="number" min="10" step="1" class="w-full bg-bg-input border border-ui-border rounded px-1 py-0.5 text-[10px]" v-model.number="pixelH" @mousedown.stop @click.stop />
-                            </div>
-                        </div>
-                        <div class="text-[9px] text-text-sub mt-1 opacity-60">캔버스: {{ canvasWidth }} × {{ canvasHeight }}px</div>
-                    </div>
-
-                    <!-- 레이어 숨기기 -->
-                    <div class="flex items-center gap-2">
-                        <input id="layer-config-hidden" type="checkbox" class="w-3 h-3" v-model="box.isHidden" @click.stop />
-                        <label for="layer-config-hidden" class="text-[10px] text-text-sub select-none">레이어 숨기기</label>
-                    </div>
-
-                    <!-- 레이어 색상 / 배경 -->
-                    <div>
-                        <label class="block text-[10px] mb-1 text-text-sub">레이어 색상 / 배경</label>
-                        <div class="grid grid-cols-2 gap-2">
-                            <div class="flex flex-col">
-                                <span class="text-[9px] text-text-sub mb-0.5">레이어 색상</span>
-                                <button type="button" class="h-6 rounded border border-ui-border text-[10px] px-1" :style="colorButtonStyle(box.color)" @click.stop="openColorPicker('layerColor')">{{ colorLabelShort(box.color || '#000000') }}</button>
-                            </div>
-                            <div class="flex flex-col">
-                                <span class="text-[9px] text-text-sub mb-0.5">레이어 배경</span>
-                                <button type="button" class="h-6 rounded border border-ui-border text-[10px] px-1" :style="colorButtonStyle(box.layerBgColor)" @click.stop="openColorPicker('layerBg')">{{ colorLabelShort(box.layerBgColor || '#000000') }}</button>
-                            </div>
+                    <div class="px-3 py-2 border-t border-ui-border flex justify-between items-center">
+                        <button class="text-[11px] text-red-400 hover:text-red-300" @click.stop="onDelete">레이어 삭제</button>
+                        <div class="flex items-center gap-2">
+                            <div class="w-3 h-3 bg-bg-hover border border-ui-border cursor-se-resize" @mousedown.stop.prevent="onResizeMouseDown" title="드래그하여 창 크기 조절"></div>
                         </div>
                     </div>
-                </div>
-
-                <div class="px-3 py-2 border-t border-ui-border flex justify-between items-center">
-                    <button class="text-[11px] text-red-400 hover:text-red-300" @click.stop="onDelete">레이어 삭제</button>
-                    <div class="flex items-center gap-2">
-                        <div class="w-3 h-3 bg-bg-hover border border-ui-border cursor-se-resize" @mousedown.stop.prevent="onResizeMouseDown" title="드래그하여 창 크기 조절"></div>
-                    </div>
-                </div>
+                </template>
 
                 <color-palette-modal v-if="colorPicker.isOpen" :current-color="currentPickedColor" @close="colorPicker.isOpen = false" @select="onColorPicked" />
             </div>
@@ -349,6 +356,11 @@ const LayerConfigModal = {
             posY: 0,
             width: 360,
             height: 650,
+            minimizedWidth: 200,
+            minimizedHeight: 45,
+            prevWidth: 360,
+            prevHeight: 650,
+            isMinimized: false,
             dragging: false,
             dragStartMouseX: 0,
             dragStartMouseY: 0,
@@ -369,12 +381,12 @@ const LayerConfigModal = {
                 position: 'absolute',
                 left: this.posX + 'px',
                 top: this.posY + 'px',
-                width: this.width + 'px',
-                height: this.height + 'px',
+                width: (this.isMinimized ? this.minimizedWidth : this.width) + 'px',
+                height: (this.isMinimized ? this.minimizedHeight : this.height) + 'px',
                 maxWidth: '90vw',
                 maxHeight: '90vh',
-                minWidth: '320px',
-                minHeight: '500px'
+                minWidth: '200px',
+                minHeight: '45px'
             };
         },
         isTextLayer() { return this.box && this.box.rowType === 'TXT'; },
@@ -585,7 +597,38 @@ const LayerConfigModal = {
             this.posX = Math.max(20, (vw - this.width) / 2);
             this.posY = Math.max(20, (vh - this.height) / 2);
         },
+        clampPosition() {
+            const vw = window.innerWidth || 1280;
+            const vh = window.innerHeight || 720;
+            const w = this.isMinimized ? this.minimizedWidth : this.width;
+            const h = this.isMinimized ? this.minimizedHeight : this.height;
+            const minVisible = 100;
+            if (this.posX < -w + minVisible) this.posX = -w + minVisible;
+            if (this.posX > vw - minVisible) this.posX = vw - minVisible;
+            if (this.posY < 0) this.posY = 0;
+            if (this.posY > vh - minVisible) this.posY = vh - minVisible;
+        },
+        toggleMinimize() {
+            if (this.isMinimized) {
+                this.isMinimized = false;
+                this.width = this.prevWidth;
+                this.height = this.prevHeight;
+            } else {
+                this.prevWidth = this.width;
+                this.prevHeight = this.height;
+                this.isMinimized = true;
+            }
+            this.clampPosition();
+        },
+        onWindowMouseDown(e) {
+            if (e.target.closest('input, button, select, textarea, label, .cursor-se-resize')) return;
+            this.startDrag(e);
+        },
         onHeaderMouseDown(e) {
+            if (e.target.closest('button')) return;
+            this.startDrag(e);
+        },
+        startDrag(e) {
             this.dragging = true;
             this.dragStartMouseX = e.clientX;
             this.dragStartMouseY = e.clientY;
@@ -593,6 +636,7 @@ const LayerConfigModal = {
             this.dragStartPosY = this.posY;
         },
         onResizeMouseDown(e) {
+            if (this.isMinimized) return;
             this.resizing = true;
             this.resizeStartMouseX = e.clientX;
             this.resizeStartMouseY = e.clientY;
@@ -603,16 +647,20 @@ const LayerConfigModal = {
             if (this.dragging) {
                 this.posX = this.dragStartPosX + (e.clientX - this.dragStartMouseX);
                 this.posY = this.dragStartPosY + (e.clientY - this.dragStartMouseY);
+                this.clampPosition();
             } else if (this.resizing) {
                 let newW = this.resizeStartW + (e.clientX - this.resizeStartMouseX);
                 let newH = this.resizeStartH + (e.clientY - this.resizeStartMouseY);
                 if (newW < 320) newW = 320;
-                if (newH < 500) newH = 500;
+                if (newH < 400) newH = 400;
                 this.width = newW;
                 this.height = newH;
             }
         },
-        onGlobalMouseUp() { this.dragging = false; this.resizing = false; },
+        onGlobalMouseUp() { 
+            this.dragging = false; 
+            this.resizing = false; 
+        },
         onClose() { this.$emit('close'); },
         onDelete() { this.$emit('delete'); this.$emit('delete-layer'); },
         onMediaFileSelect(e) {
