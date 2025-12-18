@@ -439,6 +439,55 @@ html, body {
 }
 
 /* ================================
+   에셋 빠른추가 버튼 (+)
+   ================================ */
+.asset-quick-add-btn {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-ui-accent);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    font-size: 12px;
+    cursor: pointer;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: all 0.15s ease;
+    z-index: 10;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.asset-quick-add-btn:hover {
+    background: var(--color-ui-selected);
+    transform: scale(1.1);
+}
+
+.asset-card:hover .asset-quick-add-btn {
+    opacity: 1;
+    transform: scale(1);
+}
+
+/* 리스트 뷰에서의 빠른추가 버튼 위치 조정 */
+.asset-grid.view-list .asset-quick-add-btn {
+    position: relative;
+    bottom: auto;
+    right: auto;
+    margin-left: 8px;
+    opacity: 0;
+    flex-shrink: 0;
+}
+
+.asset-grid.view-list .asset-card:hover .asset-quick-add-btn {
+    opacity: 1;
+}
+
+/* ================================
    타임라인 스타일
    ================================ */
 .timeline-grid {
@@ -598,6 +647,18 @@ html, body {
 .tool-btn:hover {
     background: var(--color-bg-hover);
     color: var(--color-text-main);
+}
+
+/* ================================
+   타임라인 드롭 하이라이트
+   ================================ */
+.timeline-drop-highlight {
+    background: rgba(59, 130, 246, 0.08) !important;
+}
+
+#timeline-main-panel.timeline-drop-highlight {
+    outline: 2px dashed var(--color-ui-accent);
+    outline-offset: -2px;
 }
 
 /* ================================
