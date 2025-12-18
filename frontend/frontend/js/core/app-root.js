@@ -47,11 +47,11 @@ const AppRoot = {
             apiManagerModal: { isOpen: false },
             
             tracks: [
-                { id: 't1', name: 'Global', type: 'video', color: '#64748b' }, 
-                { id: 't2', name: 'Top', type: 'text', color: '#eab308' },
-                { id: 't3', name: 'Middle', type: 'video', color: '#22c55e' }, 
-                { id: 't4', name: 'Bottom', type: 'text', color: '#3b82f6' },
-                { id: 't5', name: 'BGM', type: 'audio', color: '#a855f7' }
+                { id: 't1', name: 'Track 1', type: 'video', color: '#64748b', isHidden: false, isLocked: false, isMain: true }, 
+                { id: 't2', name: 'Track 2', type: 'video', color: '#eab308', isHidden: false, isLocked: false, isMain: false },
+                { id: 't3', name: 'Track 3', type: 'video', color: '#22c55e', isHidden: false, isLocked: false, isMain: false }, 
+                { id: 't4', name: 'Track 4', type: 'video', color: '#3b82f6', isHidden: false, isLocked: false, isMain: false },
+                { id: 't5', name: 'Track 5', type: 'video', color: '#a855f7', isHidden: false, isLocked: false, isMain: false }
             ],
             clips: [],
             canvasBoxes: [],
@@ -740,7 +740,7 @@ const AppRoot = {
         },
         addTrack(type = 'video') {
             const colors = { video: '#22c55e', audio: '#a855f7', text: '#eab308' };
-            const newTrack = { id: `t_${Date.now()}`, name: `Track ${this.tracks.length + 1}`, type: type, color: colors[type] || '#64748b' };
+            const newTrack = { id: `t_${Date.now()}`, name: `Track ${this.tracks.length + 1}`, type: type, color: colors[type] || '#64748b', isHidden: false, isLocked: false, isMain: false };
             this.tracks.push(newTrack);
         },
         removeTrack(trackId) {
