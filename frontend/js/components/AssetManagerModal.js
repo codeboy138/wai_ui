@@ -1,4 +1,4 @@
-// Asset Manager Modal Component - 드래그앤드롭 + 리사이징 + 복수선택 + 파일업로드 + 최소화
+// Asset Manager Modal Component - 드래그앤드롭 + 리사이징 + 복수선택 + 파일업로드 + 최소화 + 타임라인 연동
 
 var AssetManagerModal = {
     props: {
@@ -158,7 +158,7 @@ var AssetManagerModal = {
                                     <div\
                                         v-for="asset in filteredAssets"\
                                         :key="asset.id"\
-                                        class="asset-card"\
+                                        class="asset-card relative"\
                                         :class="{ \'selected\': isAssetSelected(asset.id) }"\
                                         @click.stop="selectAsset($event, asset)"\
                                         @dblclick.stop="useAsset(asset)"\
@@ -194,6 +194,13 @@ var AssetManagerModal = {
                                             <div class="asset-name">{{ asset.name }}</div>\
                                             <div class="asset-meta">{{ asset.duration || \'\' }}<span v-if="asset.resolution"> - {{ asset.resolution }}</span></div>\
                                         </div>\
+                                        <button \
+                                            class="asset-quick-add-btn"\
+                                            @click.stop="addToTimeline(asset)"\
+                                            title="타임라인에 추가"\
+                                        >\
+                                            <i class="fa-solid fa-plus"></i>\
+                                        </button>\
                                     </div>\
                                 </div>\
 \
@@ -201,7 +208,7 @@ var AssetManagerModal = {
                                     <div\
                                         v-for="asset in filteredAssets"\
                                         :key="asset.id"\
-                                        class="asset-card"\
+                                        class="asset-card relative"\
                                         :class="{ \'selected\': isAssetSelected(asset.id) }"\
                                         @click.stop="selectAsset($event, asset)"\
                                         @dblclick.stop="useAsset(asset)"\
@@ -219,6 +226,13 @@ var AssetManagerModal = {
                                             </div>\
                                             <div class="text-[10px] text-text-sub">{{ asset.resolution || \'\' }}</div>\
                                         </div>\
+                                        <button \
+                                            class="asset-quick-add-btn"\
+                                            @click.stop="addToTimeline(asset)"\
+                                            title="타임라인에 추가"\
+                                        >\
+                                            <i class="fa-solid fa-plus"></i>\
+                                        </button>\
                                     </div>\
                                 </div>\
                             </div>\
@@ -231,7 +245,7 @@ var AssetManagerModal = {
                             <span v-else>{{ currentFolderName }}</span>\
                         </div>\
                         <div class="flex items-center gap-2">\
-                            <button v-if="selectedAssetIds.length > 0" class="px-3 py-1 bg-ui-accent text-white rounded hover:bg-blue-600 transition-colors" @click.stop="useSelectedAssets">사용</button>\
+                            <button v-if="selectedAssetIds.length > 0" class="px-3 py-1 bg-ui-accent text-white rounded hover:bg-blue-600 transition-colors" @click.stop="useSelectedAssets">타임라인에 추가</button>\
                             <button class="px-3 py-1 bg-bg-input border border-ui-border text-text-sub rounded hover:bg-bg-hover transition-colors" @click.stop="$emit(\'close\')">닫기</button>\
                         </div>\
                     </div>\
@@ -282,15 +296,15 @@ var AssetManagerModal = {
             ],
             dummyAssets: {
                 video: [
-                    { id: 'v1', name: 'Big Buck Bunny', duration: '00:10', resolution: 'FHD', folderId: 'all', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4' },
-                    { id: 'v2', name: 'Elephant Dream', duration: '00:15', resolution: 'FHD', folderId: 'all', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4' },
-                    { id: 'v3', name: 'Sintel Trailer', duration: '00:52', resolution: '4K', folderId: 'all', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4' },
-                    { id: 'v4', name: 'Tears of Steel', duration: '00:12', resolution: 'FHD', folderId: 'all', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4' }
+                    { id: 'v1', name: 'Big Buck Bunny', duration: '00:10', resolution: 'FHD', folderId: 'all', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', dateAdded: Date.now() - 100000 },
+                    { id: 'v2', name: 'Elephant Dream', duration: '00:15', resolution: 'FHD', folderId: 'all', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4', dateAdded: Date.now() - 200000 },
+                    { id: 'v3', name: 'Sintel Trailer', duration: '00:52', resolution: '4K', folderId: 'all', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4', dateAdded: Date.now() - 300000 },
+                    { id: 'v4', name: 'Tears of Steel', duration: '00:12', resolution: 'FHD', folderId: 'all', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4', dateAdded: Date.now() - 400000 }
                 ],
                 sound: [
-                    { id: 's1', name: 'bgm_corporate.mp3', duration: '03:24', folderId: 'all', src: '' },
-                    { id: 's2', name: 'sfx_whoosh.wav', duration: '00:02', folderId: 'all', src: '' },
-                    { id: 's3', name: 'voiceover_intro.mp3', duration: '00:45', folderId: 'all', src: '' }
+                    { id: 's1', name: 'bgm_corporate.mp3', duration: '03:24', folderId: 'all', src: '', dateAdded: Date.now() - 100000 },
+                    { id: 's2', name: 'sfx_whoosh.wav', duration: '00:02', folderId: 'all', src: '', dateAdded: Date.now() - 200000 },
+                    { id: 's3', name: 'voiceover_intro.mp3', duration: '00:45', folderId: 'all', src: '', dateAdded: Date.now() - 300000 }
                 ]
             }
         };
@@ -347,7 +361,14 @@ var AssetManagerModal = {
                 assets = assets.filter(function(a) { return a.name.toLowerCase().indexOf(q) >= 0; });
             }
             assets = assets.slice().sort(function(a, b) {
-                var cmp = self.sortBy === 'name' ? a.name.localeCompare(b.name) : 0;
+                var cmp;
+                if (self.sortBy === 'name') {
+                    cmp = a.name.localeCompare(b.name);
+                } else if (self.sortBy === 'date') {
+                    cmp = (b.dateAdded || 0) - (a.dateAdded || 0);
+                } else {
+                    cmp = 0;
+                }
                 return self.sortAsc ? cmp : -cmp;
             });
             return assets;
@@ -494,16 +515,7 @@ var AssetManagerModal = {
             }
         },
         useAsset: function(asset) {
-            Swal.fire({
-                icon: 'success',
-                title: '자산 사용',
-                text: '"' + asset.name + '"을(를) 타임라인에 추가합니다.',
-                background: '#1e1e1e',
-                color: '#fff',
-                confirmButtonColor: '#3b82f6',
-                timer: 1500,
-                showConfirmButton: false
-            });
+            this.addToTimeline(asset);
         },
         useSelectedAssets: function() {
             var self = this;
@@ -511,18 +523,61 @@ var AssetManagerModal = {
                 return self.selectedAssetIds.indexOf(a.id) >= 0;
             });
             if (assets.length > 0) {
-                var names = assets.map(function(a) { return a.name; }).join(', ');
-                Swal.fire({
-                    icon: 'success',
-                    title: '자산 사용',
-                    text: assets.length + '개 자산을 타임라인에 추가합니다: ' + names,
-                    background: '#1e1e1e',
-                    color: '#fff',
-                    confirmButtonColor: '#3b82f6',
-                    timer: 1500,
-                    showConfirmButton: false
-                });
+                this.addMultipleToTimeline(assets);
             }
+        },
+        addToTimeline: function(asset) {
+            var self = this;
+            var transferData = [{
+                type: this.assetType,
+                id: asset.id,
+                name: asset.name,
+                src: asset.src || '',
+                duration: asset.duration || '00:10',
+                resolution: asset.resolution || ''
+            }];
+            this.dispatchToTimeline(transferData);
+            Swal.fire({
+                icon: 'success',
+                title: '타임라인에 추가',
+                text: '"' + asset.name + '"이(가) 타임라인에 추가되었습니다.',
+                background: '#1e1e1e',
+                color: '#fff',
+                confirmButtonColor: '#3b82f6',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        },
+        addMultipleToTimeline: function(assets) {
+            var self = this;
+            var transferData = assets.map(function(a) {
+                return {
+                    type: self.assetType,
+                    id: a.id,
+                    name: a.name,
+                    src: a.src || '',
+                    duration: a.duration || '00:10',
+                    resolution: a.resolution || ''
+                };
+            });
+            this.dispatchToTimeline(transferData);
+            Swal.fire({
+                icon: 'success',
+                title: '타임라인에 추가',
+                text: assets.length + '개 ' + this.assetTypeLabel + '이(가) 타임라인에 추가되었습니다.',
+                background: '#1e1e1e',
+                color: '#fff',
+                confirmButtonColor: '#3b82f6',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        },
+        dispatchToTimeline: function(assetDataArray) {
+            var event = new CustomEvent('wai-asset-add-to-timeline', {
+                detail: assetDataArray,
+                bubbles: true
+            });
+            document.dispatchEvent(event);
         },
         addAsset: function() {
             if (this.$refs.fileInput) {
@@ -536,34 +591,95 @@ var AssetManagerModal = {
         handleFileUpload: function(files) {
             var self = this;
             if (!files || files.length === 0) return;
-            var fileNames = [];
-            for (var i = 0; i < files.length; i++) {
-                fileNames.push(files[i].name);
+            
+            var now = new Date();
+            var folderName = '업로드_' + now.getFullYear() + 
+                String(now.getMonth() + 1).padStart(2, '0') + 
+                String(now.getDate()).padStart(2, '0') + '_' + 
+                String(now.getHours()).padStart(2, '0') + 
+                String(now.getMinutes()).padStart(2, '0') + 
+                String(now.getSeconds()).padStart(2, '0');
+            var folderId = 'folder_' + Date.now();
+            
+            this.assetFolders.push({ id: folderId, name: folderName });
+            
+            if (!this.dummyAssets[this.assetType]) {
+                this.dummyAssets[this.assetType] = [];
             }
-            Swal.fire({
-                icon: 'success',
-                title: '파일 업로드',
-                text: files.length + '개 파일 추가됨: ' + fileNames.join(', '),
-                background: '#1e1e1e',
-                color: '#fff',
-                confirmButtonColor: '#3b82f6',
-                timer: 2000,
-                showConfirmButton: false
-            });
+            
+            var addedCount = 0;
+            var expectedType = this.assetType === 'video' ? 'video/' : 'audio/';
+            
             for (var j = 0; j < files.length; j++) {
                 var file = files[j];
+                if (!file.type.startsWith(expectedType)) continue;
+                
                 var newAsset = {
                     id: self.assetType + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
                     name: file.name,
-                    folderId: 'all',
+                    folderId: folderId,
                     duration: '00:00',
                     resolution: '',
-                    src: URL.createObjectURL(file)
+                    src: URL.createObjectURL(file),
+                    dateAdded: Date.now()
                 };
-                if (!self.dummyAssets[self.assetType]) {
-                    self.dummyAssets[self.assetType] = [];
+                
+                if (self.assetType === 'video') {
+                    (function(asset, f) {
+                        var video = document.createElement('video');
+                        video.preload = 'metadata';
+                        video.onloadedmetadata = function() {
+                            var dur = video.duration;
+                            var min = Math.floor(dur / 60);
+                            var sec = Math.floor(dur % 60);
+                            asset.duration = String(min).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
+                            asset.resolution = video.videoWidth + 'x' + video.videoHeight;
+                            URL.revokeObjectURL(video.src);
+                        };
+                        video.src = asset.src;
+                    })(newAsset, file);
+                } else if (self.assetType === 'sound') {
+                    (function(asset, f) {
+                        var audio = document.createElement('audio');
+                        audio.preload = 'metadata';
+                        audio.onloadedmetadata = function() {
+                            var dur = audio.duration;
+                            var min = Math.floor(dur / 60);
+                            var sec = Math.floor(dur % 60);
+                            asset.duration = String(min).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
+                        };
+                        audio.src = asset.src;
+                    })(newAsset, file);
                 }
-                self.dummyAssets[self.assetType].push(newAsset);
+                
+                this.dummyAssets[this.assetType].push(newAsset);
+                addedCount++;
+            }
+            
+            if (addedCount > 0) {
+                this.currentFolderId = folderId;
+                
+                Swal.fire({
+                    icon: 'success',
+                    title: '파일 업로드 완료',
+                    text: addedCount + '개 ' + this.assetTypeLabel + '이(가) "' + folderName + '" 폴더에 추가되었습니다.',
+                    background: '#1e1e1e',
+                    color: '#fff',
+                    confirmButtonColor: '#3b82f6',
+                    timer: 2500,
+                    showConfirmButton: false
+                });
+            } else {
+                Swal.fire({
+                    icon: 'warning',
+                    title: '업로드 실패',
+                    text: '지원하는 ' + this.assetTypeLabel + ' 파일이 없습니다.',
+                    background: '#1e1e1e',
+                    color: '#fff',
+                    confirmButtonColor: '#3b82f6',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
             }
         },
         createFolder: function() {
@@ -606,7 +722,7 @@ var AssetManagerModal = {
                     id: a.id,
                     name: a.name,
                     src: a.src || '',
-                    duration: a.duration || '',
+                    duration: a.duration || '00:10',
                     resolution: a.resolution || ''
                 };
             });
