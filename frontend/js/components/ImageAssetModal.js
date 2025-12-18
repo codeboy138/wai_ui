@@ -1,4 +1,4 @@
-// Image Asset Modal Component - 이미지 관리 + 리사이징 + 드래그 + 최소화 + 다중선택
+// Image Asset Modal Component - 이미지 관리 + 리사이징 + 드래그 + 최소화 + 다중선택 + 타임라인 연동
 
 var ImageAssetModal = {
     emits: ['close'],
@@ -150,7 +150,7 @@ var ImageAssetModal = {
                                     <div\
                                         v-for="asset in filteredAssets"\
                                         :key="asset.id"\
-                                        class="asset-card"\
+                                        class="asset-card relative"\
                                         :class="{ \'selected\': isAssetSelected(asset.id) }"\
                                         @click.stop="selectAsset($event, asset)"\
                                         @dblclick.stop="useAsset(asset)"\
@@ -166,6 +166,13 @@ var ImageAssetModal = {
                                             <div class="asset-name">{{ asset.name }}</div>\
                                             <div class="asset-meta">{{ asset.resolution || \'\' }}</div>\
                                         </div>\
+                                        <button \
+                                            class="asset-quick-add-btn"\
+                                            @click.stop="addToTimeline(asset)"\
+                                            title="타임라인에 추가"\
+                                        >\
+                                            <i class="fa-solid fa-plus"></i>\
+                                        </button>\
                                     </div>\
                                 </div>\
 \
@@ -173,7 +180,7 @@ var ImageAssetModal = {
                                     <div\
                                         v-for="asset in filteredAssets"\
                                         :key="asset.id"\
-                                        class="asset-card"\
+                                        class="asset-card relative"\
                                         :class="{ \'selected\': isAssetSelected(asset.id) }"\
                                         @click.stop="selectAsset($event, asset)"\
                                         @dblclick.stop="useAsset(asset)"\
@@ -191,6 +198,13 @@ var ImageAssetModal = {
                                             </div>\
                                             <div class="text-[10px] text-text-sub">{{ asset.category }}</div>\
                                         </div>\
+                                        <button \
+                                            class="asset-quick-add-btn"\
+                                            @click.stop="addToTimeline(asset)"\
+                                            title="타임라인에 추가"\
+                                        >\
+                                            <i class="fa-solid fa-plus"></i>\
+                                        </button>\
                                     </div>\
                                 </div>\
                             </div>\
@@ -203,7 +217,7 @@ var ImageAssetModal = {
                             <span v-else>{{ currentCategoryLabel }} - {{ currentFolderName }}</span>\
                         </div>\
                         <div class="flex items-center gap-2">\
-                            <button v-if="selectedAssetIds.length > 0" class="px-3 py-1 bg-ui-accent text-white rounded hover:bg-blue-600 transition-colors" @click.stop="useSelectedAssets">사용</button>\
+                            <button v-if="selectedAssetIds.length > 0" class="px-3 py-1 bg-ui-accent text-white rounded hover:bg-blue-600 transition-colors" @click.stop="useSelectedAssets">타임라인에 추가</button>\
                             <button class="px-3 py-1 bg-bg-input border border-ui-border text-text-sub rounded hover:bg-bg-hover transition-colors" @click.stop="$emit(\'close\')">닫기</button>\
                         </div>\
                     </div>\
@@ -258,13 +272,13 @@ var ImageAssetModal = {
                 { id: 'favorites', name: '즐겨찾기' }
             ],
             dummyAssets: [
-                { id: 'bg1', name: 'city_skyline.jpg', resolution: '3840x2160', category: 'background', folderId: 'all', src: '' },
-                { id: 'bg2', name: 'nature_forest.jpg', resolution: '1920x1080', category: 'background', folderId: 'all', src: '' },
-                { id: 'bg3', name: 'studio_backdrop.png', resolution: '4096x2160', category: 'background', folderId: 'all', src: '' },
-                { id: 'p1', name: 'presenter_male.png', resolution: '1080x1920', category: 'person', folderId: 'all', src: '' },
-                { id: 'p2', name: 'presenter_female.png', resolution: '1080x1920', category: 'person', folderId: 'all', src: '' },
-                { id: 'o1', name: 'logo_icon.png', resolution: '512x512', category: 'object', folderId: 'all', src: '' },
-                { id: 'o2', name: 'lower_third.png', resolution: '1920x200', category: 'object', folderId: 'all', src: '' }
+                { id: 'bg1', name: 'city_skyline.jpg', resolution: '3840x2160', category: 'background', folderId: 'all', src: '', dateAdded: Date.now() - 100000 },
+                { id: 'bg2', name: 'nature_forest.jpg', resolution: '1920x1080', category: 'background', folderId: 'all', src: '', dateAdded: Date.now() - 200000 },
+                { id: 'bg3', name: 'studio_backdrop.png', resolution: '4096x2160', category: 'background', folderId: 'all', src: '', dateAdded: Date.now() - 300000 },
+                { id: 'p1', name: 'presenter_male.png', resolution: '1080x1920', category: 'person', folderId: 'all', src: '', dateAdded: Date.now() - 400000 },
+                { id: 'p2', name: 'presenter_female.png', resolution: '1080x1920', category: 'person', folderId: 'all', src: '', dateAdded: Date.now() - 500000 },
+                { id: 'o1', name: 'logo_icon.png', resolution: '512x512', category: 'object', folderId: 'all', src: '', dateAdded: Date.now() - 600000 },
+                { id: 'o2', name: 'lower_third.png', resolution: '1920x200', category: 'object', folderId: 'all', src: '', dateAdded: Date.now() - 700000 }
             ]
         };
     },
@@ -299,7 +313,14 @@ var ImageAssetModal = {
                 assets = assets.filter(function(a) { return a.name.toLowerCase().indexOf(q) >= 0; });
             }
             assets = assets.slice().sort(function(a, b) {
-                var cmp = self.sortBy === 'name' ? a.name.localeCompare(b.name) : 0;
+                var cmp;
+                if (self.sortBy === 'name') {
+                    cmp = a.name.localeCompare(b.name);
+                } else if (self.sortBy === 'date') {
+                    cmp = (b.dateAdded || 0) - (a.dateAdded || 0);
+                } else {
+                    cmp = 0;
+                }
                 return self.sortAsc ? cmp : -cmp;
             });
             return assets;
@@ -446,16 +467,7 @@ var ImageAssetModal = {
             }
         },
         useAsset: function(asset) {
-            Swal.fire({
-                icon: 'success',
-                title: '이미지 사용',
-                text: '"' + asset.name + '"을(를) 캔버스에 추가합니다.',
-                background: '#1e1e1e',
-                color: '#fff',
-                confirmButtonColor: '#3b82f6',
-                timer: 1500,
-                showConfirmButton: false
-            });
+            this.addToTimeline(asset);
         },
         useSelectedAssets: function() {
             var self = this;
@@ -463,18 +475,61 @@ var ImageAssetModal = {
                 return self.selectedAssetIds.indexOf(a.id) >= 0;
             });
             if (assets.length > 0) {
-                var names = assets.map(function(a) { return a.name; }).join(', ');
-                Swal.fire({
-                    icon: 'success',
-                    title: '이미지 사용',
-                    text: assets.length + '개 이미지를 캔버스에 추가합니다.',
-                    background: '#1e1e1e',
-                    color: '#fff',
-                    confirmButtonColor: '#3b82f6',
-                    timer: 1500,
-                    showConfirmButton: false
-                });
+                this.addMultipleToTimeline(assets);
             }
+        },
+        addToTimeline: function(asset) {
+            var transferData = [{
+                type: 'image',
+                id: asset.id,
+                name: asset.name,
+                src: asset.src || '',
+                resolution: asset.resolution || '',
+                category: asset.category,
+                duration: 5
+            }];
+            this.dispatchToTimeline(transferData);
+            Swal.fire({
+                icon: 'success',
+                title: '타임라인에 추가',
+                text: '"' + asset.name + '"이(가) 타임라인에 추가되었습니다.',
+                background: '#1e1e1e',
+                color: '#fff',
+                confirmButtonColor: '#3b82f6',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        },
+        addMultipleToTimeline: function(assets) {
+            var transferData = assets.map(function(a) {
+                return {
+                    type: 'image',
+                    id: a.id,
+                    name: a.name,
+                    src: a.src || '',
+                    resolution: a.resolution || '',
+                    category: a.category,
+                    duration: 5
+                };
+            });
+            this.dispatchToTimeline(transferData);
+            Swal.fire({
+                icon: 'success',
+                title: '타임라인에 추가',
+                text: assets.length + '개 이미지가 타임라인에 추가되었습니다.',
+                background: '#1e1e1e',
+                color: '#fff',
+                confirmButtonColor: '#3b82f6',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        },
+        dispatchToTimeline: function(assetDataArray) {
+            var event = new CustomEvent('wai-asset-add-to-timeline', {
+                detail: assetDataArray,
+                bubbles: true
+            });
+            document.dispatchEvent(event);
         },
         addAsset: function() {
             if (this.$refs.fileInput) {
@@ -488,31 +543,58 @@ var ImageAssetModal = {
         handleFileUpload: function(files) {
             var self = this;
             if (!files || files.length === 0) return;
-            var fileNames = [];
-            for (var i = 0; i < files.length; i++) {
-                fileNames.push(files[i].name);
-            }
-            Swal.fire({
-                icon: 'success',
-                title: '파일 업로드',
-                text: files.length + '개 파일 추가됨',
-                background: '#1e1e1e',
-                color: '#fff',
-                confirmButtonColor: '#3b82f6',
-                timer: 2000,
-                showConfirmButton: false
-            });
+            
+            var now = new Date();
+            var folderName = '업로드_' + now.getFullYear() + 
+                String(now.getMonth() + 1).padStart(2, '0') + 
+                String(now.getDate()).padStart(2, '0') + '_' + 
+                String(now.getHours()).padStart(2, '0') + 
+                String(now.getMinutes()).padStart(2, '0') + 
+                String(now.getSeconds()).padStart(2, '0');
+            var folderId = 'folder_' + Date.now();
+            
+            this.assetFolders.push({ id: folderId, name: folderName });
+            
+            var addedCount = 0;
             for (var j = 0; j < files.length; j++) {
                 var file = files[j];
+                if (!file.type.startsWith('image/')) continue;
+                
                 var newAsset = {
                     id: 'img_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
                     name: file.name,
                     category: this.currentCategory,
-                    folderId: 'all',
+                    folderId: folderId,
                     resolution: '',
-                    src: URL.createObjectURL(file)
+                    src: URL.createObjectURL(file),
+                    dateAdded: Date.now()
                 };
+                
+                (function(asset, f) {
+                    var img = new Image();
+                    img.onload = function() {
+                        asset.resolution = img.width + 'x' + img.height;
+                    };
+                    img.src = asset.src;
+                })(newAsset, file);
+                
                 this.dummyAssets.push(newAsset);
+                addedCount++;
+            }
+            
+            if (addedCount > 0) {
+                this.currentFolderId = folderId;
+                
+                Swal.fire({
+                    icon: 'success',
+                    title: '파일 업로드 완료',
+                    text: addedCount + '개 이미지가 "' + folderName + '" 폴더에 추가되었습니다.',
+                    background: '#1e1e1e',
+                    color: '#fff',
+                    confirmButtonColor: '#3b82f6',
+                    timer: 2500,
+                    showConfirmButton: false
+                });
             }
         },
         createFolder: function() {
@@ -554,7 +636,8 @@ var ImageAssetModal = {
                     name: a.name,
                     src: a.src || '',
                     resolution: a.resolution || '',
-                    category: a.category
+                    category: a.category,
+                    duration: 5
                 };
             });
             e.dataTransfer.setData('text/wai-asset', JSON.stringify(transferData));
