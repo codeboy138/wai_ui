@@ -20,14 +20,14 @@ const ApiManagerModal = {
                 @mousedown="onWindowMouseDown"
             >
                 <!-- 리사이징 핸들 -->
-                <div class="resize-handle resize-n" @mousedown.stop.prevent="onResizeStart($event, 'n')"></div>
-                <div class="resize-handle resize-s" @mousedown.stop.prevent="onResizeStart($event, 's')"></div>
-                <div class="resize-handle resize-e" @mousedown.stop.prevent="onResizeStart($event, 'e')"></div>
-                <div class="resize-handle resize-w" @mousedown.stop.prevent="onResizeStart($event, 'w')"></div>
-                <div class="resize-handle resize-nw" @mousedown.stop.prevent="onResizeStart($event, 'nw')"></div>
-                <div class="resize-handle resize-ne" @mousedown.stop.prevent="onResizeStart($event, 'ne')"></div>
-                <div class="resize-handle resize-sw" @mousedown.stop.prevent="onResizeStart($event, 'sw')"></div>
-                <div class="resize-handle resize-se" @mousedown.stop.prevent="onResizeStart($event, 'se')"></div>
+                <div class="modal-resize-handle resize-n" @mousedown.stop.prevent="onResizeStart($event, 'n')"></div>
+                <div class="modal-resize-handle resize-s" @mousedown.stop.prevent="onResizeStart($event, 's')"></div>
+                <div class="modal-resize-handle resize-e" @mousedown.stop.prevent="onResizeStart($event, 'e')"></div>
+                <div class="modal-resize-handle resize-w" @mousedown.stop.prevent="onResizeStart($event, 'w')"></div>
+                <div class="modal-resize-handle resize-nw" @mousedown.stop.prevent="onResizeStart($event, 'nw')"></div>
+                <div class="modal-resize-handle resize-ne" @mousedown.stop.prevent="onResizeStart($event, 'ne')"></div>
+                <div class="modal-resize-handle resize-sw" @mousedown.stop.prevent="onResizeStart($event, 'sw')"></div>
+                <div class="modal-resize-handle resize-se" @mousedown.stop.prevent="onResizeStart($event, 'se')"></div>
 
                 <!-- 헤더 -->
                 <div
@@ -557,7 +557,7 @@ const ApiManagerModal = {
         
         // 창 전체 드래그
         onWindowMouseDown(e) {
-            if (e.target.closest('input, button, select, textarea, .resize-handle')) return;
+            if (e.target.closest('input, button, select, textarea, .modal-resize-handle')) return;
             this.startDrag(e);
         },
         onHeaderMouseDown(e) {
