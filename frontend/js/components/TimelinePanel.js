@@ -1,5 +1,5 @@
 // Timeline Panel Component - Enhanced
-// 트랙 드래그 순서 변경, Z-Index 연동, 클립-캔버스 연동
+// 트랙 드래그 순서 변경, Z-Index 연동, 클립-캔버스 연동, 외부 에셋 드롭 지원
 
 const TimelinePanel = {
     props: ['vm'],
@@ -7,7 +7,11 @@ const TimelinePanel = {
         <div
             id="timeline-main-panel"
             class="flex flex-col bg-bg-panel select-none h-full"
+            :class="{ 'timeline-drop-highlight': isExternalDragOver }"
             @wheel.prevent="handleWheel"
+            @dragover.prevent="onExternalDragOver"
+            @dragleave="onExternalDragLeave"
+            @drop.prevent="onExternalDrop"
         >
             <!-- 타임라인 헤더 (항상 표시) -->
             <div class="h-8 bg-bg-panel border-b border-ui-border flex items-center px-2 justify-between shrink-0">
@@ -187,6 +191,9 @@ const TimelinePanel = {
                         >
                             <div class="absolute inset-0 opacity-30" :style="{backgroundColor: track.type === 'audio' ? '#3b82f6' : track.color}"></div>
                             <div v-if="clip.type === 'video' && (trackHeights[track.id] || 40) >= 24" class="absolute inset-0 flex items-center justify-center"><i class="fa-solid fa-film text-white/50"></i></div>
+                            <div v-if="clip.type === 'image' && (trackHeights[track.id] || 40) >= 24" class="absolute inset-0 flex items-center justify-center"><i class="fa-solid fa-image text-white/50"></i></div>
+                            <div v-if="clip.type === 'sound' && (trackHeights[track.id] || 40) >= 24" class="absolute inset-0 flex items-center justify-center"><i class="fa-solid fa-music text-white/50"></i></div>
+                            <div v-if="clip.type === 'effect' && (trackHeights[track.id] || 40) >= 24" class="absolute inset-0 flex items-center justify-center"><i class="fa-solid fa-wand-magic-sparkles text-white/50"></i></div>
                             <template v-if="track.type === 'audio'">
                                 <svg class="waveform" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M0 50 Q 10 20, 20 50 T 40 50 T 60 50 T 80 50 T 100 50" stroke="white" fill="transparent" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>
                             </template>
@@ -197,6 +204,14 @@ const TimelinePanel = {
                     </div>
                     
                     <div class="playhead-line-body" :style="{ left: vm.currentTime * vm.zoom + 'px' }"></div>
+                </div>
+            </div>
+            
+            <!-- 외부 드롭 오버레이 표시 -->
+            <div v-if="isExternalDragOver && !vm.isTimelineCollapsed" class="absolute inset-0 pointer-events-none z-40 flex items-center justify-center">
+                <div class="bg-ui-accent/20 border-2 border-dashed border-ui-accent rounded-lg p-8 text-center">
+                    <i class="fa-solid fa-plus text-3xl text-ui-accent mb-2"></i>
+                    <p class="text-ui-accent font-bold">타임라인에 추가</p>
                 </div>
             </div>
             
@@ -274,6 +289,7 @@ const TimelinePanel = {
             pendingClickTime: 0,
             pendingClickModifiers: null,
             isResolutionDropdownOpen: false,
+            isExternalDragOver: false,
             resolutionOptions: [
                 { value: '4K', label: '4K', pixels: '3840×2160' },
                 { value: 'FHD', label: 'FHD', pixels: '1920×1080' },
@@ -382,9 +398,17 @@ const TimelinePanel = {
                 .timeline-select-no-arrow::-ms-expand { display: none; }
                 #timeline-main-panel {
                     min-height: 0;
+                    position: relative;
                 }
                 .resolution-dropdown-wrapper {
                     position: relative;
+                }
+                .timeline-drop-highlight {
+                    background: rgba(59, 130, 246, 0.1) !important;
+                }
+                #timeline-main-panel.timeline-drop-highlight {
+                    outline: 2px dashed #3b82f6;
+                    outline-offset: -2px;
                 }
             `;
             document.head.appendChild(style);
@@ -1207,39 +1231,170 @@ const TimelinePanel = {
             return m + ':' + String(sec).padStart(2, '0');
         },
         
+        // 외부 에셋 드래그 오버 (타임라인 패널 전체)
+        onExternalDragOver(e) {
+            // wai-asset 데이터가 있는 경우에만 하이라이트
+            if (e.dataTransfer.types.includes('text/wai-asset')) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'copy';
+                this.isExternalDragOver = true;
+            }
+        },
+        
+        onExternalDragLeave(e) {
+            // 타임라인 패널을 완전히 벗어났을 때만 하이라이트 해제
+            const rect = e.currentTarget.getBoundingClientRect();
+            if (e.clientX < rect.left || e.clientX > rect.right || 
+                e.clientY < rect.top || e.clientY > rect.bottom) {
+                this.isExternalDragOver = false;
+            }
+        },
+        
+        onExternalDrop(e) {
+            e.preventDefault();
+            this.isExternalDragOver = false;
+            
+            // wai-asset 데이터 파싱
+            let assetData;
+            try {
+                const raw = e.dataTransfer.getData('text/wai-asset');
+                if (!raw) return;
+                assetData = JSON.parse(raw);
+            } catch (err) {
+                console.error('Failed to parse asset data:', err);
+                return;
+            }
+            
+            // 배열이 아니면 배열로 변환
+            const assets = Array.isArray(assetData) ? assetData : [assetData];
+            if (assets.length === 0) return;
+            
+            // 드롭 위치 계산
+            const lane = document.getElementById('timeline-lane-container');
+            let dropTime = this.vm.currentTime;
+            let targetTrack = this.vm.tracks[0];
+            
+            if (lane) {
+                const rect = lane.getBoundingClientRect();
+                dropTime = Math.max(0, (e.clientX - rect.left) / this.vm.zoom);
+                const relY = e.clientY - rect.top - 24;
+                const trackAtY = this.getTrackAtY(relY);
+                if (trackAtY) targetTrack = trackAtY;
+            }
+            
+            // 잠긴 트랙이면 첫 번째 잠기지 않은 트랙 찾기
+            if (targetTrack.isLocked) {
+                const unlockedTrack = this.vm.tracks.find(t => !t.isLocked);
+                if (unlockedTrack) {
+                    targetTrack = unlockedTrack;
+                } else {
+                    Swal.fire({ 
+                        icon: 'warning', 
+                        title: '추가 불가', 
+                        text: '모든 트랙이 잠겨 있습니다', 
+                        background: '#1e1e1e', 
+                        color: '#fff',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                    return;
+                }
+            }
+            
+            // 에셋들을 클립으로 추가
+            const newClipIds = [];
+            let currentTime = dropTime;
+            
+            assets.forEach((asset, index) => {
+                const clipType = this.mapAssetTypeToClipType(asset.type);
+                const duration = this.parseDuration(asset.duration) || 5;
+                
+                const newClip = {
+                    id: `c_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`,
+                    trackId: targetTrack.id,
+                    name: asset.name || 'Clip',
+                    start: currentTime,
+                    duration: duration,
+                    type: clipType,
+                    src: asset.src || asset.url || '',
+                    assetId: asset.id || null,
+                    isActive: false
+                };
+                
+                // 충돌 피해서 위치 조정
+                newClip.start = this.findNonCollidingPosition(newClip, currentTime, newClipIds);
+                
+                if (typeof this.vm.addClipWithBox === 'function') {
+                    this.vm.addClipWithBox(newClip);
+                } else {
+                    this.vm.clips.push(newClip);
+                }
+                
+                newClipIds.push(newClip.id);
+                currentTime = newClip.start + newClip.duration + 0.1; // 다음 클립 위치
+            });
+            
+            // 새로 추가된 클립들 선택
+            this.selectedClipIds = newClipIds;
+            this.syncVmSelectedClip();
+            
+            // 성공 메시지
+            Swal.fire({
+                icon: 'success',
+                title: '타임라인에 추가됨',
+                text: `${assets.length}개 항목이 추가되었습니다`,
+                background: '#1e1e1e',
+                color: '#fff',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        },
+        
+        // 에셋 타입을 클립 타입으로 매핑
+        mapAssetTypeToClipType(assetType) {
+            const typeMap = {
+                'video': 'video',
+                'image': 'image',
+                'sound': 'sound',
+                'audio': 'sound',
+                'effect': 'effect',
+                'filter': 'effect',
+                'transition': 'effect',
+                'overlay': 'effect',
+                'animation': 'effect'
+            };
+            return typeMap[assetType] || 'video';
+        },
+        
+        // duration 문자열 파싱 (예: "00:10", "03:24" → 초)
+        parseDuration(durationStr) {
+            if (!durationStr) return null;
+            if (typeof durationStr === 'number') return durationStr;
+            
+            const parts = durationStr.split(':');
+            if (parts.length === 2) {
+                const min = parseInt(parts[0], 10) || 0;
+                const sec = parseInt(parts[1], 10) || 0;
+                return min * 60 + sec;
+            }
+            if (parts.length === 3) {
+                const hr = parseInt(parts[0], 10) || 0;
+                const min = parseInt(parts[1], 10) || 0;
+                const sec = parseInt(parts[2], 10) || 0;
+                return hr * 3600 + min * 60 + sec;
+            }
+            return parseFloat(durationStr) || null;
+        },
+        
         handleDragOver(e) {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'copy';
         },
         
         handleDrop(e) {
+            // 기존 내부 드롭 핸들러 - 이제 onExternalDrop으로 통합
             e.preventDefault();
-            let data;
-            try { data = JSON.parse(e.dataTransfer.getData('text/wai-asset')); } catch { return; }
-            const lane = document.getElementById('timeline-lane-container');
-            if (!lane) return;
-            const rect = lane.getBoundingClientRect();
-            const time = Math.max(0, (e.clientX - rect.left) / this.vm.zoom);
-            const relY = e.clientY - rect.top - 24;
-            let targetTrack = this.getTrackAtY(relY) || this.vm.tracks[this.vm.tracks.length - 1];
-            if (!targetTrack) return;
-            
-            const newClip = {
-                id: `c_${Date.now()}`,
-                trackId: targetTrack.id,
-                name: data.name || 'Clip',
-                start: time,
-                duration: data.duration || 10,
-                type: data.type || 'video',
-                src: data.src || data.url || '',
-                isActive: false
-            };
-            newClip.start = this.findNonCollidingPosition(newClip, time, []);
-            if (typeof this.vm.addClipWithBox === 'function') this.vm.addClipWithBox(newClip);
-            else this.vm.clips.push(newClip);
-            
-            this.selectedClipIds = [newClip.id];
-            this.syncVmSelectedClip();
+            this.onExternalDrop(e);
         },
         
         handleWheel(e) {
