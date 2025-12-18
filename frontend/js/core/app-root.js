@@ -188,6 +188,7 @@ const AppRoot = {
             this.setupHeaderMenuClose();
             this.setupGlobalDropHandler();
             this.setupKeyboardShortcuts();
+            this.setupAssetAddListener();
         });
         window.vm = this; 
     },
@@ -195,6 +196,7 @@ const AppRoot = {
         if (this._spinWheelHandler) { document.removeEventListener('wheel', this._spinWheelHandler); this._spinWheelHandler = null; }
         if (this._headerMenuCloseHandler) { document.removeEventListener('click', this._headerMenuCloseHandler); this._headerMenuCloseHandler = null; }
         if (this._keyboardHandler) { document.removeEventListener('keydown', this._keyboardHandler); this._keyboardHandler = null; }
+        if (this._assetAddHandler) { document.removeEventListener('wai-asset-add-to-timeline', this._assetAddHandler); this._assetAddHandler = null; }
         this.stopPlayback();
     },
     methods: {
@@ -479,6 +481,151 @@ const AppRoot = {
                 if (e.code === 'Delete') { e.preventDefault(); this.deleteSelected(); }
             };
             document.addEventListener('keydown', this._keyboardHandler);
+        },
+
+        setupAssetAddListener() {
+            this._assetAddHandler = (e) => {
+                const assetDataArray = e.detail;
+                if (!assetDataArray || !Array.isArray(assetDataArray) || assetDataArray.length === 0) return;
+                this.handleAssetAddToTimeline(assetDataArray);
+            };
+            document.addEventListener('wai-asset-add-to-timeline', this._assetAddHandler);
+        },
+
+        handleAssetAddToTimeline(assetDataArray) {
+            const targetTrack = this.findSuitableTrack(assetDataArray[0]?.type);
+            if (!targetTrack) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: '트랙 없음',
+                    text: '적합한 트랙을 찾을 수 없습니다.',
+                    background: '#1e1e1e',
+                    color: '#fff',
+                    confirmButtonColor: '#3b82f6',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+                return;
+            }
+
+            let insertTime = this.currentTime;
+            const newClipIds = [];
+
+            assetDataArray.forEach((asset, index) => {
+                const duration = this.parseDurationString(asset.duration) || 5;
+                
+                const newClip = {
+                    id: `c_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`,
+                    trackId: targetTrack.id,
+                    name: asset.name || 'Clip',
+                    start: insertTime,
+                    duration: duration,
+                    type: this.mapAssetTypeToClipType(asset.type),
+                    src: asset.src || asset.url || '',
+                    assetId: asset.id || null,
+                    isActive: false
+                };
+
+                insertTime = this.findNonCollidingPosition(newClip, targetTrack.id, insertTime);
+                newClip.start = insertTime;
+
+                this.addClipWithBox(newClip);
+                newClipIds.push(newClip.id);
+
+                insertTime = newClip.start + newClip.duration + 0.1;
+            });
+
+            if (newClipIds.length === 1) {
+                const addedClip = this.clips.find(c => c.id === newClipIds[0]);
+                if (addedClip) this.selectedClip = addedClip;
+            }
+
+            Swal.fire({
+                icon: 'success',
+                title: '타임라인에 추가됨',
+                text: `${assetDataArray.length}개 항목이 추가되었습니다`,
+                background: '#1e1e1e',
+                color: '#fff',
+                confirmButtonColor: '#3b82f6',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        },
+
+        findSuitableTrack(assetType) {
+            const clipType = this.mapAssetTypeToClipType(assetType);
+            
+            if (clipType === 'sound') {
+                const audioTrack = this.tracks.find(t => t.type === 'audio' && !t.isLocked);
+                if (audioTrack) return audioTrack;
+            }
+            
+            const videoTrack = this.tracks.find(t => t.type === 'video' && !t.isLocked);
+            if (videoTrack) return videoTrack;
+            
+            const anyUnlockedTrack = this.tracks.find(t => !t.isLocked);
+            return anyUnlockedTrack || this.tracks[0];
+        },
+
+        mapAssetTypeToClipType(assetType) {
+            const typeMap = {
+                'video': 'video',
+                'image': 'image',
+                'sound': 'sound',
+                'audio': 'sound',
+                'effect': 'effect',
+                'filter': 'effect',
+                'transition': 'effect',
+                'overlay': 'effect',
+                'animation': 'effect'
+            };
+            return typeMap[assetType] || 'video';
+        },
+
+        parseDurationString(durationStr) {
+            if (!durationStr) return null;
+            if (typeof durationStr === 'number') return durationStr;
+            
+            const parts = durationStr.toString().split(':');
+            if (parts.length === 2) {
+                const min = parseInt(parts[0], 10) || 0;
+                const sec = parseInt(parts[1], 10) || 0;
+                return min * 60 + sec;
+            }
+            if (parts.length === 3) {
+                const hr = parseInt(parts[0], 10) || 0;
+                const min = parseInt(parts[1], 10) || 0;
+                const sec = parseInt(parts[2], 10) || 0;
+                return hr * 3600 + min * 60 + sec;
+            }
+            return parseFloat(durationStr) || null;
+        },
+
+        findNonCollidingPosition(clip, trackId, desiredStart) {
+            const trackClips = this.clips.filter(c => c.trackId === trackId && c.id !== clip.id);
+            
+            const hasCollision = (start, duration) => {
+                const end = start + duration;
+                for (const c of trackClips) {
+                    const cEnd = c.start + c.duration;
+                    if (start < cEnd && end > c.start) return true;
+                }
+                return false;
+            };
+
+            if (!hasCollision(desiredStart, clip.duration)) {
+                return desiredStart;
+            }
+
+            let newStart = desiredStart;
+            for (const c of trackClips.sort((a, b) => a.start - b.start)) {
+                const cEnd = c.start + c.duration;
+                if (newStart < cEnd && newStart + clip.duration > c.start) {
+                    newStart = cEnd;
+                }
+            }
+
+            return newStart;
         },
 
         togglePlayback() { if (this.isPlaying) this.stopPlayback(); else this.startPlayback(); },
