@@ -1,4 +1,4 @@
-// Asset Manager Modal Component - 드래그앤드롭 지원 + 리사이징 + 복수선택 + 파일업로드
+// Asset Manager Modal Component - 드래그앤드롭 + 리사이징 + 복수선택 + 파일업로드 + 최소화
 
 var AssetManagerModal = {
     props: {
@@ -25,210 +25,217 @@ var AssetManagerModal = {
                 id="asset-manager-modal-window"\
                 class="asset-manager-window bg-bg-panel border border-ui-border rounded-lg shadow-2xl text-[12px] text-text-main flex flex-col"\
                 :style="windowStyle"\
-                @mousedown.stop\
+                @mousedown="onWindowMouseDown"\
             >\
-                <div class="modal-resize-handle resize-n" @mousedown="startResize($event, \'n\')"></div>\
-                <div class="modal-resize-handle resize-s" @mousedown="startResize($event, \'s\')"></div>\
-                <div class="modal-resize-handle resize-e" @mousedown="startResize($event, \'e\')"></div>\
-                <div class="modal-resize-handle resize-w" @mousedown="startResize($event, \'w\')"></div>\
-                <div class="modal-resize-handle resize-nw" @mousedown="startResize($event, \'nw\')"></div>\
-                <div class="modal-resize-handle resize-ne" @mousedown="startResize($event, \'ne\')"></div>\
-                <div class="modal-resize-handle resize-sw" @mousedown="startResize($event, \'sw\')"></div>\
-                <div class="modal-resize-handle resize-se" @mousedown="startResize($event, \'se\')"></div>\
+                <div class="modal-resize-handle resize-n" @mousedown.stop="startResize($event, \'n\')"></div>\
+                <div class="modal-resize-handle resize-s" @mousedown.stop="startResize($event, \'s\')"></div>\
+                <div class="modal-resize-handle resize-e" @mousedown.stop="startResize($event, \'e\')"></div>\
+                <div class="modal-resize-handle resize-w" @mousedown.stop="startResize($event, \'w\')"></div>\
+                <div class="modal-resize-handle resize-nw" @mousedown.stop="startResize($event, \'nw\')"></div>\
+                <div class="modal-resize-handle resize-ne" @mousedown.stop="startResize($event, \'ne\')"></div>\
+                <div class="modal-resize-handle resize-sw" @mousedown.stop="startResize($event, \'sw\')"></div>\
+                <div class="modal-resize-handle resize-se" @mousedown.stop="startResize($event, \'se\')"></div>\
 \
                 <div\
-                    class="flex items-center justify-between px-4 py-3 border-b border-ui-border bg-bg-hover cursor-move rounded-t-lg"\
-                    @mousedown.stop.prevent="onHeaderMouseDown"\
+                    class="flex items-center justify-between px-4 py-2 border-b border-ui-border bg-bg-hover rounded-t-lg"\
+                    :class="isMinimized ? \'cursor-pointer\' : \'cursor-move\'"\
+                    @mousedown.stop="onHeaderMouseDown"\
+                    @dblclick="toggleMinimize"\
                 >\
                     <div class="flex items-center gap-3">\
                         <i :class="assetTypeIcon" class="text-ui-accent"></i>\
                         <span class="text-[14px] font-bold">{{ assetTypeTitle }} 관리</span>\
-                        <span class="text-[11px] text-text-sub">{{ filteredAssets.length }}개 {{ assetTypeLabel }}</span>\
+                        <span v-if="!isMinimized" class="text-[11px] text-text-sub">{{ filteredAssets.length }}개 {{ assetTypeLabel }}</span>\
                     </div>\
-                    <div class="flex items-center gap-2">\
-                        <button class="px-2 py-1 text-[11px] bg-ui-accent text-white rounded hover:bg-blue-600 transition-colors flex items-center gap-1" @click="addAsset">\
+                    <div class="flex items-center gap-1">\
+                        <button v-if="!isMinimized" class="px-2 py-1 text-[11px] bg-ui-accent text-white rounded hover:bg-blue-600 transition-colors flex items-center gap-1" @click.stop="addAsset">\
                             <i class="fa-solid fa-plus"></i> 추가\
                         </button>\
-                        <button class="text-[14px] text-text-sub hover:text-white w-8 h-8 flex items-center justify-center rounded hover:bg-ui-danger transition-colors" @click.stop="$emit(\'close\')">\
+                        <button class="text-[14px] text-text-sub hover:text-white w-7 h-7 flex items-center justify-center rounded hover:bg-bg-input transition-colors" @click.stop="toggleMinimize" :title="isMinimized ? \'확장\' : \'최소화\'">\
+                            <i :class="isMinimized ? \'fa-solid fa-expand\' : \'fa-solid fa-minus\'"></i>\
+                        </button>\
+                        <button class="text-[14px] text-text-sub hover:text-white w-7 h-7 flex items-center justify-center rounded hover:bg-ui-danger transition-colors" @click.stop="$emit(\'close\')">\
                             <i class="fa-solid fa-xmark"></i>\
                         </button>\
                     </div>\
                 </div>\
 \
-                <div class="flex items-center justify-between px-4 py-2 border-b border-ui-border bg-bg-panel">\
-                    <div class="flex items-center gap-2">\
-                        <span class="text-[11px] text-text-sub">{{ assetTypeTitle }} 목록</span>\
-                        <span class="text-[10px] text-ui-accent">(Ctrl+클릭: 복수선택 / 드래그: 타임라인 추가)</span>\
-                    </div>\
-                    \
-                    <div class="flex items-center gap-2">\
-                        <div class="flex items-center gap-1 px-2 py-1 bg-bg-input rounded border border-ui-border">\
-                            <span class="text-[10px] text-text-sub">{{ previewToggleLabel }}</span>\
-                            <button\
-                                class="w-8 h-4 rounded-full transition-colors relative"\
-                                :class="previewEnabled ? \'bg-ui-accent\' : \'bg-ui-border\'"\
-                                @click="previewEnabled = !previewEnabled"\
-                            >\
-                                <span class="absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform" :class="previewEnabled ? \'left-4\' : \'left-0.5\'"></span>\
-                            </button>\
+                <template v-if="!isMinimized">\
+                    <div class="flex items-center justify-between px-4 py-2 border-b border-ui-border bg-bg-panel">\
+                        <div class="flex items-center gap-2">\
+                            <span class="text-[11px] text-text-sub">{{ assetTypeTitle }} 목록</span>\
+                            <span class="text-[10px] text-ui-accent">(Ctrl+클릭: 복수선택 / 드래그: 타임라인 추가)</span>\
                         </div>\
                         \
-                        <div class="w-px h-5 bg-ui-border"></div>\
-                        \
-                        <div class="relative">\
-                            <input type="text" v-model="searchQuery" :placeholder="assetTypeLabel + \' 검색...\'" class="w-48 h-7 bg-bg-input border border-ui-border rounded px-2 pr-7 text-[11px] focus:border-ui-accent focus:outline-none" />\
-                            <i class="fa-solid fa-search absolute right-2 top-1/2 -translate-y-1/2 text-text-sub text-[10px]"></i>\
-                        </div>\
-                        \
-                        <div class="flex border border-ui-border rounded overflow-hidden">\
-                            <button class="px-2 py-1 text-[10px]" :class="viewMode === \'grid\' ? \'bg-ui-accent text-white\' : \'bg-bg-input text-text-sub hover:bg-bg-hover\'" @click="viewMode = \'grid\'">\
-                                <i class="fa-solid fa-grip"></i>\
-                            </button>\
-                            <button class="px-2 py-1 text-[10px]" :class="viewMode === \'list\' ? \'bg-ui-accent text-white\' : \'bg-bg-input text-text-sub hover:bg-bg-hover\'" @click="viewMode = \'list\'">\
-                                <i class="fa-solid fa-list"></i>\
-                            </button>\
-                        </div>\
-                    </div>\
-                </div>\
-\
-                <div class="flex-1 flex overflow-hidden">\
-                    <div class="w-44 border-r border-ui-border bg-bg-dark flex flex-col shrink-0">\
-                        <div class="p-2 border-b border-ui-border bg-bg-panel">\
-                            <span class="text-[10px] text-text-sub font-bold uppercase tracking-wide">폴더</span>\
-                        </div>\
-                        <div class="flex-1 overflow-auto p-1">\
-                            <div \
-                                v-for="folder in assetFolders"\
-                                :key="folder.id"\
-                                class="flex items-center gap-1 px-2 py-1.5 rounded cursor-pointer text-[11px] transition-colors folder-drop-zone"\
-                                :class="{\
-                                    \'bg-ui-selected text-white\': currentFolderId === folder.id,\
-                                    \'hover:bg-bg-hover\': currentFolderId !== folder.id,\
-                                    \'drag-over\': dragOverFolderId === folder.id\
-                                }"\
-                                @click="currentFolderId = folder.id"\
-                                @dragover.prevent="onFolderDragOver($event, folder)"\
-                                @dragleave="onFolderDragLeave($event, folder)"\
-                                @drop.prevent="onFolderDrop($event, folder)"\
-                            >\
-                                <i class="fa-solid fa-folder text-yellow-500"></i>\
-                                <span class="truncate flex-1">{{ folder.name }}</span>\
-                                <span class="text-[9px] text-text-sub">{{ getFolderAssetCount(folder.id) }}</span>\
-                            </div>\
-                        </div>\
-                        \
-                        <div class="p-2 border-t border-ui-border">\
-                            <button class="w-full px-2 py-1 text-[10px] bg-bg-input border border-ui-border rounded hover:bg-bg-hover flex items-center justify-center gap-1" @click="createFolder">\
-                                <i class="fa-solid fa-folder-plus"></i> 새 폴더\
-                            </button>\
-                        </div>\
-                    </div>\
-\
-                    <div \
-                        class="flex-1 flex flex-col bg-bg-dark overflow-hidden"\
-                        @dragover.prevent="onContentPanelDragOver"\
-                        @drop.prevent="onContentPanelDrop"\
-                    >\
-                        <div class="flex items-center justify-between px-3 py-1.5 border-b border-ui-border bg-bg-panel text-[10px]">\
-                            <div class="flex items-center gap-4">\
-                                <span class="cursor-pointer hover:text-ui-accent flex items-center gap-1" :class="{ \'text-ui-accent\': sortBy === \'name\' }" @click="toggleSort(\'name\')">\
-                                    이름 <i v-if="sortBy === \'name\'" :class="sortAsc ? \'fa-solid fa-arrow-up\' : \'fa-solid fa-arrow-down\'" class="text-[8px]"></i>\
-                                </span>\
-                                <span class="cursor-pointer hover:text-ui-accent flex items-center gap-1" :class="{ \'text-ui-accent\': sortBy === \'date\' }" @click="toggleSort(\'date\')">\
-                                    추가일 <i v-if="sortBy === \'date\'" :class="sortAsc ? \'fa-solid fa-arrow-up\' : \'fa-solid fa-arrow-down\'" class="text-[8px]"></i>\
-                                </span>\
-                            </div>\
-                            <span class="text-text-sub">{{ selectedAssetIds.length > 0 ? selectedAssetIds.length + \'개 선택됨\' : filteredAssets.length + \'개 항목\' }}</span>\
-                        </div>\
-\
-                        <div class="flex-1 overflow-auto p-3" :class="{ \'drag-over\': isContentPanelDragOver }">\
-                            <div v-if="filteredAssets.length === 0" class="flex flex-col items-center justify-center h-full text-text-sub opacity-50">\
-                                <i :class="assetTypeIcon" class="text-4xl mb-3"></i>\
-                                <p class="text-[12px]">{{ assetTypeLabel }}이(가) 없습니다</p>\
-                                <p class="text-[11px] mt-1">파일을 추가하거나 드래그하여 가져오세요</p>\
-                            </div>\
-\
-                            <div v-else-if="viewMode === \'grid\'" class="asset-grid view-grid" :style="gridStyle">\
-                                <div\
-                                    v-for="asset in filteredAssets"\
-                                    :key="asset.id"\
-                                    class="asset-card"\
-                                    :class="{ \'selected\': isAssetSelected(asset.id) }"\
-                                    @click="selectAsset($event, asset)"\
-                                    @dblclick="useAsset(asset)"\
-                                    draggable="true"\
-                                    @dragstart="onAssetDragStart($event, asset)"\
-                                    @dragend="onDragEnd"\
+                        <div class="flex items-center gap-2">\
+                            <div class="flex items-center gap-1 px-2 py-1 bg-bg-input rounded border border-ui-border">\
+                                <span class="text-[10px] text-text-sub">{{ previewToggleLabel }}</span>\
+                                <button\
+                                    class="w-8 h-4 rounded-full transition-colors relative"\
+                                    :class="previewEnabled ? \'bg-ui-accent\' : \'bg-ui-border\'"\
+                                    @click.stop="previewEnabled = !previewEnabled"\
                                 >\
-                                    <div class="asset-thumbnail">\
-                                        <template v-if="assetType === \'video\'">\
-                                            <video \
-                                                v-if="previewEnabled && asset.src" \
-                                                :src="asset.src" \
-                                                class="w-full h-full object-cover" \
-                                                muted \
-                                                loop \
-                                                @mouseenter="$event.target.play()" \
-                                                @mouseleave="$event.target.pause(); $event.target.currentTime = 0;"\
-                                            ></video>\
-                                            <div v-else class="asset-thumbnail-placeholder">\
-                                                <i class="fa-solid fa-film asset-thumbnail-icon-center"></i>\
-                                            </div>\
-                                        </template>\
-                                        <template v-else-if="assetType === \'sound\'">\
-                                            <div class="asset-thumbnail-placeholder sound" @click.stop="toggleAudioPreview(asset)">\
-                                                <div class="flex items-end gap-0.5 h-8">\
-                                                    <div v-for="i in 5" :key="i" class="w-1 bg-ui-accent rounded-t" :style="{ height: (20 + Math.random() * 60) + \'%\' }"></div>\
+                                    <span class="absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform" :class="previewEnabled ? \'left-4\' : \'left-0.5\'"></span>\
+                                </button>\
+                            </div>\
+                            \
+                            <div class="w-px h-5 bg-ui-border"></div>\
+                            \
+                            <div class="relative">\
+                                <input type="text" v-model="searchQuery" :placeholder="assetTypeLabel + \' 검색...\'" class="w-48 h-7 bg-bg-input border border-ui-border rounded px-2 pr-7 text-[11px] focus:border-ui-accent focus:outline-none" @mousedown.stop />\
+                                <i class="fa-solid fa-search absolute right-2 top-1/2 -translate-y-1/2 text-text-sub text-[10px]"></i>\
+                            </div>\
+                            \
+                            <div class="flex border border-ui-border rounded overflow-hidden">\
+                                <button class="px-2 py-1 text-[10px]" :class="viewMode === \'grid\' ? \'bg-ui-accent text-white\' : \'bg-bg-input text-text-sub hover:bg-bg-hover\'" @click.stop="viewMode = \'grid\'">\
+                                    <i class="fa-solid fa-grip"></i>\
+                                </button>\
+                                <button class="px-2 py-1 text-[10px]" :class="viewMode === \'list\' ? \'bg-ui-accent text-white\' : \'bg-bg-input text-text-sub hover:bg-bg-hover\'" @click.stop="viewMode = \'list\'">\
+                                    <i class="fa-solid fa-list"></i>\
+                                </button>\
+                            </div>\
+                        </div>\
+                    </div>\
+\
+                    <div class="flex-1 flex overflow-hidden">\
+                        <div class="w-44 border-r border-ui-border bg-bg-dark flex flex-col shrink-0">\
+                            <div class="p-2 border-b border-ui-border bg-bg-panel">\
+                                <span class="text-[10px] text-text-sub font-bold uppercase tracking-wide">폴더</span>\
+                            </div>\
+                            <div class="flex-1 overflow-auto p-1">\
+                                <div \
+                                    v-for="folder in assetFolders"\
+                                    :key="folder.id"\
+                                    class="flex items-center gap-1 px-2 py-1.5 rounded cursor-pointer text-[11px] transition-colors folder-drop-zone"\
+                                    :class="{\
+                                        \'bg-ui-selected text-white\': currentFolderId === folder.id,\
+                                        \'hover:bg-bg-hover\': currentFolderId !== folder.id,\
+                                        \'drag-over\': dragOverFolderId === folder.id\
+                                    }"\
+                                    @click.stop="currentFolderId = folder.id"\
+                                    @dragover.prevent="onFolderDragOver($event, folder)"\
+                                    @dragleave="onFolderDragLeave($event, folder)"\
+                                    @drop.prevent="onFolderDrop($event, folder)"\
+                                >\
+                                    <i class="fa-solid fa-folder text-yellow-500"></i>\
+                                    <span class="truncate flex-1">{{ folder.name }}</span>\
+                                    <span class="text-[9px] text-text-sub">{{ getFolderAssetCount(folder.id) }}</span>\
+                                </div>\
+                            </div>\
+                            \
+                            <div class="p-2 border-t border-ui-border">\
+                                <button class="w-full px-2 py-1 text-[10px] bg-bg-input border border-ui-border rounded hover:bg-bg-hover flex items-center justify-center gap-1" @click.stop="createFolder">\
+                                    <i class="fa-solid fa-folder-plus"></i> 새 폴더\
+                                </button>\
+                            </div>\
+                        </div>\
+\
+                        <div \
+                            class="flex-1 flex flex-col bg-bg-dark overflow-hidden"\
+                            @dragover.prevent="onContentPanelDragOver"\
+                            @drop.prevent="onContentPanelDrop"\
+                        >\
+                            <div class="flex items-center justify-between px-3 py-1.5 border-b border-ui-border bg-bg-panel text-[10px]">\
+                                <div class="flex items-center gap-4">\
+                                    <span class="cursor-pointer hover:text-ui-accent flex items-center gap-1" :class="{ \'text-ui-accent\': sortBy === \'name\' }" @click.stop="toggleSort(\'name\')">\
+                                        이름 <i v-if="sortBy === \'name\'" :class="sortAsc ? \'fa-solid fa-arrow-up\' : \'fa-solid fa-arrow-down\'" class="text-[8px]"></i>\
+                                    </span>\
+                                    <span class="cursor-pointer hover:text-ui-accent flex items-center gap-1" :class="{ \'text-ui-accent\': sortBy === \'date\' }" @click.stop="toggleSort(\'date\')">\
+                                        추가일 <i v-if="sortBy === \'date\'" :class="sortAsc ? \'fa-solid fa-arrow-up\' : \'fa-solid fa-arrow-down\'" class="text-[8px]"></i>\
+                                    </span>\
+                                </div>\
+                                <span class="text-text-sub">{{ selectedAssetIds.length > 0 ? selectedAssetIds.length + \'개 선택됨\' : filteredAssets.length + \'개 항목\' }}</span>\
+                            </div>\
+\
+                            <div class="flex-1 overflow-auto p-3" :class="{ \'drag-over\': isContentPanelDragOver }">\
+                                <div v-if="filteredAssets.length === 0" class="flex flex-col items-center justify-center h-full text-text-sub opacity-50">\
+                                    <i :class="assetTypeIcon" class="text-4xl mb-3"></i>\
+                                    <p class="text-[12px]">{{ assetTypeLabel }}이(가) 없습니다</p>\
+                                    <p class="text-[11px] mt-1">파일을 추가하거나 드래그하여 가져오세요</p>\
+                                </div>\
+\
+                                <div v-else-if="viewMode === \'grid\'" class="asset-grid view-grid" :style="gridStyle">\
+                                    <div\
+                                        v-for="asset in filteredAssets"\
+                                        :key="asset.id"\
+                                        class="asset-card"\
+                                        :class="{ \'selected\': isAssetSelected(asset.id) }"\
+                                        @click.stop="selectAsset($event, asset)"\
+                                        @dblclick.stop="useAsset(asset)"\
+                                        draggable="true"\
+                                        @dragstart="onAssetDragStart($event, asset)"\
+                                        @dragend="onDragEnd"\
+                                    >\
+                                        <div class="asset-thumbnail">\
+                                            <template v-if="assetType === \'video\'">\
+                                                <video \
+                                                    v-if="previewEnabled && asset.src" \
+                                                    :src="asset.src" \
+                                                    class="w-full h-full object-cover" \
+                                                    muted \
+                                                    loop \
+                                                    @mouseenter="$event.target.play()" \
+                                                    @mouseleave="$event.target.pause(); $event.target.currentTime = 0;"\
+                                                ></video>\
+                                                <div v-else class="asset-thumbnail-placeholder">\
+                                                    <i class="fa-solid fa-film asset-thumbnail-icon-center"></i>\
                                                 </div>\
-                                                <i class="fa-solid fa-play asset-thumbnail-icon-center"></i>\
-                                            </div>\
-                                        </template>\
-                                    </div>\
-                                    <div class="asset-info">\
-                                        <div class="asset-name">{{ asset.name }}</div>\
-                                        <div class="asset-meta">{{ asset.duration || \'\' }}<span v-if="asset.resolution"> - {{ asset.resolution }}</span></div>\
+                                            </template>\
+                                            <template v-else-if="assetType === \'sound\'">\
+                                                <div class="asset-thumbnail-placeholder sound" @click.stop="toggleAudioPreview(asset)">\
+                                                    <div class="flex items-end gap-0.5 h-8">\
+                                                        <div v-for="i in 5" :key="i" class="w-1 bg-ui-accent rounded-t" :style="{ height: (20 + Math.random() * 60) + \'%\' }"></div>\
+                                                    </div>\
+                                                    <i class="fa-solid fa-play asset-thumbnail-icon-center"></i>\
+                                                </div>\
+                                            </template>\
+                                        </div>\
+                                        <div class="asset-info">\
+                                            <div class="asset-name">{{ asset.name }}</div>\
+                                            <div class="asset-meta">{{ asset.duration || \'\' }}<span v-if="asset.resolution"> - {{ asset.resolution }}</span></div>\
+                                        </div>\
                                     </div>\
                                 </div>\
-                            </div>\
 \
-                            <div v-else class="asset-grid view-list">\
-                                <div\
-                                    v-for="asset in filteredAssets"\
-                                    :key="asset.id"\
-                                    class="asset-card"\
-                                    :class="{ \'selected\': isAssetSelected(asset.id) }"\
-                                    @click="selectAsset($event, asset)"\
-                                    @dblclick="useAsset(asset)"\
-                                    draggable="true"\
-                                    @dragstart="onAssetDragStart($event, asset)"\
-                                    @dragend="onDragEnd"\
-                                >\
-                                    <div class="asset-thumbnail">\
-                                        <i :class="assetTypeIcon" class="asset-thumbnail-icon-center"></i>\
-                                    </div>\
-                                    <div class="asset-info">\
-                                        <div class="flex-1">\
-                                            <div class="asset-name">{{ asset.name }}</div>\
-                                            <div class="asset-meta">{{ asset.duration || \'\' }}</div>\
+                                <div v-else class="asset-grid view-list">\
+                                    <div\
+                                        v-for="asset in filteredAssets"\
+                                        :key="asset.id"\
+                                        class="asset-card"\
+                                        :class="{ \'selected\': isAssetSelected(asset.id) }"\
+                                        @click.stop="selectAsset($event, asset)"\
+                                        @dblclick.stop="useAsset(asset)"\
+                                        draggable="true"\
+                                        @dragstart="onAssetDragStart($event, asset)"\
+                                        @dragend="onDragEnd"\
+                                    >\
+                                        <div class="asset-thumbnail">\
+                                            <i :class="assetTypeIcon" class="asset-thumbnail-icon-center"></i>\
                                         </div>\
-                                        <div class="text-[10px] text-text-sub">{{ asset.resolution || \'\' }}</div>\
+                                        <div class="asset-info">\
+                                            <div class="flex-1">\
+                                                <div class="asset-name">{{ asset.name }}</div>\
+                                                <div class="asset-meta">{{ asset.duration || \'\' }}</div>\
+                                            </div>\
+                                            <div class="text-[10px] text-text-sub">{{ asset.resolution || \'\' }}</div>\
+                                        </div>\
                                     </div>\
                                 </div>\
                             </div>\
                         </div>\
                     </div>\
-                </div>\
 \
-                <div class="px-4 py-2 border-t border-ui-border bg-bg-panel flex justify-between items-center text-[11px] rounded-b-lg">\
-                    <div class="text-text-sub">\
-                        <span v-if="selectedAssetIds.length > 0">{{ selectedAssetIds.length }}개 선택됨 - 드래그하여 타임라인에 추가</span>\
-                        <span v-else>{{ currentFolderName }}</span>\
+                    <div class="px-4 py-2 border-t border-ui-border bg-bg-panel flex justify-between items-center text-[11px] rounded-b-lg">\
+                        <div class="text-text-sub">\
+                            <span v-if="selectedAssetIds.length > 0">{{ selectedAssetIds.length }}개 선택됨 - 드래그하여 타임라인에 추가</span>\
+                            <span v-else>{{ currentFolderName }}</span>\
+                        </div>\
+                        <div class="flex items-center gap-2">\
+                            <button v-if="selectedAssetIds.length > 0" class="px-3 py-1 bg-ui-accent text-white rounded hover:bg-blue-600 transition-colors" @click.stop="useSelectedAssets">사용</button>\
+                            <button class="px-3 py-1 bg-bg-input border border-ui-border text-text-sub rounded hover:bg-bg-hover transition-colors" @click.stop="$emit(\'close\')">닫기</button>\
+                        </div>\
                     </div>\
-                    <div class="flex items-center gap-2">\
-                        <button v-if="selectedAssetIds.length > 0" class="px-3 py-1 bg-ui-accent text-white rounded hover:bg-blue-600 transition-colors" @click="useSelectedAssets">사용</button>\
-                        <button class="px-3 py-1 bg-bg-input border border-ui-border text-text-sub rounded hover:bg-bg-hover transition-colors" @click="$emit(\'close\')">닫기</button>\
-                    </div>\
-                </div>\
+                </template>\
             </div>\
         </div>\
     ',
@@ -240,6 +247,11 @@ var AssetManagerModal = {
             height: 600,
             minWidth: 500,
             minHeight: 350,
+            minimizedWidth: 280,
+            minimizedHeight: 45,
+            prevWidth: 900,
+            prevHeight: 600,
+            isMinimized: false,
             dragging: false,
             dragStartMouseX: 0,
             dragStartMouseY: 0,
@@ -289,8 +301,8 @@ var AssetManagerModal = {
                 position: 'absolute',
                 left: this.posX + 'px',
                 top: this.posY + 'px',
-                width: this.width + 'px',
-                height: this.height + 'px'
+                width: (this.isMinimized ? this.minimizedWidth : this.width) + 'px',
+                height: (this.isMinimized ? this.minimizedHeight : this.height) + 'px'
             };
         },
         gridStyle: function() {
@@ -357,7 +369,38 @@ var AssetManagerModal = {
             this.posX = Math.max(20, (vw - this.width) / 2);
             this.posY = Math.max(20, (vh - this.height) / 2);
         },
+        clampPosition: function() {
+            var vw = window.innerWidth || 1280;
+            var vh = window.innerHeight || 720;
+            var w = this.isMinimized ? this.minimizedWidth : this.width;
+            var h = this.isMinimized ? this.minimizedHeight : this.height;
+            var minVisible = 100;
+            if (this.posX < -w + minVisible) this.posX = -w + minVisible;
+            if (this.posX > vw - minVisible) this.posX = vw - minVisible;
+            if (this.posY < 0) this.posY = 0;
+            if (this.posY > vh - minVisible) this.posY = vh - minVisible;
+        },
+        toggleMinimize: function() {
+            if (this.isMinimized) {
+                this.isMinimized = false;
+                this.width = this.prevWidth;
+                this.height = this.prevHeight;
+            } else {
+                this.prevWidth = this.width;
+                this.prevHeight = this.height;
+                this.isMinimized = true;
+            }
+            this.clampPosition();
+        },
+        onWindowMouseDown: function(e) {
+            if (e.target.closest('input, button, select, .asset-card, .folder-drop-zone, .modal-resize-handle')) return;
+            this.startDrag(e);
+        },
         onHeaderMouseDown: function(e) {
+            if (e.target.closest('button')) return;
+            this.startDrag(e);
+        },
+        startDrag: function(e) {
             this.dragging = true;
             this.dragStartMouseX = e.clientX;
             this.dragStartMouseY = e.clientY;
@@ -365,6 +408,7 @@ var AssetManagerModal = {
             this.dragStartPosY = this.posY;
         },
         startResize: function(e, dir) {
+            if (this.isMinimized) return;
             e.preventDefault();
             e.stopPropagation();
             this.resizing = true;
@@ -380,6 +424,7 @@ var AssetManagerModal = {
             if (this.dragging) {
                 this.posX = this.dragStartPosX + (e.clientX - this.dragStartMouseX);
                 this.posY = this.dragStartPosY + (e.clientY - this.dragStartMouseY);
+                this.clampPosition();
             }
             if (this.resizing) {
                 var dx = e.clientX - this.resizeStartX;
@@ -428,6 +473,22 @@ var AssetManagerModal = {
                 } else {
                     this.selectedAssetIds.push(asset.id);
                 }
+            } else if (e.shiftKey && this.selectedAssetIds.length > 0) {
+                var lastId = this.selectedAssetIds[this.selectedAssetIds.length - 1];
+                var assets = this.filteredAssets;
+                var lastIdx = -1, curIdx = -1;
+                for (var i = 0; i < assets.length; i++) {
+                    if (assets[i].id === lastId) lastIdx = i;
+                    if (assets[i].id === asset.id) curIdx = i;
+                }
+                if (lastIdx >= 0 && curIdx >= 0) {
+                    var minIdx = Math.min(lastIdx, curIdx);
+                    var maxIdx = Math.max(lastIdx, curIdx);
+                    this.selectedAssetIds = [];
+                    for (var j = minIdx; j <= maxIdx; j++) {
+                        this.selectedAssetIds.push(assets[j].id);
+                    }
+                }
             } else {
                 this.selectedAssetIds = [asset.id];
             }
@@ -443,7 +504,6 @@ var AssetManagerModal = {
                 timer: 1500,
                 showConfirmButton: false
             });
-            this.$emit('close');
         },
         useSelectedAssets: function() {
             var self = this;
@@ -462,7 +522,6 @@ var AssetManagerModal = {
                     timer: 1500,
                     showConfirmButton: false
                 });
-                this.$emit('close');
             }
         },
         addAsset: function() {
