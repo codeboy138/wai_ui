@@ -2,6 +2,7 @@
 // - 좌측: API 종류 선택
 // - 우측: 시트 형식 API 키 관리 (CRUD + 대량 붙여넣기)
 // - 리사이징 핸들: 모서리/변 드래그로 크기 조절
+// - 최소화 지원
 
 const ApiManagerModal = {
     emits: ['close'],
@@ -16,7 +17,7 @@ const ApiManagerModal = {
                 id="api-manager-modal-window"
                 class="api-manager-window bg-bg-panel border border-ui-border rounded-lg shadow-2xl text-[12px] text-text-main flex flex-col"
                 :style="windowStyle"
-                @mousedown.stop
+                @mousedown="onWindowMouseDown"
             >
                 <!-- 리사이징 핸들 -->
                 <div class="resize-handle resize-n" @mousedown.stop.prevent="onResizeStart($event, 'n')"></div>
@@ -31,286 +32,301 @@ const ApiManagerModal = {
                 <!-- 헤더 -->
                 <div
                     id="api-manager-modal-header"
-                    class="flex items-center justify-between px-4 py-3 border-b border-ui-border bg-bg-hover cursor-move rounded-t-lg"
-                    @mousedown.stop.prevent="onHeaderMouseDown"
+                    class="flex items-center justify-between px-4 py-2 border-b border-ui-border bg-bg-hover rounded-t-lg"
+                    :class="isMinimized ? 'cursor-pointer' : 'cursor-move'"
+                    @mousedown.stop="onHeaderMouseDown"
+                    @dblclick="toggleMinimize"
                 >
                     <div class="flex items-center gap-3">
                         <i class="fa-solid fa-key text-ui-accent"></i>
                         <span class="text-[14px] font-bold">API 관리</span>
                     </div>
-                    <button class="text-[14px] text-text-sub hover:text-white w-8 h-8 flex items-center justify-center rounded hover:bg-ui-danger transition-colors" @click.stop="$emit('close')">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
+                    <div class="flex items-center gap-1">
+                        <button class="text-[14px] text-text-sub hover:text-white w-7 h-7 flex items-center justify-center rounded hover:bg-bg-input transition-colors" @click.stop="toggleMinimize" :title="isMinimized ? '확장' : '최소화'">
+                            <i :class="isMinimized ? 'fa-solid fa-expand' : 'fa-solid fa-minus'"></i>
+                        </button>
+                        <button class="text-[14px] text-text-sub hover:text-white w-7 h-7 flex items-center justify-center rounded hover:bg-ui-danger transition-colors" @click.stop="$emit('close')">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
                 </div>
 
-                <!-- 메인 컨텐츠 -->
-                <div class="flex-1 flex overflow-hidden">
-                    <!-- 좌측: API 종류 -->
-                    <div class="w-48 border-r border-ui-border bg-bg-dark flex flex-col shrink-0">
-                        <div class="p-3 border-b border-ui-border bg-bg-panel">
-                            <span class="text-[11px] text-text-sub font-bold">API 종류</span>
-                        </div>
-                        <div class="flex-1 overflow-auto p-2 space-y-1">
-                            <div
-                                v-for="service in services"
-                                :key="service.id"
-                                class="flex items-center gap-2 px-3 py-2 rounded cursor-pointer transition-colors"
-                                :class="currentService === service.id ? 'bg-ui-accent text-white' : 'hover:bg-bg-hover text-text-sub'"
-                                @click="selectService(service.id)"
-                            >
-                                <i :class="service.icon" class="w-4 text-center"></i>
-                                <span class="flex-1 text-[11px]">{{ service.label }}</span>
-                                <span class="text-[10px] px-1.5 py-0.5 rounded" :class="currentService === service.id ? 'bg-white/20' : 'bg-bg-panel'">
-                                    {{ getServiceCount(service.id) }}
-                                </span>
+                <template v-if="!isMinimized">
+                    <!-- 메인 컨텐츠 -->
+                    <div class="flex-1 flex overflow-hidden">
+                        <!-- 좌측: API 종류 -->
+                        <div class="w-48 border-r border-ui-border bg-bg-dark flex flex-col shrink-0">
+                            <div class="p-3 border-b border-ui-border bg-bg-panel">
+                                <span class="text-[11px] text-text-sub font-bold">API 종류</span>
                             </div>
-                        </div>
-                        <div class="p-2 border-t border-ui-border">
-                            <button 
-                                class="w-full px-3 py-2 text-[11px] bg-bg-input border border-ui-border rounded hover:bg-bg-hover transition-colors flex items-center justify-center gap-2"
-                                @click="openAddServiceModal"
-                            >
-                                <i class="fa-solid fa-plus"></i> API 종류 추가
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- 우측: API 키 시트 -->
-                    <div class="flex-1 flex flex-col bg-bg-dark overflow-hidden">
-                        <!-- 툴바 -->
-                        <div class="flex items-center justify-between px-3 py-2 border-b border-ui-border bg-bg-panel gap-2">
-                            <div class="flex items-center gap-2">
-                                <button 
-                                    class="px-3 py-1.5 text-[11px] bg-ui-accent text-white rounded hover:bg-blue-600 transition-colors flex items-center gap-1"
-                                    @click="addNewKey"
+                            <div class="flex-1 overflow-auto p-2 space-y-1">
+                                <div
+                                    v-for="service in services"
+                                    :key="service.id"
+                                    class="flex items-center gap-2 px-3 py-2 rounded cursor-pointer transition-colors"
+                                    :class="currentService === service.id ? 'bg-ui-accent text-white' : 'hover:bg-bg-hover text-text-sub'"
+                                    @click="selectService(service.id)"
                                 >
-                                    <i class="fa-solid fa-plus"></i> 추가
-                                </button>
-                                <button 
-                                    class="px-3 py-1.5 text-[11px] bg-bg-input border border-ui-border rounded hover:bg-bg-hover transition-colors flex items-center gap-1"
-                                    @click="openBulkPasteModal"
-                                >
-                                    <i class="fa-solid fa-paste"></i> 붙여넣기
-                                </button>
-                                <button 
-                                    class="px-3 py-1.5 text-[11px] bg-bg-input border border-ui-border rounded hover:bg-bg-hover transition-colors flex items-center gap-1"
-                                    @click="exportKeys"
-                                >
-                                    <i class="fa-solid fa-download"></i> 내보내기
-                                </button>
-                                <button 
-                                    class="px-3 py-1.5 text-[11px] bg-bg-input border border-ui-border rounded hover:bg-bg-hover transition-colors flex items-center gap-1"
-                                    :class="{ 'text-ui-accent': showMasked }"
-                                    @click="showMasked = !showMasked"
-                                >
-                                    <i :class="showMasked ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'"></i>
-                                </button>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <div class="relative">
-                                    <input 
-                                        type="text" 
-                                        v-model="searchQuery"
-                                        class="w-48 h-7 bg-bg-input border border-ui-border rounded pl-8 pr-3 text-[11px] focus:border-ui-accent focus:outline-none"
-                                        placeholder="검색..."
-                                    />
-                                    <i class="fa-solid fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-text-sub text-[10px]"></i>
+                                    <i :class="service.icon" class="w-4 text-center"></i>
+                                    <span class="flex-1 text-[11px]">{{ service.label }}</span>
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded" :class="currentService === service.id ? 'bg-white/20' : 'bg-bg-panel'">
+                                        {{ getServiceCount(service.id) }}
+                                    </span>
                                 </div>
-                                <select 
-                                    v-model="statusFilter"
-                                    class="h-7 bg-bg-input border border-ui-border rounded px-2 text-[11px] focus:border-ui-accent focus:outline-none"
+                            </div>
+                            <div class="p-2 border-t border-ui-border">
+                                <button 
+                                    class="w-full px-3 py-2 text-[11px] bg-bg-input border border-ui-border rounded hover:bg-bg-hover transition-colors flex items-center justify-center gap-2"
+                                    @click="openAddServiceModal"
                                 >
-                                    <option value="all">전체 상태</option>
-                                    <option value="active">활성</option>
-                                    <option value="standby">대기</option>
-                                    <option value="error">오류</option>
-                                </select>
+                                    <i class="fa-solid fa-plus"></i> API 종류 추가
+                                </button>
                             </div>
                         </div>
 
-                        <!-- 시트 헤더 -->
-                        <div class="flex items-center bg-bg-panel border-b border-ui-border text-[10px] text-text-sub font-bold">
-                            <div class="w-10 h-8 flex items-center justify-center border-r border-ui-border">
-                                <input 
-                                    type="checkbox" 
-                                    class="w-3 h-3"
-                                    :checked="isAllSelected"
-                                    @change="toggleSelectAll"
-                                />
+                        <!-- 우측: API 키 시트 -->
+                        <div class="flex-1 flex flex-col bg-bg-dark overflow-hidden">
+                            <!-- 툴바 -->
+                            <div class="flex items-center justify-between px-3 py-2 border-b border-ui-border bg-bg-panel gap-2">
+                                <div class="flex items-center gap-2">
+                                    <button 
+                                        class="px-3 py-1.5 text-[11px] bg-ui-accent text-white rounded hover:bg-blue-600 transition-colors flex items-center gap-1"
+                                        @click="addNewKey"
+                                    >
+                                        <i class="fa-solid fa-plus"></i> 추가
+                                    </button>
+                                    <button 
+                                        class="px-3 py-1.5 text-[11px] bg-bg-input border border-ui-border rounded hover:bg-bg-hover transition-colors flex items-center gap-1"
+                                        @click="openBulkPasteModal"
+                                    >
+                                        <i class="fa-solid fa-paste"></i> 붙여넣기
+                                    </button>
+                                    <button 
+                                        class="px-3 py-1.5 text-[11px] bg-bg-input border border-ui-border rounded hover:bg-bg-hover transition-colors flex items-center gap-1"
+                                        @click="exportKeys"
+                                    >
+                                        <i class="fa-solid fa-download"></i> 내보내기
+                                    </button>
+                                    <button 
+                                        class="px-3 py-1.5 text-[11px] bg-bg-input border border-ui-border rounded hover:bg-bg-hover transition-colors flex items-center gap-1"
+                                        :class="{ 'text-ui-accent': showMasked }"
+                                        @click="showMasked = !showMasked"
+                                    >
+                                        <i :class="showMasked ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'"></i>
+                                    </button>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <div class="relative">
+                                        <input 
+                                            type="text" 
+                                            v-model="searchQuery"
+                                            class="w-48 h-7 bg-bg-input border border-ui-border rounded pl-8 pr-3 text-[11px] focus:border-ui-accent focus:outline-none"
+                                            placeholder="검색..."
+                                            @mousedown.stop
+                                        />
+                                        <i class="fa-solid fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-text-sub text-[10px]"></i>
+                                    </div>
+                                    <select 
+                                        v-model="statusFilter"
+                                        class="h-7 bg-bg-input border border-ui-border rounded px-2 text-[11px] focus:border-ui-accent focus:outline-none"
+                                        @mousedown.stop
+                                    >
+                                        <option value="all">전체 상태</option>
+                                        <option value="active">활성</option>
+                                        <option value="standby">대기</option>
+                                        <option value="error">오류</option>
+                                    </select>
+                                </div>
                             </div>
-                            <div class="w-16 h-8 flex items-center justify-center border-r border-ui-border">상태</div>
-                            <div class="w-20 h-8 flex items-center justify-center border-r border-ui-border">사용량</div>
-                            <div class="w-28 h-8 flex items-center px-2 border-r border-ui-border">계정명</div>
-                            <div class="w-28 h-8 flex items-center px-2 border-r border-ui-border">키이름</div>
-                            <div class="flex-1 h-8 flex items-center px-2 border-r border-ui-border">API KEY</div>
-                            <div class="w-32 h-8 flex items-center px-2 border-r border-ui-border">메모</div>
-                            <div class="w-24 h-8 flex items-center justify-center">작업</div>
-                        </div>
 
-                        <!-- 시트 바디 -->
-                        <div class="flex-1 overflow-auto">
-                            <div v-if="filteredKeys.length === 0" class="flex flex-col items-center justify-center h-full text-text-sub opacity-50">
-                                <i class="fa-solid fa-key text-3xl mb-3"></i>
-                                <p class="text-[12px]">등록된 API 키가 없습니다</p>
-                                <p class="text-[10px] mt-1">위의 '추가' 또는 '붙여넣기' 버튼을 사용하세요</p>
-                            </div>
-                            
-                            <div 
-                                v-for="(key, index) in filteredKeys" 
-                                :key="key.id"
-                                class="flex items-center border-b border-ui-border hover:bg-bg-hover/50 transition-colors"
-                                :class="{ 'bg-ui-accent/10': selectedKeys.includes(key.id) }"
-                            >
-                                <!-- 체크박스 -->
-                                <div class="w-10 h-10 flex items-center justify-center border-r border-ui-border">
+                            <!-- 시트 헤더 -->
+                            <div class="flex items-center bg-bg-panel border-b border-ui-border text-[10px] text-text-sub font-bold">
+                                <div class="w-10 h-8 flex items-center justify-center border-r border-ui-border">
                                     <input 
                                         type="checkbox" 
                                         class="w-3 h-3"
-                                        :checked="selectedKeys.includes(key.id)"
-                                        @change="toggleSelect(key.id)"
+                                        :checked="isAllSelected"
+                                        @change="toggleSelectAll"
                                     />
                                 </div>
-                                
-                                <!-- 상태 -->
-                                <div class="w-16 h-10 flex items-center justify-center border-r border-ui-border">
-                                    <button 
-                                        class="w-6 h-6 rounded-full flex items-center justify-center transition-colors"
-                                        :class="getStatusButtonClass(key.status)"
-                                        @click="cycleStatus(key)"
-                                        :title="getStatusTitle(key.status)"
-                                    >
-                                        <i :class="getStatusIcon(key.status)" class="text-[10px]"></i>
-                                    </button>
+                                <div class="w-16 h-8 flex items-center justify-center border-r border-ui-border">상태</div>
+                                <div class="w-20 h-8 flex items-center justify-center border-r border-ui-border">사용량</div>
+                                <div class="w-28 h-8 flex items-center px-2 border-r border-ui-border">계정명</div>
+                                <div class="w-28 h-8 flex items-center px-2 border-r border-ui-border">키이름</div>
+                                <div class="flex-1 h-8 flex items-center px-2 border-r border-ui-border">API KEY</div>
+                                <div class="w-32 h-8 flex items-center px-2 border-r border-ui-border">메모</div>
+                                <div class="w-24 h-8 flex items-center justify-center">작업</div>
+                            </div>
+
+                            <!-- 시트 바디 -->
+                            <div class="flex-1 overflow-auto">
+                                <div v-if="filteredKeys.length === 0" class="flex flex-col items-center justify-center h-full text-text-sub opacity-50">
+                                    <i class="fa-solid fa-key text-3xl mb-3"></i>
+                                    <p class="text-[12px]">등록된 API 키가 없습니다</p>
+                                    <p class="text-[10px] mt-1">위의 '추가' 또는 '붙여넣기' 버튼을 사용하세요</p>
                                 </div>
                                 
-                                <!-- 사용량 -->
-                                <div class="w-20 h-10 flex items-center justify-center border-r border-ui-border">
-                                    <div class="w-14 h-2 bg-bg-input rounded-full overflow-hidden" :title="key.usage + '/' + key.quota">
-                                        <div 
-                                            class="h-full transition-all"
-                                            :class="getUsageBarClass(key)"
-                                            :style="{ width: getUsagePercent(key) + '%' }"
-                                        ></div>
+                                <div 
+                                    v-for="(key, index) in filteredKeys" 
+                                    :key="key.id"
+                                    class="flex items-center border-b border-ui-border hover:bg-bg-hover/50 transition-colors"
+                                    :class="{ 'bg-ui-accent/10': selectedKeys.includes(key.id) }"
+                                >
+                                    <!-- 체크박스 -->
+                                    <div class="w-10 h-10 flex items-center justify-center border-r border-ui-border">
+                                        <input 
+                                            type="checkbox" 
+                                            class="w-3 h-3"
+                                            :checked="selectedKeys.includes(key.id)"
+                                            @change="toggleSelect(key.id)"
+                                        />
                                     </div>
-                                    <span class="text-[9px] text-text-sub ml-1">{{ getUsagePercent(key) }}%</span>
+                                    
+                                    <!-- 상태 -->
+                                    <div class="w-16 h-10 flex items-center justify-center border-r border-ui-border">
+                                        <button 
+                                            class="w-6 h-6 rounded-full flex items-center justify-center transition-colors"
+                                            :class="getStatusButtonClass(key.status)"
+                                            @click="cycleStatus(key)"
+                                            :title="getStatusTitle(key.status)"
+                                        >
+                                            <i :class="getStatusIcon(key.status)" class="text-[10px]"></i>
+                                        </button>
+                                    </div>
+                                    
+                                    <!-- 사용량 -->
+                                    <div class="w-20 h-10 flex items-center justify-center border-r border-ui-border">
+                                        <div class="w-14 h-2 bg-bg-input rounded-full overflow-hidden" :title="key.usage + '/' + key.quota">
+                                            <div 
+                                                class="h-full transition-all"
+                                                :class="getUsageBarClass(key)"
+                                                :style="{ width: getUsagePercent(key) + '%' }"
+                                            ></div>
+                                        </div>
+                                        <span class="text-[9px] text-text-sub ml-1">{{ getUsagePercent(key) }}%</span>
+                                    </div>
+                                    
+                                    <!-- 계정명 -->
+                                    <div class="w-28 h-10 flex items-center border-r border-ui-border px-1">
+                                        <input 
+                                            type="text"
+                                            class="w-full h-7 bg-transparent border border-transparent hover:border-ui-border focus:border-ui-accent focus:bg-bg-input rounded px-1 text-[11px] transition-colors"
+                                            v-model="key.accountName"
+                                            @blur="saveKey(key)"
+                                            @mousedown.stop
+                                        />
+                                    </div>
+                                    
+                                    <!-- 키이름 -->
+                                    <div class="w-28 h-10 flex items-center border-r border-ui-border px-1">
+                                        <input 
+                                            type="text"
+                                            class="w-full h-7 bg-transparent border border-transparent hover:border-ui-border focus:border-ui-accent focus:bg-bg-input rounded px-1 text-[11px] transition-colors"
+                                            v-model="key.keyName"
+                                            @blur="saveKey(key)"
+                                            @mousedown.stop
+                                        />
+                                    </div>
+                                    
+                                    <!-- API KEY -->
+                                    <div class="flex-1 h-10 flex items-center border-r border-ui-border px-1">
+                                        <input 
+                                            :type="showMasked ? 'password' : 'text'"
+                                            class="w-full h-7 bg-transparent border border-transparent hover:border-ui-border focus:border-ui-accent focus:bg-bg-input rounded px-1 text-[11px] font-mono transition-colors"
+                                            v-model="key.apiKey"
+                                            @blur="saveKey(key)"
+                                            @mousedown.stop
+                                        />
+                                    </div>
+                                    
+                                    <!-- 메모 -->
+                                    <div class="w-32 h-10 flex items-center border-r border-ui-border px-1">
+                                        <input 
+                                            type="text"
+                                            class="w-full h-7 bg-transparent border border-transparent hover:border-ui-border focus:border-ui-accent focus:bg-bg-input rounded px-1 text-[11px] transition-colors"
+                                            v-model="key.memo"
+                                            placeholder="메모..."
+                                            @blur="saveKey(key)"
+                                            @mousedown.stop
+                                        />
+                                    </div>
+                                    
+                                    <!-- 작업 -->
+                                    <div class="w-24 h-10 flex items-center justify-center gap-1">
+                                        <button 
+                                            class="w-6 h-6 rounded flex items-center justify-center text-text-sub hover:text-ui-accent hover:bg-bg-hover transition-colors"
+                                            @click="testKey(key)"
+                                            title="연결 테스트"
+                                        >
+                                            <i class="fa-solid fa-plug text-[10px]"></i>
+                                        </button>
+                                        <button 
+                                            class="w-6 h-6 rounded flex items-center justify-center text-text-sub hover:text-white hover:bg-bg-hover transition-colors"
+                                            @click="copyKey(key)"
+                                            title="키 복사"
+                                        >
+                                            <i class="fa-solid fa-copy text-[10px]"></i>
+                                        </button>
+                                        <button 
+                                            class="w-6 h-6 rounded flex items-center justify-center text-text-sub hover:text-ui-danger hover:bg-bg-hover transition-colors"
+                                            @click="deleteKey(key)"
+                                            title="삭제"
+                                        >
+                                            <i class="fa-solid fa-trash text-[10px]"></i>
+                                        </button>
+                                    </div>
                                 </div>
-                                
-                                <!-- 계정명 -->
-                                <div class="w-28 h-10 flex items-center border-r border-ui-border px-1">
-                                    <input 
-                                        type="text"
-                                        class="w-full h-7 bg-transparent border border-transparent hover:border-ui-border focus:border-ui-accent focus:bg-bg-input rounded px-1 text-[11px] transition-colors"
-                                        v-model="key.accountName"
-                                        @blur="saveKey(key)"
-                                    />
-                                </div>
-                                
-                                <!-- 키이름 -->
-                                <div class="w-28 h-10 flex items-center border-r border-ui-border px-1">
-                                    <input 
-                                        type="text"
-                                        class="w-full h-7 bg-transparent border border-transparent hover:border-ui-border focus:border-ui-accent focus:bg-bg-input rounded px-1 text-[11px] transition-colors"
-                                        v-model="key.keyName"
-                                        @blur="saveKey(key)"
-                                    />
-                                </div>
-                                
-                                <!-- API KEY -->
-                                <div class="flex-1 h-10 flex items-center border-r border-ui-border px-1">
-                                    <input 
-                                        :type="showMasked ? 'password' : 'text'"
-                                        class="w-full h-7 bg-transparent border border-transparent hover:border-ui-border focus:border-ui-accent focus:bg-bg-input rounded px-1 text-[11px] font-mono transition-colors"
-                                        v-model="key.apiKey"
-                                        @blur="saveKey(key)"
-                                    />
-                                </div>
-                                
-                                <!-- 메모 -->
-                                <div class="w-32 h-10 flex items-center border-r border-ui-border px-1">
-                                    <input 
-                                        type="text"
-                                        class="w-full h-7 bg-transparent border border-transparent hover:border-ui-border focus:border-ui-accent focus:bg-bg-input rounded px-1 text-[11px] transition-colors"
-                                        v-model="key.memo"
-                                        placeholder="메모..."
-                                        @blur="saveKey(key)"
-                                    />
-                                </div>
-                                
-                                <!-- 작업 -->
-                                <div class="w-24 h-10 flex items-center justify-center gap-1">
+                            </div>
+
+                            <!-- 선택 항목 액션 바 -->
+                            <div v-if="selectedKeys.length > 0" class="flex items-center justify-between px-3 py-2 border-t border-ui-border bg-bg-panel">
+                                <span class="text-[11px] text-text-sub">{{ selectedKeys.length }}개 선택됨</span>
+                                <div class="flex items-center gap-2">
                                     <button 
-                                        class="w-6 h-6 rounded flex items-center justify-center text-text-sub hover:text-ui-accent hover:bg-bg-hover transition-colors"
-                                        @click="testKey(key)"
-                                        title="연결 테스트"
+                                        class="px-3 py-1 text-[11px] bg-ui-success text-white rounded hover:bg-green-600 transition-colors"
+                                        @click="activateSelected"
                                     >
-                                        <i class="fa-solid fa-plug text-[10px]"></i>
+                                        활성화
                                     </button>
                                     <button 
-                                        class="w-6 h-6 rounded flex items-center justify-center text-text-sub hover:text-white hover:bg-bg-hover transition-colors"
-                                        @click="copyKey(key)"
-                                        title="키 복사"
+                                        class="px-3 py-1 text-[11px] bg-bg-input border border-ui-border rounded hover:bg-bg-hover transition-colors"
+                                        @click="testSelected"
                                     >
-                                        <i class="fa-solid fa-copy text-[10px]"></i>
+                                        일괄 테스트
                                     </button>
                                     <button 
-                                        class="w-6 h-6 rounded flex items-center justify-center text-text-sub hover:text-ui-danger hover:bg-bg-hover transition-colors"
-                                        @click="deleteKey(key)"
-                                        title="삭제"
+                                        class="px-3 py-1 text-[11px] bg-ui-danger text-white rounded hover:bg-red-600 transition-colors"
+                                        @click="deleteSelected"
                                     >
-                                        <i class="fa-solid fa-trash text-[10px]"></i>
+                                        삭제
                                     </button>
                                 </div>
                             </div>
                         </div>
+                    </div>
 
-                        <!-- 선택 항목 액션 바 -->
-                        <div v-if="selectedKeys.length > 0" class="flex items-center justify-between px-3 py-2 border-t border-ui-border bg-bg-panel">
-                            <span class="text-[11px] text-text-sub">{{ selectedKeys.length }}개 선택됨</span>
-                            <div class="flex items-center gap-2">
-                                <button 
-                                    class="px-3 py-1 text-[11px] bg-ui-success text-white rounded hover:bg-green-600 transition-colors"
-                                    @click="activateSelected"
+                    <!-- 상태바 -->
+                    <div class="px-4 py-2 border-t border-ui-border bg-bg-panel flex justify-between items-center text-[11px] rounded-b-lg">
+                        <div class="flex items-center gap-4 text-text-sub">
+                            <span>총 <span class="text-text-main font-bold">{{ currentServiceKeys.length }}</span>개 API 키</span>
+                            <span>활성 <span class="text-ui-success font-bold">{{ activeCount }}</span>개</span>
+                            <span v-if="autoRotation" class="text-ui-accent"><i class="fa-solid fa-sync mr-1"></i>자동 순환</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <span class="text-text-sub">자동 순환</span>
+                                <button
+                                    class="w-10 h-5 rounded-full transition-colors relative"
+                                    :class="autoRotation ? 'bg-ui-accent' : 'bg-ui-border'"
+                                    @click="autoRotation = !autoRotation"
                                 >
-                                    활성화
+                                    <span class="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform" :class="autoRotation ? 'left-5' : 'left-0.5'"></span>
                                 </button>
-                                <button 
-                                    class="px-3 py-1 text-[11px] bg-bg-input border border-ui-border rounded hover:bg-bg-hover transition-colors"
-                                    @click="testSelected"
-                                >
-                                    일괄 테스트
-                                </button>
-                                <button 
-                                    class="px-3 py-1 text-[11px] bg-ui-danger text-white rounded hover:bg-red-600 transition-colors"
-                                    @click="deleteSelected"
-                                >
-                                    삭제
-                                </button>
-                            </div>
+                            </label>
+                            <button class="px-3 py-1 bg-bg-input border border-ui-border text-text-sub rounded hover:bg-bg-hover transition-colors ml-2" @click="$emit('close')">닫기</button>
                         </div>
                     </div>
-                </div>
-
-                <!-- 상태바 -->
-                <div class="px-4 py-2 border-t border-ui-border bg-bg-panel flex justify-between items-center text-[11px] rounded-b-lg">
-                    <div class="flex items-center gap-4 text-text-sub">
-                        <span>총 <span class="text-text-main font-bold">{{ currentServiceKeys.length }}</span>개 API 키</span>
-                        <span>활성 <span class="text-ui-success font-bold">{{ activeCount }}</span>개</span>
-                        <span v-if="autoRotation" class="text-ui-accent"><i class="fa-solid fa-sync mr-1"></i>자동 순환</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <span class="text-text-sub">자동 순환</span>
-                            <button
-                                class="w-10 h-5 rounded-full transition-colors relative"
-                                :class="autoRotation ? 'bg-ui-accent' : 'bg-ui-border'"
-                                @click="autoRotation = !autoRotation"
-                            >
-                                <span class="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform" :class="autoRotation ? 'left-5' : 'left-0.5'"></span>
-                            </button>
-                        </label>
-                        <button class="px-3 py-1 bg-bg-input border border-ui-border text-text-sub rounded hover:bg-bg-hover transition-colors ml-2" @click="$emit('close')">닫기</button>
-                    </div>
-                </div>
+                </template>
             </div>
 
             <!-- 대량 붙여넣기 모달 -->
@@ -345,6 +361,7 @@ const ApiManagerModal = {
                                 class="w-full h-48 bg-bg-input border border-ui-border rounded p-3 text-[11px] font-mono focus:border-ui-accent focus:outline-none resize-none"
                                 placeholder="엑셀이나 스프레드시트에서 복사한 데이터를 붙여넣으세요...&#10;&#10;예시 (계정명/키이름/API KEY):&#10;main	key1	AIzaSyB1234567890&#10;sub	key2	AIzaSyC0987654321"
                                 @paste="handleBulkPaste"
+                                @mousedown.stop
                             ></textarea>
                         </div>
                         <div v-if="bulkPasteModal.preview.length > 0" class="border border-ui-border rounded overflow-hidden">
@@ -396,6 +413,11 @@ const ApiManagerModal = {
             height: 650,
             minWidth: 700,
             minHeight: 400,
+            minimizedWidth: 280,
+            minimizedHeight: 45,
+            prevWidth: 1000,
+            prevHeight: 650,
+            isMinimized: false,
             dragging: false, 
             dragStartMouseX: 0, 
             dragStartMouseY: 0, 
@@ -457,8 +479,8 @@ const ApiManagerModal = {
                 position: 'absolute', 
                 left: this.posX + 'px', 
                 top: this.posY + 'px',
-                width: this.width + 'px',
-                height: this.height + 'px'
+                width: (this.isMinimized ? this.minimizedWidth : this.width) + 'px',
+                height: (this.isMinimized ? this.minimizedHeight : this.height) + 'px'
             }; 
         },
         currentServiceKeys() {
@@ -509,9 +531,40 @@ const ApiManagerModal = {
             this.posX = Math.max(20, (vw - this.width) / 2);
             this.posY = Math.max(20, (vh - this.height) / 2);
         },
+        clampPosition() {
+            const vw = window.innerWidth || 1280;
+            const vh = window.innerHeight || 720;
+            const w = this.isMinimized ? this.minimizedWidth : this.width;
+            const h = this.isMinimized ? this.minimizedHeight : this.height;
+            const minVisible = 100;
+            if (this.posX < -w + minVisible) this.posX = -w + minVisible;
+            if (this.posX > vw - minVisible) this.posX = vw - minVisible;
+            if (this.posY < 0) this.posY = 0;
+            if (this.posY > vh - minVisible) this.posY = vh - minVisible;
+        },
+        toggleMinimize() {
+            if (this.isMinimized) {
+                this.isMinimized = false;
+                this.width = this.prevWidth;
+                this.height = this.prevHeight;
+            } else {
+                this.prevWidth = this.width;
+                this.prevHeight = this.height;
+                this.isMinimized = true;
+            }
+            this.clampPosition();
+        },
         
-        // 헤더 드래그 시작
+        // 창 전체 드래그
+        onWindowMouseDown(e) {
+            if (e.target.closest('input, button, select, textarea, .resize-handle')) return;
+            this.startDrag(e);
+        },
         onHeaderMouseDown(e) {
+            if (e.target.closest('button')) return;
+            this.startDrag(e);
+        },
+        startDrag(e) {
             this.dragging = true;
             this.dragStartMouseX = e.clientX;
             this.dragStartMouseY = e.clientY;
@@ -521,6 +574,7 @@ const ApiManagerModal = {
         
         // 리사이징 시작
         onResizeStart(e, direction) {
+            if (this.isMinimized) return;
             this.resizing = true;
             this.resizeDirection = direction;
             this.resizeStartMouseX = e.clientX;
@@ -536,6 +590,7 @@ const ApiManagerModal = {
             if (this.dragging) {
                 this.posX = this.dragStartPosX + (e.clientX - this.dragStartMouseX);
                 this.posY = this.dragStartPosY + (e.clientY - this.dragStartMouseY);
+                this.clampPosition();
             } else if (this.resizing) {
                 const dx = e.clientX - this.resizeStartMouseX;
                 const dy = e.clientY - this.resizeStartMouseY;
