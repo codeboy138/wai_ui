@@ -6,7 +6,7 @@ const TimelinePanel = {
     template: `
         <div
             id="timeline-main-panel"
-            class="flex flex-col bg-bg-panel select-none"
+            class="flex flex-col bg-bg-panel select-none h-full"
             @wheel.prevent="handleWheel"
         >
             <!-- 타임라인 헤더 (항상 표시) -->
@@ -37,17 +37,29 @@ const TimelinePanel = {
                             <option value="9:16">9:16</option>
                             <option value="1:1">1:1</option>
                         </select>
-                        <select 
-                            class="timeline-select-no-arrow bg-bg-input border border-ui-border rounded px-2 py-0.5 text-text-main text-[10px]"
-                            :value="vm.resolution"
-                            @change="vm.setResolution($event.target.value)"
-                        >
-                            <option value="8K">8K</option>
-                            <option value="6K">6K</option>
-                            <option value="4K">4K</option>
-                            <option value="FHD">FHD</option>
-                            <option value="HD">HD</option>
-                        </select>
+                        <div class="relative resolution-dropdown-wrapper">
+                            <button 
+                                class="timeline-select-no-arrow bg-bg-input border border-ui-border rounded px-2 py-0.5 text-text-main text-[10px] min-w-[40px] text-left"
+                                @click="toggleResolutionDropdown"
+                            >
+                                {{ vm.resolution }}
+                            </button>
+                            <div 
+                                v-if="isResolutionDropdownOpen" 
+                                class="absolute top-full left-0 mt-1 bg-bg-panel border border-ui-border rounded shadow-lg z-50 min-w-[140px]"
+                            >
+                                <div 
+                                    v-for="opt in resolutionOptions" 
+                                    :key="opt.value"
+                                    class="px-3 py-1.5 text-[10px] text-text-main hover:bg-bg-hover cursor-pointer flex justify-between gap-4"
+                                    :class="{ 'bg-bg-hover': vm.resolution === opt.value }"
+                                    @click="selectResolution(opt.value)"
+                                >
+                                    <span>{{ opt.label }}</span>
+                                    <span class="text-text-sub">{{ opt.pixels }}</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
@@ -83,7 +95,7 @@ const TimelinePanel = {
                 </div>
             </div>
             
-            <div v-if="!vm.isTimelineCollapsed" id="timeline-scroll-container" class="flex-1 overflow-auto timeline-grid relative" :style="{ gridTemplateColumns: currentHeaderWidth + 'px 1fr' }">
+            <div v-if="!vm.isTimelineCollapsed" id="timeline-scroll-container" class="flex-grow overflow-auto timeline-grid relative min-h-0" :style="{ gridTemplateColumns: currentHeaderWidth + 'px 1fr' }">
                 <div class="sticky-col bg-bg-panel border-r border-ui-border relative" style="z-index: 30;">
                     <div class="h-6 border-b border-ui-border flex items-center justify-between px-2 text-[9px] font-bold text-text-sub bg-bg-panel sticky top-0" style="z-index: 40;">
                         <span v-show="!isTrackNamesCollapsed">TRACKS</span>
@@ -260,7 +272,13 @@ const TimelinePanel = {
             copiedClip: null,
             pendingClickClipId: null,
             pendingClickTime: 0,
-            pendingClickModifiers: null
+            pendingClickModifiers: null,
+            isResolutionDropdownOpen: false,
+            resolutionOptions: [
+                { value: '4K', label: '4K', pixels: '3840×2160' },
+                { value: 'FHD', label: 'FHD', pixels: '1920×1080' },
+                { value: 'HD', label: 'HD', pixels: '1280×720' }
+            ]
         };
     },
     computed: {
@@ -362,6 +380,12 @@ const TimelinePanel = {
                     background-image: none !important; padding-right: 8px !important;
                 }
                 .timeline-select-no-arrow::-ms-expand { display: none; }
+                #timeline-main-panel {
+                    min-height: 0;
+                }
+                .resolution-dropdown-wrapper {
+                    position: relative;
+                }
             `;
             document.head.appendChild(style);
         },
@@ -376,6 +400,15 @@ const TimelinePanel = {
         
         toggleAllTrackNames() {
             this.isTrackNamesCollapsed = !this.isTrackNamesCollapsed;
+        },
+        
+        toggleResolutionDropdown() {
+            this.isResolutionDropdownOpen = !this.isResolutionDropdownOpen;
+        },
+        
+        selectResolution(value) {
+            this.vm.setResolution(value);
+            this.isResolutionDropdownOpen = false;
         },
         
         getClipsForTrack(trackId) {
@@ -401,8 +434,6 @@ const TimelinePanel = {
                 'clip-multi-selected': isSelected && isMulti
             };
         },
-        
-        // ========== 클립 선택 로직 ==========
         
         selectClip(clipId, modifiers = {}) {
             const clip = this.vm.clips.find(c => c.id === clipId);
@@ -450,7 +481,6 @@ const TimelinePanel = {
             this.pendingClickTime = Date.now();
             this.pendingClickModifiers = { ctrlKey: e.ctrlKey, metaKey: e.metaKey, shiftKey: e.shiftKey };
             
-            // 선택 안 된 클립이고 Ctrl/Shift 안 누른 경우 즉시 선택
             if (!this.selectedClipIds.includes(clip.id) && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
                 this.selectedClipIds = [clip.id];
                 this.lastSelectedClipId = clip.id;
@@ -458,7 +488,6 @@ const TimelinePanel = {
                 this.syncVmSelectedClip();
             }
             
-            // 드래그 준비
             this.draggingClipIds = [...this.selectedClipIds];
             if (!this.draggingClipIds.includes(clip.id)) {
                 this.draggingClipIds = [clip.id];
@@ -490,11 +519,12 @@ const TimelinePanel = {
             }
         },
         
-        // ========== Document 이벤트 ==========
-        
         onDocumentClick(e) {
             if (!e.target.closest('.context-menu')) {
                 this.closeContextMenus();
+            }
+            if (!e.target.closest('.resolution-dropdown-wrapper')) {
+                this.isResolutionDropdownOpen = false;
             }
         },
         
@@ -512,6 +542,7 @@ const TimelinePanel = {
                 this.lastSelectedClipId = null;
                 this.lastSelectedTrackId = null;
                 this.syncVmSelectedClip();
+                this.isResolutionDropdownOpen = false;
             }
         },
         
@@ -529,7 +560,6 @@ const TimelinePanel = {
                 this.updatePlayheadPosition(e);
             }
             
-            // 클립 드래그 시작 감지
             if (this.pendingClickClipId && !this.isDraggingClip && this.draggingClipIds.length > 0) {
                 const dx = Math.abs(e.clientX - this.dragStartX);
                 const dy = Math.abs(e.clientY - this.dragStartY);
@@ -549,7 +579,6 @@ const TimelinePanel = {
         },
         
         onDocumentMouseUp(e) {
-            // 클릭 처리 (드래그 안 했으면)
             if (this.pendingClickClipId && !this.isDraggingClip) {
                 this.selectClip(this.pendingClickClipId, this.pendingClickModifiers || {});
             }
@@ -567,8 +596,6 @@ const TimelinePanel = {
             this.isResizingClip = false;
             this.resizingClip = null;
         },
-        
-        // ========== 클립 드래그 ==========
         
         handleClipDrag(e) {
             const dx = e.clientX - this.dragStartX;
@@ -639,8 +666,6 @@ const TimelinePanel = {
             }
         },
         
-        // ========== 클립 리사이즈 ==========
-        
         startClipResize(e, clip, dir) {
             const track = this.vm.tracks.find(t => t.id === clip.trackId);
             if (track && track.isLocked) return;
@@ -674,8 +699,6 @@ const TimelinePanel = {
                 }
             }
         },
-        
-        // ========== 충돌 검사 ==========
         
         hasCollision(trackId, start, duration, excludeIds = []) {
             const end = start + duration;
@@ -732,8 +755,6 @@ const TimelinePanel = {
             }
             return { snapped: false, position: newStart };
         },
-        
-        // ========== 트랙 관련 ==========
         
         startTrackDrag(e, track, index) {
             this.draggingTrackId = track.id;
@@ -853,8 +874,6 @@ const TimelinePanel = {
             this.closeContextMenus();
         },
         
-        // ========== 컨텍스트 메뉴 ==========
-        
         openTrackContextMenu(e, track, idx) {
             this.clipContextMenu = null;
             this.trackContextMenu = { x: e.clientX, y: e.clientY, track, index: idx };
@@ -882,8 +901,6 @@ const TimelinePanel = {
             this.trackContextMenu = null;
             this.clipContextMenu = null;
         },
-        
-        // ========== 클립 조작 ==========
         
         duplicateClip(clip) {
             const newClip = {
@@ -960,13 +977,10 @@ const TimelinePanel = {
             this.syncVmSelectedClip();
         },
         
-        // ========== 자르기 기능 ==========
-        
         cutAtPlayhead() {
             const targetIds = this.selectedClipIds.length > 0 ? [...this.selectedClipIds] : [];
             
             if (targetIds.length === 0) {
-                // 선택된 클립 없으면 플레이헤드 위치의 모든 클립 자르기
                 const t = this.vm.currentTime;
                 this.vm.clips.forEach(clip => {
                     if (t > clip.start && t < clip.start + clip.duration) {
@@ -1110,7 +1124,6 @@ const TimelinePanel = {
             }
         },
         
-        // 우클릭 메뉴용 단일 클립 자르기+왼쪽삭제
         cutAndDeleteLeftForClip(clip) {
             const t = this.vm.currentTime;
             const clipEnd = clip.start + clip.duration;
@@ -1120,7 +1133,6 @@ const TimelinePanel = {
             }
         },
         
-        // 우클릭 메뉴용 단일 클립 자르기+오른쪽삭제
         cutAndDeleteRightForClip(clip) {
             const t = this.vm.currentTime;
             const clipEnd = clip.start + clip.duration;
@@ -1128,8 +1140,6 @@ const TimelinePanel = {
                 clip.duration = t - clip.start;
             }
         },
-        
-        // ========== 플레이헤드 ==========
         
         handleLaneMouseDown(e) {
             const isRuler = e.target.id === 'timeline-ruler' || e.target.closest('#timeline-ruler');
@@ -1156,8 +1166,6 @@ const TimelinePanel = {
             }
             this.vm.currentTime = time;
         },
-        
-        // ========== 기타 ==========
         
         togglePlayback() {
             if (typeof this.vm.togglePlayback === 'function') this.vm.togglePlayback();
@@ -1244,3 +1252,836 @@ const TimelinePanel = {
 };
 
 window.TimelinePanel = TimelinePanel;
+작업 2/2: main.css 수정
+수정대상파일: C:\wai-ui\frontend\css\main.css
+
+수정 내용: 타임라인 패널 높이 관련 스타일 추가
+
+Copy### [WAI:UPDATE:css/main.css]
+/* WAI-UI Main Stylesheet */
+/* 다크 테마 기반 + Tailwind 보조 */
+
+/* ================================
+   CSS 변수 (다크 테마)
+   ================================ */
+:root {
+    --color-bg-dark: #0a0a0a;
+    --color-bg-panel: #141414;
+    --color-bg-hover: #1e1e1e;
+    --color-bg-input: #252525;
+    --color-ui-border: #333333;
+    --color-ui-accent: #3b82f6;
+    --color-ui-selected: #2563eb;
+    --color-ui-danger: #dc2626;
+    --color-text-main: #e5e5e5;
+    --color-text-sub: #888888;
+    --color-text-disabled: #555555;
+}
+
+/* ================================
+   기본 리셋 및 전역 스타일
+   ================================ */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Pretendard', 'Noto Sans KR', system-ui, -apple-system, sans-serif;
+    background-color: var(--color-bg-dark);
+    color: var(--color-text-main);
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+#app-vue-root {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ================================
+   스크롤바 스타일
+   ================================ */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--color-bg-dark);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--color-ui-border);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #444;
+}
+
+/* ================================
+   Tailwind 확장 색상 클래스
+   ================================ */
+.bg-bg-dark { background-color: var(--color-bg-dark); }
+.bg-bg-panel { background-color: var(--color-bg-panel); }
+.bg-bg-hover { background-color: var(--color-bg-hover); }
+.bg-bg-input { background-color: var(--color-bg-input); }
+.bg-ui-accent { background-color: var(--color-ui-accent); }
+.bg-ui-selected { background-color: var(--color-ui-selected); }
+.bg-ui-danger { background-color: var(--color-ui-danger); }
+.border-ui-border { border-color: var(--color-ui-border); }
+.border-ui-accent { border-color: var(--color-ui-accent); }
+.text-text-main { color: var(--color-text-main); }
+.text-text-sub { color: var(--color-text-sub); }
+.text-ui-accent { color: var(--color-ui-accent); }
+
+/* ================================
+   네비게이션 버튼
+   ================================ */
+.nav-btn {
+    height: 100%;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    font-size: 12px;
+    color: var(--color-text-sub);
+    cursor: pointer;
+    transition: all 0.15s;
+    border: none;
+    background: transparent;
+    white-space: nowrap;
+}
+
+.nav-btn:hover,
+.nav-btn.active {
+    color: var(--color-text-main);
+    background-color: var(--color-bg-hover);
+}
+
+/* ================================
+   헤더 메뉴 드롭다운 (수정됨)
+   ================================ */
+.header-menu-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.header-menu-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 160px;
+    background: var(--color-bg-panel);
+    border: 1px solid var(--color-ui-border);
+    border-radius: 6px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    padding: 4px 0;
+    margin-top: 0;
+}
+
+.header-menu-wrapper.open > .header-menu-dropdown {
+    display: block;
+}
+
+.header-menu-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: background-color 0.1s;
+    font-size: 12px;
+    color: var(--color-text-main);
+}
+
+.header-menu-item:hover {
+    background-color: var(--color-bg-hover);
+}
+
+.header-menu-item i {
+    color: var(--color-text-sub);
+}
+
+/* 서브메뉴 */
+.header-submenu-wrapper {
+    position: relative;
+}
+
+.header-submenu {
+    display: none;
+    position: absolute;
+    left: 100%;
+    top: 0;
+    min-width: 140px;
+    background: var(--color-bg-panel);
+    border: 1px solid var(--color-ui-border);
+    border-radius: 6px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    z-index: 1001;
+    padding: 4px 0;
+    margin-left: 0;
+}
+
+.header-submenu-wrapper.open > .header-submenu {
+    display: block;
+}
+
+.header-submenu-item {
+    padding: 8px 14px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--color-text-main);
+    transition: background-color 0.1s;
+}
+
+.header-submenu-item:hover {
+    background-color: var(--color-bg-hover);
+}
+
+/* 윈도우 컨트롤 버튼 */
+.win-btn {
+    width: 40px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-text-sub);
+    cursor: pointer;
+    transition: all 0.15s;
+    border: none;
+    background: transparent;
+}
+
+.win-btn:hover {
+    color: var(--color-text-main);
+    background-color: var(--color-bg-hover);
+}
+
+.win-btn.close:hover {
+    background-color: var(--color-ui-danger);
+    color: white;
+}
+
+/* 패널 리사이저 */
+.panel-resizer-v {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    cursor: col-resize;
+    z-index: 10;
+    transition: background-color 0.15s;
+}
+
+.panel-resizer-v:hover {
+    background-color: var(--color-ui-accent);
+}
+
+.panel-resizer-h {
+    height: 4px;
+    cursor: row-resize;
+    z-index: 10;
+    transition: background-color 0.15s;
+}
+
+.panel-resizer-h:hover {
+    background-color: var(--color-ui-accent);
+}
+
+/* ================================
+   모달 오버레이 - 드래그 통과 가능
+   ================================ */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+}
+
+.modal-overlay > * {
+    pointer-events: auto;
+}
+
+/* 모달 창 공통 */
+.asset-manager-window,
+.layer-template-window,
+.project-modal-window,
+.image-asset-window,
+.image-effect-window,
+.visualization-window,
+.api-manager-window {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
+    max-width: 95vw;
+}
+
+/* ================================
+   모달 리사이즈 핸들
+   ================================ */
+.modal-resize-handle {
+    position: absolute;
+    z-index: 100;
+}
+
+.modal-resize-handle.resize-n { top: 0; left: 8px; right: 8px; height: 4px; cursor: ns-resize; }
+.modal-resize-handle.resize-s { bottom: 0; left: 8px; right: 8px; height: 4px; cursor: ns-resize; }
+.modal-resize-handle.resize-e { right: 0; top: 8px; bottom: 8px; width: 4px; cursor: ew-resize; }
+.modal-resize-handle.resize-w { left: 0; top: 8px; bottom: 8px; width: 4px; cursor: ew-resize; }
+.modal-resize-handle.resize-nw { top: 0; left: 0; width: 12px; height: 12px; cursor: nwse-resize; }
+.modal-resize-handle.resize-ne { top: 0; right: 0; width: 12px; height: 12px; cursor: nesw-resize; }
+.modal-resize-handle.resize-sw { bottom: 0; left: 0; width: 12px; height: 12px; cursor: nesw-resize; }
+.modal-resize-handle.resize-se { bottom: 0; right: 0; width: 12px; height: 12px; cursor: nwse-resize; }
+
+.modal-resize-handle:hover {
+    background: rgba(59, 130, 246, 0.3);
+}
+
+/* ================================
+   자산 그리드 - 반응형
+   ================================ */
+.asset-grid {
+    display: grid;
+    gap: 12px;
+}
+
+.asset-grid.view-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+}
+
+.asset-grid.view-list {
+    grid-template-columns: 1fr;
+}
+
+.asset-card {
+    background: var(--color-bg-input);
+    border: 1px solid var(--color-ui-border);
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.asset-card:hover {
+    border-color: var(--color-ui-accent);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.asset-card.selected {
+    border-color: var(--color-ui-accent);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+.asset-thumbnail {
+    position: relative;
+    width: 100%;
+    padding-top: 56.25%;
+    background: var(--color-bg-dark);
+    overflow: hidden;
+}
+
+.asset-thumbnail > * {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.asset-thumbnail video,
+.asset-thumbnail img {
+    object-fit: cover;
+}
+
+.asset-thumbnail-icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 24px;
+    color: var(--color-text-sub);
+    opacity: 0.5;
+}
+
+/* 썸네일 플레이스홀더 - 아이콘 정중앙 배치 */
+.asset-thumbnail-placeholder {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(139, 92, 246, 0.15) 100%);
+}
+
+.asset-thumbnail-placeholder.sound {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(59, 130, 246, 0.15) 100%);
+}
+
+/* 썸네일 아이콘 정중앙 스타일 */
+.asset-thumbnail-icon-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 28px;
+    color: var(--color-text-sub);
+    opacity: 0.7;
+    z-index: 1;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.asset-info {
+    padding: 10px;
+}
+
+.asset-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+}
+
+.asset-meta {
+    font-size: 10px;
+    color: var(--color-text-sub);
+}
+
+.asset-grid.view-list .asset-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.asset-grid.view-list .asset-thumbnail {
+    width: 80px;
+    padding-top: 45px;
+    flex-shrink: 0;
+}
+
+.asset-grid.view-list .asset-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+}
+
+.folder-drop-zone.drag-over {
+    background: rgba(59, 130, 246, 0.2) !important;
+    outline: 2px dashed var(--color-ui-accent);
+    outline-offset: -2px;
+}
+
+.drag-over {
+    background: rgba(59, 130, 246, 0.1);
+}
+
+/* ================================
+   타임라인 스타일
+   ================================ */
+.timeline-grid {
+    display: grid;
+    grid-template-rows: auto 1fr;
+}
+
+.sticky-col {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+}
+
+.sticky-ruler {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+}
+
+.timeline-ruler-major {
+    border-color: var(--color-ui-border);
+}
+
+.timeline-ruler-minor {
+    width: 1px;
+    background: var(--color-ui-border);
+    opacity: 0.5;
+}
+
+.timeline-ruler-sub {
+    width: 1px;
+    background: var(--color-ui-border);
+    opacity: 0.3;
+}
+
+/* 플레이헤드 */
+.playhead-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #ef4444;
+    pointer-events: none;
+    z-index: 35;
+}
+
+.playhead-handle {
+    position: absolute;
+    top: 0;
+    width: 12px;
+    height: 20px;
+    background: #ef4444;
+    border-radius: 0 0 4px 4px;
+    transform: translateX(-5px);
+    cursor: ew-resize;
+    z-index: 36;
+}
+
+.playhead-handle::after {
+    content: '';
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 6px solid #ef4444;
+}
+
+/* 클립 스타일 */
+.clip {
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: box-shadow 0.1s, opacity 0.1s;
+}
+
+.clip:hover {
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3);
+}
+
+.clip.selected {
+    box-shadow: 0 0 0 2px var(--color-ui-accent);
+}
+
+.clip.clip-active {
+    box-shadow: 0 0 0 2px #22c55e;
+}
+
+.clip .waveform {
+    position: absolute;
+    inset: 0;
+    opacity: 0.6;
+}
+
+/* 클립 스냅 플래시 효과 */
+@keyframes clipSnapFlash {
+    0% { box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.8); }
+    100% { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2); }
+}
+
+.clip.snap-flash {
+    animation: clipSnapFlash 0.5s ease-out;
+}
+
+/* 트랙 컨트롤 버튼 */
+.track-control-btn {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    font-size: 10px;
+    color: var(--color-text-sub);
+    cursor: pointer;
+    transition: all 0.1s;
+    border: none;
+    background: transparent;
+}
+
+.track-control-btn:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-main);
+}
+
+.track-control-btn.active {
+    color: var(--color-ui-accent);
+}
+
+.track-control-btn.locked {
+    color: #f59e0b;
+}
+
+.track-control-btn.main-track {
+    color: #eab308;
+}
+
+.track-lane {
+    transition: background-color 0.15s;
+}
+
+/* 툴 버튼 */
+.tool-btn {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--color-text-sub);
+    cursor: pointer;
+    transition: all 0.1s;
+    border: none;
+    background: transparent;
+}
+
+.tool-btn:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-main);
+}
+
+/* ================================
+   컨텍스트 메뉴
+   ================================ */
+.context-menu {
+    position: fixed;
+    background: var(--color-bg-panel);
+    border: 1px solid var(--color-ui-border);
+    border-radius: 6px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    z-index: 9999;
+    padding: 4px 0;
+    min-width: 160px;
+}
+
+.ctx-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--color-text-main);
+    transition: background-color 0.1s;
+}
+
+.ctx-item:hover {
+    background: var(--color-bg-hover);
+}
+
+.ctx-item i {
+    width: 14px;
+    text-align: center;
+    font-size: 11px;
+}
+
+/* ================================
+   캔버스 프리뷰
+   ================================ */
+#preview-canvas-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #000;
+}
+
+#preview-canvas-viewport {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#preview-canvas-scaler {
+    position: relative;
+    background: #000;
+    outline: 2px solid #888;
+    outline-offset: 0;
+}
+
+#preview-render-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.preview-canvas-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: auto;
+}
+
+.canvas-box {
+    transition: box-shadow 0.1s;
+}
+
+.canvas-box:hover {
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3) !important;
+}
+
+.box-handle {
+    transition: background-color 0.1s;
+}
+
+.box-handle:hover {
+    background-color: var(--color-ui-accent) !important;
+}
+
+.canvas-drop-target {
+    outline: 3px dashed var(--color-ui-accent);
+    outline-offset: -3px;
+}
+
+.edge-flash-overlay {
+    position: absolute;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+    z-index: 100;
+}
+
+.edge-flash-overlay.active {
+    opacity: 1;
+}
+
+.edge-flash-top { top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(to bottom, var(--color-ui-accent), transparent); }
+.edge-flash-bottom { bottom: 0; left: 0; right: 0; height: 3px; background: linear-gradient(to top, var(--color-ui-accent), transparent); }
+.edge-flash-left { top: 0; bottom: 0; left: 0; width: 3px; background: linear-gradient(to right, var(--color-ui-accent), transparent); }
+.edge-flash-right { top: 0; bottom: 0; right: 0; width: 3px; background: linear-gradient(to left, var(--color-ui-accent), transparent); }
+
+/* ================================
+   DEV 모드 스타일
+   ================================ */
+.dev-highlight {
+    position: fixed;
+    pointer-events: none;
+    border: 2px solid #22c55e;
+    background: rgba(34, 197, 94, 0.1);
+    z-index: 99999;
+    transition: all 0.05s;
+}
+
+.dev-tooltip {
+    position: fixed;
+    background: #1a1a2e;
+    border: 1px solid #22c55e;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 11px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    color: #e5e5e5;
+    z-index: 100000;
+    pointer-events: none;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    max-width: 300px;
+}
+
+.dev-tooltip .label { color: #888; margin-right: 6px; }
+.dev-tooltip .value { color: #4ade80; }
+
+body.dev-mode-active .dev-highlight,
+body.dev-mode-full .dev-highlight { display: block; }
+
+body:not(.dev-mode-active):not(.dev-mode-full) .dev-highlight { display: none; }
+
+/* ================================
+   레이어 패널
+   ================================ */
+.layer-grid-cell {
+    min-height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.1s;
+    font-size: 10px;
+}
+
+.layer-grid-cell:hover { transform: scale(1.02); }
+.layer-grid-cell.empty { border: 1px dashed var(--color-ui-border); opacity: 0.5; }
+.layer-grid-cell.empty:hover { opacity: 0.8; border-color: var(--color-ui-accent); }
+.layer-grid-cell.filled { border: 1px solid; opacity: 0.9; }
+.layer-grid-cell.filled:hover { opacity: 1; }
+.layer-grid-cell.selected { box-shadow: 0 0 0 2px var(--color-ui-accent); }
+
+/* ================================
+   유틸리티 클래스
+   ================================ */
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.no-select { user-select: none; }
+
+.sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ================================
+   애니메이션
+   ================================ */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+.animate-fadeIn { animation: fadeIn 0.2s ease-out; }
+.animate-slideDown { animation: slideDown 0.2s ease-out; }
+
+/* ================================
+   반응형 조정
+   ================================ */
+@media (max-width: 1200px) {
+    .asset-grid.view-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+}
+
+@media (max-width: 800px) {
+    .asset-grid.view-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+}
+
+/* 드롭다운 z-index 수정 */
+#preview-toolbar-panel {
+    z-index: 50;
+}
+
+#preview-toolbar-panel .wai-dropdown,
+.dropdown-menu {
+    z-index: 1000;
+}
+
+/* ================================
+   타임라인 패널 높이 수정
+   ================================ */
+#timeline-main-panel {
+    min-height: 0;
+    overflow: hidden;
+}
+
+#timeline-scroll-container {
+    min-height: 0;
+}
