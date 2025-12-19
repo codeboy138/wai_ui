@@ -108,7 +108,7 @@ const ImageEffectModal = {
                         </div>
 
                         <!-- 효과 그리드 -->
-                        <div class="flex-1 flex flex-col bg-bg-dark overflow-hidden">
+                        <div class="flex-1 flex flex-col bg-bg-dark overflow-hidden" @click="onContentAreaClick">
                             <div class="flex items-center justify-between px-3 py-1.5 border-b border-ui-border bg-bg-panel text-[10px]">
                                 <div class="flex items-center gap-4">
                                     <span class="cursor-pointer hover:text-ui-accent flex items-center gap-1" :class="{ 'text-ui-accent': sortBy === 'name' }" @click.stop="toggleSort('name')">
@@ -117,24 +117,27 @@ const ImageEffectModal = {
                                     <span class="cursor-pointer hover:text-ui-accent flex items-center gap-1" :class="{ 'text-ui-accent': sortBy === 'date' }" @click.stop="toggleSort('date')">
                                         추가일 <i v-if="sortBy === 'date'" :class="sortAsc ? 'fa-solid fa-arrow-up' : 'fa-solid fa-arrow-down'" class="text-[8px]"></i>
                                     </span>
+                                    <button v-if="selectedEffectIds.length > 0" class="text-red-400 hover:text-red-300 ml-2" @click.stop="clearSelection" title="선택 해제">
+                                        <i class="fa-solid fa-xmark"></i> 선택해제
+                                    </button>
                                 </div>
                                 <span class="text-text-sub">{{ selectedEffectIds.length > 0 ? selectedEffectIds.length + '개 선택됨' : filteredEffects.length + '개 항목' }}</span>
                             </div>
 
-                            <div class="flex-1 overflow-auto p-4">
+                            <div class="flex-1 overflow-auto p-4" @click="onGridAreaClick">
                                 <div v-if="filteredEffects.length === 0" class="flex flex-col items-center justify-center h-full text-text-sub opacity-50">
                                     <i class="fa-solid fa-wand-magic-sparkles text-4xl mb-3"></i>
                                     <p class="text-[12px]">{{ currentCategoryLabel }} 효과가 없습니다</p>
                                     <p class="text-[11px] mt-1">새 효과를 추가하세요</p>
                                 </div>
 
-                                <div v-else class="grid grid-cols-4 gap-3">
+                                <div v-else class="asset-grid view-grid" :style="gridStyle">
                                     <div
-                                        v-for="effect in filteredEffects"
+                                        v-for="(effect, index) in filteredEffects"
                                         :key="effect.id"
                                         class="bg-bg-input border border-ui-border rounded-lg p-3 cursor-pointer hover:border-ui-accent transition-colors relative"
                                         :class="{ 'border-ui-accent ring-1 ring-ui-accent': isEffectSelected(effect.id) }"
-                                        @click.stop="selectEffect($event, effect)"
+                                        @click.stop="selectEffect($event, effect, index)"
                                         @dblclick.stop="applyEffect(effect)"
                                         draggable="true"
                                         @dragstart="onEffectDragStart($event, effect)"
@@ -179,8 +182,8 @@ const ImageEffectModal = {
             posY: 0,
             width: 1000,
             height: 650,
-            minWidth: 600,
-            minHeight: 400,
+            minWidth: 400,
+            minHeight: 300,
             minimizedWidth: 280,
             minimizedHeight: 45,
             prevWidth: 1000,
@@ -206,6 +209,7 @@ const ImageEffectModal = {
             sortBy: 'name',
             sortAsc: true,
             selectedEffectIds: [],
+            lastSelectedIndex: -1,
             dragData: null,
             dragOverFolderId: null,
             
@@ -246,6 +250,20 @@ const ImageEffectModal = {
                 height: (this.isMinimized ? this.minimizedHeight : this.height) + 'px'
             }; 
         },
+        gridStyle() {
+            const sidebarWidth = 176;
+            const padding = 32;
+            const contentWidth = this.width - sidebarWidth - padding;
+            const minCardWidth = 100;
+            const gap = 12;
+            let cols = Math.max(1, Math.floor((contentWidth + gap) / (minCardWidth + gap)));
+            cols = Math.min(cols, 6);
+            return {
+                display: 'grid',
+                gridTemplateColumns: 'repeat(' + cols + ', 1fr)',
+                gap: gap + 'px'
+            };
+        },
         currentCategoryLabel() { 
             const tab = this.categoryTabs.find(t => t.id === this.currentCategory);
             return tab ? tab.label : '전체';
@@ -285,10 +303,12 @@ const ImageEffectModal = {
         this.centerWindow();
         document.addEventListener('mousemove', this.onGlobalMouseMove);
         document.addEventListener('mouseup', this.onGlobalMouseUp);
+        document.addEventListener('keydown', this.onKeyDown);
     },
     beforeUnmount() {
         document.removeEventListener('mousemove', this.onGlobalMouseMove);
         document.removeEventListener('mouseup', this.onGlobalMouseUp);
+        document.removeEventListener('keydown', this.onKeyDown);
     },
     methods: {
         centerWindow() {
@@ -379,6 +399,15 @@ const ImageEffectModal = {
             this.dragging = false; 
             this.resizing = false; 
         },
+        onKeyDown(e) {
+            if (e.key === 'Escape') {
+                this.clearSelection();
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+                e.preventDefault();
+                this.selectAll();
+            }
+        },
         
         toggleSort(field) {
             if (this.sortBy === field) {
@@ -392,7 +421,23 @@ const ImageEffectModal = {
         isEffectSelected(effectId) {
             return this.selectedEffectIds.includes(effectId);
         },
-        selectEffect(e, effect) {
+        clearSelection() {
+            this.selectedEffectIds = [];
+            this.lastSelectedIndex = -1;
+        },
+        selectAll() {
+            this.selectedEffectIds = this.filteredEffects.map(e => e.id);
+            this.lastSelectedIndex = this.filteredEffects.length - 1;
+        },
+        onContentAreaClick(e) {
+            if (e.target.closest('.bg-bg-input')) return;
+            this.clearSelection();
+        },
+        onGridAreaClick(e) {
+            if (e.target.closest('.bg-bg-input')) return;
+            this.clearSelection();
+        },
+        selectEffect(e, effect, index) {
             if (e.ctrlKey || e.metaKey) {
                 const idx = this.selectedEffectIds.indexOf(effect.id);
                 if (idx > -1) {
@@ -400,24 +445,27 @@ const ImageEffectModal = {
                 } else {
                     this.selectedEffectIds.push(effect.id);
                 }
-            } else if (e.shiftKey && this.selectedEffectIds.length > 0) {
-                const lastId = this.selectedEffectIds[this.selectedEffectIds.length - 1];
+                this.lastSelectedIndex = index;
+            } else if (e.shiftKey && this.lastSelectedIndex >= 0) {
                 const effects = this.filteredEffects;
-                let lastIdx = -1, curIdx = -1;
-                for (let i = 0; i < effects.length; i++) {
-                    if (effects[i].id === lastId) lastIdx = i;
-                    if (effects[i].id === effect.id) curIdx = i;
-                }
-                if (lastIdx >= 0 && curIdx >= 0) {
-                    const minIdx = Math.min(lastIdx, curIdx);
-                    const maxIdx = Math.max(lastIdx, curIdx);
-                    this.selectedEffectIds = [];
-                    for (let j = minIdx; j <= maxIdx; j++) {
-                        this.selectedEffectIds.push(effects[j].id);
+                const start = Math.min(this.lastSelectedIndex, index);
+                const end = Math.max(this.lastSelectedIndex, index);
+                const newSelection = [];
+                for (let i = start; i <= end; i++) {
+                    if (effects[i]) {
+                        newSelection.push(effects[i].id);
                     }
                 }
+                const combined = this.selectedEffectIds.slice();
+                newSelection.forEach(id => {
+                    if (!combined.includes(id)) {
+                        combined.push(id);
+                    }
+                });
+                this.selectedEffectIds = combined;
             } else {
                 this.selectedEffectIds = [effect.id];
+                this.lastSelectedIndex = index;
             }
         },
         
