@@ -46,12 +46,13 @@ const AppRoot = {
             visualizationModal: { isOpen: false },
             apiManagerModal: { isOpen: false },
             
+            // 트랙 기본값 변경: 이름을 'none'으로, type 제거
             tracks: [
-                { id: 't1', name: 'Track 1', type: 'video', color: '#64748b', isHidden: false, isLocked: false, isMain: true }, 
-                { id: 't2', name: 'Track 2', type: 'video', color: '#eab308', isHidden: false, isLocked: false, isMain: false },
-                { id: 't3', name: 'Track 3', type: 'video', color: '#22c55e', isHidden: false, isLocked: false, isMain: false }, 
-                { id: 't4', name: 'Track 4', type: 'video', color: '#3b82f6', isHidden: false, isLocked: false, isMain: false },
-                { id: 't5', name: 'Track 5', type: 'video', color: '#a855f7', isHidden: false, isLocked: false, isMain: false }
+                { id: 't1', name: 'none', color: '#64748b', isMain: false, isHidden: false, isLocked: false }, 
+                { id: 't2', name: 'none', color: '#eab308', isMain: false, isHidden: false, isLocked: false },
+                { id: 't3', name: 'none', color: '#22c55e', isMain: false, isHidden: false, isLocked: false }, 
+                { id: 't4', name: 'none', color: '#3b82f6', isMain: true, isHidden: false, isLocked: false },
+                { id: 't5', name: 'none', color: '#a855f7', isMain: false, isHidden: false, isLocked: false }
             ],
             clips: [],
             canvasBoxes: [],
@@ -132,6 +133,35 @@ const AppRoot = {
             return this.clips.filter(clip => {
                 return this.currentTime >= clip.start && this.currentTime < (clip.start + clip.duration);
             });
+        },
+        mainTrack() {
+            const mainTrack = this.tracks.find(t => t.isMain);
+            if (mainTrack) return mainTrack;
+            if (this.tracks.length >= 2) {
+                return this.tracks[this.tracks.length - 2];
+            }
+            return this.tracks[0];
+        },
+        // 캔버스에 표시할 클립 기반 박스들 (현재 시간에 활성화된 클립)
+        activeClipBoxes() {
+            const activeBoxes = [];
+            this.clips.forEach(clip => {
+                const isActive = this.currentTime >= clip.start && this.currentTime < (clip.start + clip.duration);
+                if (!isActive) return;
+                
+                const boxId = this.clipBoxMap[clip.id];
+                if (boxId) {
+                    const box = this.canvasBoxes.find(b => b.id === boxId);
+                    if (box) {
+                        activeBoxes.push({
+                            ...box,
+                            isHidden: false,
+                            clipLocalTime: this.currentTime - clip.start
+                        });
+                    }
+                }
+            });
+            return activeBoxes;
         }
     },
     watch: {
@@ -163,9 +193,9 @@ const AppRoot = {
             deep: true
         },
         aspectRatio: {
-            handler() { 
+            handler(newRatio) { 
                 this.$nextTick(() => {
-                    this.updateCanvasSizeFromControls();
+                    this.updateCanvasSizeFromAspectRatio(newRatio);
                 });
             }
         },
@@ -179,6 +209,7 @@ const AppRoot = {
     },
     mounted() {
         this.$nextTick(() => { 
+            this.initializeMainTrack();
             this.updateCanvasSizeFromControls();
             this.setupPanelResizers(); 
             this.setupCanvasScaler(); 
@@ -188,6 +219,7 @@ const AppRoot = {
             this.setupHeaderMenuClose();
             this.setupGlobalDropHandler();
             this.setupKeyboardShortcuts();
+            this.setupTimelineDropListener();
         });
         window.vm = this; 
     },
@@ -195,9 +227,19 @@ const AppRoot = {
         if (this._spinWheelHandler) { document.removeEventListener('wheel', this._spinWheelHandler); this._spinWheelHandler = null; }
         if (this._headerMenuCloseHandler) { document.removeEventListener('click', this._headerMenuCloseHandler); this._headerMenuCloseHandler = null; }
         if (this._keyboardHandler) { document.removeEventListener('keydown', this._keyboardHandler); this._keyboardHandler = null; }
+        if (this._timelineDropHandler) { document.removeEventListener('wai-timeline-drop', this._timelineDropHandler); this._timelineDropHandler = null; }
         this.stopPlayback();
     },
     methods: {
+        initializeMainTrack() {
+            const hasMain = this.tracks.some(t => t.isMain);
+            if (!hasMain && this.tracks.length >= 2) {
+                this.tracks[this.tracks.length - 2].isMain = true;
+            } else if (!hasMain && this.tracks.length > 0) {
+                this.tracks[0].isMain = true;
+            }
+        },
+
         setupHeaderMenuClose() {
             this._headerMenuCloseHandler = (e) => {
                 const isInsideMenu = e.target.closest('.header-menu-wrapper');
@@ -368,12 +410,16 @@ const AppRoot = {
 
         setAspect(r) { 
             this.aspectRatio = r; 
-            this.canvasSize = this.computeResolutionSize(r, this.resolution);
+        },
+        
+        updateCanvasSizeFromAspectRatio(newRatio) {
+            this.canvasSize = this.computeResolutionSize(newRatio, this.resolution);
             this.$nextTick(() => {
                 this.recalculateCanvasSizeFromWrapper(); 
                 this.ensureAllBoxesNormalized(); 
             });
         },
+        
         setResolution(labelOrKey) { 
             const str = (labelOrKey || '').toString().trim(); 
             const match = str.match(/^(\S+)/); 
@@ -388,9 +434,19 @@ const AppRoot = {
             const key = resolutionKey || 'FHD';
             const longSide = RESOLUTION_LONG_SIDE[key] || RESOLUTION_LONG_SIDE['FHD'];
             let w, h;
-            if (aspectRatio === '9:16') { h = longSide; w = Math.round(longSide * 9 / 16); }
-            else if (aspectRatio === '1:1') { const square = Math.round(longSide * 9 / 16); w = square; h = square; }
-            else { w = longSide; h = Math.round(longSide * 9 / 16); }
+            if (aspectRatio === '9:16') { 
+                h = longSide; 
+                w = Math.round(longSide * 9 / 16); 
+            }
+            else if (aspectRatio === '1:1') { 
+                const square = Math.round(longSide * 9 / 16); 
+                w = square; 
+                h = square; 
+            }
+            else { 
+                w = longSide; 
+                h = Math.round(longSide * 9 / 16); 
+            }
             return { w, h };
         },
         getResolutionLabelFor(key) { return key || this.resolution || 'FHD'; },
@@ -481,6 +537,140 @@ const AppRoot = {
             document.addEventListener('keydown', this._keyboardHandler);
         },
 
+        setupTimelineDropListener() {
+            this._timelineDropHandler = (e) => {
+                const detail = e.detail;
+                if (!detail || !detail.assets || !Array.isArray(detail.assets) || detail.assets.length === 0) return;
+                this.handleTimelineDrop(detail.assets, detail.dropTime, detail.targetTrackId);
+            };
+            document.addEventListener('wai-timeline-drop', this._timelineDropHandler);
+        },
+
+        handleTimelineDrop(assets, dropTime, targetTrackId) {
+            let targetTrack = null;
+            
+            if (targetTrackId) {
+                targetTrack = this.tracks.find(t => t.id === targetTrackId);
+            }
+            
+            if (!targetTrack || targetTrack.isLocked) {
+                targetTrack = this.findSuitableTrack();
+            }
+            
+            if (!targetTrack) {
+                Swal.fire({ 
+                    icon: 'warning', 
+                    title: '트랙 없음', 
+                    text: '적합한 트랙을 찾을 수 없습니다.', 
+                    background: '#1e1e1e', 
+                    color: '#fff', 
+                    confirmButtonColor: '#3b82f6', 
+                    timer: 2000, 
+                    showConfirmButton: false 
+                });
+                return;
+            }
+
+            let insertTime = dropTime || this.currentTime;
+            const newClipIds = [];
+
+            assets.forEach((asset, index) => {
+                const duration = this.parseDurationString(asset.duration) || 5;
+                
+                const newClip = {
+                    id: `c_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`,
+                    trackId: targetTrack.id,
+                    name: asset.name || 'Clip',
+                    start: insertTime,
+                    duration: duration,
+                    type: asset.type || 'video',
+                    src: asset.src || asset.url || '',
+                    assetId: asset.id || null,
+                    isActive: false,
+                    volume: 100
+                };
+
+                insertTime = this.findNonCollidingPosition(newClip, targetTrack.id, insertTime);
+                newClip.start = insertTime;
+
+                this.addClipWithBox(newClip);
+                newClipIds.push(newClip.id);
+
+                insertTime = newClip.start + newClip.duration + 0.1;
+            });
+
+            if (newClipIds.length === 1) {
+                const addedClip = this.clips.find(c => c.id === newClipIds[0]);
+                if (addedClip) this.selectedClip = addedClip;
+            }
+
+            Swal.fire({ 
+                icon: 'success', 
+                title: '타임라인에 추가됨', 
+                text: `${assets.length}개 항목이 추가되었습니다`, 
+                background: '#1e1e1e', 
+                color: '#fff', 
+                confirmButtonColor: '#3b82f6', 
+                timer: 1500, 
+                showConfirmButton: false 
+            });
+        },
+
+        findSuitableTrack() {
+            if (this.mainTrack && !this.mainTrack.isLocked) {
+                return this.mainTrack;
+            }
+            
+            const anyUnlockedTrack = this.tracks.find(t => !t.isLocked);
+            return anyUnlockedTrack || this.tracks[0];
+        },
+
+        parseDurationString(durationStr) {
+            if (!durationStr) return null;
+            if (typeof durationStr === 'number') return durationStr;
+            
+            const parts = durationStr.toString().split(':');
+            if (parts.length === 2) {
+                const min = parseInt(parts[0], 10) || 0;
+                const sec = parseInt(parts[1], 10) || 0;
+                return min * 60 + sec;
+            }
+            if (parts.length === 3) {
+                const hr = parseInt(parts[0], 10) || 0;
+                const min = parseInt(parts[1], 10) || 0;
+                const sec = parseInt(parts[2], 10) || 0;
+                return hr * 3600 + min * 60 + sec;
+            }
+            return parseFloat(durationStr) || null;
+        },
+
+        findNonCollidingPosition(clip, trackId, desiredStart) {
+            const trackClips = this.clips.filter(c => c.trackId === trackId && c.id !== clip.id);
+            
+            const hasCollision = (start, duration) => {
+                const end = start + duration;
+                for (const c of trackClips) {
+                    const cEnd = c.start + c.duration;
+                    if (start < cEnd && end > c.start) return true;
+                }
+                return false;
+            };
+
+            if (!hasCollision(desiredStart, clip.duration)) {
+                return desiredStart;
+            }
+
+            let newStart = desiredStart;
+            for (const c of trackClips.sort((a, b) => a.start - b.start)) {
+                const cEnd = c.start + c.duration;
+                if (newStart < cEnd && newStart + clip.duration > c.start) {
+                    newStart = cEnd;
+                }
+            }
+
+            return newStart;
+        },
+
         togglePlayback() { if (this.isPlaying) this.stopPlayback(); else this.startPlayback(); },
         startPlayback() {
             if (this.isPlaying) return;
@@ -500,6 +690,7 @@ const AppRoot = {
 
         addClipWithBox(clipData) {
             this.clips.push(clipData);
+            // 비디오/이미지 클립은 캔버스 박스 생성
             if (clipData.type === 'video' || clipData.type === 'image') {
                 this.ensureBoxForClip(clipData);
             }
@@ -539,7 +730,7 @@ const AppRoot = {
             this.clipBoxMap[clip.id] = newBox.id;
             return newBox;
         },
-        
+
         cleanupOrphanedBoxes(currentClips) {
             const clipIds = new Set(currentClips.map(c => c.id));
             Object.keys(this.clipBoxMap).forEach(clipId => {
@@ -738,14 +929,58 @@ const AppRoot = {
                 if (box) box.clipDuration = relativeTime;
             }
         },
-        addTrack(type = 'video') {
-            const colors = { video: '#22c55e', audio: '#a855f7', text: '#eab308' };
-            const newTrack = { id: `t_${Date.now()}`, name: `Track ${this.tracks.length + 1}`, type: type, color: colors[type] || '#64748b', isHidden: false, isLocked: false, isMain: false };
+        addTrack() {
+            const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899'];
+            const newTrack = { 
+                id: `t_${Date.now()}`, 
+                name: 'none', 
+                color: colors[this.tracks.length % colors.length], 
+                isMain: false, 
+                isHidden: false, 
+                isLocked: false 
+            };
             this.tracks.push(newTrack);
         },
         removeTrack(trackId) {
             this.clips = this.clips.filter(c => c.trackId !== trackId);
             this.tracks = this.tracks.filter(t => t.id !== trackId);
+        },
+        
+        // 프로젝트 데이터 내보내기 (저장용)
+        exportProjectData() {
+            return {
+                tracks: JSON.parse(JSON.stringify(this.tracks)),
+                clips: JSON.parse(JSON.stringify(this.clips)),
+                canvasBoxes: JSON.parse(JSON.stringify(this.canvasBoxes)),
+                clipBoxMap: JSON.parse(JSON.stringify(this.clipBoxMap)),
+                aspectRatio: this.aspectRatio,
+                resolution: this.resolution,
+                canvasSize: { ...this.canvasSize },
+                layerCols: JSON.parse(JSON.stringify(this.layerCols)),
+                layerMainName: this.layerMainName,
+                totalDuration: this.totalDuration
+            };
+        },
+        
+        // 프로젝트 데이터 불러오기
+        importProjectData(data) {
+            if (!data) return;
+            
+            if (data.tracks) this.tracks = data.tracks;
+            if (data.clips) this.clips = data.clips;
+            if (data.canvasBoxes) this.canvasBoxes = data.canvasBoxes;
+            if (data.clipBoxMap) this.clipBoxMap = data.clipBoxMap;
+            if (data.aspectRatio) this.aspectRatio = data.aspectRatio;
+            if (data.resolution) this.resolution = data.resolution;
+            if (data.canvasSize) this.canvasSize = data.canvasSize;
+            if (data.layerCols) this.layerCols = data.layerCols;
+            if (data.layerMainName) this.layerMainName = data.layerMainName;
+            if (data.totalDuration) this.totalDuration = data.totalDuration;
+            
+            this.$nextTick(() => {
+                this.ensureAllBoxesNormalized();
+                this.recalculateCanvasScale();
+            });
         }
     }
 };
