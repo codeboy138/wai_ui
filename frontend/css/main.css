@@ -16,6 +16,7 @@
     --color-text-main: #e5e5e5;
     --color-text-sub: #888888;
     --color-text-disabled: #555555;
+    --color-timeline-bg: #0a0a0a;
 }
 
 /* ================================
@@ -488,7 +489,7 @@ html, body {
 }
 
 /* ================================
-   타임라인 스타일
+   타임라인 스타일 (배경 통일)
    ================================ */
 .timeline-grid {
     display: grid;
@@ -521,6 +522,19 @@ html, body {
     width: 1px;
     background: var(--color-ui-border);
     opacity: 0.3;
+}
+
+/* 타임라인 배경 통일 */
+#timeline-lane-container {
+    background-color: var(--color-timeline-bg) !important;
+}
+
+#timeline-lane-container .track-lane {
+    background-color: var(--color-timeline-bg) !important;
+}
+
+#timeline-ruler {
+    background-color: var(--color-timeline-bg) !important;
 }
 
 /* 플레이헤드 */
@@ -591,6 +605,98 @@ html, body {
     animation: clipSnapFlash 0.5s ease-out;
 }
 
+/* ================================
+   클립 필름 스트립 스타일
+   ================================ */
+.clip-filmstrip {
+    display: flex;
+    height: 100%;
+    overflow: hidden;
+}
+
+.clip-filmstrip-frame {
+    flex-shrink: 0;
+    height: 100%;
+    border-right: 1px solid rgba(0, 0, 0, 0.5);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    position: relative;
+}
+
+.clip-filmstrip-frame::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(180deg, rgba(0,0,0,0.1) 0%, transparent 20%, transparent 80%, rgba(0,0,0,0.2) 100%);
+    pointer-events: none;
+}
+
+.clip-filmstrip-placeholder {
+    flex-shrink: 0;
+    height: 100%;
+    border-right: 1px solid rgba(0, 0, 0, 0.3);
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.clip-filmstrip-placeholder i {
+    color: rgba(255, 255, 255, 0.2);
+    font-size: 16px;
+}
+
+/* ================================
+   오디오 파형 스타일
+   ================================ */
+.clip-waveform-svg {
+    width: 100%;
+    height: 100%;
+}
+
+.clip-waveform-bar {
+    fill: currentColor;
+    opacity: 0.7;
+}
+
+.clip-volume-indicator {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: #fbbf24;
+    cursor: ns-resize;
+    z-index: 20;
+    transition: height 0.1s;
+}
+
+.clip-volume-indicator:hover {
+    height: 4px;
+    background: #f59e0b;
+}
+
+.clip-volume-indicator::before {
+    content: '';
+    position: absolute;
+    left: -4px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 8px;
+    height: 8px;
+    background: #fbbf24;
+    border-radius: 50%;
+    opacity: 0;
+    transition: opacity 0.1s;
+}
+
+.clip-volume-indicator:hover::before {
+    opacity: 1;
+}
+
 /* 트랙 컨트롤 버튼 */
 .track-control-btn {
     width: 20px;
@@ -625,7 +731,7 @@ html, body {
 }
 
 .track-lane {
-    transition: background-color 0.15s;
+    transition: none !important;
 }
 
 /* 툴 버튼 */
@@ -647,6 +753,77 @@ html, body {
 .tool-btn:hover {
     background: var(--color-bg-hover);
     color: var(--color-text-main);
+}
+
+/* ================================
+   볼륨 슬라이더 (퀵바용)
+   ================================ */
+.volume-slider-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.volume-slider-popup {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--color-bg-panel);
+    border: 1px solid var(--color-ui-border);
+    border-radius: 6px;
+    padding: 8px;
+    margin-bottom: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    z-index: 100;
+    display: none;
+}
+
+.volume-slider-container:hover .volume-slider-popup,
+.volume-slider-popup:hover {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.volume-slider-vertical {
+    width: 4px;
+    height: 80px;
+    background: var(--color-bg-input);
+    border-radius: 2px;
+    position: relative;
+    cursor: pointer;
+}
+
+.volume-slider-fill {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--color-ui-accent);
+    border-radius: 2px;
+    transition: height 0.1s;
+}
+
+.volume-slider-thumb {
+    position: absolute;
+    left: 50%;
+    transform: translate(-50%, 50%);
+    width: 12px;
+    height: 12px;
+    background: white;
+    border-radius: 50%;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+    cursor: grab;
+}
+
+.volume-slider-value {
+    font-size: 10px;
+    color: var(--color-text-sub);
+    text-align: center;
+    min-width: 30px;
 }
 
 /* ================================
