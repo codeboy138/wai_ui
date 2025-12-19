@@ -1,13 +1,23 @@
 const { createApp, reactive, ref, onMounted, computed, nextTick } = Vue;
 
+// 상수 정의
+const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#64748b'];
+const Z_INDEX_OFFSETS = { 'EFF': 80, 'TXT': 40, 'BG': 20, 'VID': 60 };
+
 // --- Main App Vue Instance ---
 
 const App = {
     components: { 
         'dropdown-menu': DropdownMenu, 
         'project-modal': ProjectModal, 
+        'asset-manager-modal': AssetManagerModal,
+        'image-asset-modal': ImageAssetModal,
+        'image-effect-modal': ImageEffectModal,
+        'visualization-modal': VisualizationModal,
+        'api-manager-modal': ApiManagerModal,
         'layer-panel': LayerPanel,
-        'properties-panel': PropertiesPanel,
+        'layer-config-modal': LayerConfigModal,
+        'layer-template-modal': LayerTemplateModal,
         'preview-canvas': PreviewCanvas,
         'timeline-panel': TimelinePanel,
         'ruler-line': RulerLine
@@ -21,23 +31,33 @@ const App = {
             timelineContainerHeight: '50%',
             isProjectModalOpen: false,
             isDevModeActive: false, 
-            isDevModeFull: false,   
+            isDevModeFull: false,
+            
+            // Header Menus State
+            headerMenus: { create: false, assets: false, settings: false },
+            headerSubmenus: { assetManage: false },
+            projectManagerModal: { isOpen: false },
+            assetManagerModal: { isOpen: false, assetType: 'video' },
+            imageAssetModal: { isOpen: false },
+            imageEffectModal: { isOpen: false },
+            visualizationModal: { isOpen: false },
+            apiManagerModal: { isOpen: false },
             
             // Core Timeline/Canvas State
             tracks: [
-                { id: 't1', name: 'Global', type: 'video', color: '#64748b' }, 
-                { id: 't2', name: 'Top', type: 'text', color: '#eab308' },
-                { id: 't3', name: 'Middle', type: 'video', color: '#22c55e' }, 
-                { id: 't4', name: 'Bottom', type: 'text', color: '#3b82f6' },
-                { id: 't5', name: 'BGM', type: 'audio', color: '#a855f7' }
+                { id: 't1', name: 'Global', type: 'video', color: '#64748b', isMain: false, isHidden: false, isLocked: false }, 
+                { id: 't2', name: 'Top', type: 'text', color: '#eab308', isMain: false, isHidden: false, isLocked: false },
+                { id: 't3', name: 'Middle', type: 'video', color: '#22c55e', isMain: true, isHidden: false, isLocked: false }, 
+                { id: 't4', name: 'Bottom', type: 'text', color: '#3b82f6', isMain: false, isHidden: false, isLocked: false },
+                { id: 't5', name: 'BGM', type: 'audio', color: '#a855f7', isMain: false, isHidden: false, isLocked: false }
             ],
             clips: [
-                { id: 'c1', trackId: 't1', name: 'Intro_BG.mp4', start: 0, duration: 10, type: 'video' },
-                { id: 'c3', trackId: 't5', name: 'BGM_Main.mp3', start: 0, duration: 30, type: 'audio' }
+                { id: 'c1', trackId: 't1', name: 'Intro_BG.mp4', start: 0, duration: 10, type: 'video', volume: 100 },
+                { id: 'c3', trackId: 't5', name: 'BGM_Main.mp3', start: 0, duration: 30, type: 'audio', volume: 100 }
             ],
             // 레이어 관리용 박스 (항상 표시)
             canvasBoxes: [
-                { id: 'box_init', colIdx: 1, type: 'TXT', zIndex: 240, color: '#eab308', x: 1720, y: 980, w: 400, h: 200 }
+                { id: 'box_init', colIdx: 1, type: 'TXT', zIndex: 240, color: '#eab308', x: 1720, y: 980, w: 400, h: 200, rowType: 'TXT', isHidden: false }
             ],
             // 클립 연동 박스 (클립 추가 시 자동 생성)
             clipBoxes: [],
@@ -46,6 +66,7 @@ const App = {
             selectedBoxId: null,
             layerMainName: "",
             layerTemplates: [],
+            layerTemplateFolders: [{ id: 'root', name: '전체 템플릿', parentId: null, isExpanded: true }],
             isMagnet: true,
             isAutoRipple: false,
             isTimelineCollapsed: false,
@@ -57,8 +78,8 @@ const App = {
             
             // Preview Toolbar State
             aspectRatio: '16:9',
-            resolution: '4K',
-            canvasSize: { w: 3840, h: 2160 }, 
+            resolution: 'FHD',
+            canvasSize: { w: 1920, h: 1080 }, 
             mouseCoord: { x: 0, y: 0 }, 
             isMouseOverCanvas: false,
             canvasScale: 1.0, 
@@ -68,14 +89,20 @@ const App = {
             highlightStyle: { width: '0', height: '0', top: '0', left: '0' },
             tooltipStyle: { top: '0', left: '0' },
             mouseMarkerPos: { x: 0, y: 0 },
+            
+            // Layer Panel State
             layerCols: [
                 { id: 'c1', name: '전체', color: '#64748b' },
                 { id: 'c2', name: '상단', color: '#eab308' },
                 { id: 'c3', name: '중단', color: '#22c55e' },
                 { id: 'c4', name: '하단', color: '#3b82f6' }
             ],
+            ctxMenu: null,
+            layerConfig: { isOpen: false, boxId: null },
+            layerTemplateModal: { isOpen: false },
+            
             COLORS
-        }
+        };
     },
     computed: {
         canvasScalerStyle() {
@@ -87,7 +114,7 @@ const App = {
                 position: 'absolute', 
                 top: '50%', 
                 left: '50%'
-            }
+            };
         },
         // 플레이헤드 위치에 해당하는 활성 클립들의 박스
         activeClipBoxes() {
@@ -97,7 +124,6 @@ const App = {
             });
             
             return activeClips.map(clip => {
-                // clipBoxes에서 해당 클립의 박스 찾기
                 const existingBox = this.clipBoxes.find(box => box.clipId === clip.id);
                 if (existingBox) {
                     return {
@@ -112,14 +138,13 @@ const App = {
         },
         // PreviewCanvas에 전달할 모든 박스 (레이어 박스 + 활성 클립 박스)
         allVisibleBoxes() {
-            // 레이어 박스 (항상 표시, isHidden 제외)
             const layerBoxes = this.canvasBoxes.filter(box => !box.isHidden);
-            
-            // 활성 클립 박스 (플레이헤드 위치 기준)
             const clipBoxesActive = this.activeClipBoxes;
-            
-            // zIndex로 정렬하여 병합
             return [...layerBoxes, ...clipBoxesActive].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+        },
+        layerConfigBox() {
+            if (!this.layerConfig.isOpen || !this.layerConfig.boxId) return null;
+            return this.canvasBoxes.find(b => b.id === this.layerConfig.boxId) || null;
         }
     },
     mounted() {
@@ -128,6 +153,7 @@ const App = {
             this.setupCanvasScaler(); 
             this.setupInspectorMode(); 
             this.setupAssetEventListeners();
+            this.setupHeaderMenuClose();
         });
         window.vm = this; 
     },
@@ -136,13 +162,83 @@ const App = {
         if (this.playbackTimer) {
             cancelAnimationFrame(this.playbackTimer);
         }
+        if (this._headerMenuCloseHandler) {
+            document.removeEventListener('click', this._headerMenuCloseHandler);
+        }
     },
     methods: {
+        // --- Header Menu Methods ---
+        setupHeaderMenuClose() {
+            this._headerMenuCloseHandler = (e) => {
+                const isInsideMenu = e.target.closest('.header-menu-wrapper');
+                if (!isInsideMenu) this.closeAllHeaderMenus();
+            };
+            document.addEventListener('click', this._headerMenuCloseHandler);
+        },
+        closeAllHeaderMenus() {
+            this.headerMenus.create = false;
+            this.headerMenus.assets = false;
+            this.headerMenus.settings = false;
+            this.headerSubmenus.assetManage = false;
+        },
+        toggleHeaderMenu(menu) {
+            const wasOpen = this.headerMenus[menu];
+            this.closeAllHeaderMenus();
+            this.headerMenus[menu] = !wasOpen;
+        },
+        toggleHeaderSubmenu(submenu) { 
+            this.headerSubmenus[submenu] = !this.headerSubmenus[submenu]; 
+        },
+        
+        // --- Modal Methods ---
+        openProjectManager() { this.closeAllHeaderMenus(); this.projectManagerModal.isOpen = true; },
+        closeProjectManager() { this.projectManagerModal.isOpen = false; },
+        openAssetManager(assetType) { this.closeAllHeaderMenus(); this.assetManagerModal.assetType = assetType || 'video'; this.assetManagerModal.isOpen = true; },
+        closeAssetManager() { this.assetManagerModal.isOpen = false; },
+        openImageAssetModal() { this.closeAllHeaderMenus(); this.imageAssetModal.isOpen = true; },
+        closeImageAssetModal() { this.imageAssetModal.isOpen = false; },
+        openImageEffectModal() { this.closeAllHeaderMenus(); this.imageEffectModal.isOpen = true; },
+        closeImageEffectModal() { this.imageEffectModal.isOpen = false; },
+        openVisualizationModal() { this.closeAllHeaderMenus(); this.visualizationModal.isOpen = true; },
+        closeVisualizationModal() { this.visualizationModal.isOpen = false; },
+        openApiManagerModal() { this.closeAllHeaderMenus(); this.apiManagerModal.isOpen = true; },
+        closeApiManagerModal() { this.apiManagerModal.isOpen = false; },
+        openAccountManager() { 
+            this.closeAllHeaderMenus(); 
+            Swal.fire({ icon: 'info', title: '계정관리', text: '계정관리 기능은 준비 중입니다.', background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6' }); 
+        },
+        async handleLogout() {
+            this.closeAllHeaderMenus();
+            const result = await Swal.fire({ title: '로그아웃', text: '정말 로그아웃 하시겠습니까?', icon: 'question', showCancelButton: true, confirmButtonText: '로그아웃', cancelButtonText: '취소', background: '#1e1e1e', color: '#fff', confirmButtonColor: '#ef4444' });
+            if (result.isConfirmed) Swal.fire({ icon: 'success', title: '로그아웃 완료', background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6', timer: 1500, showConfirmButton: false });
+        },
+        
+        // --- Layer Config/Template Modal Methods ---
+        openLayerConfig(boxId) { this.layerConfig.isOpen = true; this.layerConfig.boxId = boxId; this.setSelectedBoxId(boxId); },
+        closeLayerConfig() { this.layerConfig.isOpen = false; this.layerConfig.boxId = null; },
+        deleteLayerFromConfig() { const box = this.layerConfigBox; if (box) this.removeBox(box.id); this.closeLayerConfig(); },
+        openLayerTemplateModal() { this.layerTemplateModal.isOpen = true; },
+        closeLayerTemplateModal() { this.layerTemplateModal.isOpen = false; },
+        deleteLayerTemplate(templateId) { this.layerTemplates = this.layerTemplates.filter(t => t.id !== templateId); },
+        loadLayerTemplate(template) {
+            if (!template || !template.matrixJson) return;
+            try {
+                const parsed = JSON.parse(template.matrixJson);
+                if (parsed.canvasBoxes && Array.isArray(parsed.canvasBoxes)) {
+                    const newBoxes = parsed.canvasBoxes.map(box => ({ ...box, id: `box_${box.slotKey}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` }));
+                    this.canvasBoxes = newBoxes;
+                }
+                this.layerMainName = template.name || '';
+            } catch (err) {
+                console.error('[loadLayerTemplate] parse error:', err);
+            }
+        },
+        updateLayerTemplates(templates) { this.layerTemplates = templates; },
+        updateLayerTemplateFolders(folders) { this.layerTemplateFolders = folders; },
+        
         // --- Asset Event Listeners ---
         setupAssetEventListeners() {
-            // AssetManagerModal에서 발생하는 이벤트 수신
             document.addEventListener('wai-asset-add-to-timeline', this.handleAssetAddToTimeline);
-            // TimelinePanel에서 발생하는 드롭 이벤트 수신
             document.addEventListener('wai-timeline-drop', this.handleTimelineDrop);
         },
         
@@ -151,16 +247,13 @@ const App = {
             document.removeEventListener('wai-timeline-drop', this.handleTimelineDrop);
         },
         
-        // AssetManagerModal의 "타임라인에 추가" 버튼 클릭 시
         handleAssetAddToTimeline(e) {
             const assets = e.detail;
             if (!assets || !Array.isArray(assets) || assets.length === 0) return;
             
-            // 첫 번째 트랙 또는 메인 트랙 찾기
             let targetTrack = this.tracks.find(t => t.isMain) || this.tracks[0];
             if (!targetTrack) return;
             
-            // 현재 플레이헤드 위치부터 순차 배치
             let insertTime = this.currentTime;
             
             assets.forEach(asset => {
@@ -181,7 +274,6 @@ const App = {
             });
         },
         
-        // TimelinePanel에서 드래그 드롭 시
         handleTimelineDrop(e) {
             const { assets, dropTime, targetTrackId } = e.detail;
             if (!assets || assets.length === 0) return;
@@ -213,17 +305,13 @@ const App = {
             });
         },
         
-        // 클립 추가 + 연동 박스 생성
         addClipWithBox(clip) {
-            // 1. 클립 추가
             this.clips.push(clip);
             
-            // 2. 비디오/이미지 클립인 경우 연동 박스 생성
             if (clip.type === 'video' || clip.type === 'image') {
                 const track = this.tracks.find(t => t.id === clip.trackId);
                 const trackIndex = this.tracks.findIndex(t => t.id === clip.trackId);
                 
-                // 캔버스 전체 크기로 박스 생성 (풀스크린)
                 const clipBox = {
                     id: `clipbox_${clip.id}`,
                     clipId: clip.id,
@@ -231,7 +319,7 @@ const App = {
                     y: 0,
                     w: this.canvasSize.w,
                     h: this.canvasSize.h,
-                    zIndex: (trackIndex + 1) * 10, // 트랙 순서 기반 zIndex
+                    zIndex: (trackIndex + 1) * 10,
                     color: track ? track.color : '#3b82f6',
                     mediaType: clip.type,
                     mediaSrc: clip.src || '',
@@ -245,7 +333,6 @@ const App = {
             return clip.id;
         },
         
-        // 클립 삭제 시 연동 박스도 제거
         removeClipWithBox(clipId) {
             this.clips = this.clips.filter(c => c.id !== clipId);
             this.clipBoxes = this.clipBoxes.filter(box => box.clipId !== clipId);
@@ -271,8 +358,6 @@ const App = {
         },
         
         startPlayback() {
-            const fps = 30;
-            const frameTime = 1000 / fps;
             let lastTime = performance.now();
             
             const animate = (currentTime) => {
@@ -283,7 +368,6 @@ const App = {
                 
                 this.currentTime += delta;
                 
-                // 끝에 도달하면 멈춤
                 const maxTime = this.getMaxClipEnd();
                 if (this.currentTime >= maxTime) {
                     this.currentTime = maxTime;
@@ -347,21 +431,29 @@ const App = {
                 }
             }
         },
+        copyInspectorId() {
+            const id = this.inspector.id;
+            if (!id) return;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(id.toString()).catch(err => console.warn('[Inspector] clipboard write failed', err));
+            }
+        },
         addCol() { this.layerCols.push({ id: `lc_${Date.now()}`, name: 'New', color: '#333' }); },
         openCtx(e, id) { this.ctxMenu = { x: e.clientX, y: e.clientY, id }; },
         setColColor(c) { 
-            const col = this.layerCols.find(x => x.id === this.ctxMenu.id);
+            const col = this.layerCols.find(x => x.id === this.ctxMenu?.id);
             if(col) col.color = c;
             this.ctxMenu = null;
         },
         setupInspectorMode() {
             const self = this;
             document.addEventListener('mousemove', (e) => {
-                if (!self.isDevModeActive) return;
+                if (!self.isDevModeActive && !self.isDevModeFull) return;
 
                 let target = e.target;
                 if (target.classList.contains('dev-highlight') || target.classList.contains('dev-tooltip')) {
-                     target = document.elementFromPoint(e.clientX, e.clientY);
+                    const realTarget = document.elementFromPoint(e.clientX, e.clientY);
+                    if (realTarget) target = realTarget;
                 }
 
                 if (target && target.tagName !== 'HTML' && target.tagName !== 'BODY') {
@@ -374,8 +466,7 @@ const App = {
                         left: `${rect.left}px`,
                     };
 
-                    let dataDevContent = target.getAttribute('data-dev') || '';
-                    dataDevContent = dataDevContent.replace(/\\n/g, '\n');
+                    const devInfo = self.isDevModeFull ? self.buildDevInfo(target) : '';
 
                     self.inspector = {
                         tag: target.tagName,
@@ -385,22 +476,29 @@ const App = {
                         y: Math.round(rect.top),
                         w: Math.round(rect.width),
                         h: Math.round(rect.height),
-                        dataDev: dataDevContent
+                        dataDev: devInfo
                     };
 
-                    self.tooltipStyle = {
-                        top: `${rect.top - 50}px`, 
-                        left: `${rect.left + rect.width + 10}px`,
-                        transform: 'translateY(0)'
-                    };
-
-                    if (rect.top - 50 < 0) {
-                        self.tooltipStyle.top = `${rect.bottom + 10}px`;
+                    let top = rect.top - 80 - 10;
+                    let left = rect.left + rect.width + 10;
+                    if (top < 10) top = rect.bottom + 10;
+                    if (top + 150 > window.innerHeight - 10) top = Math.max(10, window.innerHeight - 150 - 10);
+                    if (left + 260 > window.innerWidth - 10) {
+                        left = rect.left - 260 - 10;
+                        if (left < 10) left = Math.max(10, window.innerWidth - 260 - 10);
                     }
+                    self.tooltipStyle = { top: `${top}px`, left: `${left}px` };
                 } else {
                     self.inspector = { tag: '', id: '', className: '', x: 0, y: 0, w: 0, h: 0, dataDev: '' };
                 }
             });
+        },
+        buildDevInfo(targetEl) {
+            const id = targetEl.id || '';
+            const dataAction = targetEl.getAttribute('data-action') || '';
+            const lines = [];
+            if (dataAction) lines.push(`data-action: ${dataAction}`);
+            return lines.join('\n') || 'No dev info';
         },
 
         // --- Preview/Canvas Logic ---
@@ -411,8 +509,8 @@ const App = {
             this.resolution = r; 
         },
         updateCanvasMouseCoord(e) {
-            const wrapper = document.getElementById('canvas-wrapper');
-            const scaler = document.getElementById('canvas-scaler');
+            const wrapper = document.getElementById('preview-canvas-wrapper');
+            const scaler = document.getElementById('preview-canvas-scaler');
             if (!wrapper || !scaler) return;
 
             const wrapperRect = wrapper.getBoundingClientRect();
@@ -466,6 +564,7 @@ const App = {
                         self.previewContainerHeight = `${effectiveHeight}px`;
                         self.timelineContainerHeight = `calc(100% - ${effectiveHeight}px)`;
                     }
+                    self.recalculateCanvasScale();
                 };
                 
                 const onUp = () => {
@@ -476,7 +575,7 @@ const App = {
                 r.addEventListener('mousedown', e => {
                     e.preventDefault(); 
                     startS = dir === 'w' ? self[stateKey] : 
-                             (rid === 'resizer-timeline' ? document.getElementById('preview-container').offsetHeight : 0);
+                             (rid === 'main-center-timeline-resizer-h' ? document.getElementById('preview-main-container').offsetHeight : 0);
                     startP = dir === 'w' ? e.clientX : e.clientY;
 
                     document.addEventListener('mousemove', onMove); 
@@ -484,13 +583,14 @@ const App = {
                 });
             };
             
-            setup('resizer-left', 'leftPanelWidth', 180, 'w', false);
-            setup('resizer-right', 'rightPanelWidth', 250, 'w', true); 
-            setup('resizer-timeline', 'previewContainerHeight', 100, 'h', false);
+            setup('main-left-resizer-v', 'leftPanelWidth', 180, 'w', false);
+            setup('main-right-resizer-v', 'rightPanelWidth', 250, 'w', true); 
+            setup('main-center-timeline-resizer-h', 'previewContainerHeight', 100, 'h', false);
         },
         
         setupCanvasScaler() {
-            const wrapper = document.getElementById('canvas-wrapper');
+            const wrapper = document.getElementById('preview-canvas-wrapper');
+            if (!wrapper) return;
             
             const updateScale = () => {
                 const padding = 20; 
@@ -499,7 +599,18 @@ const App = {
             };
 
             updateScale();
-            new ResizeObserver(updateScale).observe(wrapper);
+            if (window.ResizeObserver) {
+                new ResizeObserver(updateScale).observe(wrapper);
+            } else {
+                window.addEventListener('resize', updateScale);
+            }
+        },
+        
+        recalculateCanvasScale() {
+            const wrapper = document.getElementById('preview-canvas-wrapper');
+            if (!wrapper) return;
+            const padding = 20;
+            this.canvasScale = Math.min((wrapper.clientWidth - padding)/this.canvasSize.w, (wrapper.clientHeight - padding)/this.canvasSize.h);
         },
 
         // --- Core Model Methods (Clips/Boxes) ---
@@ -512,7 +623,9 @@ const App = {
             const zIndex = this.getZIndex(colIdx, type);
             const newBox = {
                 id: `box_${Date.now()}`, colIdx, type, zIndex, color,
-                x: 1920 - 200 + (colIdx*50), y: 1080 - 150 + (colIdx*50), w: 400, h: 300
+                x: 1920 - 200 + (colIdx*50), y: 1080 - 150 + (colIdx*50), w: 400, h: 300,
+                rowType: type,
+                isHidden: false
             };
             this.canvasBoxes.push(newBox);
         },
@@ -525,7 +638,6 @@ const App = {
             this.selectedClip = null;
         },
         updateBoxPosition(id, x, y, w, h, isResizeEnd=false) {
-            // 레이어 박스에서 찾기
             let index = this.canvasBoxes.findIndex(b => b.id === id);
             if (index !== -1) {
                 const box = this.canvasBoxes[index];
@@ -541,7 +653,6 @@ const App = {
                 return;
             }
             
-            // 클립 박스에서 찾기
             index = this.clipBoxes.findIndex(b => b.id === id);
             if (index !== -1) {
                 const box = this.clipBoxes[index];
@@ -558,6 +669,9 @@ const App = {
         },
         removeClip(id) {
             this.removeClipWithBox(id);
+            if (this.selectedClip && this.selectedClip.id === id) {
+                this.selectedClip = null;
+            }
         },
         setSelectedClip(clip) {
             this.selectedClip = (this.selectedClip && this.selectedClip.id === clip.id) ? null : clip;
@@ -569,8 +683,15 @@ const App = {
             tracks.splice(toIndex, 0, removed);
             this.tracks = tracks;
         },
-        saveLayerTemplate(name) {
-            const newTpl = { id: `tpl_${Date.now()}`, name, cols: this.layerCols }; 
+        saveLayerTemplate(name, matrixJson) {
+            const newTpl = { 
+                id: `tpl_${Date.now()}`, 
+                name, 
+                cols: this.layerCols.map(c => ({ ...c })), 
+                matrixJson: matrixJson || null,
+                createdAt: new Date().toISOString(),
+                folderId: 'root'
+            }; 
             this.layerTemplates.push(newTpl);
             this.layerMainName = name; 
         },
@@ -579,7 +700,7 @@ const App = {
             if (!trackId) return;
             const newClip = {
                 id: `c_${Date.now()}`, trackId, name: assetName, 
-                start: time, duration: 10, type: fileType
+                start: time, duration: 10, type: fileType, volume: 100
             };
             this.addClipWithBox(newClip);
         },
@@ -613,9 +734,7 @@ const App = {
             }
         },
         
-        // PreviewCanvas에서 호출하는 캔버스 에셋 드롭 핸들러
         handleCanvasAssetDrop(assetData, x, y) {
-            // 캔버스에 직접 드롭된 경우 - 레이어 박스로 추가
             const assets = Array.isArray(assetData) ? assetData : [assetData];
             
             assets.forEach((asset, index) => {
@@ -648,4 +767,4 @@ const App = {
 };
 
 const app = createApp(App);
-app.mount('#vue-app');
+app.mount('#app-vue-root');
