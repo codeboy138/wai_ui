@@ -1,6 +1,7 @@
 // Timeline Panel Component - Enhanced with Undo/Redo, Zoom Mode, Smooth Zoom
 // 트랙 드래그 순서 변경, Z-Index 연동, 클립-캔버스 연동, 외부 에셋 드롭 지원
 // 비디오/오디오 파형 + 썸네일 타일 + 볼륨 레벨선 표시
+// 긴 영상 대응 동적 줌 스케일링
 
 const TimelinePanel = {
     props: ['vm'],
@@ -69,6 +70,13 @@ const TimelinePanel = {
                 <div class="flex items-center gap-2">
                     <button 
                         class="tool-btn text-[10px] px-2"
+                        @click="zoomToFit"
+                        title="전체 보기"
+                    >
+                        <i class="fa-solid fa-expand mr-1"></i>전체
+                    </button>
+                    <button 
+                        class="tool-btn text-[10px] px-2"
                         :class="{ 'bg-ui-accent text-white': zoomMode === 'playhead' }"
                         @click="toggleZoomMode"
                         :title="zoomMode === 'cursor' ? '커서 중심 줌' : '플레이헤드 중심 줌'"
@@ -76,8 +84,8 @@ const TimelinePanel = {
                         <i class="fa-solid fa-crosshairs mr-1"></i>
                         {{ zoomMode === 'cursor' ? '커서' : '헤드' }}
                     </button>
-                    <span class="text-[10px] text-text-sub">{{ Math.round(currentDisplayZoom) }}%</span>
-                    <input type="range" min="10" max="100" :value="currentDisplayZoom" @input="handleZoomInput($event)" class="w-20 accent-ui-accent h-1" />
+                    <span class="text-[10px] text-text-sub w-12 text-right">{{ zoomDisplayText }}</span>
+                    <input type="range" :min="zoomMin" :max="zoomMax" :value="currentDisplayZoom" @input="handleZoomInput($event)" class="w-20 accent-ui-accent h-1" />
                 </div>
             </div>
             
@@ -131,7 +139,7 @@ const TimelinePanel = {
                         :data-track-id="track.id"
                         class="border-b border-ui-border flex items-center px-1 group bg-bg-panel relative transition-all duration-150" 
                         :class="{ 'opacity-50': track.isLocked, 'bg-ui-accent/20': dragOverTrackId === track.id && dragOverTrackId !== draggingTrackId }" 
-                        :style="{ height: (trackHeights[track.id] || 40) + 'px' }"
+                        :style="{ height: (trackHeights[track.id] || defaultTrackHeight) + 'px' }"
                         draggable="true"
                         @dragstart="startTrackDrag($event, track, index)"
                         @dragover.prevent="handleTrackDragOver($event, track, index)"
@@ -149,7 +157,7 @@ const TimelinePanel = {
                             <i :class="track.isMain ? 'fa-solid fa-star' : 'fa-regular fa-star'" style="font-size: 10px;"></i>
                         </button>
                         
-                        <div class="flex items-center gap-0.5 mr-1 shrink-0" v-show="(trackHeights[track.id] || 40) >= 30">
+                        <div class="flex items-center gap-0.5 mr-1 shrink-0" v-show="(trackHeights[track.id] || defaultTrackHeight) >= 30">
                             <button class="track-control-btn" :class="{ 'active': !track.isHidden }" @click.stop="track.isHidden = !track.isHidden" title="가시성">
                                 <i :class="track.isHidden ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'" style="font-size: 8px;"></i>
                             </button>
@@ -159,7 +167,7 @@ const TimelinePanel = {
                         </div>
                         <div v-show="!isTrackNamesCollapsed" class="w-1 h-2/3 rounded mr-1 shrink-0" :style="{ backgroundColor: track.color || '#666' }"></div>
                         <input 
-                            v-show="!isTrackNamesCollapsed && (trackHeights[track.id] || 40) >= 24"
+                            v-show="!isTrackNamesCollapsed && (trackHeights[track.id] || defaultTrackHeight) >= 24"
                             type="text" 
                             class="text-[10px] truncate flex-1 text-text-main bg-transparent border-none outline-none min-w-0" 
                             :class="{ 'text-text-sub italic': track.name === 'none' }"
@@ -178,13 +186,13 @@ const TimelinePanel = {
                     <div id="timeline-ruler" class="h-6 border-b border-ui-border sticky top-0 bg-bg-dark relative" style="z-index: 20;" :style="{ width: totalTimelineWidth + 'px' }">
                         <template v-for="mark in rulerMarks" :key="'ruler-' + mark.time">
                             <div v-if="mark.isMajor" class="absolute top-0 bottom-0 border-l border-ui-border" :style="{ left: mark.position + 'px' }">
-                                <span class="absolute top-0 left-1 text-[9px] text-text-sub">{{ mark.label }}</span>
+                                <span class="absolute top-0 left-1 text-[9px] text-text-sub whitespace-nowrap">{{ mark.label }}</span>
                             </div>
                             <div v-else-if="mark.isMid" class="absolute bottom-0 h-3 border-l border-ui-border opacity-50" :style="{ left: mark.position + 'px' }"></div>
                             <div v-else class="absolute bottom-0 h-1.5 border-l border-ui-border opacity-30" :style="{ left: mark.position + 'px' }"></div>
                         </template>
                         
-                        <div class="playhead-head" :style="{ left: vm.currentTime * currentDisplayZoom + 'px' }" @mousedown.stop.prevent="startPlayheadDrag"></div>
+                        <div class="playhead-head" :style="{ left: vm.currentTime * pixelsPerSecond + 'px' }" @mousedown.stop.prevent="startPlayheadDrag"></div>
                     </div>
                     
                     <div 
@@ -193,7 +201,7 @@ const TimelinePanel = {
                         :data-track-id="track.id"
                         class="border-b border-ui-border relative track-lane" 
                         :class="{ 'opacity-30': track.isHidden }"
-                        :style="{ height: (trackHeights[track.id] || 40) + 'px' }"
+                        :style="{ height: (trackHeights[track.id] || defaultTrackHeight) + 'px' }"
                         @mousedown="onTrackLaneMouseDown($event, track)"
                         @contextmenu.prevent="openClipContextMenu($event, track)"
                     >
@@ -208,103 +216,101 @@ const TimelinePanel = {
                             v-for="clip in getClipsForTrack(track.id)" 
                             :key="clip.id" 
                             :data-clip-id="clip.id" 
-                            class="clip absolute rounded cursor-pointer overflow-hidden" 
+                            class="clip absolute rounded-sm cursor-pointer overflow-hidden" 
                             :class="getClipClasses(clip)" 
                             :style="clipStyle(clip, track)" 
                             @mousedown.stop="onClipMouseDown($event, clip, track)"
                             @contextmenu.stop.prevent="openClipContextMenu($event, track, clip)"
                         >
-                            <!-- 클립 배경색 -->
+                            <!-- 클립 배경 그라데이션 -->
                             <div class="absolute inset-0" :style="getClipBackgroundStyle(clip, track)"></div>
                             
-                            <!-- 비디오/이미지 썸네일 타일 (필름 프레임컷 스타일) -->
-                            <div v-if="(clip.type === 'video' || clip.type === 'image') && clip.src && (trackHeights[track.id] || 40) >= 20" 
-                                class="absolute inset-0 flex overflow-hidden pointer-events-none">
-                                <div v-for="(thumbIdx, ti) in getThumbnailCount(clip)" :key="'thumb_' + ti" 
-                                    class="h-full flex-shrink-0 relative border-r border-black/30"
-                                    :style="{ width: getThumbnailWidth(clip, track) + 'px' }">
-                                    <img v-if="clip.type === 'image'" :src="clip.src" class="w-full h-full object-cover opacity-80" draggable="false" />
+                            <!-- 레이어 1: 파일명 (최상단 바) -->
+                            <div class="clip-title-bar absolute top-0 left-0 right-0 h-4 flex items-center px-1 z-10" 
+                                :style="{ backgroundColor: getClipTitleBgColor(track) }">
+                                <span class="text-[9px] text-white font-bold truncate drop-shadow">{{ clip.name }}</span>
+                                <span class="text-[8px] text-white/70 ml-auto pl-1 whitespace-nowrap">{{ formatClipDuration(clip.duration) }}</span>
+                            </div>
+                            
+                            <!-- 레이어 2: 프레임 썸네일 (중간 영역) -->
+                            <div v-if="(clip.type === 'video' || clip.type === 'image') && clip.src" 
+                                class="absolute left-0 right-0 overflow-hidden flex"
+                                :style="getFrameAreaStyle(track)">
+                                <div v-for="(thumbIdx, ti) in getThumbnailCount(clip)" :key="'frame_' + ti" 
+                                    class="h-full flex-shrink-0 relative border-r border-black/40"
+                                    :style="{ width: getThumbnailWidth(clip) + 'px' }">
+                                    <img v-if="clip.type === 'image'" :src="clip.src" class="w-full h-full object-cover" draggable="false" />
                                     <video v-else-if="clip.type === 'video'" 
                                         :src="clip.src" 
-                                        class="w-full h-full object-cover opacity-80" 
+                                        class="w-full h-full object-cover" 
                                         muted 
                                         preload="metadata"
-                                        :currentTime="getThumbTime(clip, ti)"
                                         @loadedmetadata="setVideoThumbTime($event, clip, ti)"
                                     ></video>
                                 </div>
                             </div>
                             
-                            <!-- 오디오/비디오 파형 오버레이 -->
-                            <div v-if="(trackHeights[track.id] || 40) >= 16" class="absolute inset-0 pointer-events-none">
-                                <svg class="w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 100">
+                            <!-- 레이어 3: 사운드 파형 + 볼륨 레벨 (하단 영역) -->
+                            <div class="absolute left-0 right-0 bottom-0 pointer-events-none"
+                                :style="getWaveformAreaStyle(track)">
+                                <svg class="w-full h-full" preserveAspectRatio="none" :viewBox="'0 0 ' + getClipPixelWidth(clip) + ' 100'">
+                                    <!-- 파형 배경 -->
+                                    <rect x="0" y="0" :width="getClipPixelWidth(clip)" height="100" :fill="getWaveformBgColor(clip)" />
+                                    
                                     <!-- 파형 바 -->
                                     <template v-if="clip.waveformData && clip.waveformData.length > 0">
                                         <rect 
                                             v-for="(val, i) in clip.waveformData" 
                                             :key="'wf_'+i"
-                                            :x="(i / clip.waveformData.length) * 100"
-                                            :y="50 - (val * 35)"
-                                            :width="Math.max(0.5, 100 / clip.waveformData.length * 0.7)"
-                                            :height="val * 70"
-                                            :fill="getWaveformColor(clip)"
+                                            :x="(i / clip.waveformData.length) * getClipPixelWidth(clip)"
+                                            :y="50 - (val * 45)"
+                                            :width="Math.max(1, getClipPixelWidth(clip) / clip.waveformData.length * 0.8)"
+                                            :height="val * 90"
+                                            :fill="getWaveformBarColor(clip)"
                                         />
                                     </template>
                                     <template v-else>
                                         <rect 
-                                            v-for="i in 60" 
+                                            v-for="i in Math.min(80, Math.max(20, Math.floor(getClipPixelWidth(clip) / 3)))" 
                                             :key="'df_'+i"
-                                            :x="(i - 1) * (100 / 60)"
-                                            :y="50 - (12 + Math.sin(i * 0.4) * 12 + (i % 4) * 4)"
-                                            :width="100 / 60 * 0.6"
-                                            :height="24 + Math.sin(i * 0.4) * 24 + (i % 4) * 8"
-                                            :fill="getWaveformColor(clip)"
+                                            :x="(i - 1) * (getClipPixelWidth(clip) / Math.min(80, Math.max(20, Math.floor(getClipPixelWidth(clip) / 3))))"
+                                            :y="50 - (15 + Math.sin(i * 0.5) * 12 + (i % 5) * 3)"
+                                            :width="Math.max(1, getClipPixelWidth(clip) / Math.min(80, Math.max(20, Math.floor(getClipPixelWidth(clip) / 3))) * 0.7)"
+                                            :height="30 + Math.sin(i * 0.5) * 24 + (i % 5) * 6"
+                                            :fill="getWaveformBarColor(clip)"
                                         />
                                     </template>
-                                    <!-- 볼륨 레벨 가로선 -->
+                                    
+                                    <!-- 볼륨 레벨 가로선 (노란 점선) -->
                                     <line 
                                         x1="0" 
                                         :y1="100 - (clip.volume || 100) * 0.8" 
-                                        x2="100" 
+                                        :x2="getClipPixelWidth(clip)" 
                                         :y2="100 - (clip.volume || 100) * 0.8" 
                                         stroke="#fbbf24" 
-                                        stroke-width="1.5"
+                                        stroke-width="2"
                                         stroke-dasharray="4,2"
                                     />
+                                    
+                                    <!-- 볼륨 레벨 텍스트 -->
+                                    <text 
+                                        :x="getClipPixelWidth(clip) - 4" 
+                                        :y="100 - (clip.volume || 100) * 0.8 - 3"
+                                        fill="#fbbf24" 
+                                        font-size="9" 
+                                        text-anchor="end"
+                                        font-weight="bold"
+                                    >{{ clip.volume || 100 }}%</text>
                                 </svg>
                             </div>
                             
-                            <!-- 클립 정보 오버레이 -->
-                            <div class="absolute inset-0 flex flex-col justify-between p-0.5 pointer-events-none" style="z-index: 5;">
-                                <!-- 클립 이름 (상단) -->
-                                <div v-if="(trackHeights[track.id] || 40) >= 16" 
-                                    class="text-[9px] px-1 text-white truncate font-bold drop-shadow-lg bg-black/50 rounded self-start max-w-full leading-tight">
-                                    {{ clip.name }}
-                                </div>
-                                
-                                <!-- 하단 정보 -->
-                                <div v-if="(trackHeights[track.id] || 40) >= 24" class="flex justify-between items-end gap-1">
-                                    <!-- 재생시간 (좌하단) -->
-                                    <span class="text-[8px] text-white/90 bg-black/60 px-1 rounded leading-tight">
-                                        {{ formatClipDuration(clip.duration) }}
-                                    </span>
-                                    
-                                    <!-- 볼륨 표시 (우하단) -->
-                                    <div class="text-[8px] text-yellow-300 bg-black/60 px-1 rounded flex items-center gap-0.5 leading-tight"
-                                        :title="'볼륨: ' + (clip.volume || 100) + '%'">
-                                        <i class="fa-solid" :class="getVolumeIcon(clip.volume)" style="font-size: 7px;"></i>
-                                        <span>{{ clip.volume || 100 }}%</span>
-                                    </div>
-                                </div>
-                            </div>
-                            
                             <!-- 리사이즈 핸들 -->
-                            <div class="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/30 pointer-events-auto" style="z-index: 10;" @mousedown.stop="startClipResize($event, clip, 'left')"></div>
-                            <div class="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/30 pointer-events-auto" style="z-index: 10;" @mousedown.stop="startClipResize($event, clip, 'right')"></div>
+                            <div class="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/30 pointer-events-auto" style="z-index: 15;" @mousedown.stop="startClipResize($event, clip, 'left')"></div>
+                            <div class="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/30 pointer-events-auto" style="z-index: 15;" @mousedown.stop="startClipResize($event, clip, 'right')"></div>
                         </div>
                     </div>
                     
-                    <div class="playhead-line-body" :style="{ left: vm.currentTime * currentDisplayZoom + 'px' }"></div>
+                    <div class="playhead-line-body" :style="{ left: vm.currentTime * pixelsPerSecond + 'px' }"></div>
                 </div>
             </div>
             
@@ -364,8 +370,8 @@ const TimelinePanel = {
             resizingTrackId: null,
             resizeStartY: 0,
             resizeStartHeight: 0,
-            minTrackHeight: 12,
-            defaultTrackHeight: 40,
+            minTrackHeight: 24,
+            defaultTrackHeight: 60,
             selectedClipIds: [],
             lastSelectedClipId: null,
             lastSelectedTrackId: null,
@@ -381,7 +387,6 @@ const TimelinePanel = {
             resizeStartClipStart: 0,
             resizeStartClipDuration: 0,
             isDraggingPlayhead: false,
-            totalDuration: 300,
             isTrackNamesCollapsed: false,
             copiedClip: null,
             pendingClickClipId: null,
@@ -395,8 +400,7 @@ const TimelinePanel = {
                 { value: 'HD', label: 'HD', pixels: '1280×720' }
             ],
             zoomMode: 'cursor',
-            targetZoom: 50,
-            currentDisplayZoom: 50,
+            currentDisplayZoom: 20,
             zoomAnimationId: null,
             historyStack: [],
             historyIndex: -1,
@@ -409,7 +413,10 @@ const TimelinePanel = {
                 width: 0,
                 count: 1,
                 totalDuration: 0
-            }
+            },
+            basePixelsPerSecond: 20,
+            zoomMin: 1,
+            zoomMax: 200
         };
     },
     computed: {
@@ -422,24 +429,90 @@ const TimelinePanel = {
             const pad = n => String(n).padStart(2, '0');
             return `${pad(h)}:${pad(m)}:${pad(s)}:${pad(f)}`;
         },
-        totalTimelineWidth() { return this.totalDuration * this.currentDisplayZoom; },
-        currentHeaderWidth() { return this.isTrackNamesCollapsed ? this.collapsedHeaderWidth : this.trackHeaderWidth; },
+        pixelsPerSecond() {
+            return this.currentDisplayZoom;
+        },
+        maxClipEnd() {
+            let max = 60;
+            this.vm.clips.forEach(c => {
+                const end = c.start + c.duration;
+                if (end > max) max = end;
+            });
+            return max;
+        },
+        totalDuration() {
+            return Math.max(300, this.maxClipEnd + 60);
+        },
+        totalTimelineWidth() { 
+            return this.totalDuration * this.pixelsPerSecond; 
+        },
+        currentHeaderWidth() { 
+            return this.isTrackNamesCollapsed ? this.collapsedHeaderWidth : this.trackHeaderWidth; 
+        },
+        zoomDisplayText() {
+            if (this.pixelsPerSecond >= 60) {
+                return Math.round(this.pixelsPerSecond) + 'px/s';
+            } else if (this.pixelsPerSecond >= 1) {
+                return this.pixelsPerSecond.toFixed(1) + 'px/s';
+            } else {
+                return (this.pixelsPerSecond * 60).toFixed(1) + 'px/m';
+            }
+        },
         rulerMarks() {
             const marks = [];
-            const zoom = this.currentDisplayZoom;
+            const pps = this.pixelsPerSecond;
             const duration = this.totalDuration;
-            let majorInterval = 1, showMid = true, showMinor = true;
-            if (zoom < 20) { majorInterval = 5; showMid = false; showMinor = false; }
-            else if (zoom < 40) { majorInterval = 2; showMid = true; showMinor = false; }
-            else { majorInterval = 1; showMid = true; showMinor = zoom >= 60; }
-            for (let t = 0; t <= duration; t += 0.1) {
-                const time = Math.round(t * 10) / 10;
-                const position = time * zoom;
-                const isMajor = time % majorInterval === 0;
-                const isMid = showMid && !isMajor && time % 0.5 === 0;
-                const isMinor = showMinor && !isMajor && !isMid;
-                if (isMajor || isMid || isMinor) {
-                    marks.push({ time, position, isMajor, isMid, label: isMajor ? this.formatRulerTime(time) : '' });
+            
+            let majorInterval, minorInterval, showMinor;
+            
+            if (pps >= 100) {
+                majorInterval = 1;
+                minorInterval = 0.1;
+                showMinor = true;
+            } else if (pps >= 50) {
+                majorInterval = 2;
+                minorInterval = 0.5;
+                showMinor = true;
+            } else if (pps >= 20) {
+                majorInterval = 5;
+                minorInterval = 1;
+                showMinor = true;
+            } else if (pps >= 10) {
+                majorInterval = 10;
+                minorInterval = 2;
+                showMinor = true;
+            } else if (pps >= 5) {
+                majorInterval = 30;
+                minorInterval = 5;
+                showMinor = true;
+            } else if (pps >= 2) {
+                majorInterval = 60;
+                minorInterval = 10;
+                showMinor = true;
+            } else if (pps >= 0.5) {
+                majorInterval = 300;
+                minorInterval = 60;
+                showMinor = true;
+            } else {
+                majorInterval = 600;
+                minorInterval = 120;
+                showMinor = false;
+            }
+            
+            for (let t = 0; t <= duration; t += minorInterval) {
+                const time = Math.round(t * 100) / 100;
+                const position = time * pps;
+                const isMajor = Math.abs(time % majorInterval) < 0.001 || Math.abs(time % majorInterval - majorInterval) < 0.001;
+                const isMid = !isMajor && showMinor;
+                
+                if (isMajor || isMid) {
+                    marks.push({ 
+                        time, 
+                        position, 
+                        isMajor, 
+                        isMid: isMid && !isMajor, 
+                        label: isMajor ? this.formatRulerTime(time) : '' 
+                    });
                 }
             }
             return marks;
@@ -450,16 +523,23 @@ const TimelinePanel = {
     watch: {
         'vm.clips': { handler() { if (!this.isUndoRedoAction) this.saveToHistory(); }, deep: true },
         'vm.tracks': { handler() { if (!this.isUndoRedoAction) this.saveToHistory(); }, deep: true },
-        'vm.zoom': { handler(newVal) { this.targetZoom = newVal; this.currentDisplayZoom = newVal; }, immediate: true }
+        'vm.zoom': { 
+            handler(newVal) { 
+                if (newVal && newVal !== this.currentDisplayZoom) {
+                    this.currentDisplayZoom = newVal; 
+                }
+            }, 
+            immediate: true 
+        }
     },
     mounted() {
         this.$nextTick(() => {
             this.adjustLayout();
             this.injectStyles();
             this.initTrackHeights();
-            this.targetZoom = this.vm.zoom;
-            this.currentDisplayZoom = this.vm.zoom;
+            this.currentDisplayZoom = this.vm.zoom || 20;
             this.saveToHistory();
+            this.calculateDynamicZoomRange();
             window.addEventListener('resize', this.adjustLayout);
             document.addEventListener('click', this.onDocumentClick);
             document.addEventListener('mousemove', this.onDocumentMouseMove);
@@ -483,8 +563,8 @@ const TimelinePanel = {
             style.textContent = `
                 .clip.clip-selected { box-shadow: inset 0 0 0 2px #3b82f6 !important; }
                 .clip.clip-multi-selected { box-shadow: inset 0 0 0 2px #f59e0b !important; }
-                .clip { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2); }
-                .clip:hover { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.4); }
+                .clip { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.15); }
+                .clip:hover { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.3); }
                 [draggable="true"] { cursor: grab; }
                 [draggable="true"]:active { cursor: grabbing; }
                 .playhead-line-body { position: absolute; top: 24px; bottom: 0; width: 2px; background: #ef4444; pointer-events: none; z-index: 35; transform: translateX(-1px); }
@@ -495,8 +575,40 @@ const TimelinePanel = {
                 #timeline-main-panel { min-height: 0; position: relative; }
                 .resolution-dropdown-wrapper { position: relative; }
                 .tool-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+                .clip-title-bar { backdrop-filter: blur(2px); }
             `;
             document.head.appendChild(style);
+        },
+        
+        calculateDynamicZoomRange() {
+            const container = document.getElementById('timeline-scroll-container');
+            if (!container) return;
+            
+            const availableWidth = container.clientWidth - this.currentHeaderWidth - 40;
+            const maxDuration = Math.max(60, this.maxClipEnd + 30);
+            
+            this.zoomMin = Math.max(0.1, availableWidth / maxDuration / 2);
+            this.zoomMax = 200;
+            
+            if (this.currentDisplayZoom < this.zoomMin) {
+                this.currentDisplayZoom = this.zoomMin;
+            }
+        },
+        
+        zoomToFit() {
+            const container = document.getElementById('timeline-scroll-container');
+            if (!container) return;
+            
+            const availableWidth = container.clientWidth - this.currentHeaderWidth - 40;
+            const maxDuration = Math.max(10, this.maxClipEnd + 5);
+            
+            const fitZoom = availableWidth / maxDuration;
+            this.currentDisplayZoom = Math.max(this.zoomMin, Math.min(this.zoomMax, fitZoom));
+            this.vm.zoom = this.currentDisplayZoom;
+            
+            this.$nextTick(() => {
+                container.scrollLeft = 0;
+            });
         },
         
         onAspectChange(e) {
@@ -519,19 +631,27 @@ const TimelinePanel = {
         
         formatClipDuration(duration) {
             if (!duration) return '0:00';
-            const m = Math.floor(duration / 60);
+            const h = Math.floor(duration / 3600);
+            const m = Math.floor((duration % 3600) / 60);
             const s = Math.floor(duration % 60);
+            if (h > 0) {
+                return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+            }
             return `${m}:${String(s).padStart(2, '0')}`;
         },
         
+        getClipPixelWidth(clip) {
+            return Math.max(20, clip.duration * this.pixelsPerSecond);
+        },
+        
         getThumbnailCount(clip) {
-            const clipWidth = clip.duration * this.currentDisplayZoom;
-            const thumbWidth = 50;
+            const clipWidth = this.getClipPixelWidth(clip);
+            const thumbWidth = 60;
             return Math.max(1, Math.ceil(clipWidth / thumbWidth));
         },
         
-        getThumbnailWidth(clip, track) {
-            const clipWidth = clip.duration * this.currentDisplayZoom;
+        getThumbnailWidth(clip) {
+            const clipWidth = this.getClipPixelWidth(clip);
             const count = this.getThumbnailCount(clip);
             return clipWidth / count;
         },
@@ -552,15 +672,44 @@ const TimelinePanel = {
         
         getClipBackgroundStyle(clip, track) {
             const baseColor = track.color || '#3b82f6';
-            if (clip.type === 'sound') {
-                return { backgroundColor: baseColor, opacity: 0.6 };
-            }
-            return { backgroundColor: baseColor, opacity: 0.3 };
+            return { 
+                background: `linear-gradient(180deg, ${baseColor}40 0%, ${baseColor}20 100%)`,
+            };
         },
         
-        getWaveformColor(clip) {
-            if (clip.type === 'sound') return 'rgba(34, 197, 94, 0.7)';
-            return 'rgba(59, 130, 246, 0.5)';
+        getClipTitleBgColor(track) {
+            const baseColor = track.color || '#3b82f6';
+            return baseColor + 'cc';
+        },
+        
+        getFrameAreaStyle(track) {
+            const trackHeight = this.trackHeights[track.id] || this.defaultTrackHeight;
+            const titleHeight = 16;
+            const waveformHeight = Math.max(20, Math.floor((trackHeight - titleHeight) * 0.4));
+            const frameHeight = trackHeight - titleHeight - waveformHeight;
+            
+            return {
+                top: titleHeight + 'px',
+                height: Math.max(0, frameHeight) + 'px'
+            };
+        },
+        
+        getWaveformAreaStyle(track) {
+            const trackHeight = this.trackHeights[track.id] || this.defaultTrackHeight;
+            const waveformHeight = Math.max(20, Math.floor((trackHeight - 16) * 0.4));
+            return {
+                height: waveformHeight + 'px'
+            };
+        },
+        
+        getWaveformBgColor(clip) {
+            if (clip.type === 'sound') return 'rgba(34, 197, 94, 0.15)';
+            return 'rgba(59, 130, 246, 0.1)';
+        },
+        
+        getWaveformBarColor(clip) {
+            if (clip.type === 'sound') return 'rgba(34, 197, 94, 0.8)';
+            return 'rgba(59, 130, 246, 0.6)';
         },
         
         saveToHistory() {
@@ -598,34 +747,26 @@ const TimelinePanel = {
         
         toggleZoomMode() { this.zoomMode = this.zoomMode === 'cursor' ? 'playhead' : 'cursor'; },
         
-        animateZoom() {
-            const diff = this.targetZoom - this.currentDisplayZoom;
-            if (Math.abs(diff) < 0.1) { this.currentDisplayZoom = this.targetZoom; this.vm.zoom = this.targetZoom; this.zoomAnimationId = null; return; }
-            this.currentDisplayZoom += diff * 0.15;
-            this.zoomAnimationId = requestAnimationFrame(() => this.animateZoom());
+        handleZoomInput(e) {
+            const newZoom = Number(e.target.value);
+            this.setZoom(newZoom, this.zoomMode === 'playhead' ? 'playhead' : null);
         },
         
-        startSmoothZoom(newZoom, centerInfo = null) {
-            this.targetZoom = Math.max(10, Math.min(100, newZoom));
-            if (this.zoomAnimationId) cancelAnimationFrame(this.zoomAnimationId);
-            this.animateZoom();
-            if (centerInfo) {
+        setZoom(newZoom, centerType = null) {
+            const clampedZoom = Math.max(this.zoomMin, Math.min(this.zoomMax, newZoom));
+            const oldZoom = this.currentDisplayZoom;
+            this.currentDisplayZoom = clampedZoom;
+            this.vm.zoom = clampedZoom;
+            
+            if (centerType === 'playhead') {
                 this.$nextTick(() => {
                     const sc = document.getElementById('timeline-scroll-container');
-                    if (sc && centerInfo.type === 'playhead') {
+                    if (sc) {
                         const containerWidth = sc.clientWidth - this.currentHeaderWidth;
-                        sc.scrollLeft = this.vm.currentTime * this.currentDisplayZoom - containerWidth / 2;
-                    } else if (sc && centerInfo.type === 'cursor') {
-                        sc.scrollLeft = centerInfo.cursorTime * this.currentDisplayZoom - centerInfo.relativeX;
+                        sc.scrollLeft = this.vm.currentTime * this.pixelsPerSecond - containerWidth / 2;
                     }
                 });
             }
-        },
-        
-        handleZoomInput(e) {
-            const newZoom = Number(e.target.value);
-            if (this.zoomMode === 'playhead') this.startSmoothZoom(newZoom, { type: 'playhead' });
-            else this.startSmoothZoom(newZoom);
         },
         
         getClipTypeIcon(type) {
@@ -633,7 +774,11 @@ const TimelinePanel = {
             return icons[type] || 'fa-solid fa-file';
         },
         
-        initTrackHeights() { this.vm.tracks.forEach(track => { if (!this.trackHeights[track.id]) this.trackHeights[track.id] = this.defaultTrackHeight; }); },
+        initTrackHeights() { 
+            this.vm.tracks.forEach(track => { 
+                if (!this.trackHeights[track.id]) this.trackHeights[track.id] = this.defaultTrackHeight; 
+            }); 
+        },
         toggleAllTrackNames() { this.isTrackNamesCollapsed = !this.isTrackNamesCollapsed; },
         toggleResolutionDropdown() { this.isResolutionDropdownOpen = !this.isResolutionDropdownOpen; },
         selectResolution(value) { 
@@ -647,10 +792,10 @@ const TimelinePanel = {
         
         clipStyle(clip, track) {
             const height = this.trackHeights[track.id] || this.defaultTrackHeight;
-            const padding = Math.max(1, Math.min(3, height * 0.05));
+            const padding = 1;
             return { 
-                left: clip.start * this.currentDisplayZoom + 'px', 
-                width: Math.max(20, clip.duration * this.currentDisplayZoom) + 'px', 
+                left: clip.start * this.pixelsPerSecond + 'px', 
+                width: Math.max(20, clip.duration * this.pixelsPerSecond) + 'px', 
                 top: padding + 'px', 
                 height: (height - padding * 2) + 'px'
             };
@@ -722,6 +867,7 @@ const TimelinePanel = {
             if (e.key === 'Delete' && this.selectedClipIds.length > 0) this.deleteSelectedClips();
             if ((e.ctrlKey || e.metaKey) && e.key === 'a') { e.preventDefault(); this.selectedClipIds = this.vm.clips.map(c => c.id); this.syncVmSelectedClip(); }
             if (e.key === 'Escape') { this.clearSelection(); this.isResolutionDropdownOpen = false; }
+            if (e.key === 'Home') { e.preventDefault(); this.zoomToFit(); }
         },
         
         onDocumentMouseMove(e) {
@@ -753,7 +899,7 @@ const TimelinePanel = {
         
         handleClipDrag(e) {
             const dx = e.clientX - this.dragStartX;
-            const dt = dx / this.currentDisplayZoom;
+            const dt = dx / this.pixelsPerSecond;
             const lane = document.getElementById('timeline-lane-container');
             let targetTrack = null;
             if (lane) { const rect = lane.getBoundingClientRect(); targetTrack = this.getTrackAtY(e.clientY - rect.top - 24); }
@@ -798,7 +944,7 @@ const TimelinePanel = {
         },
         
         handleClipResize(e) {
-            const dt = (e.clientX - this.dragStartX) / this.currentDisplayZoom;
+            const dt = (e.clientX - this.dragStartX) / this.pixelsPerSecond;
             if (this.resizeDirection === 'left') {
                 let ns = this.resizeStartClipStart + dt;
                 let nd = this.resizeStartClipDuration - dt;
@@ -833,7 +979,7 @@ const TimelinePanel = {
         },
         
         findSnapPosition(newStart, clip, excludeIds = []) {
-            const snapDist = 10 / this.currentDisplayZoom;
+            const snapDist = 10 / this.pixelsPerSecond;
             const clipEnd = newStart + clip.duration;
             if (Math.abs(newStart - this.vm.currentTime) < snapDist) return { snapped: true, position: this.vm.currentTime };
             if (Math.abs(clipEnd - this.vm.currentTime) < snapDist) return { snapped: true, position: this.vm.currentTime - clip.duration };
@@ -903,7 +1049,7 @@ const TimelinePanel = {
         
         openTrackContextMenu(e, track, idx) { this.clipContextMenu = null; this.trackContextMenu = { x: e.clientX, y: e.clientY, track, index: idx }; },
         openClipContextMenu(e, track, clip = null) { this.trackContextMenu = null; this.clipContextMenu = { x: e.clientX, y: e.clientY, track, clip, time: this.getTimeFromMouseEvent(e) }; },
-        getTimeFromMouseEvent(e) { const lane = document.getElementById('timeline-lane-container'); if (!lane) return 0; return Math.max(0, (e.clientX - lane.getBoundingClientRect().left) / this.currentDisplayZoom); },
+        getTimeFromMouseEvent(e) { const lane = document.getElementById('timeline-lane-container'); if (!lane) return 0; return Math.max(0, (e.clientX - lane.getBoundingClientRect().left) / this.pixelsPerSecond); },
         closeContextMenus() { this.trackContextMenu = null; this.clipContextMenu = null; },
         
         async showVolumeDialog(clip) {
@@ -1009,9 +1155,9 @@ const TimelinePanel = {
         updatePlayheadPosition(e) {
             const lane = document.getElementById('timeline-lane-container');
             if (!lane) return;
-            let time = Math.max(0, (e.clientX - lane.getBoundingClientRect().left) / this.currentDisplayZoom);
+            let time = Math.max(0, (e.clientX - lane.getBoundingClientRect().left) / this.pixelsPerSecond);
             if (this.vm.isMagnet) {
-                let snap = null, minDiff = 10 / this.currentDisplayZoom;
+                let snap = null, minDiff = 10 / this.pixelsPerSecond;
                 this.vm.clips.forEach(c => { if (Math.abs(time - c.start) < minDiff) { minDiff = Math.abs(time - c.start); snap = c.start; } if (Math.abs(time - (c.start + c.duration)) < minDiff) { minDiff = Math.abs(time - (c.start + c.duration)); snap = c.start + c.duration; } });
                 if (snap !== null) time = snap;
             }
@@ -1022,10 +1168,27 @@ const TimelinePanel = {
         seekToStart() { if (typeof this.vm.seekToStart === 'function') this.vm.seekToStart(); else this.vm.currentTime = 0; },
         seekToEnd() { let max = 0; this.vm.clips.forEach(c => { if (c.start + c.duration > max) max = c.start + c.duration; }); this.vm.currentTime = max; },
         
-        adjustLayout() { const p = document.getElementById('preview-main-container'); if (p) p.style.height = this.vm.isTimelineCollapsed ? 'calc(100% - 32px)' : '50%'; },
+        adjustLayout() { 
+            const p = document.getElementById('preview-main-container'); 
+            if (p) p.style.height = this.vm.isTimelineCollapsed ? 'calc(100% - 32px)' : '50%'; 
+            this.calculateDynamicZoomRange();
+        },
         toggleCollapse() { this.vm.isTimelineCollapsed = !this.vm.isTimelineCollapsed; this.$nextTick(() => this.adjustLayout()); },
         startHeaderResize(e) { if (this.isTrackNamesCollapsed) return; this.isResizingHeader = true; this.resizeStartX = e.clientX; this.resizeStartWidth = this.trackHeaderWidth; },
-        formatRulerTime(s) { if (s < 60) return s + 's'; const m = Math.floor(s / 60); return m + ':' + String(Math.round(s % 60)).padStart(2, '0'); },
+        
+        formatRulerTime(s) { 
+            if (s >= 3600) {
+                const h = Math.floor(s / 3600);
+                const m = Math.floor((s % 3600) / 60);
+                const sec = Math.floor(s % 60);
+                return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+            } else if (s >= 60) {
+                const m = Math.floor(s / 60);
+                const sec = Math.floor(s % 60);
+                return `${m}:${String(sec).padStart(2, '0')}`;
+            }
+            return s + 's'; 
+        },
         
         onExternalDragOver(e) {
             if (e.dataTransfer.types.includes('text/wai-asset')) {
@@ -1050,12 +1213,12 @@ const TimelinePanel = {
             const rect = lane.getBoundingClientRect();
             const targetTrack = this.getTrackAtY(e.clientY - rect.top - 24);
             if (!targetTrack) { this.dropIndicator.visible = false; return; }
-            const dropTime = Math.max(0, (e.clientX - rect.left) / this.currentDisplayZoom);
+            const dropTime = Math.max(0, (e.clientX - rect.left) / this.pixelsPerSecond);
             let assets = [];
             try { const raw = e.dataTransfer.getData('text/wai-asset'); if (raw) { const parsed = JSON.parse(raw); assets = Array.isArray(parsed) ? parsed : [parsed]; } } catch (err) {}
             let totalDuration = 5;
             if (assets.length > 0) totalDuration = assets.reduce((sum, asset) => sum + (this.parseDuration(asset.duration) || 5), 0);
-            this.dropIndicator = { visible: true, trackId: targetTrack.id, left: dropTime * this.currentDisplayZoom, width: totalDuration * this.currentDisplayZoom, count: assets.length || 1, totalDuration };
+            this.dropIndicator = { visible: true, trackId: targetTrack.id, left: dropTime * this.pixelsPerSecond, width: totalDuration * this.pixelsPerSecond, count: assets.length || 1, totalDuration };
         },
         
         onExternalDrop(e) {
@@ -1069,7 +1232,7 @@ const TimelinePanel = {
             const lane = document.getElementById('timeline-lane-container');
             let dropTime = this.vm.currentTime;
             let targetTrackId = null;
-            if (lane) { const rect = lane.getBoundingClientRect(); dropTime = Math.max(0, (e.clientX - rect.left) / this.currentDisplayZoom); const targetTrack = this.getTrackAtY(e.clientY - rect.top - 24); if (targetTrack) targetTrackId = targetTrack.id; }
+            if (lane) { const rect = lane.getBoundingClientRect(); dropTime = Math.max(0, (e.clientX - rect.left) / this.pixelsPerSecond); const targetTrack = this.getTrackAtY(e.clientY - rect.top - 24); if (targetTrack) targetTrackId = targetTrack.id; }
             document.dispatchEvent(new CustomEvent('wai-timeline-drop', { detail: { assets, dropTime, targetTrackId }, bubbles: true }));
         },
         
@@ -1085,16 +1248,34 @@ const TimelinePanel = {
         handleWheel(e) {
             const sc = document.getElementById('timeline-scroll-container');
             if (!sc) return;
-            if (e.shiftKey) {
-                const delta = e.deltaY > 0 ? -5 : 5;
-                const newZoom = Math.max(10, Math.min(100, this.targetZoom + delta));
-                if (this.zoomMode === 'playhead') this.startSmoothZoom(newZoom, { type: 'playhead' });
-                else {
+            
+            if (e.shiftKey || e.ctrlKey) {
+                const zoomFactor = this.currentDisplayZoom > 10 ? 0.15 : 0.3;
+                const delta = e.deltaY > 0 ? -this.currentDisplayZoom * zoomFactor : this.currentDisplayZoom * zoomFactor;
+                const newZoom = Math.max(this.zoomMin, Math.min(this.zoomMax, this.currentDisplayZoom + delta));
+                
+                if (this.zoomMode === 'playhead') {
+                    this.setZoom(newZoom, 'playhead');
+                } else {
                     const lane = document.getElementById('timeline-lane-container');
-                    if (lane) { const rect = lane.getBoundingClientRect(); const cursorX = e.clientX - rect.left; this.startSmoothZoom(newZoom, { type: 'cursor', cursorTime: (sc.scrollLeft + cursorX) / this.currentDisplayZoom, relativeX: cursorX }); }
-                    else this.startSmoothZoom(newZoom);
+                    if (lane) {
+                        const rect = lane.getBoundingClientRect();
+                        const cursorX = e.clientX - rect.left;
+                        const cursorTime = (sc.scrollLeft + cursorX) / this.pixelsPerSecond;
+                        
+                        this.currentDisplayZoom = newZoom;
+                        this.vm.zoom = newZoom;
+                        
+                        this.$nextTick(() => {
+                            sc.scrollLeft = cursorTime * this.pixelsPerSecond - cursorX;
+                        });
+                    } else {
+                        this.setZoom(newZoom);
+                    }
                 }
-            } else sc.scrollLeft += e.deltaY;
+            } else {
+                sc.scrollLeft += e.deltaY;
+            }
         }
     }
 };
