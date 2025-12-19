@@ -1,4 +1,4 @@
-// Timeline Panel Component - Enhanced with Undo/Redo, Zoom Mode, Waveform, etc.
+// Timeline Panel Component - Enhanced with Undo/Redo, Zoom Mode, Waveform, Ripple, Smooth Zoom
 // 트랙 드래그 순서 변경, Z-Index 연동, 클립-캔버스 연동, 외부 에셋 드롭 지원
 
 const TimelinePanel = {
@@ -77,8 +77,8 @@ const TimelinePanel = {
                         <i class="fa-solid fa-crosshairs mr-1"></i>
                         {{ zoomMode === 'cursor' ? '커서' : '헤드' }}
                     </button>
-                    <span class="text-[10px] text-text-sub">{{ Math.round(vm.zoom) }}%</span>
-                    <input type="range" min="10" max="100" :value="vm.zoom" @input="handleZoomInput($event)" class="w-20 accent-ui-accent h-1" />
+                    <span class="text-[10px] text-text-sub">{{ Math.round(currentDisplayZoom) }}%</span>
+                    <input type="range" min="10" max="100" :value="currentDisplayZoom" @input="handleZoomInput($event)" class="w-20 accent-ui-accent h-1" />
                 </div>
             </div>
             
@@ -183,7 +183,7 @@ const TimelinePanel = {
                             <div v-else class="absolute bottom-0 h-1.5 border-l border-ui-border opacity-30" :style="{ left: mark.position + 'px' }"></div>
                         </template>
                         
-                        <div class="playhead-head" :style="{ left: vm.currentTime * vm.zoom + 'px' }" @mousedown.stop.prevent="startPlayheadDrag"></div>
+                        <div class="playhead-head" :style="{ left: vm.currentTime * currentDisplayZoom + 'px' }" @mousedown.stop.prevent="startPlayheadDrag"></div>
                     </div>
                     
                     <div 
@@ -255,7 +255,7 @@ const TimelinePanel = {
                         </div>
                     </div>
                     
-                    <div class="playhead-line-body" :style="{ left: vm.currentTime * vm.zoom + 'px' }"></div>
+                    <div class="playhead-line-body" :style="{ left: vm.currentTime * currentDisplayZoom + 'px' }"></div>
                 </div>
             </div>
             
@@ -355,7 +355,10 @@ const TimelinePanel = {
             ],
             // 줌 모드: 'cursor' | 'playhead'
             zoomMode: 'cursor',
-            lastZoomCenterX: null,
+            // 부드러운 줌
+            targetZoom: 50,
+            currentDisplayZoom: 50,
+            zoomAnimationId: null,
             // Undo/Redo
             historyStack: [],
             historyIndex: -1,
@@ -383,14 +386,14 @@ const TimelinePanel = {
             return `${pad(h)}:${pad(m)}:${pad(s)}:${pad(f)}`;
         },
         totalTimelineWidth() {
-            return this.totalDuration * this.vm.zoom;
+            return this.totalDuration * this.currentDisplayZoom;
         },
         currentHeaderWidth() {
             return this.isTrackNamesCollapsed ? this.collapsedHeaderWidth : this.trackHeaderWidth;
         },
         rulerMarks() {
             const marks = [];
-            const zoom = this.vm.zoom;
+            const zoom = this.currentDisplayZoom;
             const duration = this.totalDuration;
             let majorInterval = 1, showMid = true, showMinor = true;
             if (zoom < 20) { majorInterval = 5; showMid = false; showMinor = false; }
@@ -431,6 +434,13 @@ const TimelinePanel = {
                 }
             },
             deep: true
+        },
+        'vm.zoom': {
+            handler(newVal) {
+                this.targetZoom = newVal;
+                this.currentDisplayZoom = newVal;
+            },
+            immediate: true
         }
     },
     mounted() {
@@ -438,7 +448,9 @@ const TimelinePanel = {
             this.adjustLayout();
             this.injectStyles();
             this.initTrackHeights();
-            this.saveToHistory(); // 초기 상태 저장
+            this.targetZoom = this.vm.zoom;
+            this.currentDisplayZoom = this.vm.zoom;
+            this.saveToHistory();
             window.addEventListener('resize', this.adjustLayout);
             document.addEventListener('click', this.onDocumentClick);
             document.addEventListener('mousemove', this.onDocumentMouseMove);
@@ -452,6 +464,9 @@ const TimelinePanel = {
         document.removeEventListener('mousemove', this.onDocumentMouseMove);
         document.removeEventListener('mouseup', this.onDocumentMouseUp);
         document.removeEventListener('keydown', this.onDocumentKeyDown);
+        if (this.zoomAnimationId) {
+            cancelAnimationFrame(this.zoomAnimationId);
+        }
     },
     methods: {
         injectStyles() {
@@ -530,14 +545,12 @@ const TimelinePanel = {
                 tracks: JSON.parse(JSON.stringify(this.vm.tracks))
             };
             
-            // 현재 인덱스 이후의 히스토리 제거
             if (this.historyIndex < this.historyStack.length - 1) {
                 this.historyStack = this.historyStack.slice(0, this.historyIndex + 1);
             }
             
             this.historyStack.push(state);
             
-            // 최대 크기 제한
             if (this.historyStack.length > this.maxHistorySize) {
                 this.historyStack.shift();
             } else {
@@ -586,40 +599,67 @@ const TimelinePanel = {
             this.zoomMode = this.zoomMode === 'cursor' ? 'playhead' : 'cursor';
         },
         
-        // 줌 입력 핸들러 (모드에 따라 중심점 다르게)
-        handleZoomInput(e) {
-            const newZoom = Number(e.target.value);
-            const oldZoom = this.vm.zoom;
+        // 부드러운 줌 애니메이션
+        animateZoom() {
+            const diff = this.targetZoom - this.currentDisplayZoom;
+            const threshold = 0.1;
             
-            if (this.zoomMode === 'playhead') {
-                // 플레이헤드 중심 줌
-                const container = document.getElementById('timeline-scroll-container');
-                if (container) {
-                    const playheadPosOld = this.vm.currentTime * oldZoom;
-                    const playheadPosNew = this.vm.currentTime * newZoom;
-                    const containerWidth = container.clientWidth - this.currentHeaderWidth;
-                    
-                    this.vm.zoom = newZoom;
-                    
-                    this.$nextTick(() => {
-                        container.scrollLeft = playheadPosNew - containerWidth / 2;
-                    });
-                } else {
-                    this.vm.zoom = newZoom;
-                }
-            } else {
-                // 커서 중심 줌 (기본)
-                this.vm.zoom = newZoom;
+            if (Math.abs(diff) < threshold) {
+                this.currentDisplayZoom = this.targetZoom;
+                this.vm.zoom = this.targetZoom;
+                this.zoomAnimationId = null;
+                return;
+            }
+            
+            // 부드러운 보간 (easing)
+            const ease = 0.15;
+            this.currentDisplayZoom += diff * ease;
+            
+            this.zoomAnimationId = requestAnimationFrame(() => this.animateZoom());
+        },
+        
+        startSmoothZoom(newZoom, centerInfo = null) {
+            this.targetZoom = Math.max(10, Math.min(100, newZoom));
+            
+            if (this.zoomAnimationId) {
+                cancelAnimationFrame(this.zoomAnimationId);
+            }
+            
+            this.animateZoom();
+            
+            // 줌 후 스크롤 위치 조정
+            if (centerInfo) {
+                this.$nextTick(() => {
+                    const sc = document.getElementById('timeline-scroll-container');
+                    if (sc && centerInfo.type === 'playhead') {
+                        const containerWidth = sc.clientWidth - this.currentHeaderWidth;
+                        const playheadPos = this.vm.currentTime * this.currentDisplayZoom;
+                        sc.scrollLeft = playheadPos - containerWidth / 2;
+                    } else if (sc && centerInfo.type === 'cursor') {
+                        const newCursorX = centerInfo.cursorTime * this.currentDisplayZoom;
+                        sc.scrollLeft = newCursorX - centerInfo.relativeX;
+                    }
+                });
             }
         },
         
-        // 파형 생성 (클립 ID 기반 시드)
+        // 줌 입력 핸들러
+        handleZoomInput(e) {
+            const newZoom = Number(e.target.value);
+            
+            if (this.zoomMode === 'playhead') {
+                this.startSmoothZoom(newZoom, { type: 'playhead' });
+            } else {
+                this.startSmoothZoom(newZoom);
+            }
+        },
+        
+        // 파형 생성
         generateWaveformPath(clip) {
             const width = Math.max(100, clip.duration * 20);
             const height = 100;
             const centerY = height / 2;
             
-            // 클립 ID 기반 시드
             const seed = this.hashString(clip.id);
             const seededRandom = (i) => {
                 const x = Math.sin(seed + i * 9999) * 10000;
@@ -683,8 +723,8 @@ const TimelinePanel = {
             const height = this.trackHeights[trackId] || this.defaultTrackHeight;
             const padding = Math.max(2, Math.min(4, height * 0.1));
             return {
-                left: clip.start * this.vm.zoom + 'px',
-                width: Math.max(20, clip.duration * this.vm.zoom) + 'px',
+                left: clip.start * this.currentDisplayZoom + 'px',
+                width: Math.max(20, clip.duration * this.currentDisplayZoom) + 'px',
                 top: padding + 'px',
                 height: (height - padding * 2) + 'px'
             };
@@ -722,17 +762,18 @@ const TimelinePanel = {
                     this.selectedClipIds = trackClips.slice(minIdx, maxIdx + 1).map(c => c.id);
                 }
             } else {
-                if (this.selectedClipIds.length === 1 && this.selectedClipIds[0] === clipId) {
-                    this.selectedClipIds = [];
-                    this.lastSelectedClipId = null;
-                    this.lastSelectedTrackId = null;
-                } else {
-                    this.selectedClipIds = [clipId];
-                    this.lastSelectedClipId = clipId;
-                    this.lastSelectedTrackId = clip.trackId;
-                }
+                this.selectedClipIds = [clipId];
+                this.lastSelectedClipId = clipId;
+                this.lastSelectedTrackId = clip.trackId;
             }
             
+            this.syncVmSelectedClip();
+        },
+        
+        clearSelection() {
+            this.selectedClipIds = [];
+            this.lastSelectedClipId = null;
+            this.lastSelectedTrackId = null;
             this.syncVmSelectedClip();
         },
         
@@ -769,10 +810,7 @@ const TimelinePanel = {
         
         onTrackLaneMouseDown(e, track) {
             if (e.target.closest('.clip')) return;
-            this.selectedClipIds = [];
-            this.lastSelectedClipId = null;
-            this.lastSelectedTrackId = null;
-            this.syncVmSelectedClip();
+            this.clearSelection();
         },
         
         syncVmSelectedClip() {
@@ -793,14 +831,12 @@ const TimelinePanel = {
         },
         
         onDocumentKeyDown(e) {
-            // Undo: Ctrl+Z
             if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') {
                 e.preventDefault();
                 this.undo();
                 return;
             }
             
-            // Redo: Ctrl+Y 또는 Ctrl+Shift+Z
             if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) {
                 e.preventDefault();
                 this.redo();
@@ -816,10 +852,7 @@ const TimelinePanel = {
                 this.syncVmSelectedClip();
             }
             if (e.key === 'Escape') {
-                this.selectedClipIds = [];
-                this.lastSelectedClipId = null;
-                this.lastSelectedTrackId = null;
-                this.syncVmSelectedClip();
+                this.clearSelection();
                 this.isResolutionDropdownOpen = false;
             }
         },
@@ -877,7 +910,7 @@ const TimelinePanel = {
         
         handleClipDrag(e) {
             const dx = e.clientX - this.dragStartX;
-            const dt = dx / this.vm.zoom;
+            const dt = dx / this.currentDisplayZoom;
             
             const lane = document.getElementById('timeline-lane-container');
             let targetTrack = null;
@@ -958,7 +991,7 @@ const TimelinePanel = {
         
         handleClipResize(e) {
             const dx = e.clientX - this.dragStartX;
-            const dt = dx / this.vm.zoom;
+            const dt = dx / this.currentDisplayZoom;
             
             if (this.resizeDirection === 'left') {
                 let ns = this.resizeStartClipStart + dt;
@@ -1013,7 +1046,7 @@ const TimelinePanel = {
         },
         
         findSnapPosition(newStart, clip, excludeIds = []) {
-            const snapDist = 10 / this.vm.zoom;
+            const snapDist = 10 / this.currentDisplayZoom;
             const clipEnd = newStart + clip.duration;
             
             if (Math.abs(newStart - this.vm.currentTime) < snapDist) {
@@ -1032,6 +1065,19 @@ const TimelinePanel = {
                 if (Math.abs(clipEnd - oe) < snapDist) return { snapped: true, position: oe - clip.duration };
             }
             return { snapped: false, position: newStart };
+        },
+        
+        // 리플 기능: 클립 삭제 후 우측 클립 당김
+        applyRippleDelete(trackId, deletedStart, deletedDuration) {
+            if (!this.vm.isAutoRipple) return;
+            
+            const trackClips = this.vm.clips
+                .filter(c => c.trackId === trackId && c.start >= deletedStart)
+                .sort((a, b) => a.start - b.start);
+            
+            trackClips.forEach(clip => {
+                clip.start = Math.max(0, clip.start - deletedDuration);
+            });
         },
         
         startTrackDrag(e, track, index) {
@@ -1100,7 +1146,6 @@ const TimelinePanel = {
             this.closeContextMenus();
         },
         
-        // 전체 트랙 높이 통일
         unifyAllTrackHeights() {
             const targetHeight = this.defaultTrackHeight;
             this.vm.tracks.forEach(track => {
@@ -1181,7 +1226,7 @@ const TimelinePanel = {
             const lane = document.getElementById('timeline-lane-container');
             if (!lane) return 0;
             const rect = lane.getBoundingClientRect();
-            return Math.max(0, (e.clientX - rect.left) / this.vm.zoom);
+            return Math.max(0, (e.clientX - rect.left) / this.currentDisplayZoom);
         },
         
         closeContextMenus() {
@@ -1189,7 +1234,6 @@ const TimelinePanel = {
             this.clipContextMenu = null;
         },
         
-        // 볼륨 조절 다이얼로그
         async showVolumeDialog(clip) {
             const { value } = await Swal.fire({
                 title: '볼륨 조절',
@@ -1239,9 +1283,16 @@ const TimelinePanel = {
         },
         
         deleteClip(clip) {
+            const trackId = clip.trackId;
+            const deletedStart = clip.start;
+            const deletedDuration = clip.duration;
+            
             this.vm.clips = this.vm.clips.filter(c => c.id !== clip.id);
             this.selectedClipIds = this.selectedClipIds.filter(id => id !== clip.id);
             this.syncVmSelectedClip();
+            
+            // 리플 적용
+            this.applyRippleDelete(trackId, deletedStart + deletedDuration, deletedDuration);
         },
         
         addClipAtPosition() {
@@ -1284,19 +1335,48 @@ const TimelinePanel = {
         
         deleteSelectedClips() {
             if (this.selectedClipIds.length === 0) return;
+            
             const deletableIds = this.selectedClipIds.filter(id => {
                 const clip = this.vm.clips.find(c => c.id === id);
                 if (!clip) return false;
                 const track = this.vm.tracks.find(t => t.id === clip.trackId);
                 return !track || !track.isLocked;
             });
+            
             if (deletableIds.length === 0) {
                 Swal.fire({ icon: 'warning', title: '삭제 불가', text: '잠긴 트랙의 클립입니다', background: '#1e1e1e', color: '#fff' });
                 return;
             }
+            
+            // 리플 삭제를 위해 삭제할 클립 정보 수집
+            const clipsToDelete = deletableIds.map(id => {
+                const clip = this.vm.clips.find(c => c.id === id);
+                return clip ? { ...clip } : null;
+            }).filter(c => c);
+            
+            // 트랙별로 그룹화
+            const clipsByTrack = {};
+            clipsToDelete.forEach(clip => {
+                if (!clipsByTrack[clip.trackId]) {
+                    clipsByTrack[clip.trackId] = [];
+                }
+                clipsByTrack[clip.trackId].push(clip);
+            });
+            
+            // 클립 삭제
             this.vm.clips = this.vm.clips.filter(c => !deletableIds.includes(c.id));
             this.selectedClipIds = [];
             this.syncVmSelectedClip();
+            
+            // 각 트랙별로 리플 적용 (뒤에서부터 처리)
+            if (this.vm.isAutoRipple) {
+                Object.keys(clipsByTrack).forEach(trackId => {
+                    const deletedClips = clipsByTrack[trackId].sort((a, b) => b.start - a.start);
+                    deletedClips.forEach(deleted => {
+                        this.applyRippleDelete(trackId, deleted.start + deleted.duration, deleted.duration);
+                    });
+                });
+            }
         },
         
         cutAtPlayhead() {
@@ -1401,9 +1481,15 @@ const TimelinePanel = {
                 if (!clip) return;
                 const clipEnd = clip.start + clip.duration;
                 if (t > clip.start && t < clipEnd) {
+                    const deletedDuration = t - clip.start;
                     clip.duration = clipEnd - t;
                     clip.start = t;
                     count++;
+                    
+                    // 리플 적용
+                    if (this.vm.isAutoRipple) {
+                        this.applyRippleDelete(clip.trackId, t, deletedDuration);
+                    }
                 }
             });
             
@@ -1436,8 +1522,14 @@ const TimelinePanel = {
                 if (!clip) return;
                 const clipEnd = clip.start + clip.duration;
                 if (t > clip.start && t < clipEnd) {
+                    const deletedDuration = clipEnd - t;
                     clip.duration = t - clip.start;
                     count++;
+                    
+                    // 리플 적용 (우측 클립들 당김)
+                    if (this.vm.isAutoRipple) {
+                        this.applyRippleDelete(clip.trackId, t + deletedDuration, deletedDuration);
+                    }
                 }
             });
             
@@ -1450,8 +1542,13 @@ const TimelinePanel = {
             const t = this.vm.currentTime;
             const clipEnd = clip.start + clip.duration;
             if (t > clip.start && t < clipEnd) {
+                const deletedDuration = t - clip.start;
                 clip.duration = clipEnd - t;
                 clip.start = t;
+                
+                if (this.vm.isAutoRipple) {
+                    this.applyRippleDelete(clip.trackId, t, deletedDuration);
+                }
             }
         },
         
@@ -1459,7 +1556,12 @@ const TimelinePanel = {
             const t = this.vm.currentTime;
             const clipEnd = clip.start + clip.duration;
             if (t > clip.start && t < clipEnd) {
+                const deletedDuration = clipEnd - t;
                 clip.duration = t - clip.start;
+                
+                if (this.vm.isAutoRipple) {
+                    this.applyRippleDelete(clip.trackId, t + deletedDuration, deletedDuration);
+                }
             }
         },
         
@@ -1477,9 +1579,9 @@ const TimelinePanel = {
             const lane = document.getElementById('timeline-lane-container');
             if (!lane) return;
             const rect = lane.getBoundingClientRect();
-            let time = Math.max(0, (e.clientX - rect.left) / this.vm.zoom);
+            let time = Math.max(0, (e.clientX - rect.left) / this.currentDisplayZoom);
             if (this.vm.isMagnet) {
-                let snap = null, minDiff = 10 / this.vm.zoom;
+                let snap = null, minDiff = 10 / this.currentDisplayZoom;
                 this.vm.clips.forEach(c => {
                     if (Math.abs(time - c.start) < minDiff) { minDiff = Math.abs(time - c.start); snap = c.start; }
                     if (Math.abs(time - (c.start + c.duration)) < minDiff) { minDiff = Math.abs(time - (c.start + c.duration)); snap = c.start + c.duration; }
@@ -1529,7 +1631,7 @@ const TimelinePanel = {
             return m + ':' + String(sec).padStart(2, '0');
         },
         
-        // 외부 에셋 드래그 오버 (타임라인 패널 전체)
+        // 외부 에셋 드래그 오버
         onExternalDragOver(e) {
             if (e.dataTransfer.types.includes('text/wai-asset')) {
                 e.preventDefault();
@@ -1561,10 +1663,8 @@ const TimelinePanel = {
                 return;
             }
             
-            // 드롭 위치 계산
-            const dropTime = Math.max(0, (e.clientX - rect.left) / this.vm.zoom);
+            const dropTime = Math.max(0, (e.clientX - rect.left) / this.currentDisplayZoom);
             
-            // 드래그 중인 에셋 정보 파싱 시도
             let assets = [];
             try {
                 const raw = e.dataTransfer.getData('text/wai-asset');
@@ -1572,12 +1672,9 @@ const TimelinePanel = {
                     const parsed = JSON.parse(raw);
                     assets = Array.isArray(parsed) ? parsed : [parsed];
                 }
-            } catch (err) {
-                // 드래그 중에는 데이터를 읽을 수 없을 수 있음
-            }
+            } catch (err) {}
             
-            // 총 duration 계산
-            let totalDuration = 5; // 기본값
+            let totalDuration = 5;
             if (assets.length > 0) {
                 totalDuration = assets.reduce((sum, asset) => {
                     return sum + (this.parseDuration(asset.duration) || 5);
@@ -1587,8 +1684,8 @@ const TimelinePanel = {
             this.dropIndicator = {
                 visible: true,
                 trackId: targetTrack.id,
-                left: dropTime * this.vm.zoom,
-                width: totalDuration * this.vm.zoom,
+                left: dropTime * this.currentDisplayZoom,
+                width: totalDuration * this.currentDisplayZoom,
                 count: assets.length || 1,
                 totalDuration: totalDuration
             };
@@ -1618,7 +1715,7 @@ const TimelinePanel = {
             
             if (lane) {
                 const rect = lane.getBoundingClientRect();
-                dropTime = Math.max(0, (e.clientX - rect.left) / this.vm.zoom);
+                dropTime = Math.max(0, (e.clientX - rect.left) / this.currentDisplayZoom);
                 const relY = e.clientY - rect.top - 24;
                 const trackAtY = this.getTrackAtY(relY);
                 if (trackAtY) targetTrack = trackAtY;
@@ -1737,36 +1834,27 @@ const TimelinePanel = {
             if (!sc) return;
             
             if (e.shiftKey) {
-                // 줌 모드에 따라 다르게 처리
-                const oldZoom = this.vm.zoom;
-                const newZoom = Math.max(10, Math.min(100, this.vm.zoom + (e.deltaY > 0 ? -2 : 2)));
+                // 부드러운 줌
+                const delta = e.deltaY > 0 ? -5 : 5;
+                const newZoom = Math.max(10, Math.min(100, this.targetZoom + delta));
                 
                 if (this.zoomMode === 'playhead') {
-                    const playheadPosOld = this.vm.currentTime * oldZoom;
-                    const containerWidth = sc.clientWidth - this.currentHeaderWidth;
-                    
-                    this.vm.zoom = newZoom;
-                    
-                    this.$nextTick(() => {
-                        const playheadPosNew = this.vm.currentTime * newZoom;
-                        sc.scrollLeft = playheadPosNew - containerWidth / 2;
-                    });
+                    this.startSmoothZoom(newZoom, { type: 'playhead' });
                 } else {
                     // 커서 위치 기준 줌
                     const lane = document.getElementById('timeline-lane-container');
                     if (lane) {
                         const rect = lane.getBoundingClientRect();
                         const cursorX = e.clientX - rect.left;
-                        const cursorTime = (sc.scrollLeft + cursorX) / oldZoom;
+                        const cursorTime = (sc.scrollLeft + cursorX) / this.currentDisplayZoom;
                         
-                        this.vm.zoom = newZoom;
-                        
-                        this.$nextTick(() => {
-                            const newCursorX = cursorTime * newZoom;
-                            sc.scrollLeft = newCursorX - cursorX;
+                        this.startSmoothZoom(newZoom, { 
+                            type: 'cursor', 
+                            cursorTime: cursorTime,
+                            relativeX: cursorX
                         });
                     } else {
-                        this.vm.zoom = newZoom;
+                        this.startSmoothZoom(newZoom);
                     }
                 }
             } else {
