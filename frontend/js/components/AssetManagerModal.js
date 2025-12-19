@@ -1,4 +1,5 @@
 // Asset Manager Modal Component - 드래그앤드롭 + 리사이징 + 복수선택 + 파일업로드 + 최소화 + 타임라인 연동
+// 업로드/추가 완료 팝업 제거 버전
 
 var AssetManagerModal = {
     props: {
@@ -585,16 +586,6 @@ var AssetManagerModal = {
                 resolution: asset.resolution || ''
             }];
             this.dispatchToTimeline(transferData);
-            Swal.fire({
-                icon: 'success',
-                title: '타임라인에 추가',
-                text: '"' + asset.name + '"이(가) 타임라인에 추가되었습니다.',
-                background: '#1e1e1e',
-                color: '#fff',
-                confirmButtonColor: '#3b82f6',
-                timer: 1500,
-                showConfirmButton: false
-            });
         },
         addMultipleToTimeline: function(assets) {
             var self = this;
@@ -609,16 +600,6 @@ var AssetManagerModal = {
                 };
             });
             this.dispatchToTimeline(transferData);
-            Swal.fire({
-                icon: 'success',
-                title: '타임라인에 추가',
-                text: assets.length + '개 ' + this.assetTypeLabel + '이(가) 타임라인에 추가되었습니다.',
-                background: '#1e1e1e',
-                color: '#fff',
-                confirmButtonColor: '#3b82f6',
-                timer: 1500,
-                showConfirmButton: false
-            });
         },
         dispatchToTimeline: function(assetDataArray) {
             var event = new CustomEvent('wai-asset-add-to-timeline', {
@@ -645,206 +626,4 @@ var AssetManagerModal = {
                 String(now.getMonth() + 1).padStart(2, '0') + 
                 String(now.getDate()).padStart(2, '0') + '_' + 
                 String(now.getHours()).padStart(2, '0') + 
-                String(now.getMinutes()).padStart(2, '0') + 
-                String(now.getSeconds()).padStart(2, '0');
-            var folderId = 'folder_' + Date.now();
-            
-            this.assetFolders.push({ id: folderId, name: folderName });
-            
-            if (!this.dummyAssets[this.assetType]) {
-                this.dummyAssets[this.assetType] = [];
-            }
-            
-            var addedCount = 0;
-            var expectedType = this.assetType === 'video' ? 'video/' : 'audio/';
-            
-            for (var j = 0; j < files.length; j++) {
-                var file = files[j];
-                if (!file.type.startsWith(expectedType)) continue;
-                
-                var newAsset = {
-                    id: self.assetType + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
-                    name: file.name,
-                    folderId: folderId,
-                    duration: '00:00',
-                    resolution: '',
-                    src: URL.createObjectURL(file),
-                    dateAdded: Date.now()
-                };
-                
-                if (self.assetType === 'video') {
-                    (function(asset, f) {
-                        var video = document.createElement('video');
-                        video.preload = 'metadata';
-                        video.onloadedmetadata = function() {
-                            var dur = video.duration;
-                            var min = Math.floor(dur / 60);
-                            var sec = Math.floor(dur % 60);
-                            asset.duration = String(min).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
-                            asset.resolution = video.videoWidth + 'x' + video.videoHeight;
-                            URL.revokeObjectURL(video.src);
-                        };
-                        video.src = asset.src;
-                    })(newAsset, file);
-                } else if (self.assetType === 'sound') {
-                    (function(asset, f) {
-                        var audio = document.createElement('audio');
-                        audio.preload = 'metadata';
-                        audio.onloadedmetadata = function() {
-                            var dur = audio.duration;
-                            var min = Math.floor(dur / 60);
-                            var sec = Math.floor(dur % 60);
-                            asset.duration = String(min).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
-                        };
-                        audio.src = asset.src;
-                    })(newAsset, file);
-                }
-                
-                this.dummyAssets[this.assetType].push(newAsset);
-                addedCount++;
-            }
-            
-            if (addedCount > 0) {
-                this.currentFolderId = folderId;
-                
-                Swal.fire({
-                    icon: 'success',
-                    title: '파일 업로드 완료',
-                    text: addedCount + '개 ' + this.assetTypeLabel + '이(가) "' + folderName + '" 폴더에 추가되었습니다.',
-                    background: '#1e1e1e',
-                    color: '#fff',
-                    confirmButtonColor: '#3b82f6',
-                    timer: 2500,
-                    showConfirmButton: false
-                });
-            } else {
-                Swal.fire({
-                    icon: 'warning',
-                    title: '업로드 실패',
-                    text: '지원하는 ' + this.assetTypeLabel + ' 파일이 없습니다.',
-                    background: '#1e1e1e',
-                    color: '#fff',
-                    confirmButtonColor: '#3b82f6',
-                    timer: 2000,
-                    showConfirmButton: false
-                });
-            }
-        },
-        createFolder: function() {
-            var self = this;
-            Swal.fire({
-                title: '새 폴더',
-                input: 'text',
-                inputPlaceholder: '폴더 이름',
-                showCancelButton: true,
-                background: '#1e1e1e',
-                color: '#fff',
-                confirmButtonColor: '#3b82f6'
-            }).then(function(result) {
-                if (result.value) {
-                    self.assetFolders.push({ id: 'folder_' + Date.now(), name: result.value });
-                }
-            });
-        },
-        getFolderAssetCount: function(folderId) {
-            var assets = this.dummyAssets[this.assetType] || [];
-            if (folderId === 'all') return assets.length;
-            return assets.filter(function(a) { return a.folderId === folderId; }).length;
-        },
-        toggleAudioPreview: function(asset) {
-            console.log('Playing audio:', asset.name);
-        },
-        onAssetDragStart: function(e, asset) {
-            var self = this;
-            if (this.selectedAssetIds.indexOf(asset.id) < 0) {
-                this.selectedAssetIds = [asset.id];
-            }
-            var selectedAssets = this.filteredAssets.filter(function(a) {
-                return self.selectedAssetIds.indexOf(a.id) >= 0;
-            });
-            this.dragData = { type: 'asset', assets: selectedAssets };
-            e.dataTransfer.effectAllowed = 'copy';
-            var transferData = selectedAssets.map(function(a) {
-                return {
-                    type: self.assetType,
-                    id: a.id,
-                    name: a.name,
-                    src: a.src || '',
-                    duration: a.duration || '00:10',
-                    resolution: a.resolution || ''
-                };
-            });
-            e.dataTransfer.setData('text/wai-asset', JSON.stringify(transferData));
-            var dragImage = document.createElement('div');
-            var icon = self.assetType === 'video' ? '🎬' : '🎵';
-            if (selectedAssets.length > 1) {
-                dragImage.textContent = icon + ' ' + selectedAssets.length + '개 항목';
-            } else {
-                dragImage.textContent = icon + ' ' + asset.name;
-            }
-            dragImage.style.cssText = 'position:absolute;top:-1000px;padding:8px 16px;background:#3b82f6;color:#fff;border-radius:6px;font-size:12px;font-weight:bold;white-space:nowrap;';
-            document.body.appendChild(dragImage);
-            e.dataTransfer.setDragImage(dragImage, 0, 0);
-            setTimeout(function() {
-                document.body.removeChild(dragImage);
-            }, 0);
-        },
-        onDragEnd: function() {
-            this.dragData = null;
-            this.dragOverFolderId = null;
-            this.isContentPanelDragOver = false;
-        },
-        onFolderDragOver: function(e, folder) {
-            e.preventDefault();
-            if (this.dragData) {
-                this.dragOverFolderId = folder.id;
-            }
-        },
-        onFolderDragLeave: function(e, folder) {
-            if (this.dragOverFolderId === folder.id) {
-                this.dragOverFolderId = null;
-            }
-        },
-        onFolderDrop: function(e, folder) {
-            var self = this;
-            e.preventDefault();
-            if (this.dragData && this.dragData.type === 'asset' && this.dragData.assets) {
-                this.dragData.assets.forEach(function(asset) {
-                    self.moveAssetToFolder(asset, folder.id);
-                });
-            }
-            this.dragOverFolderId = null;
-            this.dragData = null;
-        },
-        onContentPanelDragOver: function(e) {
-            e.preventDefault();
-            this.isContentPanelDragOver = true;
-        },
-        onContentPanelDrop: function(e) {
-            var self = this;
-            e.preventDefault();
-            if (this.dragData && this.dragData.type === 'asset' && this.dragData.assets) {
-                this.dragData.assets.forEach(function(asset) {
-                    self.moveAssetToFolder(asset, self.currentFolderId);
-                });
-            }
-            this.isContentPanelDragOver = false;
-            this.dragData = null;
-        },
-        moveAssetToFolder: function(asset, targetFolderId) {
-            var assets = this.dummyAssets[this.assetType] || [];
-            var idx = -1;
-            for (var i = 0; i < assets.length; i++) {
-                if (assets[i].id === asset.id) {
-                    idx = i;
-                    break;
-                }
-            }
-            if (idx !== -1) {
-                assets[idx].folderId = targetFolderId;
-            }
-        }
-    }
-};
-
-window.AssetManagerModal = AssetManagerModal;
+                String
