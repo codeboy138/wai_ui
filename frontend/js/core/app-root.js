@@ -47,11 +47,11 @@ const AppRoot = {
             apiManagerModal: { isOpen: false },
             
             tracks: [
-                { id: 't1', name: 'Global', type: 'video', color: '#64748b', isMain: false }, 
-                { id: 't2', name: 'Top', type: 'text', color: '#eab308', isMain: false },
-                { id: 't3', name: 'Middle', type: 'video', color: '#22c55e', isMain: false }, 
-                { id: 't4', name: 'Bottom', type: 'text', color: '#3b82f6', isMain: true },
-                { id: 't5', name: 'BGM', type: 'audio', color: '#a855f7', isMain: false }
+                { id: 't1', name: 'Global', type: 'video', color: '#64748b', isMain: false, isHidden: false, isLocked: false }, 
+                { id: 't2', name: 'Top', type: 'text', color: '#eab308', isMain: false, isHidden: false, isLocked: false },
+                { id: 't3', name: 'Middle', type: 'video', color: '#22c55e', isMain: false, isHidden: false, isLocked: false }, 
+                { id: 't4', name: 'Bottom', type: 'text', color: '#3b82f6', isMain: true, isHidden: false, isLocked: false },
+                { id: 't5', name: 'BGM', type: 'audio', color: '#a855f7', isMain: false, isHidden: false, isLocked: false }
             ],
             clips: [],
             canvasBoxes: [],
@@ -97,11 +97,7 @@ const AppRoot = {
             playbackFPS: 30,
             totalDuration: 60,
             
-            clipBoxMap: {},
-            
-            undoStack: [],
-            redoStack: [],
-            maxUndoStackSize: 50
+            clipBoxMap: {}
         };
     },
     computed: {
@@ -213,57 +209,6 @@ const AppRoot = {
         this.stopPlayback();
     },
     methods: {
-        saveUndoState(actionName) {
-            const state = {
-                actionName,
-                timestamp: Date.now(),
-                clips: JSON.parse(JSON.stringify(this.clips)),
-                tracks: JSON.parse(JSON.stringify(this.tracks)),
-                canvasBoxes: JSON.parse(JSON.stringify(this.canvasBoxes))
-            };
-            this.undoStack.push(state);
-            if (this.undoStack.length > this.maxUndoStackSize) {
-                this.undoStack.shift();
-            }
-            this.redoStack = [];
-        },
-        
-        undo() {
-            if (this.undoStack.length === 0) return;
-            const currentState = {
-                actionName: 'current',
-                timestamp: Date.now(),
-                clips: JSON.parse(JSON.stringify(this.clips)),
-                tracks: JSON.parse(JSON.stringify(this.tracks)),
-                canvasBoxes: JSON.parse(JSON.stringify(this.canvasBoxes))
-            };
-            this.redoStack.push(currentState);
-            const prevState = this.undoStack.pop();
-            this.clips = prevState.clips;
-            this.tracks = prevState.tracks;
-            this.canvasBoxes = prevState.canvasBoxes;
-            this.selectedClip = null;
-            this.selectedBoxId = null;
-        },
-        
-        redo() {
-            if (this.redoStack.length === 0) return;
-            const currentState = {
-                actionName: 'current',
-                timestamp: Date.now(),
-                clips: JSON.parse(JSON.stringify(this.clips)),
-                tracks: JSON.parse(JSON.stringify(this.tracks)),
-                canvasBoxes: JSON.parse(JSON.stringify(this.canvasBoxes))
-            };
-            this.undoStack.push(currentState);
-            const nextState = this.redoStack.pop();
-            this.clips = nextState.clips;
-            this.tracks = nextState.tracks;
-            this.canvasBoxes = nextState.canvasBoxes;
-            this.selectedClip = null;
-            this.selectedBoxId = null;
-        },
-
         initializeMainTrack() {
             const hasMain = this.tracks.some(t => t.isMain);
             if (!hasMain && this.tracks.length >= 2) {
@@ -441,11 +386,16 @@ const AppRoot = {
             this.selectedClip = null;
         },
 
-        setAspect(r) { this.aspectRatio = r; },
+        setAspect(r) { 
+            this.aspectRatio = r; 
+        },
         
         updateCanvasSizeFromAspectRatio(newRatio) {
             this.canvasSize = this.computeResolutionSize(newRatio, this.resolution);
-            this.$nextTick(() => { this.recalculateCanvasSizeFromWrapper(); this.ensureAllBoxesNormalized(); });
+            this.$nextTick(() => {
+                this.recalculateCanvasSizeFromWrapper(); 
+                this.ensureAllBoxesNormalized(); 
+            });
         },
         
         setResolution(labelOrKey) { 
@@ -453,15 +403,28 @@ const AppRoot = {
             const match = str.match(/^(\S+)/); 
             this.resolution = match ? match[1] : (str || this.resolution); 
             this.canvasSize = this.computeResolutionSize(this.aspectRatio, this.resolution);
-            this.$nextTick(() => { this.recalculateCanvasSizeFromWrapper(); this.ensureAllBoxesNormalized(); });
+            this.$nextTick(() => {
+                this.recalculateCanvasSizeFromWrapper(); 
+                this.ensureAllBoxesNormalized(); 
+            });
         },
         computeResolutionSize(aspectRatio, resolutionKey) {
             const key = resolutionKey || 'FHD';
             const longSide = RESOLUTION_LONG_SIDE[key] || RESOLUTION_LONG_SIDE['FHD'];
             let w, h;
-            if (aspectRatio === '9:16') { h = longSide; w = Math.round(longSide * 9 / 16); }
-            else if (aspectRatio === '1:1') { const square = Math.round(longSide * 9 / 16); w = square; h = square; }
-            else { w = longSide; h = Math.round(longSide * 9 / 16); }
+            if (aspectRatio === '9:16') { 
+                h = longSide; 
+                w = Math.round(longSide * 9 / 16); 
+            }
+            else if (aspectRatio === '1:1') { 
+                const square = Math.round(longSide * 9 / 16); 
+                w = square; 
+                h = square; 
+            }
+            else { 
+                w = longSide; 
+                h = Math.round(longSide * 9 / 16); 
+            }
             return { w, h };
         },
         getResolutionLabelFor(key) { return key || this.resolution || 'FHD'; },
@@ -477,7 +440,10 @@ const AppRoot = {
         },
         updateCanvasSizeFromControls() { 
             this.canvasSize = this.computeResolutionSize(this.aspectRatio, this.resolution); 
-            this.$nextTick(() => { this.recalculateCanvasSizeFromWrapper(); this.ensureAllBoxesNormalized(); });
+            this.$nextTick(() => {
+                this.recalculateCanvasSizeFromWrapper(); 
+                this.ensureAllBoxesNormalized(); 
+            });
         },
         recalculateCanvasScale() { this.recalculateCanvasSizeFromWrapper(); },
         updateCanvasMouseCoord(e) {
@@ -564,10 +530,13 @@ const AppRoot = {
                 Swal.fire({ icon: 'warning', title: '트랙 없음', text: '적합한 트랙을 찾을 수 없습니다.', background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6', timer: 2000, showConfirmButton: false });
                 return;
             }
+
             let insertTime = this.currentTime;
             const newClipIds = [];
+
             assetDataArray.forEach((asset, index) => {
                 const duration = this.parseDurationString(asset.duration) || 5;
+                
                 const newClip = {
                     id: `c_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`,
                     trackId: targetTrack.id,
@@ -580,28 +549,39 @@ const AppRoot = {
                     isActive: false,
                     volume: 100
                 };
+
                 insertTime = this.findNonCollidingPosition(newClip, targetTrack.id, insertTime);
                 newClip.start = insertTime;
-                this.clips.push(newClip);
+
+                this.addClipWithBox(newClip);
                 newClipIds.push(newClip.id);
+
                 insertTime = newClip.start + newClip.duration + 0.1;
             });
+
             if (newClipIds.length === 1) {
                 const addedClip = this.clips.find(c => c.id === newClipIds[0]);
                 if (addedClip) this.selectedClip = addedClip;
             }
+
             Swal.fire({ icon: 'success', title: '타임라인에 추가됨', text: `${assetDataArray.length}개 항목이 추가되었습니다`, background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6', timer: 1500, showConfirmButton: false });
         },
 
         findSuitableTrack(assetType) {
             const clipType = this.mapAssetTypeToClipType(assetType);
+            
             if (clipType === 'sound') {
                 const audioTrack = this.tracks.find(t => t.type === 'audio' && !t.isLocked);
                 if (audioTrack) return audioTrack;
             }
-            if (this.mainTrack && !this.mainTrack.isLocked) { return this.mainTrack; }
+            
+            if (this.mainTrack && !this.mainTrack.isLocked) {
+                return this.mainTrack;
+            }
+            
             const videoTrack = this.tracks.find(t => t.type === 'video' && !t.isLocked);
             if (videoTrack) return videoTrack;
+            
             const anyUnlockedTrack = this.tracks.find(t => !t.isLocked);
             return anyUnlockedTrack || this.tracks[0];
         },
@@ -614,29 +594,49 @@ const AppRoot = {
         parseDurationString(durationStr) {
             if (!durationStr) return null;
             if (typeof durationStr === 'number') return durationStr;
+            
             const parts = durationStr.toString().split(':');
-            if (parts.length === 2) { const min = parseInt(parts[0], 10) || 0; const sec = parseInt(parts[1], 10) || 0; return min * 60 + sec; }
-            if (parts.length === 3) { const hr = parseInt(parts[0], 10) || 0; const min = parseInt(parts[1], 10) || 0; const sec = parseInt(parts[2], 10) || 0; return hr * 3600 + min * 60 + sec; }
+            if (parts.length === 2) {
+                const min = parseInt(parts[0], 10) || 0;
+                const sec = parseInt(parts[1], 10) || 0;
+                return min * 60 + sec;
+            }
+            if (parts.length === 3) {
+                const hr = parseInt(parts[0], 10) || 0;
+                const min = parseInt(parts[1], 10) || 0;
+                const sec = parseInt(parts[2], 10) || 0;
+                return hr * 3600 + min * 60 + sec;
+            }
             return parseFloat(durationStr) || null;
         },
 
         findNonCollidingPosition(clip, trackId, desiredStart) {
             const trackClips = this.clips.filter(c => c.trackId === trackId && c.id !== clip.id);
+            
             const hasCollision = (start, duration) => {
                 const end = start + duration;
-                for (const c of trackClips) { const cEnd = c.start + c.duration; const overlap = Math.min(end, cEnd) - Math.max(start, c.start); if (overlap > 0.01) return true; }
+                for (const c of trackClips) {
+                    const cEnd = c.start + c.duration;
+                    if (start < cEnd && end > c.start) return true;
+                }
                 return false;
             };
-            if (!hasCollision(desiredStart, clip.duration)) { return desiredStart; }
+
+            if (!hasCollision(desiredStart, clip.duration)) {
+                return desiredStart;
+            }
+
             let newStart = desiredStart;
             for (const c of trackClips.sort((a, b) => a.start - b.start)) {
                 const cEnd = c.start + c.duration;
-                if (newStart < cEnd && newStart + clip.duration > c.start) { newStart = cEnd; }
+                if (newStart < cEnd && newStart + clip.duration > c.start) {
+                    newStart = cEnd;
+                }
             }
+
             return newStart;
         },
-// 코드연결지점
-// 코드연결지점
+
         togglePlayback() { if (this.isPlaying) this.stopPlayback(); else this.startPlayback(); },
         startPlayback() {
             if (this.isPlaying) return;
@@ -654,6 +654,48 @@ const AppRoot = {
         seekRelative(seconds) { const newTime = this.currentTime + seconds; this.currentTime = Math.max(0, Math.min(this.computedTotalDuration, newTime)); },
         seekToTime(time) { this.currentTime = Math.max(0, Math.min(this.computedTotalDuration, time)); },
 
+        addClipWithBox(clipData) {
+            this.clips.push(clipData);
+            if (clipData.type === 'video' || clipData.type === 'image') {
+                this.ensureBoxForClip(clipData);
+            }
+            return clipData;
+        },
+        
+        ensureBoxForClip(clip) {
+            if (this.clipBoxMap[clip.id]) {
+                const existingBox = this.canvasBoxes.find(b => b.id === this.clipBoxMap[clip.id]);
+                if (existingBox) return existingBox;
+            }
+            const track = this.tracks.find(t => t.id === clip.trackId);
+            const trackIndex = this.tracks.findIndex(t => t.id === clip.trackId);
+            const zIndex = (this.tracks.length - trackIndex) * 10 + 100;
+            const cw = this.canvasSize.w;
+            const ch = this.canvasSize.h;
+            const newBox = {
+                id: `box_clip_${clip.id}`,
+                clipId: clip.id,
+                x: 0, y: 0, w: cw, h: ch,
+                nx: 0, ny: 0, nw: 1, nh: 1,
+                color: track ? track.color : '#3b82f6',
+                layerBgColor: 'transparent',
+                zIndex: zIndex,
+                isHidden: true,
+                layerName: clip.name || 'Clip',
+                rowType: 'BG',
+                colRole: 'full',
+                slotKey: `clip_${clip.id}`,
+                mediaType: clip.type,
+                mediaSrc: clip.src || '',
+                mediaFit: 'cover',
+                clipStart: clip.start,
+                clipDuration: clip.duration
+            };
+            this.canvasBoxes.push(newBox);
+            this.clipBoxMap[clip.id] = newBox.id;
+            return newBox;
+        },
+
         cleanupOrphanedBoxes(currentClips) {
             const clipIds = new Set(currentClips.map(c => c.id));
             Object.keys(this.clipBoxMap).forEach(clipId => {
@@ -667,6 +709,7 @@ const AppRoot = {
         
         onTimeUpdate(time) {
             this.updateClipVisibility(time);
+            this.syncVideoPlayback(time);
             try {
                 if (window.PreviewRenderer && typeof window.PreviewRenderer.setCurrentTime === 'function') {
                     window.PreviewRenderer.setCurrentTime(time);
@@ -678,6 +721,26 @@ const AppRoot = {
             this.clips.forEach(clip => {
                 const isActive = time >= clip.start && time < (clip.start + clip.duration);
                 clip.isActive = isActive;
+                const boxId = this.clipBoxMap[clip.id];
+                if (boxId) {
+                    const box = this.canvasBoxes.find(b => b.id === boxId);
+                    if (box) {
+                        box.isHidden = !isActive;
+                        box.clipLocalTime = isActive ? (time - clip.start) : 0;
+                    }
+                }
+            });
+        },
+        
+        syncVideoPlayback(time) {
+            this.clips.forEach(clip => {
+                if (clip.type !== 'video') return;
+                const boxId = this.clipBoxMap[clip.id];
+                if (!boxId) return;
+                const box = this.canvasBoxes.find(b => b.id === boxId);
+                if (!box || box.isHidden) return;
+                const localTime = time - clip.start;
+                box.clipLocalTime = localTime;
             });
         },
         
@@ -824,11 +887,16 @@ const AppRoot = {
             const newClips = [...this.clips];
             newClips[index] = firstPart;
             this.clips = newClips;
-            this.clips.push(secondPart);
+            this.addClipWithBox(secondPart);
+            const boxId = this.clipBoxMap[clipId];
+            if (boxId) {
+                const box = this.canvasBoxes.find(b => b.id === boxId);
+                if (box) box.clipDuration = relativeTime;
+            }
         },
         addTrack(type = 'video') {
             const colors = { video: '#22c55e', audio: '#a855f7', text: '#eab308' };
-            const newTrack = { id: `t_${Date.now()}`, name: `Track ${this.tracks.length + 1}`, type: type, color: colors[type] || '#64748b', isMain: false };
+            const newTrack = { id: `t_${Date.now()}`, name: `Track ${this.tracks.length + 1}`, type: type, color: colors[type] || '#64748b', isMain: false, isHidden: false, isLocked: false };
             this.tracks.push(newTrack);
         },
         removeTrack(trackId) {
