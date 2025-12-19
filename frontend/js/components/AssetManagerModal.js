@@ -334,8 +334,6 @@ var AssetManagerModal = {
             var gap = 12;
             var cols = Math.max(1, Math.floor((contentWidth + gap) / (minCardWidth + gap)));
             cols = Math.min(cols, 8);
-            var cardWidth = Math.floor((contentWidth - (cols - 1) * gap) / cols);
-            cardWidth = Math.max(minCardWidth, Math.min(maxCardWidth, cardWidth));
             return {
                 display: 'grid',
                 gridTemplateColumns: 'repeat(' + cols + ', 1fr)',
@@ -519,7 +517,6 @@ var AssetManagerModal = {
             this.lastSelectedIndex = -1;
         },
         selectAll: function() {
-            var self = this;
             this.selectedAssetIds = this.filteredAssets.map(function(a) { return a.id; });
             this.lastSelectedIndex = this.filteredAssets.length - 1;
         },
@@ -532,8 +529,6 @@ var AssetManagerModal = {
             this.clearSelection();
         },
         handleAssetClick: function(e, asset, index) {
-            var self = this;
-            
             if (e.ctrlKey || e.metaKey) {
                 var idx = this.selectedAssetIds.indexOf(asset.id);
                 if (idx >= 0) {
@@ -552,6 +547,7 @@ var AssetManagerModal = {
                     }
                 }
                 var combined = this.selectedAssetIds.slice();
+                var self = this;
                 newSelection.forEach(function(id) {
                     if (combined.indexOf(id) < 0) {
                         combined.push(id);
@@ -576,7 +572,6 @@ var AssetManagerModal = {
             }
         },
         addToTimeline: function(asset) {
-            var self = this;
             var transferData = [{
                 type: this.assetType,
                 id: asset.id,
@@ -626,4 +621,179 @@ var AssetManagerModal = {
                 String(now.getMonth() + 1).padStart(2, '0') + 
                 String(now.getDate()).padStart(2, '0') + '_' + 
                 String(now.getHours()).padStart(2, '0') + 
-                String
+                String(now.getMinutes()).padStart(2, '0') + 
+                String(now.getSeconds()).padStart(2, '0');
+            var folderId = 'folder_' + Date.now();
+            
+            this.assetFolders.push({ id: folderId, name: folderName });
+            
+            if (!this.dummyAssets[this.assetType]) {
+                this.dummyAssets[this.assetType] = [];
+            }
+            
+            var addedCount = 0;
+            var expectedType = this.assetType === 'video' ? 'video/' : 'audio/';
+            
+            for (var j = 0; j < files.length; j++) {
+                var file = files[j];
+                if (!file.type.startsWith(expectedType)) continue;
+                
+                var newAsset = {
+                    id: self.assetType + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                    name: file.name,
+                    folderId: folderId,
+                    duration: '00:00',
+                    resolution: '',
+                    src: URL.createObjectURL(file),
+                    dateAdded: Date.now()
+                };
+                
+                if (self.assetType === 'video') {
+                    (function(asset) {
+                        var video = document.createElement('video');
+                        video.preload = 'metadata';
+                        video.onloadedmetadata = function() {
+                            var dur = video.duration;
+                            var min = Math.floor(dur / 60);
+                            var sec = Math.floor(dur % 60);
+                            asset.duration = String(min).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
+                            asset.resolution = video.videoWidth + 'x' + video.videoHeight;
+                        };
+                        video.src = asset.src;
+                    })(newAsset);
+                } else if (self.assetType === 'sound') {
+                    (function(asset) {
+                        var audio = document.createElement('audio');
+                        audio.preload = 'metadata';
+                        audio.onloadedmetadata = function() {
+                            var dur = audio.duration;
+                            var min = Math.floor(dur / 60);
+                            var sec = Math.floor(dur % 60);
+                            asset.duration = String(min).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
+                        };
+                        audio.src = asset.src;
+                    })(newAsset);
+                }
+                
+                this.dummyAssets[this.assetType].push(newAsset);
+                addedCount++;
+            }
+            
+            if (addedCount > 0) {
+                this.currentFolderId = folderId;
+            }
+        },
+        createFolder: function() {
+            var self = this;
+            Swal.fire({
+                title: '새 폴더',
+                input: 'text',
+                inputPlaceholder: '폴더 이름',
+                showCancelButton: true,
+                background: '#1e1e1e',
+                color: '#fff',
+                confirmButtonColor: '#3b82f6'
+            }).then(function(result) {
+                if (result.value) {
+                    self.assetFolders.push({ id: 'folder_' + Date.now(), name: result.value });
+                }
+            });
+        },
+        getFolderAssetCount: function(folderId) {
+            var assets = this.dummyAssets[this.assetType] || [];
+            if (folderId === 'all') return assets.length;
+            return assets.filter(function(a) { return a.folderId === folderId; }).length;
+        },
+        toggleAudioPreview: function(asset) {
+            console.log('Playing audio:', asset.name);
+        },
+        onAssetDragStart: function(e, asset) {
+            var self = this;
+            if (this.selectedAssetIds.indexOf(asset.id) < 0) {
+                this.selectedAssetIds = [asset.id];
+            }
+            var selectedAssets = this.filteredAssets.filter(function(a) {
+                return self.selectedAssetIds.indexOf(a.id) >= 0;
+            });
+            this.dragData = { type: 'asset', assets: selectedAssets };
+            e.dataTransfer.effectAllowed = 'copy';
+            var transferData = selectedAssets.map(function(a) {
+                return {
+                    type: self.assetType,
+                    id: a.id,
+                    name: a.name,
+                    src: a.src || '',
+                    duration: a.duration || '00:10',
+                    resolution: a.resolution || ''
+                };
+            });
+            e.dataTransfer.setData('text/wai-asset', JSON.stringify(transferData));
+            var dragImage = document.createElement('div');
+            var icon = self.assetType === 'video' ? '🎬' : '🎵';
+            if (selectedAssets.length > 1) {
+                dragImage.textContent = icon + ' ' + selectedAssets.length + '개 항목';
+            } else {
+                dragImage.textContent = icon + ' ' + asset.name;
+            }
+            dragImage.style.cssText = 'position:absolute;top:-1000px;padding:8px 16px;background:#3b82f6;color:#fff;border-radius:6px;font-size:12px;font-weight:bold;white-space:nowrap;';
+            document.body.appendChild(dragImage);
+            e.dataTransfer.setDragImage(dragImage, 0, 0);
+            setTimeout(function() {
+                document.body.removeChild(dragImage);
+            }, 0);
+        },
+        onDragEnd: function() {
+            this.dragData = null;
+            this.dragOverFolderId = null;
+            this.isContentPanelDragOver = false;
+        },
+        onFolderDragOver: function(e, folder) {
+            e.preventDefault();
+            if (this.dragData) {
+                this.dragOverFolderId = folder.id;
+            }
+        },
+        onFolderDragLeave: function(e, folder) {
+            if (this.dragOverFolderId === folder.id) {
+                this.dragOverFolderId = null;
+            }
+        },
+        onFolderDrop: function(e, folder) {
+            var self = this;
+            e.preventDefault();
+            if (this.dragData && this.dragData.type === 'asset' && this.dragData.assets) {
+                this.dragData.assets.forEach(function(asset) {
+                    self.moveAssetToFolder(asset, folder.id);
+                });
+            }
+            this.dragOverFolderId = null;
+            this.dragData = null;
+        },
+        onContentPanelDragOver: function(e) {
+            e.preventDefault();
+            this.isContentPanelDragOver = true;
+        },
+        onContentPanelDrop: function(e) {
+            var self = this;
+            e.preventDefault();
+            if (this.dragData && this.dragData.type === 'asset' && this.dragData.assets) {
+                this.dragData.assets.forEach(function(asset) {
+                    self.moveAssetToFolder(asset, self.currentFolderId);
+                });
+            }
+            this.isContentPanelDragOver = false;
+            this.dragData = null;
+        },
+        moveAssetToFolder: function(asset, targetFolderId) {
+            var assets = this.dummyAssets[this.assetType] || [];
+            for (var i = 0; i < assets.length; i++) {
+                if (assets[i].id === asset.id) {
+                    assets[i].folderId = targetFolderId;
+                    break;
+                }
+            }
+        }
+    }
+};
+
+window.AssetManagerModal = AssetManagerModal;
