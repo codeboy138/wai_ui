@@ -1,6 +1,6 @@
 // Preview Canvas Component - Enhanced
 // 자산 드롭 수신, 캔버스-타임라인 연동, 비디오 시간 동기화
-// 레이어관리 레이어는 사용자 지정만 표시 (자동 표시 안 함)
+// 레이어 박스 + 활성 클립 박스 병합 표시
 
 const PreviewCanvas = {
   name: 'PreviewCanvas',
@@ -34,21 +34,11 @@ const PreviewCanvas = {
     overlayStyle() {
       return { position: 'absolute', inset: '0', pointerEvents: 'auto', overflow: 'visible' };
     },
-    // 레이어관리에서 만든 박스만 표시 (클립 연동 박스는 제외)
-    // isHidden이 false이고, clipId가 없는 박스만 표시
+    // 표시할 박스: canvasBoxes는 이미 부모에서 병합된 상태로 전달됨
     visibleBoxes() {
-      return this.canvasBoxes.filter(box => {
-        // 숨김 상태면 표시 안 함
-        if (box.isHidden) return false;
-        
-        // 클립에서 생성된 박스는 표시 안 함 (레이어관리 레이어만 표시)
-        // clipId가 있으면 타임라인 클립과 연동된 박스
-        if (box.clipId) return false;
-        
-        // slotKey가 있으면 레이어관리에서 생성한 박스
-        // slotKey가 없고 clipId도 없으면 드롭으로 생성된 박스 (표시함)
-        return true;
-      });
+      return this.canvasBoxes
+        .filter(box => !box.isHidden)
+        .sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
     },
     isMagnetActive() {
       if (this.$parent && typeof this.$parent.isMagnet === 'boolean') return this.$parent.isMagnet;
@@ -60,7 +50,7 @@ const PreviewCanvas = {
     isPlaying(newVal) { this.handlePlayStateChange(newVal); },
     currentTime(newTime) { this.syncAllVideos(newTime); },
     canvasBoxes: {
-      handler() { this.$nextTick(() => { this.initializeVideoElements(); }); },
+      handler() { this.$nextTick(() => { this.cleanupVideoElements(); this.initializeVideoElements(); }); },
       deep: true
     }
   },
@@ -71,34 +61,56 @@ const PreviewCanvas = {
 
   methods: {
     initializeVideoElements() {
-      const videoBoxes = this.canvasBoxes.filter(box => box.mediaType === 'video' && box.mediaSrc);
+      const videoBoxes = this.canvasBoxes.filter(box => box.mediaType === 'video' && box.mediaSrc && !box.isHidden);
       videoBoxes.forEach(box => {
-        const videoEl = this.$refs[`video_${box.id}`];
-        if (videoEl && videoEl[0]) {
-          this.videoElements[box.id] = videoEl[0];
-          const video = videoEl[0];
-          video.muted = true;
-          video.playsInline = true;
-          video.addEventListener('loadedmetadata', () => { this.syncVideoToTime(box, this.currentTime); });
+        if (!this.videoElements[box.id]) {
+          const videoEl = this.$refs[`video_${box.id}`];
+          if (videoEl && videoEl[0]) {
+            this.videoElements[box.id] = videoEl[0];
+            const video = videoEl[0];
+            video.muted = true;
+            video.playsInline = true;
+            video.addEventListener('loadedmetadata', () => { this.syncVideoToTime(box, this.currentTime); });
+          }
+        }
+      });
+    },
+    
+    cleanupVideoElements() {
+      const activeBoxIds = new Set(this.canvasBoxes.filter(b => !b.isHidden).map(b => b.id));
+      Object.keys(this.videoElements).forEach(boxId => {
+        if (!activeBoxIds.has(boxId)) {
+          const video = this.videoElements[boxId];
+          if (video) {
+            video.pause();
+            video.src = '';
+          }
+          delete this.videoElements[boxId];
         }
       });
     },
 
     handlePlayStateChange(isPlaying) {
-      Object.keys(this.videoElements).forEach(boxId => {
-        const video = this.videoElements[boxId];
-        const box = this.canvasBoxes.find(b => b.id === boxId);
-        if (!video || !box) return;
-        if (isPlaying && !box.isHidden) video.play().catch(() => {});
-        else video.pause();
+      this.visibleBoxes.forEach(box => {
+        if (box.mediaType !== 'video' || !box.mediaSrc) return;
+        const video = this.videoElements[box.id];
+        if (!video) return;
+        if (isPlaying) {
+          video.play().catch(() => {});
+        } else {
+          video.pause();
+        }
       });
     },
 
     syncAllVideos(currentTime) {
       if (Math.abs(currentTime - this.lastSyncTime) < 0.03) return;
       this.lastSyncTime = currentTime;
-      this.canvasBoxes.forEach(box => {
-        if (box.mediaType === 'video' && box.mediaSrc) this.syncVideoToTime(box, currentTime);
+      
+      this.visibleBoxes.forEach(box => {
+        if (box.mediaType === 'video' && box.mediaSrc) {
+          this.syncVideoToTime(box, currentTime);
+        }
       });
     },
 
@@ -106,21 +118,37 @@ const PreviewCanvas = {
       let video = this.videoElements[box.id];
       if (!video) {
         const videoEl = this.$refs[`video_${box.id}`];
-        if (videoEl && videoEl[0]) { this.videoElements[box.id] = videoEl[0]; video = videoEl[0]; }
-        else return;
-      }
-      const clipStart = box.clipStart || 0;
-      const clipDuration = box.clipDuration || video.duration || 10;
-      const clipEnd = clipStart + clipDuration;
-      const isInRange = globalTime >= clipStart && globalTime < clipEnd;
-      if (isInRange) {
-        const localTime = globalTime - clipStart;
-        if (Math.abs(video.currentTime - localTime) > 0.1) {
-          video.currentTime = Math.max(0, Math.min(localTime, video.duration || localTime));
+        if (videoEl && videoEl[0]) { 
+          this.videoElements[box.id] = videoEl[0]; 
+          video = videoEl[0]; 
+        } else {
+          return;
         }
-        if (this.isPlaying && video.paused) video.play().catch(() => {});
+      }
+      
+      // 클립 연동 박스의 경우 로컬 시간 계산
+      if (box.clipId && typeof box.clipStart === 'number') {
+        const localTime = globalTime - box.clipStart;
+        if (localTime >= 0 && localTime < (box.clipDuration || video.duration || 1000)) {
+          if (Math.abs(video.currentTime - localTime) > 0.1) {
+            video.currentTime = Math.max(0, Math.min(localTime, video.duration || localTime));
+          }
+          if (this.isPlaying && video.paused) {
+            video.play().catch(() => {});
+          }
+        } else {
+          // 클립 범위 밖이면 일시정지
+          if (!video.paused) {
+            video.pause();
+          }
+        }
       } else {
-        if (!video.paused) video.pause();
+        // 레이어관리 박스 (항상 0부터 재생)
+        if (this.isPlaying && video.paused) {
+          video.play().catch(() => {});
+        } else if (!this.isPlaying && !video.paused) {
+          video.pause();
+        }
       }
     },
 
@@ -138,13 +166,14 @@ const PreviewCanvas = {
 
     boxStyle(box) {
       const isSelected = (this.selectedBoxId === box.id);
+      const isClipBox = !!box.clipId;
       return {
         position: 'absolute',
         left: (Number(box.x) || 0) + 'px',
         top: (Number(box.y) || 0) + 'px',
         width: (Number(box.w) || 0) + 'px',
         height: (Number(box.h) || 0) + 'px',
-        border: `2px dashed ${box.color || '#fff'}`,
+        border: isClipBox ? 'none' : `2px dashed ${box.color || '#fff'}`,
         zIndex: box.zIndex || 0,
         cursor: 'move',
         boxShadow: isSelected ? '0 0 0 2px #fff, 0 0 12px rgba(59,130,246,0.5)' : 'none',
@@ -163,6 +192,8 @@ const PreviewCanvas = {
     isVideo(box) { return box.mediaType === 'video'; },
 
     labelStyle(box) {
+      if (box.clipId) return { display: 'none' };
+      
       const fontSize = 40;
       const paddingV = 4;
       const paddingH = 10;
@@ -216,6 +247,7 @@ const PreviewCanvas = {
     },
 
     getLabelText(box) {
+      if (box.clipId) return '';
       const typeMap = { 'EFF': 'Effect', 'TXT': 'Text', 'BG': 'BG' };
       return typeMap[box.rowType] || box.rowType || 'Layer';
     },
@@ -290,7 +322,7 @@ const PreviewCanvas = {
       const video = event.target;
       this.videoElements[box.id] = video;
       this.syncVideoToTime(box, this.currentTime);
-      if (this.isPlaying && !box.isHidden) video.play().catch(() => {});
+      if (this.isPlaying) video.play().catch(() => {});
     },
 
     onBoxContextMenu(e, box) {
@@ -447,7 +479,7 @@ const PreviewCanvas = {
         if (x + w > cw) x = cw - w; if (y + h > ch) y = ch - h;
         const snapped = this.applyMagnetSnap(this.dragBoxId, x, y, w, h);
         x = snapped.x; y = snapped.y;
-        if (currentBox) {
+        if (currentBox && !currentBox.clipId) {
           const constrained = this.applyBgConstraints(currentBox, x, y, w, h);
           x = constrained.x; y = constrained.y; w = constrained.w; h = constrained.h;
         }
@@ -457,7 +489,7 @@ const PreviewCanvas = {
         else if (hdl.includes('r')) { w += dx; if (x + w > cw) w = cw - x; }
         if (hdl.includes('t')) { let newY = y + dy; if (newY < 0) newY = 0; const bottomEdge = y0 + h0; let newH = bottomEdge - newY; y = newY; h = newH; }
         else if (hdl.includes('b')) { h += dy; if (y + h > ch) h = ch - y; }
-        if (currentBox) {
+        if (currentBox && !currentBox.clipId) {
           const constrained = this.applyBgConstraints(currentBox, x, y, w, h);
           x = constrained.x; y = constrained.y; w = constrained.w; h = constrained.h;
         }
@@ -535,6 +567,7 @@ const PreviewCanvas = {
         >{{ getTextContent(box) }}</div>
 
         <div 
+          v-if="!box.clipId"
           class="canvas-label"
           :style="labelStyle(box)"
         >{{ getLabelText(box) }}</div>
