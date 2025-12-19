@@ -46,7 +46,6 @@ const AppRoot = {
             visualizationModal: { isOpen: false },
             apiManagerModal: { isOpen: false },
             
-            // 트랙 기본값 변경: 이름을 'none'으로, type 제거
             tracks: [
                 { id: 't1', name: 'none', color: '#64748b', isMain: false, isHidden: false, isLocked: false }, 
                 { id: 't2', name: 'none', color: '#eab308', isMain: false, isHidden: false, isLocked: false },
@@ -141,27 +140,6 @@ const AppRoot = {
                 return this.tracks[this.tracks.length - 2];
             }
             return this.tracks[0];
-        },
-        // 캔버스에 표시할 클립 기반 박스들 (현재 시간에 활성화된 클립)
-        activeClipBoxes() {
-            const activeBoxes = [];
-            this.clips.forEach(clip => {
-                const isActive = this.currentTime >= clip.start && this.currentTime < (clip.start + clip.duration);
-                if (!isActive) return;
-                
-                const boxId = this.clipBoxMap[clip.id];
-                if (boxId) {
-                    const box = this.canvasBoxes.find(b => b.id === boxId);
-                    if (box) {
-                        activeBoxes.push({
-                            ...box,
-                            isHidden: false,
-                            clipLocalTime: this.currentTime - clip.start
-                        });
-                    }
-                }
-            });
-            return activeBoxes;
         }
     },
     watch: {
@@ -194,17 +172,15 @@ const AppRoot = {
         },
         aspectRatio: {
             handler(newRatio) { 
-                this.$nextTick(() => {
-                    this.updateCanvasSizeFromAspectRatio(newRatio);
-                });
-            }
+                this.updateCanvasSizeFromControls();
+            },
+            immediate: false
         },
         resolution: {
             handler() { 
-                this.$nextTick(() => {
-                    this.updateCanvasSizeFromControls();
-                });
-            }
+                this.updateCanvasSizeFromControls();
+            },
+            immediate: false
         }
     },
     mounted() {
@@ -412,24 +388,12 @@ const AppRoot = {
             this.aspectRatio = r; 
         },
         
-        updateCanvasSizeFromAspectRatio(newRatio) {
-            this.canvasSize = this.computeResolutionSize(newRatio, this.resolution);
-            this.$nextTick(() => {
-                this.recalculateCanvasSizeFromWrapper(); 
-                this.ensureAllBoxesNormalized(); 
-            });
-        },
-        
         setResolution(labelOrKey) { 
             const str = (labelOrKey || '').toString().trim(); 
             const match = str.match(/^(\S+)/); 
             this.resolution = match ? match[1] : (str || this.resolution); 
-            this.canvasSize = this.computeResolutionSize(this.aspectRatio, this.resolution);
-            this.$nextTick(() => {
-                this.recalculateCanvasSizeFromWrapper(); 
-                this.ensureAllBoxesNormalized(); 
-            });
         },
+        
         computeResolutionSize(aspectRatio, resolutionKey) {
             const key = resolutionKey || 'FHD';
             const longSide = RESOLUTION_LONG_SIDE[key] || RESOLUTION_LONG_SIDE['FHD'];
@@ -449,25 +413,34 @@ const AppRoot = {
             }
             return { w, h };
         },
+        
         getResolutionLabelFor(key) { return key || this.resolution || 'FHD'; },
+        
         recalculateCanvasSizeFromWrapper() {
-            const wrapper = document.getElementById('preview-canvas-wrapper'); if (!wrapper) return;
+            const wrapper = document.getElementById('preview-canvas-wrapper'); 
+            if (!wrapper) return;
             const PADDING = 20;
             const innerW = wrapper.clientWidth - PADDING * 2;
             const innerH = wrapper.clientHeight - PADDING * 2;
             if (innerW <= 0 || innerH <= 0) return;
-            const cw = this.canvasSize.w || 1920; const ch = this.canvasSize.h || 1080;
-            const cRatio = cw / ch; const wrapperRatio = innerW / innerH;
+            const cw = this.canvasSize.w || 1920; 
+            const ch = this.canvasSize.h || 1080;
+            const cRatio = cw / ch; 
+            const wrapperRatio = innerW / innerH;
             this.canvasScale = wrapperRatio > cRatio ? innerH / ch : innerW / cw;
         },
+        
         updateCanvasSizeFromControls() { 
-            this.canvasSize = this.computeResolutionSize(this.aspectRatio, this.resolution); 
+            const newSize = this.computeResolutionSize(this.aspectRatio, this.resolution);
+            this.canvasSize = newSize;
             this.$nextTick(() => {
                 this.recalculateCanvasSizeFromWrapper(); 
                 this.ensureAllBoxesNormalized(); 
             });
         },
+        
         recalculateCanvasScale() { this.recalculateCanvasSizeFromWrapper(); },
+        
         updateCanvasMouseCoord(e) {
             if (this.isBoxDragging) return;
             const wrapper = document.getElementById('preview-canvas-wrapper');
@@ -559,7 +532,7 @@ const AppRoot = {
             
             if (!targetTrack) {
                 Swal.fire({ 
-                    icon: 'warning', 
+                    icon: 'error', 
                     title: '트랙 없음', 
                     text: '적합한 트랙을 찾을 수 없습니다.', 
                     background: '#1e1e1e', 
@@ -572,7 +545,6 @@ const AppRoot = {
             }
 
             let insertTime = dropTime || this.currentTime;
-            const newClipIds = [];
 
             assets.forEach((asset, index) => {
                 const duration = this.parseDurationString(asset.duration) || 5;
@@ -594,26 +566,11 @@ const AppRoot = {
                 newClip.start = insertTime;
 
                 this.addClipWithBox(newClip);
-                newClipIds.push(newClip.id);
 
                 insertTime = newClip.start + newClip.duration + 0.1;
             });
-
-            if (newClipIds.length === 1) {
-                const addedClip = this.clips.find(c => c.id === newClipIds[0]);
-                if (addedClip) this.selectedClip = addedClip;
-            }
-
-            Swal.fire({ 
-                icon: 'success', 
-                title: '타임라인에 추가됨', 
-                text: `${assets.length}개 항목이 추가되었습니다`, 
-                background: '#1e1e1e', 
-                color: '#fff', 
-                confirmButtonColor: '#3b82f6', 
-                timer: 1500, 
-                showConfirmButton: false 
-            });
+            
+            // 완료 알림 제거 - 오류만 표시
         },
 
         findSuitableTrack() {
@@ -690,7 +647,6 @@ const AppRoot = {
 
         addClipWithBox(clipData) {
             this.clips.push(clipData);
-            // 비디오/이미지 클립은 캔버스 박스 생성
             if (clipData.type === 'video' || clipData.type === 'image') {
                 this.ensureBoxForClip(clipData);
             }
@@ -744,7 +700,6 @@ const AppRoot = {
         
         onTimeUpdate(time) {
             this.updateClipVisibility(time);
-            this.syncVideoPlayback(time);
             try {
                 if (window.PreviewRenderer && typeof window.PreviewRenderer.setCurrentTime === 'function') {
                     window.PreviewRenderer.setCurrentTime(time);
@@ -762,20 +717,13 @@ const AppRoot = {
                     if (box) {
                         box.isHidden = !isActive;
                         box.clipLocalTime = isActive ? (time - clip.start) : 0;
+                        // 클립 정보도 박스에 동기화
+                        box.clipStart = clip.start;
+                        box.clipDuration = clip.duration;
+                        box.mediaSrc = clip.src || '';
+                        box.mediaType = clip.type;
                     }
                 }
-            });
-        },
-        
-        syncVideoPlayback(time) {
-            this.clips.forEach(clip => {
-                if (clip.type !== 'video') return;
-                const boxId = this.clipBoxMap[clip.id];
-                if (!boxId) return;
-                const box = this.canvasBoxes.find(b => b.id === boxId);
-                if (!box || box.isHidden) return;
-                const localTime = time - clip.start;
-                box.clipLocalTime = localTime;
             });
         },
         
@@ -831,7 +779,6 @@ const AppRoot = {
         closeLayerTemplateModal() { this.layerTemplateModal.isOpen = false; },
         deleteLayerTemplate(templateId) {
             this.layerTemplates = this.layerTemplates.filter(t => t.id !== templateId);
-            Swal.fire({ icon: 'success', title: '삭제됨', text: '템플릿이 삭제되었습니다', background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6', timer: 1500, showConfirmButton: false });
         },
         loadLayerTemplate(template) {
             if (!template || !template.matrixJson) {
@@ -846,7 +793,6 @@ const AppRoot = {
                     this.ensureAllBoxesNormalized();
                 }
                 this.layerMainName = template.name || '';
-                Swal.fire({ icon: 'success', title: '불러오기 완료', text: `"${template.name}" 템플릿이 적용되었습니다`, background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6', timer: 1500, showConfirmButton: false });
             } catch (err) {
                 console.error('[loadLayerTemplate] parse error:', err);
                 Swal.fire({ icon: 'error', title: '불러오기 실패', text: '템플릿 파싱 중 오류가 발생했습니다', background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6' });
@@ -946,7 +892,6 @@ const AppRoot = {
             this.tracks = this.tracks.filter(t => t.id !== trackId);
         },
         
-        // 프로젝트 데이터 내보내기 (저장용)
         exportProjectData() {
             return {
                 tracks: JSON.parse(JSON.stringify(this.tracks)),
@@ -962,7 +907,6 @@ const AppRoot = {
             };
         },
         
-        // 프로젝트 데이터 불러오기
         importProjectData(data) {
             if (!data) return;
             
