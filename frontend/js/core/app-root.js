@@ -108,9 +108,73 @@ const App = {
                 left: '50%'
             };
         },
-        // PreviewCanvas에 전달할 박스 (레이어 박스만)
+        // 현재 시간에 활성화된 클립들을 캔버스 박스로 변환
+        activeClipBoxes() {
+            const currentTime = this.currentTime;
+            const activeBoxes = [];
+            
+            // 트랙 순서대로 처리 (z-index 결정)
+            this.tracks.forEach((track, trackIndex) => {
+                if (track.isHidden) return;
+                
+                // 해당 트랙의 클립 중 현재 시간에 활성화된 것들
+                const trackClips = this.clips.filter(clip => {
+                    if (clip.trackId !== track.id) return false;
+                    const clipEnd = clip.start + clip.duration;
+                    return currentTime >= clip.start && currentTime < clipEnd;
+                });
+                
+                trackClips.forEach(clip => {
+                    // 클립 타입에 따라 박스 생성
+                    const box = {
+                        id: `clip_box_${clip.id}`,
+                        clipId: clip.id,
+                        clipStart: clip.start,
+                        clipDuration: clip.duration,
+                        x: 0,
+                        y: 0,
+                        w: this.canvasSize.w,
+                        h: this.canvasSize.h,
+                        zIndex: (trackIndex + 1) * 10,
+                        color: track.color || '#3b82f6',
+                        layerBgColor: 'transparent',
+                        isHidden: false,
+                        layerName: clip.name || 'Clip',
+                        rowType: clip.type === 'sound' ? 'EFF' : 'BG',
+                        volume: clip.volume || 100
+                    };
+                    
+                    // 미디어 타입 설정
+                    if (clip.type === 'video' && clip.src) {
+                        box.mediaType = 'video';
+                        box.mediaSrc = clip.src;
+                        box.mediaFit = 'contain';
+                    } else if (clip.type === 'image' && clip.src) {
+                        box.mediaType = 'image';
+                        box.mediaSrc = clip.src;
+                        box.mediaFit = 'contain';
+                    } else {
+                        box.mediaType = 'none';
+                        box.mediaSrc = '';
+                    }
+                    
+                    activeBoxes.push(box);
+                });
+            });
+            
+            return activeBoxes;
+        },
+        // PreviewCanvas에 전달할 박스 (레이어 박스 + 활성 클립 박스 병합)
         allVisibleBoxes() {
-            return this.canvasBoxes.filter(box => !box.isHidden).sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+            // 레이어 관리에서 만든 박스들
+            const layerBoxes = this.canvasBoxes.filter(box => !box.isHidden);
+            
+            // 현재 시간에 활성화된 클립 박스들
+            const clipBoxes = this.activeClipBoxes;
+            
+            // 병합 후 zIndex로 정렬
+            const allBoxes = [...clipBoxes, ...layerBoxes];
+            return allBoxes.sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
         },
         layerConfigBox() {
             if (!this.layerConfig.isOpen || !this.layerConfig.boxId) return null;
@@ -124,6 +188,7 @@ const App = {
             this.setupInspectorMode(); 
             this.setupAssetEventListeners();
             this.setupHeaderMenuClose();
+            this.initPreviewRenderer();
         });
         window.vm = this; 
     },
@@ -137,6 +202,14 @@ const App = {
         }
     },
     methods: {
+        // --- Preview Renderer 초기화 ---
+        initPreviewRenderer() {
+            const canvas = document.getElementById('preview-render-canvas');
+            if (canvas && window.PreviewRenderer) {
+                window.PreviewRenderer.init(canvas, this);
+            }
+        },
+        
         // --- Header Menu Methods ---
         setupHeaderMenuClose() {
             this._headerMenuCloseHandler = (e) => {
@@ -305,6 +378,11 @@ const App = {
                 
                 this.currentTime += delta;
                 
+                // PreviewRenderer에 현재 시간 전달
+                if (window.PreviewRenderer) {
+                    window.PreviewRenderer.setCurrentTime(this.currentTime);
+                }
+                
                 const maxTime = this.getMaxClipEnd();
                 if (this.currentTime >= maxTime) {
                     this.currentTime = maxTime;
@@ -327,10 +405,16 @@ const App = {
         
         seekToStart() {
             this.currentTime = 0;
+            if (window.PreviewRenderer) {
+                window.PreviewRenderer.setCurrentTime(0);
+            }
         },
         
         seekToEnd() {
             this.currentTime = this.getMaxClipEnd();
+            if (window.PreviewRenderer) {
+                window.PreviewRenderer.setCurrentTime(this.currentTime);
+            }
         },
         
         getMaxClipEnd() {
@@ -575,6 +659,9 @@ const App = {
             this.selectedClip = null;
         },
         updateBoxPosition(id, x, y, w, h, isResizeEnd=false) {
+            // 레이어 박스만 업데이트 (클립 박스는 읽기 전용)
+            if (id && id.startsWith('clip_box_')) return;
+            
             let index = this.canvasBoxes.findIndex(b => b.id === id);
             if (index !== -1) {
                 const box = this.canvasBoxes[index];
