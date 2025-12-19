@@ -134,7 +134,7 @@ var AssetManagerModal = {
                             class="flex-1 flex flex-col bg-bg-dark overflow-hidden"\
                             @dragover.prevent="onContentPanelDragOver"\
                             @drop.prevent="onContentPanelDrop"\
-                            @click.self="clearSelection"\
+                            @click="onContentAreaClick"\
                         >\
                             <div class="flex items-center justify-between px-3 py-1.5 border-b border-ui-border bg-bg-panel text-[10px]">\
                                 <div class="flex items-center gap-4">\
@@ -151,7 +151,7 @@ var AssetManagerModal = {
                                 <span class="text-text-sub">{{ selectedAssetIds.length > 0 ? selectedAssetIds.length + \'개 선택됨\' : filteredAssets.length + \'개 항목\' }}</span>\
                             </div>\
 \
-                            <div class="flex-1 overflow-auto p-3" :class="{ \'drag-over\': isContentPanelDragOver }">\
+                            <div class="flex-1 overflow-auto p-3" :class="{ \'drag-over\': isContentPanelDragOver }" @click="onGridAreaClick">\
                                 <div v-if="filteredAssets.length === 0" class="flex flex-col items-center justify-center h-full text-text-sub opacity-50">\
                                     <i :class="assetTypeIcon" class="text-4xl mb-3"></i>\
                                     <p class="text-[12px]">{{ assetTypeLabel }}이(가) 없습니다</p>\
@@ -326,9 +326,14 @@ var AssetManagerModal = {
         },
         gridStyle: function() {
             var contentWidth = this.width - 176 - 24;
-            var minCardWidth = 140;
-            var cols = Math.max(2, Math.floor(contentWidth / minCardWidth));
-            return { gridTemplateColumns: 'repeat(' + cols + ', 1fr)' };
+            var minCardWidth = 120;
+            var maxCardWidth = 180;
+            var cols = Math.max(2, Math.min(6, Math.floor(contentWidth / minCardWidth)));
+            return { 
+                display: 'grid',
+                gridTemplateColumns: 'repeat(' + cols + ', minmax(' + minCardWidth + 'px, 1fr))',
+                gap: '12px'
+            };
         },
         assetTypeIcon: function() {
             var icons = { video: 'fa-solid fa-film', sound: 'fa-solid fa-music' };
@@ -511,11 +516,18 @@ var AssetManagerModal = {
             this.selectedAssetIds = this.filteredAssets.map(function(a) { return a.id; });
             this.lastSelectedIndex = this.filteredAssets.length - 1;
         },
+        onContentAreaClick: function(e) {
+            if (e.target.closest('.asset-card')) return;
+            this.clearSelection();
+        },
+        onGridAreaClick: function(e) {
+            if (e.target.closest('.asset-card')) return;
+            this.clearSelection();
+        },
         handleAssetClick: function(e, asset, index) {
             var self = this;
             
             if (e.ctrlKey || e.metaKey) {
-                // Ctrl/Cmd + 클릭: 토글 선택
                 var idx = this.selectedAssetIds.indexOf(asset.id);
                 if (idx >= 0) {
                     this.selectedAssetIds.splice(idx, 1);
@@ -524,7 +536,6 @@ var AssetManagerModal = {
                 }
                 this.lastSelectedIndex = index;
             } else if (e.shiftKey && this.lastSelectedIndex >= 0) {
-                // Shift + 클릭: 범위 선택
                 var start = Math.min(this.lastSelectedIndex, index);
                 var end = Math.max(this.lastSelectedIndex, index);
                 var newSelection = [];
@@ -533,7 +544,6 @@ var AssetManagerModal = {
                         newSelection.push(this.filteredAssets[i].id);
                     }
                 }
-                // 기존 선택에 범위 추가 (중복 제거)
                 var combined = this.selectedAssetIds.slice();
                 newSelection.forEach(function(id) {
                     if (combined.indexOf(id) < 0) {
@@ -542,15 +552,8 @@ var AssetManagerModal = {
                 });
                 this.selectedAssetIds = combined;
             } else {
-                // 일반 클릭: 단일 선택
-                if (this.selectedAssetIds.length === 1 && this.selectedAssetIds[0] === asset.id) {
-                    // 이미 선택된 항목을 다시 클릭하면 선택 해제
-                    this.selectedAssetIds = [];
-                    this.lastSelectedIndex = -1;
-                } else {
-                    this.selectedAssetIds = [asset.id];
-                    this.lastSelectedIndex = index;
-                }
+                this.selectedAssetIds = [asset.id];
+                this.lastSelectedIndex = index;
             }
         },
         useAsset: function(asset) {
@@ -747,7 +750,6 @@ var AssetManagerModal = {
         },
         onAssetDragStart: function(e, asset) {
             var self = this;
-            // 드래그 시작 시 현재 에셋이 선택되지 않았다면 단일 선택
             if (this.selectedAssetIds.indexOf(asset.id) < 0) {
                 this.selectedAssetIds = [asset.id];
             }
