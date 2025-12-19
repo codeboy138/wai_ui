@@ -47,11 +47,11 @@ const AppRoot = {
             apiManagerModal: { isOpen: false },
             
             tracks: [
-                { id: 't1', name: 'Global', type: 'video', color: '#64748b' }, 
-                { id: 't2', name: 'Top', type: 'text', color: '#eab308' },
-                { id: 't3', name: 'Middle', type: 'video', color: '#22c55e' }, 
-                { id: 't4', name: 'Bottom', type: 'text', color: '#3b82f6' },
-                { id: 't5', name: 'BGM', type: 'audio', color: '#a855f7' }
+                { id: 't1', name: 'Global', type: 'video', color: '#64748b', isMain: false }, 
+                { id: 't2', name: 'Top', type: 'text', color: '#eab308', isMain: false },
+                { id: 't3', name: 'Middle', type: 'video', color: '#22c55e', isMain: false }, 
+                { id: 't4', name: 'Bottom', type: 'text', color: '#3b82f6', isMain: true },
+                { id: 't5', name: 'BGM', type: 'audio', color: '#a855f7', isMain: false }
             ],
             clips: [],
             canvasBoxes: [],
@@ -132,6 +132,16 @@ const AppRoot = {
             return this.clips.filter(clip => {
                 return this.currentTime >= clip.start && this.currentTime < (clip.start + clip.duration);
             });
+        },
+        // 메인 트랙 (기본은 밑에서 2번째)
+        mainTrack() {
+            const mainTrack = this.tracks.find(t => t.isMain);
+            if (mainTrack) return mainTrack;
+            // 기본값: 밑에서 2번째 트랙
+            if (this.tracks.length >= 2) {
+                return this.tracks[this.tracks.length - 2];
+            }
+            return this.tracks[0];
         }
     },
     watch: {
@@ -163,9 +173,9 @@ const AppRoot = {
             deep: true
         },
         aspectRatio: {
-            handler() { 
+            handler(newRatio) { 
                 this.$nextTick(() => {
-                    this.updateCanvasSizeFromControls();
+                    this.updateCanvasSizeFromAspectRatio(newRatio);
                 });
             }
         },
@@ -179,6 +189,7 @@ const AppRoot = {
     },
     mounted() {
         this.$nextTick(() => { 
+            this.initializeMainTrack();
             this.updateCanvasSizeFromControls();
             this.setupPanelResizers(); 
             this.setupCanvasScaler(); 
@@ -200,6 +211,16 @@ const AppRoot = {
         this.stopPlayback();
     },
     methods: {
+        // 메인 트랙 초기화 (밑에서 2번째)
+        initializeMainTrack() {
+            const hasMain = this.tracks.some(t => t.isMain);
+            if (!hasMain && this.tracks.length >= 2) {
+                this.tracks[this.tracks.length - 2].isMain = true;
+            } else if (!hasMain && this.tracks.length > 0) {
+                this.tracks[0].isMain = true;
+            }
+        },
+
         setupHeaderMenuClose() {
             this._headerMenuCloseHandler = (e) => {
                 const isInsideMenu = e.target.closest('.header-menu-wrapper');
@@ -370,12 +391,17 @@ const AppRoot = {
 
         setAspect(r) { 
             this.aspectRatio = r; 
-            this.canvasSize = this.computeResolutionSize(r, this.resolution);
+        },
+        
+        // 화면비율 변경 시 해상도 픽셀 수 연동
+        updateCanvasSizeFromAspectRatio(newRatio) {
+            this.canvasSize = this.computeResolutionSize(newRatio, this.resolution);
             this.$nextTick(() => {
                 this.recalculateCanvasSizeFromWrapper(); 
                 this.ensureAllBoxesNormalized(); 
             });
         },
+        
         setResolution(labelOrKey) { 
             const str = (labelOrKey || '').toString().trim(); 
             const match = str.match(/^(\S+)/); 
@@ -390,9 +416,22 @@ const AppRoot = {
             const key = resolutionKey || 'FHD';
             const longSide = RESOLUTION_LONG_SIDE[key] || RESOLUTION_LONG_SIDE['FHD'];
             let w, h;
-            if (aspectRatio === '9:16') { h = longSide; w = Math.round(longSide * 9 / 16); }
-            else if (aspectRatio === '1:1') { const square = Math.round(longSide * 9 / 16); w = square; h = square; }
-            else { w = longSide; h = Math.round(longSide * 9 / 16); }
+            if (aspectRatio === '9:16') { 
+                // 세로 모드: 높이가 긴 쪽
+                h = longSide; 
+                w = Math.round(longSide * 9 / 16); 
+            }
+            else if (aspectRatio === '1:1') { 
+                // 정사각형: 가로=세로
+                const square = Math.round(longSide * 9 / 16); 
+                w = square; 
+                h = square; 
+            }
+            else { 
+                // 16:9 기본: 가로가 긴 쪽
+                w = longSide; 
+                h = Math.round(longSide * 9 / 16); 
+            }
             return { w, h };
         },
         getResolutionLabelFor(key) { return key || this.resolution || 'FHD'; },
@@ -523,7 +562,8 @@ const AppRoot = {
                     type: this.mapAssetTypeToClipType(asset.type),
                     src: asset.src || asset.url || '',
                     assetId: asset.id || null,
-                    isActive: false
+                    isActive: false,
+                    volume: 100
                 };
 
                 insertTime = this.findNonCollidingPosition(newClip, targetTrack.id, insertTime);
@@ -558,6 +598,11 @@ const AppRoot = {
             if (clipType === 'sound') {
                 const audioTrack = this.tracks.find(t => t.type === 'audio' && !t.isLocked);
                 if (audioTrack) return audioTrack;
+            }
+            
+            // 메인 트랙 우선 사용
+            if (this.mainTrack && !this.mainTrack.isLocked) {
+                return this.mainTrack;
             }
             
             const videoTrack = this.tracks.find(t => t.type === 'video' && !t.isLocked);
@@ -608,7 +653,8 @@ const AppRoot = {
                 const end = start + duration;
                 for (const c of trackClips) {
                     const cEnd = c.start + c.duration;
-                    if (start < cEnd && end > c.start) return true;
+                    const overlap = Math.min(end, cEnd) - Math.max(start, c.start);
+                    if (overlap > 0.01) return true;
                 }
                 return false;
             };
@@ -647,254 +693,9 @@ const AppRoot = {
 
         addClipWithBox(clipData) {
             this.clips.push(clipData);
-            if (clipData.type === 'video' || clipData.type === 'image') {
-                this.ensureBoxForClip(clipData);
-            }
+            // 클립에서 박스 생성하지 않음 (레이어관리 레이어만 캔바스에 표시)
+            // 타임라인 클립은 캔바스에 자동 표시되지 않음
             return clipData;
         },
         
-        ensureBoxForClip(clip) {
-            if (this.clipBoxMap[clip.id]) {
-                const existingBox = this.canvasBoxes.find(b => b.id === this.clipBoxMap[clip.id]);
-                if (existingBox) return existingBox;
-            }
-            const track = this.tracks.find(t => t.id === clip.trackId);
-            const trackIndex = this.tracks.findIndex(t => t.id === clip.trackId);
-            const zIndex = (this.tracks.length - trackIndex) * 10 + 100;
-            const cw = this.canvasSize.w;
-            const ch = this.canvasSize.h;
-            const newBox = {
-                id: `box_clip_${clip.id}`,
-                clipId: clip.id,
-                x: 0, y: 0, w: cw, h: ch,
-                nx: 0, ny: 0, nw: 1, nh: 1,
-                color: track ? track.color : '#3b82f6',
-                layerBgColor: 'transparent',
-                zIndex: zIndex,
-                isHidden: true,
-                layerName: clip.name || 'Clip',
-                rowType: 'BG',
-                colRole: 'full',
-                slotKey: `clip_${clip.id}`,
-                mediaType: clip.type,
-                mediaSrc: clip.src || '',
-                mediaFit: 'cover',
-                clipStart: clip.start,
-                clipDuration: clip.duration
-            };
-            this.canvasBoxes.push(newBox);
-            this.clipBoxMap[clip.id] = newBox.id;
-            return newBox;
-        },
-        
-        cleanupOrphanedBoxes(currentClips) {
-            const clipIds = new Set(currentClips.map(c => c.id));
-            Object.keys(this.clipBoxMap).forEach(clipId => {
-                if (!clipIds.has(clipId)) {
-                    const boxId = this.clipBoxMap[clipId];
-                    this.canvasBoxes = this.canvasBoxes.filter(b => b.id !== boxId);
-                    delete this.clipBoxMap[clipId];
-                }
-            });
-        },
-        
-        onTimeUpdate(time) {
-            this.updateClipVisibility(time);
-            this.syncVideoPlayback(time);
-            try {
-                if (window.PreviewRenderer && typeof window.PreviewRenderer.setCurrentTime === 'function') {
-                    window.PreviewRenderer.setCurrentTime(time);
-                }
-            } catch (err) { console.warn('[Preview] setCurrentTime failed:', err); }
-        },
-        
-        updateClipVisibility(time) {
-            this.clips.forEach(clip => {
-                const isActive = time >= clip.start && time < (clip.start + clip.duration);
-                clip.isActive = isActive;
-                const boxId = this.clipBoxMap[clip.id];
-                if (boxId) {
-                    const box = this.canvasBoxes.find(b => b.id === boxId);
-                    if (box) {
-                        box.isHidden = !isActive;
-                        box.clipLocalTime = isActive ? (time - clip.start) : 0;
-                    }
-                }
-            });
-        },
-        
-        syncVideoPlayback(time) {
-            this.clips.forEach(clip => {
-                if (clip.type !== 'video') return;
-                const boxId = this.clipBoxMap[clip.id];
-                if (!boxId) return;
-                const box = this.canvasBoxes.find(b => b.id === boxId);
-                if (!box || box.isHidden) return;
-                const localTime = time - clip.start;
-                box.clipLocalTime = localTime;
-            });
-        },
-        
-        deleteSelected() {
-            if (this.selectedClip) this.removeClip(this.selectedClip.id);
-            else if (this.selectedBoxId) this.removeBox(this.selectedBoxId);
-        },
-
-        setupGlobalDropHandler() {
-            const previewWrapper = document.getElementById('preview-canvas-wrapper');
-            if (!previewWrapper) return;
-            previewWrapper.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
-            previewWrapper.addEventListener('drop', (e) => { e.preventDefault(); this.handlePreviewDrop(e); });
-        },
-        handlePreviewDrop(e) {
-            let assetData;
-            try { assetData = JSON.parse(e.dataTransfer.getData('text/wai-asset')); } 
-            catch (err) {
-                const files = e.dataTransfer.files;
-                if (files && files.length > 0) this.handleFilesDrop(files, e);
-                return;
-            }
-            if (assetData && this.selectedBoxId) {
-                const box = this.canvasBoxes.find(b => b.id === this.selectedBoxId);
-                if (box) this.applyAssetToBox(box, assetData);
-            }
-        },
-        handleFilesDrop(files, e) {
-            const file = files[0]; if (!file) return;
-            const fileType = file.type;
-            let assetType = 'unknown';
-            if (fileType.startsWith('image/')) assetType = 'image';
-            else if (fileType.startsWith('video/')) assetType = 'video';
-            else if (fileType.startsWith('audio/')) assetType = 'audio';
-            if ((assetType === 'image' || assetType === 'video') && this.selectedBoxId) {
-                const box = this.canvasBoxes.find(b => b.id === this.selectedBoxId);
-                if (box) {
-                    const url = URL.createObjectURL(file);
-                    box.mediaSrc = url; box.mediaType = assetType; box.mediaName = file.name;
-                }
-            }
-        },
-        applyAssetToBox(box, assetData) {
-            if (assetData.type === 'image') { box.mediaSrc = assetData.src || assetData.url; box.mediaType = 'image'; box.mediaName = assetData.name; }
-            else if (assetData.type === 'video') { box.mediaSrc = assetData.src || assetData.url; box.mediaType = 'video'; box.mediaName = assetData.name; }
-        },
-
-        openLayerConfig(boxId) { this.layerConfig.isOpen = true; this.layerConfig.boxId = boxId; this.setSelectedBoxId(boxId); },
-        closeLayerConfig() { this.layerConfig.isOpen = false; this.layerConfig.boxId = null; },
-        deleteLayerFromConfig() { const box = this.layerConfigBox; if (box) this.removeBox(box.id); this.closeLayerConfig(); },
-
-        openLayerTemplateModal() { this.layerTemplateModal.isOpen = true; },
-        closeLayerTemplateModal() { this.layerTemplateModal.isOpen = false; },
-        deleteLayerTemplate(templateId) {
-            this.layerTemplates = this.layerTemplates.filter(t => t.id !== templateId);
-            Swal.fire({ icon: 'success', title: '삭제됨', text: '템플릿이 삭제되었습니다', background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6', timer: 1500, showConfirmButton: false });
-        },
-        loadLayerTemplate(template) {
-            if (!template || !template.matrixJson) {
-                Swal.fire({ icon: 'error', title: '불러오기 실패', text: '템플릿 데이터가 유효하지 않습니다', background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6' });
-                return;
-            }
-            try {
-                const parsed = JSON.parse(template.matrixJson);
-                if (parsed.canvasBoxes && Array.isArray(parsed.canvasBoxes)) {
-                    const newBoxes = parsed.canvasBoxes.map(box => ({ ...box, id: `box_${box.slotKey}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` }));
-                    this.canvasBoxes = newBoxes;
-                    this.ensureAllBoxesNormalized();
-                }
-                this.layerMainName = template.name || '';
-                Swal.fire({ icon: 'success', title: '불러오기 완료', text: `"${template.name}" 템플릿이 적용되었습니다`, background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6', timer: 1500, showConfirmButton: false });
-            } catch (err) {
-                console.error('[loadLayerTemplate] parse error:', err);
-                Swal.fire({ icon: 'error', title: '불러오기 실패', text: '템플릿 파싱 중 오류가 발생했습니다', background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6' });
-            }
-        },
-        updateLayerTemplates(templates) { this.layerTemplates = templates; },
-        updateLayerTemplateFolders(folders) { this.layerTemplateFolders = folders; },
-        saveLayerTemplate(name, matrixJson) {
-            const newTpl = { id: `tpl_${Date.now()}`, name, cols: this.layerCols.map(c => ({ ...c })), matrixJson: matrixJson || null, createdAt: new Date().toISOString(), folderId: 'root' };
-            this.layerTemplates.push(newTpl);
-            this.layerMainName = name;
-        },
-
-        removeBox(id) {
-            const box = this.canvasBoxes.find(b => b.id === id);
-            if (box && box.clipId) delete this.clipBoxMap[box.clipId];
-            this.canvasBoxes = this.canvasBoxes.filter(b => b.id !== id);
-            if (this.selectedBoxId === id) this.selectedBoxId = null;
-        },
-        setSelectedBoxId(id) { this.selectedBoxId = id; this.selectedClip = null; },
-        updateBoxPosition(id, newX, newY, newW, newH, optNorm) {
-            const index = this.canvasBoxes.findIndex(b => b.id === id);
-            if (index === -1) return;
-            const oldBox = this.canvasBoxes[index];
-            const cw = this.canvasSize.w || 1; const ch = this.canvasSize.h || 1;
-            let x, y, w, h, nx, ny, nw, nh;
-            if (optNorm && typeof optNorm === 'object') {
-                nx = typeof optNorm.nx === 'number' ? optNorm.nx : (typeof oldBox.nx === 'number' ? oldBox.nx : (oldBox.x || 0) / cw);
-                ny = typeof optNorm.ny === 'number' ? optNorm.ny : (typeof oldBox.ny === 'number' ? oldBox.ny : (oldBox.y || 0) / ch);
-                nw = typeof optNorm.nw === 'number' ? optNorm.nw : (typeof oldBox.nw === 'number' ? oldBox.nw : (oldBox.w || cw) / cw);
-                nh = typeof optNorm.nh === 'number' ? optNorm.nh : (typeof oldBox.nh === 'number' ? oldBox.nh : (oldBox.h || ch) / ch);
-                const minNw = 20 / cw, minNh = 20 / ch;
-                if (nw < minNw) nw = minNw; if (nh < minNh) nh = minNh;
-                if (nx < 0) nx = 0; if (ny < 0) ny = 0;
-                if (nx + nw > 1) nx = Math.max(0, 1 - nw); if (ny + nh > 1) ny = Math.max(0, 1 - nh);
-                x = nx * cw; y = ny * ch; w = nw * cw; h = nh * ch;
-            } else {
-                x = typeof newX === 'number' ? newX : (typeof oldBox.x === 'number' ? oldBox.x : 0);
-                y = typeof newY === 'number' ? newY : (typeof oldBox.y === 'number' ? oldBox.y : 0);
-                w = typeof newW === 'number' && newW > 0 ? newW : (typeof oldBox.w === 'number' && oldBox.w > 0 ? oldBox.w : cw);
-                h = typeof newH === 'number' && newH > 0 ? newH : (typeof oldBox.h === 'number' && oldBox.h > 0 ? oldBox.h : ch);
-                const minW = 20, minH = 20;
-                if (w < minW) w = minW; if (h < minH) h = minH;
-                if (x < 0) x = 0; if (y < 0) y = 0;
-                if (x + w > cw) x = Math.max(0, cw - w); if (y + h > ch) y = Math.max(0, ch - h);
-                nx = x / cw; ny = y / ch; nw = w / cw; nh = h / ch;
-            }
-            const box = { ...oldBox, x, y, w, h, nx, ny, nw, nh };
-            const newBoxes = [...this.canvasBoxes];
-            newBoxes[index] = box;
-            this.canvasBoxes = newBoxes;
-        },
-
-        removeClip(id) {
-            this.clips = this.clips.filter(c => c.id !== id);
-            if (this.selectedClip && this.selectedClip.id === id) this.selectedClip = null;
-        },
-        setSelectedClip(clip) { this.selectedClip = (this.selectedClip && this.selectedClip.id === clip.id) ? null : clip; this.selectedBoxId = null; },
-        moveTrack(fromIndex, toIndex) {
-            const tracks = [...this.tracks];
-            const [removed] = tracks.splice(fromIndex, 1);
-            tracks.splice(toIndex, 0, removed);
-            this.tracks = tracks;
-        },
-        splitClip(clipId, splitTime) {
-            const index = this.clips.findIndex(c => c.id === clipId);
-            if (index === -1) return;
-            const clip = this.clips[index];
-            const relativeTime = splitTime - clip.start;
-            if (relativeTime <= 0 || relativeTime >= clip.duration) return;
-            const firstPart = { ...clip, duration: relativeTime };
-            const secondPart = { ...clip, id: `c_${Date.now()}`, start: splitTime, duration: clip.duration - relativeTime };
-            const newClips = [...this.clips];
-            newClips[index] = firstPart;
-            this.clips = newClips;
-            this.addClipWithBox(secondPart);
-            const boxId = this.clipBoxMap[clipId];
-            if (boxId) {
-                const box = this.canvasBoxes.find(b => b.id === boxId);
-                if (box) box.clipDuration = relativeTime;
-            }
-        },
-        addTrack(type = 'video') {
-            const colors = { video: '#22c55e', audio: '#a855f7', text: '#eab308' };
-            const newTrack = { id: `t_${Date.now()}`, name: `Track ${this.tracks.length + 1}`, type: type, color: colors[type] || '#64748b' };
-            this.tracks.push(newTrack);
-        },
-        removeTrack(trackId) {
-            this.clips = this.clips.filter(c => c.trackId !== trackId);
-            this.tracks = this.tracks.filter(t => t.id !== trackId);
-        }
-    }
-};
-
-createApp(AppRoot).mount('#app-vue-root');
+        // 클립용 박스 생성 제거
