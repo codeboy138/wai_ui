@@ -1,6 +1,6 @@
 // Timeline Panel Component - Enhanced with Undo/Redo, Zoom Mode, Smooth Zoom
 // 트랙 드래그 순서 변경, Z-Index 연동, 클립-캔버스 연동, 외부 에셋 드롭 지원
-// 트랙 타입 제거 - 모든 트랙이 모든 형식 수용, 파형 표시 제거
+// 트랙 타입 제거 - 모든 트랙이 모든 형식 수용
 
 const TimelinePanel = {
     props: ['vm'],
@@ -8,7 +8,6 @@ const TimelinePanel = {
         <div
             id="timeline-main-panel"
             class="flex flex-col bg-bg-panel select-none h-full"
-            :class="{ 'timeline-drop-highlight': isExternalDragOver }"
             @wheel.prevent="handleWheel"
             @dragover.prevent="onExternalDragOver"
             @dragleave="onExternalDragLeave"
@@ -198,16 +197,12 @@ const TimelinePanel = {
                         @mousedown="onTrackLaneMouseDown($event, track)"
                         @contextmenu.prevent="openClipContextMenu($event, track)"
                     >
-                        <!-- 드롭 인디케이터 -->
+                        <!-- 드롭 인디케이터 (위치 표시 박스만) -->
                         <div 
                             v-if="dropIndicator.visible && dropIndicator.trackId === track.id"
                             class="absolute top-1 bottom-1 bg-ui-accent/30 border-2 border-dashed border-ui-accent rounded pointer-events-none z-20"
                             :style="{ left: dropIndicator.left + 'px', width: dropIndicator.width + 'px' }"
-                        >
-                            <span v-if="dropIndicator.count > 1" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-[10px] text-ui-accent font-bold whitespace-nowrap">
-                                {{ dropIndicator.count }}개 ({{ dropIndicator.totalDuration.toFixed(1) }}s)
-                            </span>
-                        </div>
+                        ></div>
                         
                         <div 
                             v-for="clip in getClipsForTrack(track.id)" 
@@ -250,14 +245,6 @@ const TimelinePanel = {
                     </div>
                     
                     <div class="playhead-line-body" :style="{ left: vm.currentTime * currentDisplayZoom + 'px' }"></div>
-                </div>
-            </div>
-            
-            <!-- 외부 드롭 오버레이 표시 -->
-            <div v-if="isExternalDragOver && !vm.isTimelineCollapsed" class="absolute inset-0 pointer-events-none z-40 flex items-center justify-center">
-                <div class="bg-ui-accent/20 border-2 border-dashed border-ui-accent rounded-lg p-8 text-center">
-                    <i class="fa-solid fa-plus text-3xl text-ui-accent mb-2"></i>
-                    <p class="text-ui-accent font-bold">타임라인에 추가</p>
                 </div>
             </div>
             
@@ -447,8 +434,6 @@ const TimelinePanel = {
                 .timeline-select-no-arrow::-ms-expand { display: none; }
                 #timeline-main-panel { min-height: 0; position: relative; }
                 .resolution-dropdown-wrapper { position: relative; }
-                .timeline-drop-highlight { background: rgba(59, 130, 246, 0.1) !important; }
-                #timeline-main-panel.timeline-drop-highlight { outline: 2px dashed #3b82f6; outline-offset: -2px; }
                 .tool-btn:disabled { opacity: 0.3; cursor: not-allowed; }
             `;
             document.head.appendChild(style);
@@ -912,8 +897,22 @@ const TimelinePanel = {
         startHeaderResize(e) { if (this.isTrackNamesCollapsed) return; this.isResizingHeader = true; this.resizeStartX = e.clientX; this.resizeStartWidth = this.trackHeaderWidth; },
         formatRulerTime(s) { if (s < 60) return s + 's'; const m = Math.floor(s / 60); return m + ':' + String(Math.round(s % 60)).padStart(2, '0'); },
         
-        onExternalDragOver(e) { if (e.dataTransfer.types.includes('text/wai-asset')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; this.isExternalDragOver = true; this.updateDropIndicator(e); } },
-        onExternalDragLeave(e) { const rect = e.currentTarget.getBoundingClientRect(); if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) { this.isExternalDragOver = false; this.dropIndicator.visible = false; } },
+        onExternalDragOver(e) {
+            if (e.dataTransfer.types.includes('text/wai-asset')) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'copy';
+                this.isExternalDragOver = true;
+                this.updateDropIndicator(e);
+            }
+        },
+        
+        onExternalDragLeave(e) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) {
+                this.isExternalDragOver = false;
+                this.dropIndicator.visible = false;
+            }
+        },
         
         updateDropIndicator(e) {
             const lane = document.getElementById('timeline-lane-container');
