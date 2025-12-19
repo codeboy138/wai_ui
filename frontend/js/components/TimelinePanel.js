@@ -1,7 +1,5 @@
-// Timeline Panel Component - Enhanced with Undo/Redo, Zoom Mode, Smooth Zoom
-// 트랙 드래그 순서 변경, Z-Index 연동, 클립-캔버스 연동, 외부 에셋 드롭 지원
-// 비디오/오디오 파형 + 썸네일 타일 + 볼륨 레벨선 표시
-// 긴 영상 대응 동적 줌 스케일링
+// Timeline Panel Component - Memory Optimized Version
+// 긴 영상(30분+) 대응: 썸네일/파형 제한, DOM 최소화
 
 const TimelinePanel = {
     props: ['vm'],
@@ -123,7 +121,7 @@ const TimelinePanel = {
                 </div>
             </div>
             
-            <div v-if="!vm.isTimelineCollapsed" id="timeline-scroll-container" class="flex-grow overflow-auto timeline-grid relative min-h-0" :style="{ gridTemplateColumns: currentHeaderWidth + 'px 1fr' }">
+            <div v-if="!vm.isTimelineCollapsed" id="timeline-scroll-container" class="flex-grow overflow-auto timeline-grid relative min-h-0" :style="{ gridTemplateColumns: currentHeaderWidth + 'px 1fr' }" @scroll="onTimelineScroll">
                 <div class="sticky-col bg-bg-panel border-r border-ui-border relative" style="z-index: 30;">
                     <div class="h-6 border-b border-ui-border flex items-center justify-between px-2 text-[9px] font-bold text-text-sub bg-bg-panel sticky top-0" style="z-index: 40;">
                         <span v-show="!isTrackNamesCollapsed">TRACKS</span>
@@ -184,7 +182,7 @@ const TimelinePanel = {
 
                 <div id="timeline-lane-container" class="relative bg-bg-dark min-w-max" @mousedown="handleLaneMouseDown">
                     <div id="timeline-ruler" class="h-6 border-b border-ui-border sticky top-0 bg-bg-dark relative" style="z-index: 20;" :style="{ width: totalTimelineWidth + 'px' }">
-                        <template v-for="mark in rulerMarks" :key="'ruler-' + mark.time">
+                        <template v-for="mark in visibleRulerMarks" :key="'ruler-' + mark.time">
                             <div v-if="mark.isMajor" class="absolute top-0 bottom-0 border-l border-ui-border" :style="{ left: mark.position + 'px' }">
                                 <span class="absolute top-0 left-1 text-[9px] text-text-sub whitespace-nowrap">{{ mark.label }}</span>
                             </div>
@@ -213,7 +211,7 @@ const TimelinePanel = {
                         ></div>
                         
                         <div 
-                            v-for="clip in getClipsForTrack(track.id)" 
+                            v-for="clip in getVisibleClipsForTrack(track.id)" 
                             :key="clip.id" 
                             :data-clip-id="clip.id" 
                             class="clip absolute rounded-sm cursor-pointer overflow-hidden" 
@@ -232,75 +230,48 @@ const TimelinePanel = {
                                 <span class="text-[8px] text-white/70 ml-auto pl-1 whitespace-nowrap">{{ formatClipDuration(clip.duration) }}</span>
                             </div>
                             
-                            <!-- 레이어 2: 프레임 썸네일 (중간 영역) -->
-                            <div v-if="(clip.type === 'video' || clip.type === 'image') && clip.src" 
+                            <!-- 레이어 2: 단순화된 프레임 표시 (썸네일 최대 5개) -->
+                            <div v-if="(clip.type === 'video' || clip.type === 'image') && clip.src && isClipVisible(clip)" 
                                 class="absolute left-0 right-0 overflow-hidden flex"
                                 :style="getFrameAreaStyle(track)">
-                                <div v-for="(thumbIdx, ti) in getThumbnailCount(clip)" :key="'frame_' + ti" 
+                                <div v-for="(thumbIdx, ti) in getLimitedThumbnailCount(clip)" :key="'frame_' + ti" 
                                     class="h-full flex-shrink-0 relative border-r border-black/40"
-                                    :style="{ width: getThumbnailWidth(clip) + 'px' }">
-                                    <img v-if="clip.type === 'image'" :src="clip.src" class="w-full h-full object-cover" draggable="false" />
-                                    <video v-else-if="clip.type === 'video'" 
-                                        :src="clip.src" 
-                                        class="w-full h-full object-cover" 
-                                        muted 
-                                        preload="metadata"
-                                        @loadedmetadata="setVideoThumbTime($event, clip, ti)"
-                                    ></video>
+                                    :style="{ width: getLimitedThumbnailWidth(clip) + 'px' }">
+                                    <img v-if="clip.type === 'image'" :src="clip.src" class="w-full h-full object-cover" draggable="false" loading="lazy" />
+                                    <div v-else class="w-full h-full bg-bg-input flex items-center justify-center">
+                                        <i class="fa-solid fa-film text-text-sub/30 text-xs"></i>
+                                    </div>
                                 </div>
                             </div>
                             
-                            <!-- 레이어 3: 사운드 파형 + 볼륨 레벨 (하단 영역) -->
+                            <!-- 레이어 3: 단순화된 사운드 파형 (SVG 바 최대 40개) -->
                             <div class="absolute left-0 right-0 bottom-0 pointer-events-none"
                                 :style="getWaveformAreaStyle(track)">
-                                <svg class="w-full h-full" preserveAspectRatio="none" :viewBox="'0 0 ' + getClipPixelWidth(clip) + ' 100'">
+                                <svg class="w-full h-full" preserveAspectRatio="none" :viewBox="'0 0 100 100'">
                                     <!-- 파형 배경 -->
-                                    <rect x="0" y="0" :width="getClipPixelWidth(clip)" height="100" :fill="getWaveformBgColor(clip)" />
+                                    <rect x="0" y="0" width="100" height="100" :fill="getWaveformBgColor(clip)" />
                                     
-                                    <!-- 파형 바 -->
-                                    <template v-if="clip.waveformData && clip.waveformData.length > 0">
-                                        <rect 
-                                            v-for="(val, i) in clip.waveformData" 
-                                            :key="'wf_'+i"
-                                            :x="(i / clip.waveformData.length) * getClipPixelWidth(clip)"
-                                            :y="50 - (val * 45)"
-                                            :width="Math.max(1, getClipPixelWidth(clip) / clip.waveformData.length * 0.8)"
-                                            :height="val * 90"
-                                            :fill="getWaveformBarColor(clip)"
-                                        />
-                                    </template>
-                                    <template v-else>
-                                        <rect 
-                                            v-for="i in Math.min(80, Math.max(20, Math.floor(getClipPixelWidth(clip) / 3)))" 
-                                            :key="'df_'+i"
-                                            :x="(i - 1) * (getClipPixelWidth(clip) / Math.min(80, Math.max(20, Math.floor(getClipPixelWidth(clip) / 3))))"
-                                            :y="50 - (15 + Math.sin(i * 0.5) * 12 + (i % 5) * 3)"
-                                            :width="Math.max(1, getClipPixelWidth(clip) / Math.min(80, Math.max(20, Math.floor(getClipPixelWidth(clip) / 3))) * 0.7)"
-                                            :height="30 + Math.sin(i * 0.5) * 24 + (i % 5) * 6"
-                                            :fill="getWaveformBarColor(clip)"
-                                        />
-                                    </template>
+                                    <!-- 단순화된 파형 바 (최대 40개) -->
+                                    <rect 
+                                        v-for="i in getSimplifiedWaveformBars(clip)" 
+                                        :key="'wf_'+i"
+                                        :x="(i - 1) * (100 / getSimplifiedWaveformBars(clip))"
+                                        :y="50 - (15 + Math.sin(i * 0.7) * 12 + (i % 5) * 3)"
+                                        :width="Math.max(1, 100 / getSimplifiedWaveformBars(clip) * 0.7)"
+                                        :height="30 + Math.sin(i * 0.7) * 24 + (i % 5) * 6"
+                                        :fill="getWaveformBarColor(clip)"
+                                    />
                                     
-                                    <!-- 볼륨 레벨 가로선 (노란 점선) -->
+                                    <!-- 볼륨 레벨 가로선 -->
                                     <line 
                                         x1="0" 
                                         :y1="100 - (clip.volume || 100) * 0.8" 
-                                        :x2="getClipPixelWidth(clip)" 
+                                        x2="100" 
                                         :y2="100 - (clip.volume || 100) * 0.8" 
                                         stroke="#fbbf24" 
                                         stroke-width="2"
                                         stroke-dasharray="4,2"
                                     />
-                                    
-                                    <!-- 볼륨 레벨 텍스트 -->
-                                    <text 
-                                        :x="getClipPixelWidth(clip) - 4" 
-                                        :y="100 - (clip.volume || 100) * 0.8 - 3"
-                                        fill="#fbbf24" 
-                                        font-size="9" 
-                                        text-anchor="end"
-                                        font-weight="bold"
-                                    >{{ clip.volume || 100 }}%</text>
                                 </svg>
                             </div>
                             
@@ -416,7 +387,14 @@ const TimelinePanel = {
             },
             basePixelsPerSecond: 20,
             zoomMin: 1,
-            zoomMax: 200
+            zoomMax: 200,
+            // 가상화를 위한 스크롤 상태
+            scrollLeft: 0,
+            viewportWidth: 1000,
+            // 썸네일/파형 제한 상수
+            MAX_THUMBNAILS_PER_CLIP: 5,
+            MAX_WAVEFORM_BARS: 40,
+            MAX_RULER_MARKS: 100
         };
     },
     computed: {
@@ -458,48 +436,59 @@ const TimelinePanel = {
                 return (this.pixelsPerSecond * 60).toFixed(1) + 'px/m';
             }
         },
-        rulerMarks() {
+        // 가시 영역 계산
+        visibleTimeRange() {
+            const startTime = Math.max(0, this.scrollLeft / this.pixelsPerSecond - 10);
+            const endTime = (this.scrollLeft + this.viewportWidth) / this.pixelsPerSecond + 10;
+            return { startTime, endTime };
+        },
+        // 가시 영역 내의 룰러 마크만 반환 (최적화)
+        visibleRulerMarks() {
             const marks = [];
             const pps = this.pixelsPerSecond;
-            const duration = this.totalDuration;
+            const { startTime, endTime } = this.visibleTimeRange;
             
             let majorInterval, minorInterval, showMinor;
             
             if (pps >= 100) {
                 majorInterval = 1;
-                minorInterval = 0.1;
+                minorInterval = 0.5;
                 showMinor = true;
             } else if (pps >= 50) {
                 majorInterval = 2;
-                minorInterval = 0.5;
+                minorInterval = 1;
                 showMinor = true;
             } else if (pps >= 20) {
                 majorInterval = 5;
                 minorInterval = 1;
-                showMinor = true;
+                showMinor = false;
             } else if (pps >= 10) {
                 majorInterval = 10;
-                minorInterval = 2;
+                minorInterval = 5;
                 showMinor = true;
             } else if (pps >= 5) {
                 majorInterval = 30;
-                minorInterval = 5;
-                showMinor = true;
+                minorInterval = 10;
+                showMinor = false;
             } else if (pps >= 2) {
                 majorInterval = 60;
-                minorInterval = 10;
+                minorInterval = 30;
                 showMinor = true;
             } else if (pps >= 0.5) {
                 majorInterval = 300;
                 minorInterval = 60;
-                showMinor = true;
+                showMinor = false;
             } else {
                 majorInterval = 600;
-                minorInterval = 120;
+                minorInterval = 300;
                 showMinor = false;
             }
             
-            for (let t = 0; t <= duration; t += minorInterval) {
+            // 시작 시간을 majorInterval에 맞춤
+            const alignedStart = Math.floor(startTime / minorInterval) * minorInterval;
+            
+            for (let t = alignedStart; t <= endTime && marks.length < this.MAX_RULER_MARKS; t += minorInterval) {
+                if (t < 0) continue;
                 const time = Math.round(t * 100) / 100;
                 const position = time * pps;
                 const isMajor = Math.abs(time % majorInterval) < 0.001 || Math.abs(time % majorInterval - majorInterval) < 0.001;
@@ -540,7 +529,8 @@ const TimelinePanel = {
             this.currentDisplayZoom = this.vm.zoom || 20;
             this.saveToHistory();
             this.calculateDynamicZoomRange();
-            window.addEventListener('resize', this.adjustLayout);
+            this.updateViewportSize();
+            window.addEventListener('resize', this.onWindowResize);
             document.addEventListener('click', this.onDocumentClick);
             document.addEventListener('mousemove', this.onDocumentMouseMove);
             document.addEventListener('mouseup', this.onDocumentMouseUp);
@@ -548,7 +538,7 @@ const TimelinePanel = {
         });
     },
     beforeUnmount() {
-        window.removeEventListener('resize', this.adjustLayout);
+        window.removeEventListener('resize', this.onWindowResize);
         document.removeEventListener('click', this.onDocumentClick);
         document.removeEventListener('mousemove', this.onDocumentMouseMove);
         document.removeEventListener('mouseup', this.onDocumentMouseUp);
@@ -580,6 +570,64 @@ const TimelinePanel = {
             document.head.appendChild(style);
         },
         
+        onWindowResize() {
+            this.adjustLayout();
+            this.updateViewportSize();
+        },
+        
+        updateViewportSize() {
+            const container = document.getElementById('timeline-scroll-container');
+            if (container) {
+                this.viewportWidth = container.clientWidth;
+            }
+        },
+        
+        onTimelineScroll(e) {
+            this.scrollLeft = e.target.scrollLeft;
+        },
+        
+        // 클립이 현재 뷰포트에 보이는지 확인
+        isClipVisible(clip) {
+            const clipStart = clip.start * this.pixelsPerSecond;
+            const clipEnd = (clip.start + clip.duration) * this.pixelsPerSecond;
+            const viewStart = this.scrollLeft - 100;
+            const viewEnd = this.scrollLeft + this.viewportWidth + 100;
+            return clipEnd >= viewStart && clipStart <= viewEnd;
+        },
+        
+        // 특정 트랙의 가시 영역 내 클립만 반환
+        getVisibleClipsForTrack(trackId) {
+            const allClips = this.vm.clips.filter(c => c.trackId === trackId);
+            // 가상화: 뷰포트 근처의 클립만 반환
+            return allClips.filter(clip => {
+                const clipStart = clip.start * this.pixelsPerSecond;
+                const clipEnd = (clip.start + clip.duration) * this.pixelsPerSecond;
+                const viewStart = this.scrollLeft - 500;
+                const viewEnd = this.scrollLeft + this.viewportWidth + 500;
+                return clipEnd >= viewStart && clipStart <= viewEnd;
+            });
+        },
+        
+        // 썸네일 개수 제한 (최대 5개)
+        getLimitedThumbnailCount(clip) {
+            const clipWidth = this.getClipPixelWidth(clip);
+            const idealCount = Math.ceil(clipWidth / 80);
+            return Math.min(idealCount, this.MAX_THUMBNAILS_PER_CLIP);
+        },
+        
+        getLimitedThumbnailWidth(clip) {
+            const clipWidth = this.getClipPixelWidth(clip);
+            const count = this.getLimitedThumbnailCount(clip);
+            return clipWidth / count;
+        },
+        
+        // 파형 바 개수 제한 (최대 40개)
+        getSimplifiedWaveformBars(clip) {
+            const clipWidth = this.getClipPixelWidth(clip);
+            const idealBars = Math.floor(clipWidth / 3);
+            return Math.min(Math.max(10, idealBars), this.MAX_WAVEFORM_BARS);
+        },
+        
         calculateDynamicZoomRange() {
             const container = document.getElementById('timeline-scroll-container');
             if (!container) return;
@@ -608,6 +656,7 @@ const TimelinePanel = {
             
             this.$nextTick(() => {
                 container.scrollLeft = 0;
+                this.scrollLeft = 0;
             });
         },
         
@@ -642,32 +691,6 @@ const TimelinePanel = {
         
         getClipPixelWidth(clip) {
             return Math.max(20, clip.duration * this.pixelsPerSecond);
-        },
-        
-        getThumbnailCount(clip) {
-            const clipWidth = this.getClipPixelWidth(clip);
-            const thumbWidth = 60;
-            return Math.max(1, Math.ceil(clipWidth / thumbWidth));
-        },
-        
-        getThumbnailWidth(clip) {
-            const clipWidth = this.getClipPixelWidth(clip);
-            const count = this.getThumbnailCount(clip);
-            return clipWidth / count;
-        },
-        
-        getThumbTime(clip, index) {
-            const count = this.getThumbnailCount(clip);
-            return (clip.duration / count) * index;
-        },
-        
-        setVideoThumbTime(e, clip, index) {
-            const video = e.target;
-            const count = this.getThumbnailCount(clip);
-            const targetTime = (clip.duration / count) * index;
-            if (video.duration && targetTime < video.duration) {
-                video.currentTime = targetTime;
-            }
         },
         
         getClipBackgroundStyle(clip, track) {
@@ -754,7 +777,6 @@ const TimelinePanel = {
         
         setZoom(newZoom, centerType = null) {
             const clampedZoom = Math.max(this.zoomMin, Math.min(this.zoomMax, newZoom));
-            const oldZoom = this.currentDisplayZoom;
             this.currentDisplayZoom = clampedZoom;
             this.vm.zoom = clampedZoom;
             
@@ -764,6 +786,7 @@ const TimelinePanel = {
                     if (sc) {
                         const containerWidth = sc.clientWidth - this.currentHeaderWidth;
                         sc.scrollLeft = this.vm.currentTime * this.pixelsPerSecond - containerWidth / 2;
+                        this.scrollLeft = sc.scrollLeft;
                     }
                 });
             }
@@ -1268,6 +1291,7 @@ const TimelinePanel = {
                         
                         this.$nextTick(() => {
                             sc.scrollLeft = cursorTime * this.pixelsPerSecond - cursorX;
+                            this.scrollLeft = sc.scrollLeft;
                         });
                     } else {
                         this.setZoom(newZoom);
@@ -1275,6 +1299,7 @@ const TimelinePanel = {
                 }
             } else {
                 sc.scrollLeft += e.deltaY;
+                this.scrollLeft = sc.scrollLeft;
             }
         }
     }
