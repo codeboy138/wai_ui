@@ -1,7 +1,7 @@
 // js/components/TimelinePanel.js
 // 타임라인 패널 컴포넌트
 
-export default class TimelinePanel {
+class TimelinePanel {
   constructor(container, appState) {
     this.container = container;
     this.appState = appState;
