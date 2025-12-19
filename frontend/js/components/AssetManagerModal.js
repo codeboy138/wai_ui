@@ -263,8 +263,8 @@ var AssetManagerModal = {
             posY: 0,
             width: 900,
             height: 600,
-            minWidth: 500,
-            minHeight: 350,
+            minWidth: 400,
+            minHeight: 300,
             minimizedWidth: 280,
             minimizedHeight: 45,
             prevWidth: 900,
@@ -325,14 +325,20 @@ var AssetManagerModal = {
             };
         },
         gridStyle: function() {
-            var contentWidth = this.width - 176 - 24;
-            var minCardWidth = 120;
-            var maxCardWidth = 180;
-            var cols = Math.max(2, Math.min(6, Math.floor(contentWidth / minCardWidth)));
-            return { 
+            var sidebarWidth = 176;
+            var padding = 24;
+            var contentWidth = this.width - sidebarWidth - padding;
+            var minCardWidth = 80;
+            var maxCardWidth = 160;
+            var gap = 12;
+            var cols = Math.max(1, Math.floor((contentWidth + gap) / (minCardWidth + gap)));
+            cols = Math.min(cols, 8);
+            var cardWidth = Math.floor((contentWidth - (cols - 1) * gap) / cols);
+            cardWidth = Math.max(minCardWidth, Math.min(maxCardWidth, cardWidth));
+            return {
                 display: 'grid',
-                gridTemplateColumns: 'repeat(' + cols + ', minmax(' + minCardWidth + 'px, 1fr))',
-                gap: '12px'
+                gridTemplateColumns: 'repeat(' + cols + ', 1fr)',
+                gap: gap + 'px'
             };
         },
         assetTypeIcon: function() {
