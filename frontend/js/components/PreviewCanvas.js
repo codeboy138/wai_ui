@@ -1,23 +1,16 @@
 // Preview Canvas Component - Enhanced
-// 자산 드롭 수신, 캔버스-타임라인 연동
+// 자산 드롭 수신, 캔버스-타임라인 연동, 비디오 시간 동기화
+// 레이어관리 레이어는 사용자 지정만 표시 (자동 표시 안 함)
 
 const PreviewCanvas = {
   name: 'PreviewCanvas',
 
   props: {
-    canvasBoxes: {
-      type: Array,
-      required: true
-    },
-    canvasSize: {
-      type: Object,
-      required: false,
-      default: () => ({ w: 1920, h: 1080 })
-    },
-    selectedBoxId: {
-      type: String,
-      default: null
-    }
+    canvasBoxes: { type: Array, required: true },
+    canvasSize: { type: Object, required: false, default: () => ({ w: 1920, h: 1080 }) },
+    selectedBoxId: { type: String, default: null },
+    currentTime: { type: Number, default: 0 },
+    isPlaying: { type: Boolean, default: false }
   },
 
   data() {
@@ -28,65 +21,118 @@ const PreviewCanvas = {
       dragBoxId: null,
       dragStartMouse: { mx: 0, my: 0 },
       dragStartBox: { x0: 0, y0: 0, w0: 0, h0: 0 },
-      edgeFlash: {
-        top: false,
-        bottom: false,
-        left: false,
-        right: false
-      },
+      edgeFlash: { top: false, bottom: false, left: false, right: false },
       magnetEnabled: true,
       snapDistance: 15,
-      
-      // 드롭 상태
       isDropTarget: false,
-      
-      // 현재 재생 시간 (타임라인 연동용)
-      currentPlayTime: 0,
-      
-      // 활성 미디어 요소들
-      activeMediaElements: {}
+      videoElements: {},
+      lastSyncTime: -1
     };
   },
 
   computed: {
-    // 오버레이는 부모 scaler를 꽉 채움
     overlayStyle() {
-      return {
-        position: 'absolute',
-        inset: '0',
-        pointerEvents: 'auto',
-        overflow: 'visible'
-      };
+      return { position: 'absolute', inset: '0', pointerEvents: 'auto', overflow: 'visible' };
     },
-
+    // 레이어관리에서 만든 박스만 표시 (클립 연동 박스는 제외)
+    // isHidden이 false이고, clipId가 없는 박스만 표시
     visibleBoxes() {
-      return this.canvasBoxes.filter(box => !box.isHidden);
+      return this.canvasBoxes.filter(box => {
+        // 숨김 상태면 표시 안 함
+        if (box.isHidden) return false;
+        
+        // 클립에서 생성된 박스는 표시 안 함 (레이어관리 레이어만 표시)
+        // clipId가 있으면 타임라인 클립과 연동된 박스
+        if (box.clipId) return false;
+        
+        // slotKey가 있으면 레이어관리에서 생성한 박스
+        // slotKey가 없고 clipId도 없으면 드롭으로 생성된 박스 (표시함)
+        return true;
+      });
     },
-
     isMagnetActive() {
-      if (this.$parent && typeof this.$parent.isMagnet === 'boolean') {
-        return this.$parent.isMagnet;
-      }
+      if (this.$parent && typeof this.$parent.isMagnet === 'boolean') return this.$parent.isMagnet;
       return this.magnetEnabled;
     }
   },
 
+  watch: {
+    isPlaying(newVal) { this.handlePlayStateChange(newVal); },
+    currentTime(newTime) { this.syncAllVideos(newTime); },
+    canvasBoxes: {
+      handler() { this.$nextTick(() => { this.initializeVideoElements(); }); },
+      deep: true
+    }
+  },
+
+  mounted() {
+    this.$nextTick(() => { this.initializeVideoElements(); });
+  },
+
   methods: {
+    initializeVideoElements() {
+      const videoBoxes = this.canvasBoxes.filter(box => box.mediaType === 'video' && box.mediaSrc);
+      videoBoxes.forEach(box => {
+        const videoEl = this.$refs[`video_${box.id}`];
+        if (videoEl && videoEl[0]) {
+          this.videoElements[box.id] = videoEl[0];
+          const video = videoEl[0];
+          video.muted = true;
+          video.playsInline = true;
+          video.addEventListener('loadedmetadata', () => { this.syncVideoToTime(box, this.currentTime); });
+        }
+      });
+    },
+
+    handlePlayStateChange(isPlaying) {
+      Object.keys(this.videoElements).forEach(boxId => {
+        const video = this.videoElements[boxId];
+        const box = this.canvasBoxes.find(b => b.id === boxId);
+        if (!video || !box) return;
+        if (isPlaying && !box.isHidden) video.play().catch(() => {});
+        else video.pause();
+      });
+    },
+
+    syncAllVideos(currentTime) {
+      if (Math.abs(currentTime - this.lastSyncTime) < 0.03) return;
+      this.lastSyncTime = currentTime;
+      this.canvasBoxes.forEach(box => {
+        if (box.mediaType === 'video' && box.mediaSrc) this.syncVideoToTime(box, currentTime);
+      });
+    },
+
+    syncVideoToTime(box, globalTime) {
+      let video = this.videoElements[box.id];
+      if (!video) {
+        const videoEl = this.$refs[`video_${box.id}`];
+        if (videoEl && videoEl[0]) { this.videoElements[box.id] = videoEl[0]; video = videoEl[0]; }
+        else return;
+      }
+      const clipStart = box.clipStart || 0;
+      const clipDuration = box.clipDuration || video.duration || 10;
+      const clipEnd = clipStart + clipDuration;
+      const isInRange = globalTime >= clipStart && globalTime < clipEnd;
+      if (isInRange) {
+        const localTime = globalTime - clipStart;
+        if (Math.abs(video.currentTime - localTime) > 0.1) {
+          video.currentTime = Math.max(0, Math.min(localTime, video.duration || localTime));
+        }
+        if (this.isPlaying && video.paused) video.play().catch(() => {});
+      } else {
+        if (!video.paused) video.pause();
+      }
+    },
+
     clientToCanvas(e) {
       const scaler = document.getElementById('preview-canvas-scaler');
-      if (!scaler) {
-        return { mx: 0, my: 0 };
-      }
-      
+      if (!scaler) return { mx: 0, my: 0 };
       const rect = scaler.getBoundingClientRect();
       const logicalW = (this.canvasSize && this.canvasSize.w) ? this.canvasSize.w : 1920;
-      
       let scaleX = rect.width / logicalW;
       if (!scaleX || scaleX === 0) scaleX = 1;
-
       const mx = (e.clientX - rect.left) / scaleX;
       const my = (e.clientY - rect.top) / scaleX;
-      
       return { mx, my };
     },
 
@@ -107,82 +153,34 @@ const PreviewCanvas = {
       };
     },
 
-    // 미디어 스타일 (이미지/동영상)
     mediaStyle(box) {
       const fit = box.mediaFit || 'cover';
-      return {
-        position: 'absolute',
-        inset: '0',
-        width: '100%',
-        height: '100%',
-        objectFit: fit,
-        pointerEvents: 'none'
-      };
+      return { position: 'absolute', inset: '0', width: '100%', height: '100%', objectFit: fit, pointerEvents: 'none' };
     },
 
-    // 미디어 존재 여부
-    hasMedia(box) {
-      return box.mediaType && box.mediaType !== 'none' && box.mediaSrc;
-    },
-
-    // 미디어 타입 확인
-    isImage(box) {
-      return box.mediaType === 'image';
-    },
-
-    isVideo(box) {
-      return box.mediaType === 'video';
-    },
+    hasMedia(box) { return box.mediaType && box.mediaType !== 'none' && box.mediaSrc; },
+    isImage(box) { return box.mediaType === 'image'; },
+    isVideo(box) { return box.mediaType === 'video'; },
 
     labelStyle(box) {
       const fontSize = 40;
       const paddingV = 4;
       const paddingH = 10;
-      
       const baseStyle = {
-        position: 'absolute',
-        bottom: '0',
-        backgroundColor: box.color || '#333',
-        color: '#fff',
-        padding: `${paddingV}px ${paddingH}px`,
-        fontSize: fontSize + 'px',
-        fontWeight: 'bold',
-        fontFamily: 'monospace',
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        maxWidth: '90%',
-        pointerEvents: 'none',
-        textShadow: '0 1px 2px rgba(0,0,0,0.8)',
-        borderRadius: '3px 3px 0 0',
-        zIndex: 10,
-        lineHeight: '1.2'
+        position: 'absolute', bottom: '0', backgroundColor: box.color || '#333', color: '#fff',
+        padding: `${paddingV}px ${paddingH}px`, fontSize: fontSize + 'px', fontWeight: 'bold',
+        fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        maxWidth: '90%', pointerEvents: 'none', textShadow: '0 1px 2px rgba(0,0,0,0.8)',
+        borderRadius: '3px 3px 0 0', zIndex: 10, lineHeight: '1.2'
       };
-
       const rowType = box.rowType || '';
-      
-      if (rowType === 'EFF') {
-        baseStyle.left = '0';
-        baseStyle.right = 'auto';
-        baseStyle.transform = 'none';
-      } else if (rowType === 'TXT') {
-        baseStyle.left = '50%';
-        baseStyle.right = 'auto';
-        baseStyle.transform = 'translateX(-50%)';
-      } else if (rowType === 'BG') {
-        baseStyle.left = 'auto';
-        baseStyle.right = '0';
-        baseStyle.transform = 'none';
-      } else {
-        baseStyle.left = '0';
-        baseStyle.right = 'auto';
-        baseStyle.transform = 'none';
-      }
-
+      if (rowType === 'EFF') { baseStyle.left = '0'; baseStyle.right = 'auto'; baseStyle.transform = 'none'; }
+      else if (rowType === 'TXT') { baseStyle.left = '50%'; baseStyle.right = 'auto'; baseStyle.transform = 'translateX(-50%)'; }
+      else if (rowType === 'BG') { baseStyle.left = 'auto'; baseStyle.right = '0'; baseStyle.transform = 'none'; }
+      else { baseStyle.left = '0'; baseStyle.right = 'auto'; baseStyle.transform = 'none'; }
       return baseStyle;
     },
 
-    // 텍스트 콘텐츠 스타일 - 글자간/행간 추가, 겹침 해결
     textContentStyle(box) {
       const ts = box.textStyle || {};
       const fontSize = ts.fontSize || 48;
@@ -194,8 +192,6 @@ const PreviewCanvas = {
       const bgColor = ts.backgroundColor || 'transparent';
       const letterSpacing = ts.letterSpacing || 0;
       const lineHeight = ts.lineHeight || 1.4;
-      
-      // 그림자 설정
       let textShadow = 'none';
       if (ts.shadow) {
         const sx = ts.shadow.offsetX || 0;
@@ -204,75 +200,38 @@ const PreviewCanvas = {
         const scolor = ts.shadow.color || '#000000';
         textShadow = `${sx}px ${sy}px ${blur}px ${scolor}`;
       }
-      
-      // 세로 정렬을 위한 justify-content
       let justifyContent = 'center';
       if (vAlign === 'top') justifyContent = 'flex-start';
       if (vAlign === 'bottom') justifyContent = 'flex-end';
-      
       return {
-        position: 'absolute',
-        inset: '0',
-        display: 'flex',
-        flexDirection: 'column',
+        position: 'absolute', inset: '0', display: 'flex', flexDirection: 'column',
         alignItems: textAlign === 'left' ? 'flex-start' : textAlign === 'right' ? 'flex-end' : 'center',
-        justifyContent: justifyContent,
-        padding: '20px',
-        fontSize: fontSize + 'px',
-        fontFamily: ts.fontFamily || 'Pretendard, system-ui, sans-serif',
-        fontWeight: 'bold',
-        color: fillColor,
-        textAlign: textAlign,
-        whiteSpace: 'pre-wrap',
-        wordBreak: 'break-word',
-        overflow: 'hidden',
-        pointerEvents: 'none',
-        textShadow: textShadow,
-        backgroundColor: bgColor,
+        justifyContent: justifyContent, padding: '20px', fontSize: fontSize + 'px',
+        fontFamily: ts.fontFamily || 'Pretendard, system-ui, sans-serif', fontWeight: 'bold',
+        color: fillColor, textAlign: textAlign, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+        overflow: 'hidden', pointerEvents: 'none', textShadow: textShadow, backgroundColor: bgColor,
         WebkitTextStroke: strokeWidth > 0 ? `${strokeWidth}px ${strokeColor}` : 'none',
-        paintOrder: 'stroke fill',
-        letterSpacing: letterSpacing + 'px',
-        lineHeight: lineHeight,
-        zIndex: 5
+        paintOrder: 'stroke fill', letterSpacing: letterSpacing + 'px', lineHeight: lineHeight, zIndex: 5
       };
     },
 
     getLabelText(box) {
-      const typeMap = {
-        'EFF': 'Effect',
-        'TXT': 'Text',
-        'BG': 'BG'
-      };
+      const typeMap = { 'EFF': 'Effect', 'TXT': 'Text', 'BG': 'BG' };
       return typeMap[box.rowType] || box.rowType || 'Layer';
     },
 
-    // 텍스트 콘텐츠 가져오기
     getTextContent(box) {
       if (box.rowType !== 'TXT') return '';
       const content = box.textContent || '';
       return content.trim() || '';
     },
 
-    // 텍스트 표시 여부
-    hasTextContent(box) {
-      return box.rowType === 'TXT' && this.getTextContent(box).length > 0;
-    },
+    hasTextContent(box) { return box.rowType === 'TXT' && this.getTextContent(box).length > 0; },
 
     handleStyle(pos) {
       const size = 28;
       const offset = -Math.round(size / 2);
-      
-      const style = {
-        position: 'absolute',
-        width: size + 'px',
-        height: size + 'px',
-        backgroundColor: '#fff', 
-        border: '2px solid #000',
-        zIndex: 9999,
-        pointerEvents: 'auto',
-        opacity: 0.9
-      };
-
+      const style = { position: 'absolute', width: size + 'px', height: size + 'px', backgroundColor: '#fff', border: '2px solid #000', zIndex: 9999, pointerEvents: 'auto', opacity: 0.9 };
       if (pos === 'tl') { style.top = offset + 'px'; style.left = offset + 'px'; style.cursor = 'nwse-resize'; }
       if (pos === 't')  { style.top = offset + 'px'; style.left = '50%'; style.marginLeft = offset + 'px'; style.cursor = 'ns-resize'; }
       if (pos === 'tr') { style.top = offset + 'px'; style.right = offset + 'px'; style.cursor = 'nesw-resize'; }
@@ -281,47 +240,29 @@ const PreviewCanvas = {
       if (pos === 'bl') { style.bottom = offset + 'px'; style.left = offset + 'px'; style.cursor = 'nesw-resize'; }
       if (pos === 'b')  { style.bottom = offset + 'px'; style.left = '50%'; style.marginLeft = offset + 'px'; style.cursor = 'ns-resize'; }
       if (pos === 'br') { style.bottom = offset + 'px'; style.right = offset + 'px'; style.cursor = 'nwse-resize'; }
-      
       return style;
     },
 
-    // === 드래그앤드롭 수신 (자산 모달에서 드래그) ===
     onCanvasDragOver(e) {
-      // 자산 모달에서 오는 드래그만 허용
       const hasAssetData = e.dataTransfer.types.includes('text/wai-asset');
-      if (hasAssetData) {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'copy';
-        this.isDropTarget = true;
-      }
+      if (hasAssetData) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; this.isDropTarget = true; }
     },
 
-    onCanvasDragLeave(e) {
-      this.isDropTarget = false;
-    },
+    onCanvasDragLeave(e) { this.isDropTarget = false; },
 
     onCanvasDrop(e) {
       e.preventDefault();
       this.isDropTarget = false;
-
       let assetData;
       try {
         const dataStr = e.dataTransfer.getData('text/wai-asset');
         if (!dataStr) return;
         assetData = JSON.parse(dataStr);
-      } catch (error) {
-        console.warn('[PreviewCanvas] Drop parse error:', error);
-        return;
-      }
-
-      // 드롭 위치 계산
+      } catch (error) { console.warn('[PreviewCanvas] Drop parse error:', error); return; }
       const { mx, my } = this.clientToCanvas(e);
-      
-      // 부모에게 자산 드롭 이벤트 전달
       if (this.$parent && typeof this.$parent.handleCanvasAssetDrop === 'function') {
         this.$parent.handleCanvasAssetDrop(assetData, mx, my);
       } else {
-        // 기본 처리: 레이어 생성
         this.createLayerFromAsset(assetData, mx, my);
       }
     },
@@ -329,95 +270,33 @@ const PreviewCanvas = {
     createLayerFromAsset(assetData, x, y) {
       const cw = this.canvasSize.w || 1920;
       const ch = this.canvasSize.h || 1080;
-      
-      // 기본 크기 (캔버스의 1/4)
       const defaultW = cw / 2;
       const defaultH = ch / 2;
-      
-      // 드롭 위치를 중심으로
       const boxX = Math.max(0, Math.min(cw - defaultW, x - defaultW / 2));
       const boxY = Math.max(0, Math.min(ch - defaultH, y - defaultH / 2));
-      
       const newBox = {
-        id: `box_drop_${Date.now()}`,
-        x: boxX,
-        y: boxY,
-        w: defaultW,
-        h: defaultH,
-        nx: boxX / cw,
-        ny: boxY / ch,
-        nw: defaultW / cw,
-        nh: defaultH / ch,
-        color: '#3b82f6',
-        layerBgColor: 'transparent',
-        zIndex: 100,
-        isHidden: false,
+        id: `box_drop_${Date.now()}`, x: boxX, y: boxY, w: defaultW, h: defaultH,
+        nx: boxX / cw, ny: boxY / ch, nw: defaultW / cw, nh: defaultH / ch,
+        color: '#3b82f6', layerBgColor: 'transparent', zIndex: 100, isHidden: false,
         layerName: assetData.name || 'Dropped Asset',
-        rowType: assetData.type === 'sound' ? 'EFF' : 'BG',
-        colRole: 'full',
-        slotKey: `drop_${Date.now()}`
+        rowType: assetData.type === 'sound' ? 'EFF' : 'BG', colRole: 'full', slotKey: `drop_${Date.now()}`
       };
-
-      // 미디어 타입에 따라 설정
-      if (assetData.type === 'video') {
-        newBox.mediaType = 'video';
-        newBox.mediaSrc = assetData.src || '';
-        newBox.mediaFit = 'cover';
-      } else if (assetData.type === 'image') {
-        newBox.mediaType = 'image';
-        newBox.mediaSrc = assetData.src || '';
-        newBox.mediaFit = 'cover';
-      }
-
-      // 캔버스 박스 배열에 추가
+      if (assetData.type === 'video') { newBox.mediaType = 'video'; newBox.mediaSrc = assetData.src || ''; newBox.mediaFit = 'cover'; }
+      else if (assetData.type === 'image') { newBox.mediaType = 'image'; newBox.mediaSrc = assetData.src || ''; newBox.mediaFit = 'cover'; }
       this.$emit('add-box', newBox);
     },
 
-    // === 타임라인 연동: 특정 시간의 클립 렌더링 ===
-    renderAtTime(time) {
-      this.currentPlayTime = time;
-      
-      // 현재 시간에 활성화된 클립들 찾기
-      if (this.$parent && this.$parent.clips) {
-        const activeClips = this.$parent.clips.filter(clip => {
-          return time >= clip.start && time < clip.start + clip.duration;
-        });
-
-        // 각 활성 클립에 대해 미디어 동기화
-        activeClips.forEach(clip => {
-          this.syncClipMedia(clip, time);
-        });
-      }
-    },
-
-    syncClipMedia(clip, currentTime) {
-      const clipLocalTime = currentTime - clip.start;
-      
-      // 비디오 클립인 경우 해당 시간으로 이동
-      const videoEl = this.activeMediaElements[clip.id];
-      if (videoEl && videoEl.tagName === 'VIDEO') {
-        if (Math.abs(videoEl.currentTime - clipLocalTime) > 0.1) {
-          videoEl.currentTime = clipLocalTime;
-        }
-      }
-    },
-
-    // 비디오 요소 등록
-    registerVideoElement(clipId, videoEl) {
-      this.activeMediaElements[clipId] = videoEl;
-    },
-
-    // 비디오 요소 해제
-    unregisterVideoElement(clipId) {
-      delete this.activeMediaElements[clipId];
+    onVideoLoaded(box, event) {
+      const video = event.target;
+      this.videoElements[box.id] = video;
+      this.syncVideoToTime(box, this.currentTime);
+      if (this.isPlaying && !box.isHidden) video.play().catch(() => {});
     },
 
     onBoxContextMenu(e, box) {
       e.preventDefault();
       e.stopPropagation();
-      
       this.$emit('select-box', box.id);
-      
       if (this.$parent && typeof this.$parent.openLayerConfig === 'function') {
         this.$parent.openLayerConfig(box.id);
       }
@@ -445,17 +324,9 @@ const PreviewCanvas = {
       this.dragHandle = handle;
       this.dragBoxId = box.id;
       this.dragStartMouse = { mx, my };
-      
-      this.dragStartBox = { 
-        x0: Number(box.x) || 0, 
-        y0: Number(box.y) || 0, 
-        w0: Number(box.w) || 0, 
-        h0: Number(box.h) || 0 
-      };
-
+      this.dragStartBox = { x0: Number(box.x) || 0, y0: Number(box.y) || 0, w0: Number(box.w) || 0, h0: Number(box.h) || 0 };
       this.edgeFlash = { top: false, bottom: false, left: false, right: false };
       this.hideAllEdgeFlash();
-
       window.addEventListener('mousemove', this.onWindowMouseMove);
       window.addEventListener('mouseup', this.onWindowMouseUp);
     },
@@ -463,61 +334,34 @@ const PreviewCanvas = {
     getBgAllowedRegion(colRole) {
       const ch = (this.canvasSize && this.canvasSize.h) ? this.canvasSize.h : 1080;
       const third = ch / 3;
-
-      if (colRole === 'high') {
-        return { minY: 0, maxY: third };
-      } else if (colRole === 'mid') {
-        return { minY: third, maxY: third * 2 };
-      } else if (colRole === 'low') {
-        return { minY: third * 2, maxY: ch };
-      }
+      if (colRole === 'high') return { minY: 0, maxY: third };
+      else if (colRole === 'mid') return { minY: third, maxY: third * 2 };
+      else if (colRole === 'low') return { minY: third * 2, maxY: ch };
       return { minY: 0, maxY: ch };
     },
 
     applyBgConstraints(box, x, y, w, h) {
-      if (box.rowType !== 'BG') {
-        return { x, y, w, h };
-      }
-
+      if (box.rowType !== 'BG') return { x, y, w, h };
       const colRole = box.colRole || 'full';
       const region = this.getBgAllowedRegion(colRole);
-
       let newY = y;
       let newH = h;
-
-      if (newY < region.minY) {
-        newY = region.minY;
-      }
-
+      if (newY < region.minY) newY = region.minY;
       if (newY + newH > region.maxY) {
-        if (newH > (region.maxY - region.minY)) {
-          newH = region.maxY - region.minY;
-          newY = region.minY;
-        } else {
-          newY = region.maxY - newH;
-        }
+        if (newH > (region.maxY - region.minY)) { newH = region.maxY - region.minY; newY = region.minY; }
+        else newY = region.maxY - newH;
       }
-
       return { x, y: newY, w, h: newH };
     },
 
     applyMagnetSnap(currentBoxId, x, y, w, h) {
-      if (!this.isMagnetActive) {
-        return { x, y, w, h, snappedX: false, snappedY: false };
-      }
-
+      if (!this.isMagnetActive) return { x, y, w, h, snappedX: false, snappedY: false };
       const cw = (this.canvasSize && this.canvasSize.w) ? this.canvasSize.w : 1920;
       const ch = (this.canvasSize && this.canvasSize.h) ? this.canvasSize.h : 1080;
       const snapDist = this.snapDistance;
-
-      let newX = x;
-      let newY = y;
-      let snappedX = false;
-      let snappedY = false;
-
+      let newX = x, newY = y, snappedX = false, snappedY = false;
       const xLines = [0, cw / 2, cw];
       const yLines = [0, ch / 2, ch];
-
       if (this.canvasBoxes && Array.isArray(this.canvasBoxes)) {
         this.canvasBoxes.forEach(box => {
           if (box.id === currentBoxId || box.isHidden) return;
@@ -525,60 +369,22 @@ const PreviewCanvas = {
           const by = Number(box.y) || 0;
           const bw = Number(box.w) || 0;
           const bh = Number(box.h) || 0;
-
-          xLines.push(bx);
-          xLines.push(bx + bw);
-          xLines.push(bx + bw / 2);
-
-          yLines.push(by);
-          yLines.push(by + bh);
-          yLines.push(by + bh / 2);
+          xLines.push(bx, bx + bw, bx + bw / 2);
+          yLines.push(by, by + bh, by + bh / 2);
         });
       }
-
-      const boxLeft = x;
-      const boxRight = x + w;
-      const boxCenterX = x + w / 2;
-      const boxTop = y;
-      const boxBottom = y + h;
-      const boxCenterY = y + h / 2;
-
+      const boxLeft = x, boxRight = x + w, boxCenterX = x + w / 2;
+      const boxTop = y, boxBottom = y + h, boxCenterY = y + h / 2;
       for (const line of xLines) {
-        if (Math.abs(boxLeft - line) < snapDist) {
-          newX = line;
-          snappedX = true;
-          break;
-        }
-        if (Math.abs(boxRight - line) < snapDist) {
-          newX = line - w;
-          snappedX = true;
-          break;
-        }
-        if (Math.abs(boxCenterX - line) < snapDist) {
-          newX = line - w / 2;
-          snappedX = true;
-          break;
-        }
+        if (Math.abs(boxLeft - line) < snapDist) { newX = line; snappedX = true; break; }
+        if (Math.abs(boxRight - line) < snapDist) { newX = line - w; snappedX = true; break; }
+        if (Math.abs(boxCenterX - line) < snapDist) { newX = line - w / 2; snappedX = true; break; }
       }
-
       for (const line of yLines) {
-        if (Math.abs(boxTop - line) < snapDist) {
-          newY = line;
-          snappedY = true;
-          break;
-        }
-        if (Math.abs(boxBottom - line) < snapDist) {
-          newY = line - h;
-          snappedY = true;
-          break;
-        }
-        if (Math.abs(boxCenterY - line) < snapDist) {
-          newY = line - h / 2;
-          snappedY = true;
-          break;
-        }
+        if (Math.abs(boxTop - line) < snapDist) { newY = line; snappedY = true; break; }
+        if (Math.abs(boxBottom - line) < snapDist) { newY = line - h; snappedY = true; break; }
+        if (Math.abs(boxCenterY - line) < snapDist) { newY = line - h / 2; snappedY = true; break; }
       }
-
       return { x: newX, y: newY, w, h, snappedX, snappedY };
     },
 
@@ -586,47 +392,36 @@ const PreviewCanvas = {
       const cw = (this.canvasSize && this.canvasSize.w) ? this.canvasSize.w : 1920;
       const ch = (this.canvasSize && this.canvasSize.h) ? this.canvasSize.h : 1080;
       const threshold = 2;
-
       const touchTop = y <= threshold;
       const touchLeft = x <= threshold;
       const touchBottom = (y + h) >= (ch - threshold);
       const touchRight = (x + w) >= (cw - threshold);
-
       if (touchTop && !this.edgeFlash.top) this.triggerEdgeFlash('top');
       if (touchBottom && !this.edgeFlash.bottom) this.triggerEdgeFlash('bottom');
       if (touchLeft && !this.edgeFlash.left) this.triggerEdgeFlash('left');
       if (touchRight && !this.edgeFlash.right) this.triggerEdgeFlash('right');
-
       if (!touchTop && this.edgeFlash.top) this.hideEdgeFlash('top');
       if (!touchBottom && this.edgeFlash.bottom) this.hideEdgeFlash('bottom');
       if (!touchLeft && this.edgeFlash.left) this.hideEdgeFlash('left');
       if (!touchRight && this.edgeFlash.right) this.hideEdgeFlash('right');
-
       this.edgeFlash = { top: touchTop, bottom: touchBottom, left: touchLeft, right: touchRight };
     },
 
     checkBgRegionContact(box, x, y, w, h) {
       if (box.rowType !== 'BG') return;
-
       const colRole = box.colRole || 'full';
       if (colRole === 'full') return;
-
       const region = this.getBgAllowedRegion(colRole);
       const threshold = 2;
-
       const touchRegionTop = Math.abs(y - region.minY) <= threshold;
       const touchRegionBottom = Math.abs((y + h) - region.maxY) <= threshold;
-
       if (touchRegionTop) this.triggerEdgeFlash('top');
       if (touchRegionBottom) this.triggerEdgeFlash('bottom');
     },
 
     triggerEdgeFlash(direction) {
       const flashEl = document.getElementById(`preview-edge-flash-${direction}`);
-      if (flashEl) {
-        flashEl.classList.add('active');
-        setTimeout(() => { flashEl.classList.remove('active'); }, 500);
-      }
+      if (flashEl) { flashEl.classList.add('active'); setTimeout(() => { flashEl.classList.remove('active'); }, 500); }
     },
 
     hideEdgeFlash(direction) {
@@ -634,89 +429,42 @@ const PreviewCanvas = {
       if (flashEl) flashEl.classList.remove('active');
     },
 
-    hideAllEdgeFlash() {
-      ['top', 'bottom', 'left', 'right'].forEach(dir => this.hideEdgeFlash(dir));
-    },
+    hideAllEdgeFlash() { ['top', 'bottom', 'left', 'right'].forEach(dir => this.hideEdgeFlash(dir)); },
 
     onWindowMouseMove(e) {
       if (!this.dragging) return;
-
       const { mx, my } = this.clientToCanvas(e);
       const dx = mx - this.dragStartMouse.mx;
       const dy = my - this.dragStartMouse.my;
-      
       const { x0, y0, w0, h0 } = this.dragStartBox;
       let x = x0, y = y0, w = w0, h = h0;
-
       const cw = (this.canvasSize && this.canvasSize.w) ? this.canvasSize.w : 1920;
       const ch = (this.canvasSize && this.canvasSize.h) ? this.canvasSize.h : 1080;
-
       const currentBox = this.canvasBoxes.find(b => b.id === this.dragBoxId);
-
       if (this.dragMode === 'move') {
-        x += dx;
-        y += dy;
-        
-        if (x < 0) x = 0;
-        if (y < 0) y = 0;
-        if (x + w > cw) x = cw - w;
-        if (y + h > ch) y = ch - h;
-
+        x += dx; y += dy;
+        if (x < 0) x = 0; if (y < 0) y = 0;
+        if (x + w > cw) x = cw - w; if (y + h > ch) y = ch - h;
         const snapped = this.applyMagnetSnap(this.dragBoxId, x, y, w, h);
-        x = snapped.x;
-        y = snapped.y;
-
+        x = snapped.x; y = snapped.y;
         if (currentBox) {
           const constrained = this.applyBgConstraints(currentBox, x, y, w, h);
-          x = constrained.x;
-          y = constrained.y;
-          w = constrained.w;
-          h = constrained.h;
+          x = constrained.x; y = constrained.y; w = constrained.w; h = constrained.h;
         }
-
       } else if (this.dragMode === 'resize') {
         const hdl = this.dragHandle;
-        
-        if (hdl.includes('l')) { 
-          let newX = x + dx;
-          if (newX < 0) newX = 0;
-          const rightEdge = x0 + w0;
-          let newW = rightEdge - newX;
-          x = newX;
-          w = newW;
-        } else if (hdl.includes('r')) {
-          w += dx;
-          if (x + w > cw) w = cw - x;
-        }
-
-        if (hdl.includes('t')) {
-          let newY = y + dy;
-          if (newY < 0) newY = 0;
-          const bottomEdge = y0 + h0;
-          let newH = bottomEdge - newY;
-          y = newY;
-          h = newH;
-        } else if (hdl.includes('b')) {
-          h += dy;
-          if (y + h > ch) h = ch - y;
-        }
-
+        if (hdl.includes('l')) { let newX = x + dx; if (newX < 0) newX = 0; const rightEdge = x0 + w0; let newW = rightEdge - newX; x = newX; w = newW; }
+        else if (hdl.includes('r')) { w += dx; if (x + w > cw) w = cw - x; }
+        if (hdl.includes('t')) { let newY = y + dy; if (newY < 0) newY = 0; const bottomEdge = y0 + h0; let newH = bottomEdge - newY; y = newY; h = newH; }
+        else if (hdl.includes('b')) { h += dy; if (y + h > ch) h = ch - y; }
         if (currentBox) {
           const constrained = this.applyBgConstraints(currentBox, x, y, w, h);
-          x = constrained.x;
-          y = constrained.y;
-          w = constrained.w;
-          h = constrained.h;
+          x = constrained.x; y = constrained.y; w = constrained.w; h = constrained.h;
         }
       }
-
-      if (w < 10) w = 10;
-      if (h < 10) h = 10;
-
+      if (w < 10) w = 10; if (h < 10) h = 10;
       this.checkEdgeContact(x, y, w, h);
-
       if (currentBox) this.checkBgRegionContact(currentBox, x, y, w, h);
-
       if (this.$parent && typeof this.$parent.updateBoxPosition === 'function') {
         this.$parent.updateBoxPosition(this.dragBoxId, x, y, w, h, null);
       }
@@ -735,6 +483,8 @@ const PreviewCanvas = {
   beforeUnmount() {
     window.removeEventListener('mousemove', this.onWindowMouseMove);
     window.removeEventListener('mouseup', this.onWindowMouseUp);
+    Object.values(this.videoElements).forEach(video => { if (video) { video.pause(); video.src = ''; } });
+    this.videoElements = {};
   },
 
   template: `
@@ -761,7 +511,6 @@ const PreviewCanvas = {
         @contextmenu="onBoxContextMenu($event, box)"
         data-action="js:selectCanvasBox"
       >
-        <!-- 미디어: 이미지 -->
         <img 
           v-if="hasMedia(box) && isImage(box)"
           :src="box.mediaSrc"
@@ -769,30 +518,26 @@ const PreviewCanvas = {
           draggable="false"
         />
         
-        <!-- 미디어: 동영상 -->
         <video 
           v-if="hasMedia(box) && isVideo(box)"
+          :ref="'video_' + box.id"
           :src="box.mediaSrc"
           :style="mediaStyle(box)"
-          autoplay
           muted
-          loop
           playsinline
+          preload="auto"
+          @loadedmetadata="onVideoLoaded(box, $event)"
         ></video>
 
-        <!-- 텍스트 콘텐츠 표시 -->
         <div 
           v-if="hasTextContent(box)"
           :style="textContentStyle(box)"
         >{{ getTextContent(box) }}</div>
 
-        <!-- 레이어 라벨 -->
         <div 
           class="canvas-label"
           :style="labelStyle(box)"
-        >
-          {{ getLabelText(box) }}
-        </div>
+        >{{ getLabelText(box) }}</div>
 
         <template v-if="selectedBoxId === box.id">
           <div class="box-handle" :style="handleStyle('tl')" @mousedown="onHandleMouseDown($event, box, 'tl')"></div>
