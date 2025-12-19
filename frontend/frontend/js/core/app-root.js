@@ -196,6 +196,7 @@ const AppRoot = {
             this.setupGlobalDropHandler();
             this.setupKeyboardShortcuts();
             this.setupTimelineDropListener();
+            this.setupAssetAddListener();
         });
         window.vm = this; 
     },
@@ -204,6 +205,7 @@ const AppRoot = {
         if (this._headerMenuCloseHandler) { document.removeEventListener('click', this._headerMenuCloseHandler); this._headerMenuCloseHandler = null; }
         if (this._keyboardHandler) { document.removeEventListener('keydown', this._keyboardHandler); this._keyboardHandler = null; }
         if (this._timelineDropHandler) { document.removeEventListener('wai-timeline-drop', this._timelineDropHandler); this._timelineDropHandler = null; }
+        if (this._assetAddHandler) { document.removeEventListener('wai-asset-add-to-timeline', this._assetAddHandler); this._assetAddHandler = null; }
         this.stopPlayback();
     },
     methods: {
@@ -519,6 +521,15 @@ const AppRoot = {
             document.addEventListener('wai-timeline-drop', this._timelineDropHandler);
         },
 
+        setupAssetAddListener() {
+            this._assetAddHandler = (e) => {
+                const assets = e.detail;
+                if (!assets || !Array.isArray(assets) || assets.length === 0) return;
+                this.handleTimelineDrop(assets, this.currentTime, null);
+            };
+            document.addEventListener('wai-asset-add-to-timeline', this._assetAddHandler);
+        },
+
         handleTimelineDrop(assets, dropTime, targetTrackId) {
             let targetTrack = null;
             
@@ -559,7 +570,8 @@ const AppRoot = {
                     src: asset.src || asset.url || '',
                     assetId: asset.id || null,
                     isActive: false,
-                    volume: 100
+                    volume: 100,
+                    waveformData: null
                 };
 
                 insertTime = this.findNonCollidingPosition(newClip, targetTrack.id, insertTime);
@@ -567,10 +579,50 @@ const AppRoot = {
 
                 this.addClipWithBox(newClip);
 
+                if (newClip.type === 'sound' && newClip.src) {
+                    this.generateWaveform(newClip);
+                }
+
                 insertTime = newClip.start + newClip.duration + 0.1;
             });
+        },
+
+        generateWaveform(clip) {
+            if (!clip.src) return;
             
-            // 완료 알림 제거 - 오류만 표시
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            fetch(clip.src)
+                .then(response => response.arrayBuffer())
+                .then(arrayBuffer => audioContext.decodeAudioData(arrayBuffer))
+                .then(audioBuffer => {
+                    const rawData = audioBuffer.getChannelData(0);
+                    const samples = 100;
+                    const blockSize = Math.floor(rawData.length / samples);
+                    const waveformData = [];
+                    
+                    for (let i = 0; i < samples; i++) {
+                        let sum = 0;
+                        for (let j = 0; j < blockSize; j++) {
+                            sum += Math.abs(rawData[i * blockSize + j]);
+                        }
+                        waveformData.push(sum / blockSize);
+                    }
+                    
+                    const maxVal = Math.max(...waveformData);
+                    const normalizedData = waveformData.map(v => v / maxVal);
+                    
+                    const clipIndex = this.clips.findIndex(c => c.id === clip.id);
+                    if (clipIndex !== -1) {
+                        this.clips[clipIndex].waveformData = normalizedData;
+                    }
+                    
+                    audioContext.close();
+                })
+                .catch(err => {
+                    console.warn('[Waveform] Failed to generate:', err);
+                    audioContext.close();
+                });
         },
 
         findSuitableTrack() {
@@ -717,7 +769,6 @@ const AppRoot = {
                     if (box) {
                         box.isHidden = !isActive;
                         box.clipLocalTime = isActive ? (time - clip.start) : 0;
-                        // 클립 정보도 박스에 동기화
                         box.clipStart = clip.start;
                         box.clipDuration = clip.duration;
                         box.mediaSrc = clip.src || '';
