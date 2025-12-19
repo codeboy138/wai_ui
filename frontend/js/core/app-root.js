@@ -197,7 +197,7 @@ const AppRoot = {
             this.setupHeaderMenuClose();
             this.setupGlobalDropHandler();
             this.setupKeyboardShortcuts();
-            this.setupAssetAddListener();
+            this.setupTimelineDropListener();
         });
         window.vm = this; 
     },
@@ -205,7 +205,7 @@ const AppRoot = {
         if (this._spinWheelHandler) { document.removeEventListener('wheel', this._spinWheelHandler); this._spinWheelHandler = null; }
         if (this._headerMenuCloseHandler) { document.removeEventListener('click', this._headerMenuCloseHandler); this._headerMenuCloseHandler = null; }
         if (this._keyboardHandler) { document.removeEventListener('keydown', this._keyboardHandler); this._keyboardHandler = null; }
-        if (this._assetAddHandler) { document.removeEventListener('wai-asset-add-to-timeline', this._assetAddHandler); this._assetAddHandler = null; }
+        if (this._timelineDropHandler) { document.removeEventListener('wai-timeline-drop', this._timelineDropHandler); this._timelineDropHandler = null; }
         this.stopPlayback();
     },
     methods: {
@@ -515,26 +515,48 @@ const AppRoot = {
             document.addEventListener('keydown', this._keyboardHandler);
         },
 
-        setupAssetAddListener() {
-            this._assetAddHandler = (e) => {
-                const assetDataArray = e.detail;
-                if (!assetDataArray || !Array.isArray(assetDataArray) || assetDataArray.length === 0) return;
-                this.handleAssetAddToTimeline(assetDataArray);
+        // 타임라인 드롭 전용 리스너 (중복 방지)
+        setupTimelineDropListener() {
+            this._timelineDropHandler = (e) => {
+                const detail = e.detail;
+                if (!detail || !detail.assets || !Array.isArray(detail.assets) || detail.assets.length === 0) return;
+                this.handleTimelineDrop(detail.assets, detail.dropTime, detail.targetTrackId);
             };
-            document.addEventListener('wai-asset-add-to-timeline', this._assetAddHandler);
+            document.addEventListener('wai-timeline-drop', this._timelineDropHandler);
         },
 
-        handleAssetAddToTimeline(assetDataArray) {
-            const targetTrack = this.findSuitableTrack(assetDataArray[0]?.type);
+        // 타임라인에 드롭된 에셋 처리
+        handleTimelineDrop(assets, dropTime, targetTrackId) {
+            let targetTrack = null;
+            
+            // 타겟 트랙 찾기
+            if (targetTrackId) {
+                targetTrack = this.tracks.find(t => t.id === targetTrackId);
+            }
+            
+            // 타겟 트랙이 없거나 잠겨있으면 적합한 트랙 찾기
+            if (!targetTrack || targetTrack.isLocked) {
+                targetTrack = this.findSuitableTrack(assets[0]?.type);
+            }
+            
             if (!targetTrack) {
-                Swal.fire({ icon: 'warning', title: '트랙 없음', text: '적합한 트랙을 찾을 수 없습니다.', background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6', timer: 2000, showConfirmButton: false });
+                Swal.fire({ 
+                    icon: 'warning', 
+                    title: '트랙 없음', 
+                    text: '적합한 트랙을 찾을 수 없습니다.', 
+                    background: '#1e1e1e', 
+                    color: '#fff', 
+                    confirmButtonColor: '#3b82f6', 
+                    timer: 2000, 
+                    showConfirmButton: false 
+                });
                 return;
             }
 
-            let insertTime = this.currentTime;
+            let insertTime = dropTime || this.currentTime;
             const newClipIds = [];
 
-            assetDataArray.forEach((asset, index) => {
+            assets.forEach((asset, index) => {
                 const duration = this.parseDurationString(asset.duration) || 5;
                 
                 const newClip = {
@@ -550,6 +572,7 @@ const AppRoot = {
                     volume: 100
                 };
 
+                // 충돌하지 않는 위치 찾기
                 insertTime = this.findNonCollidingPosition(newClip, targetTrack.id, insertTime);
                 newClip.start = insertTime;
 
@@ -559,12 +582,22 @@ const AppRoot = {
                 insertTime = newClip.start + newClip.duration + 0.1;
             });
 
+            // 단일 클립이면 선택
             if (newClipIds.length === 1) {
                 const addedClip = this.clips.find(c => c.id === newClipIds[0]);
                 if (addedClip) this.selectedClip = addedClip;
             }
 
-            Swal.fire({ icon: 'success', title: '타임라인에 추가됨', text: `${assetDataArray.length}개 항목이 추가되었습니다`, background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6', timer: 1500, showConfirmButton: false });
+            Swal.fire({ 
+                icon: 'success', 
+                title: '타임라인에 추가됨', 
+                text: `${assets.length}개 항목이 추가되었습니다`, 
+                background: '#1e1e1e', 
+                color: '#fff', 
+                confirmButtonColor: '#3b82f6', 
+                timer: 1500, 
+                showConfirmButton: false 
+            });
         },
 
         findSuitableTrack(assetType) {
