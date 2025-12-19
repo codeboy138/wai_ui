@@ -1,5 +1,6 @@
 // Preview Canvas Component - Enhanced
 // 자산 드롭 수신, 캔버스-타임라인 연동, 비디오 시간 동기화
+// 클립 기반 박스도 플레이헤드 위치에서 표시
 
 const PreviewCanvas = {
   name: 'PreviewCanvas',
@@ -33,8 +34,29 @@ const PreviewCanvas = {
     overlayStyle() {
       return { position: 'absolute', inset: '0', pointerEvents: 'auto', overflow: 'visible' };
     },
+    // 표시할 박스: 레이어관리 박스 + 현재 시간에 활성화된 클립 박스
     visibleBoxes() {
-      return this.canvasBoxes.filter(box => !box.isHidden);
+      const result = [];
+      
+      // 1. 레이어관리에서 만든 박스 (clipId 없고, isHidden이 false)
+      this.canvasBoxes.forEach(box => {
+        if (box.isHidden) return;
+        if (!box.clipId) {
+          result.push(box);
+        }
+      });
+      
+      // 2. 클립 연동 박스 (현재 시간에 활성화된 것만)
+      this.canvasBoxes.forEach(box => {
+        if (!box.clipId) return;
+        // isHidden이 false면 현재 활성화된 클립
+        if (!box.isHidden) {
+          result.push(box);
+        }
+      });
+      
+      // z-index 기준 정렬
+      return result.sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
     },
     isMagnetActive() {
       if (this.$parent && typeof this.$parent.isMagnet === 'boolean') return this.$parent.isMagnet;
@@ -95,18 +117,30 @@ const PreviewCanvas = {
         if (videoEl && videoEl[0]) { this.videoElements[box.id] = videoEl[0]; video = videoEl[0]; }
         else return;
       }
-      const clipStart = box.clipStart || 0;
-      const clipDuration = box.clipDuration || video.duration || 10;
-      const clipEnd = clipStart + clipDuration;
-      const isInRange = globalTime >= clipStart && globalTime < clipEnd;
-      if (isInRange) {
-        const localTime = globalTime - clipStart;
-        if (Math.abs(video.currentTime - localTime) > 0.1) {
-          video.currentTime = Math.max(0, Math.min(localTime, video.duration || localTime));
+      
+      // 클립 연동 박스의 경우
+      if (box.clipId) {
+        const clipStart = box.clipStart || 0;
+        const clipDuration = box.clipDuration || video.duration || 10;
+        const clipEnd = clipStart + clipDuration;
+        const isInRange = globalTime >= clipStart && globalTime < clipEnd;
+        
+        if (isInRange) {
+          const localTime = globalTime - clipStart;
+          if (Math.abs(video.currentTime - localTime) > 0.1) {
+            video.currentTime = Math.max(0, Math.min(localTime, video.duration || localTime));
+          }
+          if (this.isPlaying && video.paused) video.play().catch(() => {});
+        } else {
+          if (!video.paused) video.pause();
         }
-        if (this.isPlaying && video.paused) video.play().catch(() => {});
       } else {
-        if (!video.paused) video.pause();
+        // 레이어관리 박스 (항상 재생)
+        if (this.isPlaying && video.paused && !box.isHidden) {
+          video.play().catch(() => {});
+        } else if (!this.isPlaying && !video.paused) {
+          video.pause();
+        }
       }
     },
 
@@ -130,9 +164,9 @@ const PreviewCanvas = {
         top: (Number(box.y) || 0) + 'px',
         width: (Number(box.w) || 0) + 'px',
         height: (Number(box.h) || 0) + 'px',
-        border: `2px dashed ${box.color || '#fff'}`,
+        border: box.clipId ? 'none' : `2px dashed ${box.color || '#fff'}`,
         zIndex: box.zIndex || 0,
-        cursor: 'move',
+        cursor: box.clipId ? 'default' : 'move',
         boxShadow: isSelected ? '0 0 0 2px #fff, 0 0 12px rgba(59,130,246,0.5)' : 'none',
         backgroundColor: box.layerBgColor || 'transparent',
         overflow: 'hidden'
@@ -149,6 +183,9 @@ const PreviewCanvas = {
     isVideo(box) { return box.mediaType === 'video'; },
 
     labelStyle(box) {
+      // 클립 연동 박스는 라벨 숨김
+      if (box.clipId) return { display: 'none' };
+      
       const fontSize = 40;
       const paddingV = 4;
       const paddingH = 10;
@@ -202,6 +239,7 @@ const PreviewCanvas = {
     },
 
     getLabelText(box) {
+      if (box.clipId) return '';
       const typeMap = { 'EFF': 'Effect', 'TXT': 'Text', 'BG': 'BG' };
       return typeMap[box.rowType] || box.rowType || 'Layer';
     },
@@ -227,6 +265,11 @@ const PreviewCanvas = {
       if (pos === 'b')  { style.bottom = offset + 'px'; style.left = '50%'; style.marginLeft = offset + 'px'; style.cursor = 'ns-resize'; }
       if (pos === 'br') { style.bottom = offset + 'px'; style.right = offset + 'px'; style.cursor = 'nwse-resize'; }
       return style;
+    },
+
+    // 클립 박스인지 확인 (클립 박스는 편집 불가)
+    isClipBox(box) {
+      return !!box.clipId;
     },
 
     onCanvasDragOver(e) {
@@ -280,6 +323,9 @@ const PreviewCanvas = {
     },
 
     onBoxContextMenu(e, box) {
+      // 클립 박스는 컨텍스트 메뉴 비활성화
+      if (this.isClipBox(box)) return;
+      
       e.preventDefault();
       e.stopPropagation();
       this.$emit('select-box', box.id);
@@ -289,6 +335,9 @@ const PreviewCanvas = {
     },
 
     onBoxMouseDown(e, box) {
+      // 클립 박스는 드래그 비활성화
+      if (this.isClipBox(box)) return;
+      
       if (e.target.classList.contains('box-handle')) return;
       e.preventDefault();
       this.$emit('select-box', box.id);
@@ -297,6 +346,9 @@ const PreviewCanvas = {
     },
 
     onHandleMouseDown(e, box, handle) {
+      // 클립 박스는 리사이즈 비활성화
+      if (this.isClipBox(box)) return;
+      
       e.stopPropagation();
       e.preventDefault();
       this.$emit('select-box', box.id);
@@ -350,7 +402,7 @@ const PreviewCanvas = {
       const yLines = [0, ch / 2, ch];
       if (this.canvasBoxes && Array.isArray(this.canvasBoxes)) {
         this.canvasBoxes.forEach(box => {
-          if (box.id === currentBoxId || box.isHidden) return;
+          if (box.id === currentBoxId || box.isHidden || box.clipId) return;
           const bx = Number(box.x) || 0;
           const by = Number(box.y) || 0;
           const bw = Number(box.w) || 0;
@@ -521,11 +573,13 @@ const PreviewCanvas = {
         >{{ getTextContent(box) }}</div>
 
         <div 
+          v-if="!isClipBox(box)"
           class="canvas-label"
           :style="labelStyle(box)"
         >{{ getLabelText(box) }}</div>
 
-        <template v-if="selectedBoxId === box.id">
+        <!-- 클립 박스가 아닌 경우에만 핸들 표시 -->
+        <template v-if="selectedBoxId === box.id && !isClipBox(box)">
           <div class="box-handle" :style="handleStyle('tl')" @mousedown="onHandleMouseDown($event, box, 'tl')"></div>
           <div class="box-handle" :style="handleStyle('t')"  @mousedown="onHandleMouseDown($event, box, 't')"></div>
           <div class="box-handle" :style="handleStyle('tr')" @mousedown="onHandleMouseDown($event, box, 'tr')"></div>
