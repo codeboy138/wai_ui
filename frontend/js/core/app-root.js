@@ -1,8 +1,6 @@
 const { createApp, reactive, ref, onMounted, computed, nextTick } = Vue;
 
-// 상수 정의
-const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#64748b'];
-const Z_INDEX_OFFSETS = { 'EFF': 80, 'TXT': 40, 'BG': 20, 'VID': 60 };
+// 상수는 js/utils/constants.js에서 로드됨 (COLORS, Z_INDEX_OFFSETS)
 
 // --- Main App Vue Instance ---
 
