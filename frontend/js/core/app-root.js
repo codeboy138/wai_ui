@@ -49,16 +49,10 @@ const App = {
                 { id: 't4', name: 'Bottom', type: 'text', color: '#3b82f6', isMain: false, isHidden: false, isLocked: false },
                 { id: 't5', name: 'BGM', type: 'audio', color: '#a855f7', isMain: false, isHidden: false, isLocked: false }
             ],
-            clips: [
-                { id: 'c1', trackId: 't1', name: 'Intro_BG.mp4', start: 0, duration: 10, type: 'video', volume: 100 },
-                { id: 'c3', trackId: 't5', name: 'BGM_Main.mp3', start: 0, duration: 30, type: 'audio', volume: 100 }
-            ],
-            // 레이어 관리용 박스 (항상 표시)
-            canvasBoxes: [
-                { id: 'box_init', colIdx: 1, type: 'TXT', zIndex: 240, color: '#eab308', x: 1720, y: 980, w: 400, h: 200, rowType: 'TXT', isHidden: false }
-            ],
-            // 클립 연동 박스 (클립 추가 시 자동 생성)
-            clipBoxes: [],
+            // 초기 클립 없음
+            clips: [],
+            // 초기 레이어 박스 없음
+            canvasBoxes: [],
             zoom: 20,
             selectedClip: null,
             selectedBoxId: null,
@@ -114,31 +108,9 @@ const App = {
                 left: '50%'
             };
         },
-        // 플레이헤드 위치에 해당하는 활성 클립들의 박스
-        activeClipBoxes() {
-            const currentTime = this.currentTime;
-            const activeClips = this.clips.filter(clip => {
-                return currentTime >= clip.start && currentTime < clip.start + clip.duration;
-            });
-            
-            return activeClips.map(clip => {
-                const existingBox = this.clipBoxes.find(box => box.clipId === clip.id);
-                if (existingBox) {
-                    return {
-                        ...existingBox,
-                        clipStart: clip.start,
-                        clipDuration: clip.duration,
-                        isActive: true
-                    };
-                }
-                return null;
-            }).filter(box => box !== null);
-        },
-        // PreviewCanvas에 전달할 모든 박스 (레이어 박스 + 활성 클립 박스)
+        // PreviewCanvas에 전달할 박스 (레이어 박스만)
         allVisibleBoxes() {
-            const layerBoxes = this.canvasBoxes.filter(box => !box.isHidden);
-            const clipBoxesActive = this.activeClipBoxes;
-            return [...layerBoxes, ...clipBoxesActive].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+            return this.canvasBoxes.filter(box => !box.isHidden).sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
         },
         layerConfigBox() {
             if (!this.layerConfig.isOpen || !this.layerConfig.boxId) return null;
@@ -267,7 +239,7 @@ const App = {
                     volume: 100
                 };
                 
-                this.addClipWithBox(newClip);
+                this.clips.push(newClip);
                 insertTime += duration;
             });
         },
@@ -298,42 +270,9 @@ const App = {
                     volume: 100
                 };
                 
-                this.addClipWithBox(newClip);
+                this.clips.push(newClip);
                 insertTime += duration;
             });
-        },
-        
-        addClipWithBox(clip) {
-            this.clips.push(clip);
-            
-            if (clip.type === 'video' || clip.type === 'image') {
-                const track = this.tracks.find(t => t.id === clip.trackId);
-                const trackIndex = this.tracks.findIndex(t => t.id === clip.trackId);
-                
-                const clipBox = {
-                    id: `clipbox_${clip.id}`,
-                    clipId: clip.id,
-                    x: 0,
-                    y: 0,
-                    w: this.canvasSize.w,
-                    h: this.canvasSize.h,
-                    zIndex: (trackIndex + 1) * 10,
-                    color: track ? track.color : '#3b82f6',
-                    mediaType: clip.type,
-                    mediaSrc: clip.src || '',
-                    mediaFit: 'cover',
-                    isHidden: false
-                };
-                
-                this.clipBoxes.push(clipBox);
-            }
-            
-            return clip.id;
-        },
-        
-        removeClipWithBox(clipId) {
-            this.clips = this.clips.filter(c => c.id !== clipId);
-            this.clipBoxes = this.clipBoxes.filter(box => box.clipId !== clipId);
         },
         
         parseDuration(durationStr) {
@@ -648,25 +587,10 @@ const App = {
                     h: h !== undefined ? h : box.h
                 };
                 this.canvasBoxes = newBoxes;
-                return;
-            }
-            
-            index = this.clipBoxes.findIndex(b => b.id === id);
-            if (index !== -1) {
-                const box = this.clipBoxes[index];
-                const newBoxes = [...this.clipBoxes];
-                newBoxes[index] = { 
-                    ...box, 
-                    x: x !== undefined ? x : box.x, 
-                    y: y !== undefined ? y : box.y,
-                    w: w !== undefined ? w : box.w,
-                    h: h !== undefined ? h : box.h
-                };
-                this.clipBoxes = newBoxes;
             }
         },
         removeClip(id) {
-            this.removeClipWithBox(id);
+            this.clips = this.clips.filter(c => c.id !== id);
             if (this.selectedClip && this.selectedClip.id === id) {
                 this.selectedClip = null;
             }
@@ -700,7 +624,7 @@ const App = {
                 id: `c_${Date.now()}`, trackId, name: assetName, 
                 start: time, duration: 10, type: fileType, volume: 100
             };
-            this.addClipWithBox(newClip);
+            this.clips.push(newClip);
         },
         updateClip(clipId, startChange, durationChange) {
             const index = this.clips.findIndex(c => c.id === clipId);
