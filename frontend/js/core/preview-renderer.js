@@ -18,6 +18,9 @@
         
         // 현재 재생 시간
         currentTime: 0,
+        
+        // 초기화 완료 플래그
+        initialized: false,
 
         /**
          * 초기화
@@ -41,6 +44,7 @@
             }
 
             this.ctx = ctx;
+            this.initialized = true;
             console.log('[PreviewRenderer] Canvas2D mode initialized');
 
             // 리사이즈 이벤트 등록
@@ -155,7 +159,15 @@
          */
         setCurrentTime(time) {
             this.currentTime = time;
-            // 필요시 시간 기반 렌더링 처리
+            // PreviewCanvas 컴포넌트가 Vue의 반응성을 통해 자동으로 업데이트됨
+            // 여기서는 추가 처리 불필요
+        },
+        
+        /**
+         * 외부 API: 초기화 상태 확인
+         */
+        isInitialized() {
+            return this.initialized;
         },
 
         /**
@@ -169,6 +181,7 @@
             this.canvas = null;
             this.ctx = null;
             this.vm = null;
+            this.initialized = false;
         }
     };
 
