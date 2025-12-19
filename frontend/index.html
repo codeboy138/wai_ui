@@ -122,7 +122,7 @@
                             <div id="preview-canvas-scaler" :class="['canvas-scaler', 'canvas-ar-' + (aspectRatio || '16:9').replace(':','-')]" :style="canvasScalerStyle">
                                 <canvas id="preview-render-canvas"></canvas>
                                 <preview-canvas 
-                                    :canvas-boxes="canvasBoxes" 
+                                    :canvas-boxes="allVisibleBoxes" 
                                     :canvas-size="canvasSize" 
                                     :selected-box-id="selectedBoxId"
                                     :current-time="currentTime"
