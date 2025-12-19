@@ -1,6 +1,6 @@
 // Timeline Panel Component - Enhanced with Undo/Redo, Zoom Mode, Smooth Zoom
 // 트랙 드래그 순서 변경, Z-Index 연동, 클립-캔버스 연동, 외부 에셋 드롭 지원
-// 비디오/오디오 파형 + 썸네일 + 볼륨 레벨선 표시
+// 비디오/오디오 파형 + 썸네일 타일 + 볼륨 레벨선 표시
 
 const TimelinePanel = {
     props: ['vm'],
@@ -215,87 +215,92 @@ const TimelinePanel = {
                             @contextmenu.stop.prevent="openClipContextMenu($event, track, clip)"
                         >
                             <!-- 클립 배경색 -->
-                            <div class="absolute inset-0 opacity-40" :style="{backgroundColor: track.color}"></div>
+                            <div class="absolute inset-0" :style="getClipBackgroundStyle(clip, track)"></div>
                             
-                            <!-- 비디오/이미지 썸네일 타일 -->
-                            <div v-if="(clip.type === 'video' || clip.type === 'image') && clip.src && (trackHeights[track.id] || 40) >= 24" 
-                                class="absolute inset-0 flex overflow-hidden">
-                                <div v-for="(thumb, ti) in getThumbnailCount(clip)" :key="ti" 
-                                    class="h-full flex-shrink-0 relative"
+                            <!-- 비디오/이미지 썸네일 타일 (필름 프레임컷 스타일) -->
+                            <div v-if="(clip.type === 'video' || clip.type === 'image') && clip.src && (trackHeights[track.id] || 40) >= 20" 
+                                class="absolute inset-0 flex overflow-hidden pointer-events-none">
+                                <div v-for="(thumbIdx, ti) in getThumbnailCount(clip)" :key="'thumb_' + ti" 
+                                    class="h-full flex-shrink-0 relative border-r border-black/30"
                                     :style="{ width: getThumbnailWidth(clip, track) + 'px' }">
-                                    <img v-if="clip.type === 'image'" :src="clip.src" class="w-full h-full object-cover opacity-70" />
-                                    <video v-else-if="clip.type === 'video'" :src="clip.src" class="w-full h-full object-cover opacity-70" muted preload="metadata"></video>
+                                    <img v-if="clip.type === 'image'" :src="clip.src" class="w-full h-full object-cover opacity-80" draggable="false" />
+                                    <video v-else-if="clip.type === 'video'" 
+                                        :src="clip.src" 
+                                        class="w-full h-full object-cover opacity-80" 
+                                        muted 
+                                        preload="metadata"
+                                        :currentTime="getThumbTime(clip, ti)"
+                                        @loadedmetadata="setVideoThumbTime($event, clip, ti)"
+                                    ></video>
                                 </div>
                             </div>
                             
                             <!-- 오디오/비디오 파형 오버레이 -->
-                            <div v-if="(trackHeights[track.id] || 40) >= 20" class="absolute inset-0 pointer-events-none">
+                            <div v-if="(trackHeights[track.id] || 40) >= 16" class="absolute inset-0 pointer-events-none">
                                 <svg class="w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 100">
                                     <!-- 파형 바 -->
                                     <template v-if="clip.waveformData && clip.waveformData.length > 0">
                                         <rect 
                                             v-for="(val, i) in clip.waveformData" 
-                                            :key="'w'+i"
+                                            :key="'wf_'+i"
                                             :x="(i / clip.waveformData.length) * 100"
-                                            :y="50 - (val * 40)"
-                                            :width="100 / clip.waveformData.length * 0.8"
-                                            :height="val * 80"
-                                            :fill="clip.type === 'sound' ? 'rgba(34, 197, 94, 0.6)' : 'rgba(59, 130, 246, 0.4)'"
+                                            :y="50 - (val * 35)"
+                                            :width="Math.max(0.5, 100 / clip.waveformData.length * 0.7)"
+                                            :height="val * 70"
+                                            :fill="getWaveformColor(clip)"
                                         />
                                     </template>
                                     <template v-else>
                                         <rect 
-                                            v-for="i in 50" 
-                                            :key="'d'+i"
-                                            :x="(i - 1) * 2"
-                                            :y="50 - (15 + Math.sin(i * 0.5) * 15 + (i % 3) * 5)"
-                                            width="1.5"
-                                            :height="30 + Math.sin(i * 0.5) * 30 + (i % 3) * 10"
-                                            :fill="clip.type === 'sound' ? 'rgba(34, 197, 94, 0.5)' : 'rgba(59, 130, 246, 0.3)'"
+                                            v-for="i in 60" 
+                                            :key="'df_'+i"
+                                            :x="(i - 1) * (100 / 60)"
+                                            :y="50 - (12 + Math.sin(i * 0.4) * 12 + (i % 4) * 4)"
+                                            :width="100 / 60 * 0.6"
+                                            :height="24 + Math.sin(i * 0.4) * 24 + (i % 4) * 8"
+                                            :fill="getWaveformColor(clip)"
                                         />
                                     </template>
                                     <!-- 볼륨 레벨 가로선 -->
                                     <line 
                                         x1="0" 
-                                        :y1="100 - (clip.volume || 100) / 2" 
+                                        :y1="100 - (clip.volume || 100) * 0.8" 
                                         x2="100" 
-                                        :y2="100 - (clip.volume || 100) / 2" 
+                                        :y2="100 - (clip.volume || 100) * 0.8" 
                                         stroke="#fbbf24" 
                                         stroke-width="1.5"
-                                        stroke-dasharray="3,2"
+                                        stroke-dasharray="4,2"
                                     />
                                 </svg>
                             </div>
                             
                             <!-- 클립 정보 오버레이 -->
-                            <div class="absolute inset-0 flex flex-col justify-between p-1 pointer-events-none">
+                            <div class="absolute inset-0 flex flex-col justify-between p-0.5 pointer-events-none" style="z-index: 5;">
                                 <!-- 클립 이름 (상단) -->
-                                <div v-show="(trackHeights[track.id] || 40) >= 20" 
-                                    class="text-[9px] px-1 text-white truncate font-bold drop-shadow-lg bg-black/40 rounded self-start max-w-full">
+                                <div v-if="(trackHeights[track.id] || 40) >= 16" 
+                                    class="text-[9px] px-1 text-white truncate font-bold drop-shadow-lg bg-black/50 rounded self-start max-w-full leading-tight">
                                     {{ clip.name }}
                                 </div>
                                 
                                 <!-- 하단 정보 -->
-                                <div class="flex justify-between items-end">
-                                    <!-- 재생시간 -->
-                                    <span v-if="(trackHeights[track.id] || 40) >= 28" 
-                                        class="text-[8px] text-white/80 bg-black/50 px-1 rounded">
+                                <div v-if="(trackHeights[track.id] || 40) >= 24" class="flex justify-between items-end gap-1">
+                                    <!-- 재생시간 (좌하단) -->
+                                    <span class="text-[8px] text-white/90 bg-black/60 px-1 rounded leading-tight">
                                         {{ formatClipDuration(clip.duration) }}
                                     </span>
                                     
-                                    <!-- 볼륨 표시 -->
-                                    <div v-if="(trackHeights[track.id] || 40) >= 28" 
-                                        class="text-[8px] text-yellow-300 bg-black/50 px-1 rounded flex items-center gap-0.5"
+                                    <!-- 볼륨 표시 (우하단) -->
+                                    <div class="text-[8px] text-yellow-300 bg-black/60 px-1 rounded flex items-center gap-0.5 leading-tight"
                                         :title="'볼륨: ' + (clip.volume || 100) + '%'">
-                                        <i class="fa-solid" :class="getVolumeIcon(clip.volume)"></i>
+                                        <i class="fa-solid" :class="getVolumeIcon(clip.volume)" style="font-size: 7px;"></i>
                                         <span>{{ clip.volume || 100 }}%</span>
                                     </div>
                                 </div>
                             </div>
                             
                             <!-- 리사이즈 핸들 -->
-                            <div class="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/30 pointer-events-auto" @mousedown.stop="startClipResize($event, clip, 'left')"></div>
-                            <div class="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/30 pointer-events-auto" @mousedown.stop="startClipResize($event, clip, 'right')"></div>
+                            <div class="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/30 pointer-events-auto" style="z-index: 10;" @mousedown.stop="startClipResize($event, clip, 'left')"></div>
+                            <div class="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/30 pointer-events-auto" style="z-index: 10;" @mousedown.stop="startClipResize($event, clip, 'right')"></div>
                         </div>
                     </div>
                     
@@ -478,8 +483,8 @@ const TimelinePanel = {
             style.textContent = `
                 .clip.clip-selected { box-shadow: inset 0 0 0 2px #3b82f6 !important; }
                 .clip.clip-multi-selected { box-shadow: inset 0 0 0 2px #f59e0b !important; }
-                .clip { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.3); }
-                .clip:hover { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.5); }
+                .clip { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2); }
+                .clip:hover { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.4); }
                 [draggable="true"] { cursor: grab; }
                 [draggable="true"]:active { cursor: grabbing; }
                 .playhead-line-body { position: absolute; top: 24px; bottom: 0; width: 2px; background: #ef4444; pointer-events: none; z-index: 35; transform: translateX(-1px); }
@@ -521,7 +526,7 @@ const TimelinePanel = {
         
         getThumbnailCount(clip) {
             const clipWidth = clip.duration * this.currentDisplayZoom;
-            const thumbWidth = 60;
+            const thumbWidth = 50;
             return Math.max(1, Math.ceil(clipWidth / thumbWidth));
         },
         
@@ -529,6 +534,33 @@ const TimelinePanel = {
             const clipWidth = clip.duration * this.currentDisplayZoom;
             const count = this.getThumbnailCount(clip);
             return clipWidth / count;
+        },
+        
+        getThumbTime(clip, index) {
+            const count = this.getThumbnailCount(clip);
+            return (clip.duration / count) * index;
+        },
+        
+        setVideoThumbTime(e, clip, index) {
+            const video = e.target;
+            const count = this.getThumbnailCount(clip);
+            const targetTime = (clip.duration / count) * index;
+            if (video.duration && targetTime < video.duration) {
+                video.currentTime = targetTime;
+            }
+        },
+        
+        getClipBackgroundStyle(clip, track) {
+            const baseColor = track.color || '#3b82f6';
+            if (clip.type === 'sound') {
+                return { backgroundColor: baseColor, opacity: 0.6 };
+            }
+            return { backgroundColor: baseColor, opacity: 0.3 };
+        },
+        
+        getWaveformColor(clip) {
+            if (clip.type === 'sound') return 'rgba(34, 197, 94, 0.7)';
+            return 'rgba(59, 130, 246, 0.5)';
         },
         
         saveToHistory() {
@@ -615,8 +647,13 @@ const TimelinePanel = {
         
         clipStyle(clip, track) {
             const height = this.trackHeights[track.id] || this.defaultTrackHeight;
-            const padding = Math.max(2, Math.min(4, height * 0.1));
-            return { left: clip.start * this.currentDisplayZoom + 'px', width: Math.max(20, clip.duration * this.currentDisplayZoom) + 'px', top: padding + 'px', height: (height - padding * 2) + 'px' };
+            const padding = Math.max(1, Math.min(3, height * 0.05));
+            return { 
+                left: clip.start * this.currentDisplayZoom + 'px', 
+                width: Math.max(20, clip.duration * this.currentDisplayZoom) + 'px', 
+                top: padding + 'px', 
+                height: (height - padding * 2) + 'px'
+            };
         },
         
         getClipClasses(clip) {
