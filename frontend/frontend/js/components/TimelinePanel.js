@@ -35,7 +35,7 @@ const TimelinePanel = {
                         <select 
                             class="timeline-select-no-arrow bg-bg-input border border-ui-border rounded px-2 py-0.5 text-text-main text-[10px]"
                             :value="vm.aspectRatio"
-                            @change="onAspectChange($event.target.value)"
+                            @change="onAspectChange($event)"
                         >
                             <option value="16:9">16:9</option>
                             <option value="9:16">9:16</option>
@@ -223,21 +223,21 @@ const TimelinePanel = {
                             </div>
                             
                             <!-- 오디오 파형 표시 -->
-                            <div v-if="clip.type === 'sound' && (trackHeights[track.id] || 40) >= 24" class="absolute inset-0 flex items-end px-0.5 pb-1 overflow-hidden">
-                                <svg v-if="clip.waveformData && clip.waveformData.length > 0" class="w-full h-full" preserveAspectRatio="none">
+                            <div v-if="clip.type === 'sound' && (trackHeights[track.id] || 40) >= 20" class="absolute inset-0 flex items-end overflow-hidden">
+                                <svg v-if="clip.waveformData && clip.waveformData.length > 0" class="w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 100">
                                     <rect 
                                         v-for="(val, i) in clip.waveformData" 
                                         :key="i"
-                                        :x="(i / clip.waveformData.length * 100) + '%'"
-                                        :y="((1 - val) * 100) + '%'"
-                                        :width="(100 / clip.waveformData.length) + '%'"
-                                        :height="(val * 100) + '%'"
+                                        :x="(i / clip.waveformData.length) * 100"
+                                        :y="100 - (val * 80)"
+                                        :width="100 / clip.waveformData.length"
+                                        :height="val * 80"
                                         fill="rgba(59, 130, 246, 0.6)"
                                     />
                                 </svg>
                                 <!-- 파형 없을 때 기본 표시 -->
-                                <div v-else class="w-full h-full flex items-end justify-around">
-                                    <div v-for="i in 20" :key="i" class="bg-blue-400/50" :style="{ width: '3%', height: (20 + Math.random() * 60) + '%' }"></div>
+                                <div v-else class="w-full h-full flex items-end justify-around px-0.5 pb-0.5">
+                                    <div v-for="i in 15" :key="i" class="bg-blue-400/50 rounded-t" :style="{ width: '4%', height: (15 + Math.sin(i * 0.8) * 35 + Math.random() * 20) + '%' }"></div>
                                 </div>
                             </div>
                             
@@ -250,8 +250,8 @@ const TimelinePanel = {
                             <div v-show="(trackHeights[track.id] || 40) >= 16" class="text-[9px] px-1 text-white truncate font-bold drop-shadow-md relative z-10 pointer-events-none">{{ clip.name }}</div>
                             
                             <!-- 볼륨 표시 (오디오 클립) -->
-                            <div v-if="clip.type === 'sound' && (trackHeights[track.id] || 40) >= 24" 
-                                class="absolute bottom-1 right-1 text-[8px] text-white/70 bg-black/50 px-1 rounded flex items-center gap-0.5"
+                            <div v-if="clip.type === 'sound' && (trackHeights[track.id] || 40) >= 28" 
+                                class="absolute bottom-0.5 right-0.5 text-[8px] text-white/80 bg-black/60 px-1 rounded flex items-center gap-0.5"
                                 :title="'볼륨: ' + (clip.volume || 100) + '%'"
                             >
                                 <i class="fa-solid" :class="getVolumeIcon(clip.volume)"></i>
@@ -459,10 +459,11 @@ const TimelinePanel = {
             document.head.appendChild(style);
         },
         
-        onAspectChange(value) {
+        onAspectChange(e) {
+            const value = e.target.value;
             if (this.vm && typeof this.vm.setAspect === 'function') {
                 this.vm.setAspect(value);
-            } else {
+            } else if (this.vm) {
                 this.vm.aspectRatio = value;
             }
         },
@@ -554,7 +555,7 @@ const TimelinePanel = {
         selectResolution(value) { 
             if (this.vm && typeof this.vm.setResolution === 'function') {
                 this.vm.setResolution(value); 
-            } else {
+            } else if (this.vm) {
                 this.vm.resolution = value;
             }
             this.isResolutionDropdownOpen = false; 
@@ -815,4 +816,200 @@ const TimelinePanel = {
         
         openTrackContextMenu(e, track, idx) { this.clipContextMenu = null; this.trackContextMenu = { x: e.clientX, y: e.clientY, track, index: idx }; },
         openClipContextMenu(e, track, clip = null) { this.trackContextMenu = null; this.clipContextMenu = { x: e.clientX, y: e.clientY, track, clip, time: this.getTimeFromMouseEvent(e) }; },
-        getTimeFromMouseEvent(e) { const lane = document.getElementById('timeline-lane-container');
+        getTimeFromMouseEvent(e) { const lane = document.getElementById('timeline-lane-container'); if (!lane) return 0; return Math.max(0, (e.clientX - lane.getBoundingClientRect().left) / this.currentDisplayZoom); },
+        closeContextMenus() { this.trackContextMenu = null; this.clipContextMenu = null; },
+        
+        async showVolumeDialog(clip) {
+            const { value } = await Swal.fire({ title: '볼륨 조절', input: 'range', inputValue: clip.volume || 100, inputAttributes: { min: 0, max: 200, step: 1 }, showCancelButton: true, confirmButtonText: '적용', cancelButtonText: '취소', background: '#1e1e1e', color: '#fff',
+                didOpen: () => { const input = Swal.getInput(); const label = document.createElement('div'); label.className = 'text-center mt-2 text-lg'; label.id = 'volume-label'; label.textContent = `${clip.volume || 100}%`; input.parentNode.appendChild(label); input.addEventListener('input', () => { document.getElementById('volume-label').textContent = `${input.value}%`; }); }
+            });
+            if (value !== undefined) clip.volume = parseInt(value);
+            this.closeContextMenus();
+        },
+        
+        duplicateClip(clip) {
+            const newClip = { ...clip, id: `c_${Date.now()}`, start: clip.start + clip.duration + 0.5 };
+            newClip.start = this.findNonCollidingPosition(newClip, newClip.start, []);
+            if (typeof this.vm.addClipWithBox === 'function') this.vm.addClipWithBox(newClip);
+            else this.vm.clips.push(newClip);
+        },
+        
+        deleteClip(clip) {
+            const trackId = clip.trackId;
+            const deletedStart = clip.start;
+            const deletedDuration = clip.duration;
+            this.vm.clips = this.vm.clips.filter(c => c.id !== clip.id);
+            this.selectedClipIds = this.selectedClipIds.filter(id => id !== clip.id);
+            this.syncVmSelectedClip();
+            this.applyRippleDelete(trackId, deletedStart + deletedDuration, deletedDuration);
+        },
+        
+        addClipAtPosition() {
+            if (!this.clipContextMenu) return;
+            const track = this.clipContextMenu.track;
+            const time = this.clipContextMenu.time || 0;
+            const newClip = { id: `c_${Date.now()}`, trackId: track.id, name: 'New Clip', start: time, duration: 5, type: 'video' };
+            newClip.start = this.findNonCollidingPosition(newClip, time, []);
+            if (typeof this.vm.addClipWithBox === 'function') this.vm.addClipWithBox(newClip);
+            else this.vm.clips.push(newClip);
+        },
+        
+        pasteClip() {
+            if (!this.copiedClip || !this.clipContextMenu) return;
+            const newClip = { ...this.copiedClip, id: `c_${Date.now()}`, trackId: this.clipContextMenu.track.id, start: this.clipContextMenu.time || 0 };
+            newClip.start = this.findNonCollidingPosition(newClip, newClip.start, []);
+            if (typeof this.vm.addClipWithBox === 'function') this.vm.addClipWithBox(newClip);
+            else this.vm.clips.push(newClip);
+        },
+        
+        deleteSelectedClips() {
+            if (this.selectedClipIds.length === 0) return;
+            const deletableIds = this.selectedClipIds.filter(id => { const clip = this.vm.clips.find(c => c.id === id); if (!clip) return false; const track = this.vm.tracks.find(t => t.id === clip.trackId); return !track || !track.isLocked; });
+            if (deletableIds.length === 0) { Swal.fire({ icon: 'warning', title: '삭제 불가', text: '잠긴 트랙의 클립입니다', background: '#1e1e1e', color: '#fff' }); return; }
+            const clipsToDelete = deletableIds.map(id => this.vm.clips.find(c => c.id === id)).filter(c => c).map(c => ({ ...c }));
+            const clipsByTrack = {};
+            clipsToDelete.forEach(clip => { if (!clipsByTrack[clip.trackId]) clipsByTrack[clip.trackId] = []; clipsByTrack[clip.trackId].push(clip); });
+            this.vm.clips = this.vm.clips.filter(c => !deletableIds.includes(c.id));
+            this.selectedClipIds = [];
+            this.syncVmSelectedClip();
+            if (this.vm.isAutoRipple) Object.keys(clipsByTrack).forEach(trackId => { clipsByTrack[trackId].sort((a, b) => b.start - a.start).forEach(deleted => { this.applyRippleDelete(trackId, deleted.start + deleted.duration, deleted.duration); }); });
+        },
+        
+        cutAtPlayhead() {
+            const targetIds = this.selectedClipIds.length > 0 ? [...this.selectedClipIds] : [];
+            if (targetIds.length === 0) this.vm.clips.forEach(clip => { if (this.vm.currentTime > clip.start && this.vm.currentTime < clip.start + clip.duration) targetIds.push(clip.id); });
+            if (targetIds.length === 0) { Swal.fire({ icon: 'info', title: '자르기 불가', text: '플레이헤드 위치에 클립이 없습니다', background: '#1e1e1e', color: '#fff', timer: 1500, showConfirmButton: false }); return; }
+            const newClipIds = [];
+            targetIds.forEach(clipId => { const clip = this.vm.clips.find(c => c.id === clipId); if (clip && this.vm.currentTime > clip.start && this.vm.currentTime < clip.start + clip.duration) { const newClipId = this.performSplitClip(clipId, this.vm.currentTime); if (newClipId) newClipIds.push(newClipId); } });
+            if (newClipIds.length > 0) { this.selectedClipIds = [...targetIds.filter(id => this.vm.clips.find(c => c.id === id)), ...newClipIds]; this.syncVmSelectedClip(); }
+        },
+        
+        performSplitClip(clipId, splitTime) {
+            const clip = this.vm.clips.find(c => c.id === clipId);
+            if (!clip) return null;
+            const relTime = splitTime - clip.start;
+            if (relTime <= 0 || relTime >= clip.duration) return null;
+            const origDur = clip.duration;
+            clip.duration = relTime;
+            const newClipId = `c_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+            const secondPart = { ...clip, id: newClipId, start: splitTime, duration: origDur - relTime };
+            if (typeof this.vm.addClipWithBox === 'function') this.vm.addClipWithBox(secondPart);
+            else this.vm.clips.push(secondPart);
+            return newClipId;
+        },
+        
+        cutAtPlayheadForClip(clip) { if (this.vm.currentTime > clip.start && this.vm.currentTime < clip.start + clip.duration) { const newClipId = this.performSplitClip(clip.id, this.vm.currentTime); if (newClipId) { this.selectedClipIds = [clip.id, newClipId]; this.syncVmSelectedClip(); } } },
+        
+        cutAndDeleteLeftSelected() {
+            const targetIds = this.selectedClipIds.length > 0 ? [...this.selectedClipIds] : [];
+            if (targetIds.length === 0) this.vm.clips.forEach(clip => { if (this.vm.currentTime > clip.start && this.vm.currentTime < clip.start + clip.duration) targetIds.push(clip.id); });
+            if (targetIds.length === 0) { Swal.fire({ icon: 'info', title: '작업 불가', text: '플레이헤드 위치에 클립이 없습니다', background: '#1e1e1e', color: '#fff', timer: 1500, showConfirmButton: false }); return; }
+            targetIds.forEach(clipId => { const clip = this.vm.clips.find(c => c.id === clipId); if (clip && this.vm.currentTime > clip.start && this.vm.currentTime < clip.start + clip.duration) { const deletedDuration = this.vm.currentTime - clip.start; clip.duration = clip.start + clip.duration - this.vm.currentTime; clip.start = this.vm.currentTime; if (this.vm.isAutoRipple) this.applyRippleDelete(clip.trackId, this.vm.currentTime, deletedDuration); } });
+        },
+        
+        cutAndDeleteRightSelected() {
+            const targetIds = this.selectedClipIds.length > 0 ? [...this.selectedClipIds] : [];
+            if (targetIds.length === 0) this.vm.clips.forEach(clip => { if (this.vm.currentTime > clip.start && this.vm.currentTime < clip.start + clip.duration) targetIds.push(clip.id); });
+            if (targetIds.length === 0) { Swal.fire({ icon: 'info', title: '작업 불가', text: '플레이헤드 위치에 클립이 없습니다', background: '#1e1e1e', color: '#fff', timer: 1500, showConfirmButton: false }); return; }
+            targetIds.forEach(clipId => { const clip = this.vm.clips.find(c => c.id === clipId); if (clip && this.vm.currentTime > clip.start && this.vm.currentTime < clip.start + clip.duration) { const deletedDuration = clip.start + clip.duration - this.vm.currentTime; clip.duration = this.vm.currentTime - clip.start; if (this.vm.isAutoRipple) this.applyRippleDelete(clip.trackId, this.vm.currentTime + deletedDuration, deletedDuration); } });
+        },
+        
+        cutAndDeleteLeftForClip(clip) { if (this.vm.currentTime > clip.start && this.vm.currentTime < clip.start + clip.duration) { const deletedDuration = this.vm.currentTime - clip.start; clip.duration = clip.start + clip.duration - this.vm.currentTime; clip.start = this.vm.currentTime; if (this.vm.isAutoRipple) this.applyRippleDelete(clip.trackId, this.vm.currentTime, deletedDuration); } },
+        cutAndDeleteRightForClip(clip) { if (this.vm.currentTime > clip.start && this.vm.currentTime < clip.start + clip.duration) { const deletedDuration = clip.start + clip.duration - this.vm.currentTime; clip.duration = this.vm.currentTime - clip.start; if (this.vm.isAutoRipple) this.applyRippleDelete(clip.trackId, this.vm.currentTime + deletedDuration, deletedDuration); } },
+        
+        handleLaneMouseDown(e) { if (e.target.id === 'timeline-ruler' || e.target.closest('#timeline-ruler')) this.updatePlayheadPosition(e); },
+        startPlayheadDrag(e) { this.isDraggingPlayhead = true; this.updatePlayheadPosition(e); },
+        updatePlayheadPosition(e) {
+            const lane = document.getElementById('timeline-lane-container');
+            if (!lane) return;
+            let time = Math.max(0, (e.clientX - lane.getBoundingClientRect().left) / this.currentDisplayZoom);
+            if (this.vm.isMagnet) {
+                let snap = null, minDiff = 10 / this.currentDisplayZoom;
+                this.vm.clips.forEach(c => { if (Math.abs(time - c.start) < minDiff) { minDiff = Math.abs(time - c.start); snap = c.start; } if (Math.abs(time - (c.start + c.duration)) < minDiff) { minDiff = Math.abs(time - (c.start + c.duration)); snap = c.start + c.duration; } });
+                if (snap !== null) time = snap;
+            }
+            this.vm.currentTime = time;
+        },
+        
+        togglePlayback() { if (typeof this.vm.togglePlayback === 'function') this.vm.togglePlayback(); else this.vm.isPlaying = !this.vm.isPlaying; },
+        seekToStart() { if (typeof this.vm.seekToStart === 'function') this.vm.seekToStart(); else this.vm.currentTime = 0; },
+        seekToEnd() { let max = 0; this.vm.clips.forEach(c => { if (c.start + c.duration > max) max = c.start + c.duration; }); this.vm.currentTime = max; },
+        
+        adjustLayout() { const p = document.getElementById('preview-main-container'); if (p) p.style.height = this.vm.isTimelineCollapsed ? 'calc(100% - 32px)' : '50%'; },
+        toggleCollapse() { this.vm.isTimelineCollapsed = !this.vm.isTimelineCollapsed; this.$nextTick(() => this.adjustLayout()); },
+        startHeaderResize(e) { if (this.isTrackNamesCollapsed) return; this.isResizingHeader = true; this.resizeStartX = e.clientX; this.resizeStartWidth = this.trackHeaderWidth; },
+        formatRulerTime(s) { if (s < 60) return s + 's'; const m = Math.floor(s / 60); return m + ':' + String(Math.round(s % 60)).padStart(2, '0'); },
+        
+        onExternalDragOver(e) {
+            if (e.dataTransfer.types.includes('text/wai-asset')) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'copy';
+                this.isExternalDragOver = true;
+                this.updateDropIndicator(e);
+            }
+        },
+        
+        onExternalDragLeave(e) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) {
+                this.isExternalDragOver = false;
+                this.dropIndicator.visible = false;
+            }
+        },
+        
+        updateDropIndicator(e) {
+            const lane = document.getElementById('timeline-lane-container');
+            if (!lane) return;
+            const rect = lane.getBoundingClientRect();
+            const targetTrack = this.getTrackAtY(e.clientY - rect.top - 24);
+            if (!targetTrack) { this.dropIndicator.visible = false; return; }
+            const dropTime = Math.max(0, (e.clientX - rect.left) / this.currentDisplayZoom);
+            let assets = [];
+            try { const raw = e.dataTransfer.getData('text/wai-asset'); if (raw) { const parsed = JSON.parse(raw); assets = Array.isArray(parsed) ? parsed : [parsed]; } } catch (err) {}
+            let totalDuration = 5;
+            if (assets.length > 0) totalDuration = assets.reduce((sum, asset) => sum + (this.parseDuration(asset.duration) || 5), 0);
+            this.dropIndicator = { visible: true, trackId: targetTrack.id, left: dropTime * this.currentDisplayZoom, width: totalDuration * this.currentDisplayZoom, count: assets.length || 1, totalDuration };
+        },
+        
+        onExternalDrop(e) {
+            e.preventDefault();
+            this.isExternalDragOver = false;
+            this.dropIndicator.visible = false;
+            let assetData;
+            try { const raw = e.dataTransfer.getData('text/wai-asset'); if (!raw) return; assetData = JSON.parse(raw); } catch (err) { console.error('Failed to parse asset data:', err); return; }
+            const assets = Array.isArray(assetData) ? assetData : [assetData];
+            if (assets.length === 0) return;
+            const lane = document.getElementById('timeline-lane-container');
+            let dropTime = this.vm.currentTime;
+            let targetTrackId = null;
+            if (lane) { const rect = lane.getBoundingClientRect(); dropTime = Math.max(0, (e.clientX - rect.left) / this.currentDisplayZoom); const targetTrack = this.getTrackAtY(e.clientY - rect.top - 24); if (targetTrack) targetTrackId = targetTrack.id; }
+            document.dispatchEvent(new CustomEvent('wai-timeline-drop', { detail: { assets, dropTime, targetTrackId }, bubbles: true }));
+        },
+        
+        parseDuration(durationStr) {
+            if (!durationStr) return null;
+            if (typeof durationStr === 'number') return durationStr;
+            const parts = durationStr.split(':');
+            if (parts.length === 2) return (parseInt(parts[0], 10) || 0) * 60 + (parseInt(parts[1], 10) || 0);
+            if (parts.length === 3) return (parseInt(parts[0], 10) || 0) * 3600 + (parseInt(parts[1], 10) || 0) * 60 + (parseInt(parts[2], 10) || 0);
+            return parseFloat(durationStr) || null;
+        },
+        
+        handleWheel(e) {
+            const sc = document.getElementById('timeline-scroll-container');
+            if (!sc) return;
+            if (e.shiftKey) {
+                const delta = e.deltaY > 0 ? -5 : 5;
+                const newZoom = Math.max(10, Math.min(100, this.targetZoom + delta));
+                if (this.zoomMode === 'playhead') this.startSmoothZoom(newZoom, { type: 'playhead' });
+                else {
+                    const lane = document.getElementById('timeline-lane-container');
+                    if (lane) { const rect = lane.getBoundingClientRect(); const cursorX = e.clientX - rect.left; this.startSmoothZoom(newZoom, { type: 'cursor', cursorTime: (sc.scrollLeft + cursorX) / this.currentDisplayZoom, relativeX: cursorX }); }
+                    else this.startSmoothZoom(newZoom);
+                }
+            } else sc.scrollLeft += e.deltaY;
+        }
+    }
+};
+
+window.TimelinePanel = TimelinePanel;
