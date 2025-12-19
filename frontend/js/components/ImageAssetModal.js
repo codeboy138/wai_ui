@@ -126,6 +126,7 @@ var ImageAssetModal = {
                             class="flex-1 flex flex-col bg-bg-dark overflow-hidden"\
                             @dragover.prevent="onContentPanelDragOver"\
                             @drop.prevent="onContentPanelDrop"\
+                            @click="onContentAreaClick"\
                         >\
                             <div class="flex items-center justify-between px-3 py-1.5 border-b border-ui-border bg-bg-panel text-[10px]">\
                                 <div class="flex items-center gap-4">\
@@ -135,24 +136,27 @@ var ImageAssetModal = {
                                     <span class="cursor-pointer hover:text-ui-accent flex items-center gap-1" :class="{ \'text-ui-accent\': sortBy === \'date\' }" @click.stop="toggleSort(\'date\')">\
                                         추가일 <i v-if="sortBy === \'date\'" :class="sortAsc ? \'fa-solid fa-arrow-up\' : \'fa-solid fa-arrow-down\'" class="text-[8px]"></i>\
                                     </span>\
+                                    <button v-if="selectedAssetIds.length > 0" class="text-red-400 hover:text-red-300 ml-2" @click.stop="clearSelection" title="선택 해제">\
+                                        <i class="fa-solid fa-xmark"></i> 선택해제\
+                                    </button>\
                                 </div>\
                                 <span class="text-text-sub">{{ selectedAssetIds.length > 0 ? selectedAssetIds.length + \'개 선택됨\' : filteredAssets.length + \'개 항목\' }}</span>\
                             </div>\
 \
-                            <div class="flex-1 overflow-auto p-3" :class="{ \'drag-over\': isContentPanelDragOver }">\
+                            <div class="flex-1 overflow-auto p-3" :class="{ \'drag-over\': isContentPanelDragOver }" @click="onGridAreaClick">\
                                 <div v-if="filteredAssets.length === 0" class="flex flex-col items-center justify-center h-full text-text-sub opacity-50">\
                                     <i class="fa-solid fa-image text-4xl mb-3"></i>\
                                     <p class="text-[12px]">{{ currentCategoryLabel }} 이미지가 없습니다</p>\
                                     <p class="text-[11px] mt-1">파일을 추가하거나 드래그하여 가져오세요</p>\
                                 </div>\
 \
-                                <div v-else-if="viewMode === \'grid\'" class="asset-grid view-grid">\
+                                <div v-else-if="viewMode === \'grid\'" class="asset-grid view-grid" :style="gridStyle">\
                                     <div\
-                                        v-for="asset in filteredAssets"\
+                                        v-for="(asset, index) in filteredAssets"\
                                         :key="asset.id"\
                                         class="asset-card relative"\
                                         :class="{ \'selected\': isAssetSelected(asset.id) }"\
-                                        @click.stop="selectAsset($event, asset)"\
+                                        @click.stop="selectAsset($event, asset, index)"\
                                         @dblclick.stop="useAsset(asset)"\
                                         draggable="true"\
                                         @dragstart="onAssetDragStart($event, asset)"\
@@ -178,11 +182,11 @@ var ImageAssetModal = {
 \
                                 <div v-else class="asset-grid view-list">\
                                     <div\
-                                        v-for="asset in filteredAssets"\
+                                        v-for="(asset, index) in filteredAssets"\
                                         :key="asset.id"\
                                         class="asset-card relative"\
                                         :class="{ \'selected\': isAssetSelected(asset.id) }"\
-                                        @click.stop="selectAsset($event, asset)"\
+                                        @click.stop="selectAsset($event, asset, index)"\
                                         @dblclick.stop="useAsset(asset)"\
                                         draggable="true"\
                                         @dragstart="onAssetDragStart($event, asset)"\
@@ -231,8 +235,8 @@ var ImageAssetModal = {
             posY: 0,
             width: 1000,
             height: 650,
-            minWidth: 600,
-            minHeight: 400,
+            minWidth: 400,
+            minHeight: 300,
             minimizedWidth: 280,
             minimizedHeight: 45,
             prevWidth: 1000,
@@ -258,6 +262,7 @@ var ImageAssetModal = {
             sortBy: 'name',
             sortAsc: true,
             selectedAssetIds: [],
+            lastSelectedIndex: -1,
             dragData: null,
             dragOverFolderId: null,
             isContentPanelDragOver: false,
@@ -290,6 +295,21 @@ var ImageAssetModal = {
                 top: this.posY + 'px',
                 width: (this.isMinimized ? this.minimizedWidth : this.width) + 'px',
                 height: (this.isMinimized ? this.minimizedHeight : this.height) + 'px'
+            };
+        },
+        gridStyle: function() {
+            var sidebarWidth = 192;
+            var padding = 24;
+            var contentWidth = this.width - sidebarWidth - padding;
+            var minCardWidth = 80;
+            var maxCardWidth = 160;
+            var gap = 12;
+            var cols = Math.max(1, Math.floor((contentWidth + gap) / (minCardWidth + gap)));
+            cols = Math.min(cols, 8);
+            return {
+                display: 'grid',
+                gridTemplateColumns: 'repeat(' + cols + ', 1fr)',
+                gap: gap + 'px'
             };
         },
         currentCategoryLabel: function() {
@@ -330,10 +350,12 @@ var ImageAssetModal = {
         this.centerWindow();
         document.addEventListener('mousemove', this.onGlobalMouseMove);
         document.addEventListener('mouseup', this.onGlobalMouseUp);
+        document.addEventListener('keydown', this.onKeyDown);
     },
     beforeUnmount: function() {
         document.removeEventListener('mousemove', this.onGlobalMouseMove);
         document.removeEventListener('mouseup', this.onGlobalMouseUp);
+        document.removeEventListener('keydown', this.onKeyDown);
     },
     methods: {
         centerWindow: function() {
@@ -427,6 +449,15 @@ var ImageAssetModal = {
             this.dragging = false;
             this.resizing = false;
         },
+        onKeyDown: function(e) {
+            if (e.key === 'Escape') {
+                this.clearSelection();
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+                e.preventDefault();
+                this.selectAll();
+            }
+        },
         toggleSort: function(field) {
             if (this.sortBy === field) {
                 this.sortAsc = !this.sortAsc;
@@ -438,7 +469,24 @@ var ImageAssetModal = {
         isAssetSelected: function(assetId) {
             return this.selectedAssetIds.indexOf(assetId) >= 0;
         },
-        selectAsset: function(e, asset) {
+        clearSelection: function() {
+            this.selectedAssetIds = [];
+            this.lastSelectedIndex = -1;
+        },
+        selectAll: function() {
+            var self = this;
+            this.selectedAssetIds = this.filteredAssets.map(function(a) { return a.id; });
+            this.lastSelectedIndex = this.filteredAssets.length - 1;
+        },
+        onContentAreaClick: function(e) {
+            if (e.target.closest('.asset-card')) return;
+            this.clearSelection();
+        },
+        onGridAreaClick: function(e) {
+            if (e.target.closest('.asset-card')) return;
+            this.clearSelection();
+        },
+        selectAsset: function(e, asset, index) {
             if (e.ctrlKey || e.metaKey) {
                 var idx = this.selectedAssetIds.indexOf(asset.id);
                 if (idx > -1) {
@@ -446,24 +494,26 @@ var ImageAssetModal = {
                 } else {
                     this.selectedAssetIds.push(asset.id);
                 }
-            } else if (e.shiftKey && this.selectedAssetIds.length > 0) {
-                var lastId = this.selectedAssetIds[this.selectedAssetIds.length - 1];
-                var assets = this.filteredAssets;
-                var lastIdx = -1, curIdx = -1;
-                for (var i = 0; i < assets.length; i++) {
-                    if (assets[i].id === lastId) lastIdx = i;
-                    if (assets[i].id === asset.id) curIdx = i;
-                }
-                if (lastIdx >= 0 && curIdx >= 0) {
-                    var minIdx = Math.min(lastIdx, curIdx);
-                    var maxIdx = Math.max(lastIdx, curIdx);
-                    this.selectedAssetIds = [];
-                    for (var j = minIdx; j <= maxIdx; j++) {
-                        this.selectedAssetIds.push(assets[j].id);
+                this.lastSelectedIndex = index;
+            } else if (e.shiftKey && this.lastSelectedIndex >= 0) {
+                var start = Math.min(this.lastSelectedIndex, index);
+                var end = Math.max(this.lastSelectedIndex, index);
+                var newSelection = [];
+                for (var i = start; i <= end; i++) {
+                    if (this.filteredAssets[i]) {
+                        newSelection.push(this.filteredAssets[i].id);
                     }
                 }
+                var combined = this.selectedAssetIds.slice();
+                newSelection.forEach(function(id) {
+                    if (combined.indexOf(id) < 0) {
+                        combined.push(id);
+                    }
+                });
+                this.selectedAssetIds = combined;
             } else {
                 this.selectedAssetIds = [asset.id];
+                this.lastSelectedIndex = index;
             }
         },
         useAsset: function(asset) {
