@@ -133,11 +133,9 @@ const AppRoot = {
                 return this.currentTime >= clip.start && this.currentTime < (clip.start + clip.duration);
             });
         },
-        // 메인 트랙 (기본은 밑에서 2번째)
         mainTrack() {
             const mainTrack = this.tracks.find(t => t.isMain);
             if (mainTrack) return mainTrack;
-            // 기본값: 밑에서 2번째 트랙
             if (this.tracks.length >= 2) {
                 return this.tracks[this.tracks.length - 2];
             }
@@ -211,7 +209,6 @@ const AppRoot = {
         this.stopPlayback();
     },
     methods: {
-        // 메인 트랙 초기화 (밑에서 2번째)
         initializeMainTrack() {
             const hasMain = this.tracks.some(t => t.isMain);
             if (!hasMain && this.tracks.length >= 2) {
@@ -393,7 +390,6 @@ const AppRoot = {
             this.aspectRatio = r; 
         },
         
-        // 화면비율 변경 시 해상도 픽셀 수 연동
         updateCanvasSizeFromAspectRatio(newRatio) {
             this.canvasSize = this.computeResolutionSize(newRatio, this.resolution);
             this.$nextTick(() => {
@@ -417,18 +413,15 @@ const AppRoot = {
             const longSide = RESOLUTION_LONG_SIDE[key] || RESOLUTION_LONG_SIDE['FHD'];
             let w, h;
             if (aspectRatio === '9:16') { 
-                // 세로 모드: 높이가 긴 쪽
                 h = longSide; 
                 w = Math.round(longSide * 9 / 16); 
             }
             else if (aspectRatio === '1:1') { 
-                // 정사각형: 가로=세로
                 const square = Math.round(longSide * 9 / 16); 
                 w = square; 
                 h = square; 
             }
             else { 
-                // 16:9 기본: 가로가 긴 쪽
                 w = longSide; 
                 h = Math.round(longSide * 9 / 16); 
             }
@@ -534,16 +527,7 @@ const AppRoot = {
         handleAssetAddToTimeline(assetDataArray) {
             const targetTrack = this.findSuitableTrack(assetDataArray[0]?.type);
             if (!targetTrack) {
-                Swal.fire({
-                    icon: 'warning',
-                    title: '트랙 없음',
-                    text: '적합한 트랙을 찾을 수 없습니다.',
-                    background: '#1e1e1e',
-                    color: '#fff',
-                    confirmButtonColor: '#3b82f6',
-                    timer: 2000,
-                    showConfirmButton: false
-                });
+                Swal.fire({ icon: 'warning', title: '트랙 없음', text: '적합한 트랙을 찾을 수 없습니다.', background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6', timer: 2000, showConfirmButton: false });
                 return;
             }
 
@@ -569,7 +553,7 @@ const AppRoot = {
                 insertTime = this.findNonCollidingPosition(newClip, targetTrack.id, insertTime);
                 newClip.start = insertTime;
 
-                this.addClipWithBox(newClip);
+                this.clips.push(newClip);
                 newClipIds.push(newClip.id);
 
                 insertTime = newClip.start + newClip.duration + 0.1;
@@ -580,16 +564,7 @@ const AppRoot = {
                 if (addedClip) this.selectedClip = addedClip;
             }
 
-            Swal.fire({
-                icon: 'success',
-                title: '타임라인에 추가됨',
-                text: `${assetDataArray.length}개 항목이 추가되었습니다`,
-                background: '#1e1e1e',
-                color: '#fff',
-                confirmButtonColor: '#3b82f6',
-                timer: 1500,
-                showConfirmButton: false
-            });
+            Swal.fire({ icon: 'success', title: '타임라인에 추가됨', text: `${assetDataArray.length}개 항목이 추가되었습니다`, background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6', timer: 1500, showConfirmButton: false });
         },
 
         findSuitableTrack(assetType) {
@@ -600,7 +575,6 @@ const AppRoot = {
                 if (audioTrack) return audioTrack;
             }
             
-            // 메인 트랙 우선 사용
             if (this.mainTrack && !this.mainTrack.isLocked) {
                 return this.mainTrack;
             }
@@ -613,17 +587,7 @@ const AppRoot = {
         },
 
         mapAssetTypeToClipType(assetType) {
-            const typeMap = {
-                'video': 'video',
-                'image': 'image',
-                'sound': 'sound',
-                'audio': 'sound',
-                'effect': 'effect',
-                'filter': 'effect',
-                'transition': 'effect',
-                'overlay': 'effect',
-                'animation': 'effect'
-            };
+            const typeMap = { 'video': 'video', 'image': 'image', 'sound': 'sound', 'audio': 'sound', 'effect': 'effect', 'filter': 'effect', 'transition': 'effect', 'overlay': 'effect', 'animation': 'effect' };
             return typeMap[assetType] || 'video';
         },
 
@@ -691,11 +655,35 @@ const AppRoot = {
         seekRelative(seconds) { const newTime = this.currentTime + seconds; this.currentTime = Math.max(0, Math.min(this.computedTotalDuration, newTime)); },
         seekToTime(time) { this.currentTime = Math.max(0, Math.min(this.computedTotalDuration, time)); },
 
-        addClipWithBox(clipData) {
-            this.clips.push(clipData);
-            // 클립에서 박스 생성하지 않음 (레이어관리 레이어만 캔바스에 표시)
-            // 타임라인 클립은 캔바스에 자동 표시되지 않음
-            return clipData;
+        cleanupOrphanedBoxes(currentClips) {
+            const clipIds = new Set(currentClips.map(c => c.id));
+            Object.keys(this.clipBoxMap).forEach(clipId => {
+                if (!clipIds.has(clipId)) {
+                    const boxId = this.clipBoxMap[clipId];
+                    this.canvasBoxes = this.canvasBoxes.filter(b => b.id !== boxId);
+                    delete this.clipBoxMap[clipId];
+                }
+            });
         },
         
-        // 클립용 박스 생성 제거
+        onTimeUpdate(time) {
+            this.updateClipVisibility(time);
+            try {
+                if (window.PreviewRenderer && typeof window.PreviewRenderer.setCurrentTime === 'function') {
+                    window.PreviewRenderer.setCurrentTime(time);
+                }
+            } catch (err) { console.warn('[Preview] setCurrentTime failed:', err); }
+        },
+        
+        updateClipVisibility(time) {
+            this.clips.forEach(clip => {
+                const isActive = time >= clip.start && time < (clip.start + clip.duration);
+                clip.isActive = isActive;
+            });
+        },
+        
+        deleteSelected() {
+            if (this.selectedClip) this.removeClip(this.selectedClip.id);
+            else if (this.selectedBoxId) this.removeBox(this.selectedBoxId);
+        },
+// 코드연결지점
