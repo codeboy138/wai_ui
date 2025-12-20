@@ -359,6 +359,7 @@ const App = {
             // 미디어 자산 저장소 (우측 패널)
             mediaAssets: [],
             mediaAssetCollapsed: false,
+            mediaAssetDragOver: false,
             
             // 트랙 높이 프리셋
             trackHeightPresets: {
@@ -483,7 +484,6 @@ const App = {
             
             switch(ratio) {
                 case '원본':
-                    // 원본은 현재 크기 유지 또는 기본 16:9
                     w = 1920;
                     h = 1080;
                     break;
@@ -515,7 +515,6 @@ const App = {
             this.canvasSize = { w, h };
             this.recalculateCanvasScale();
             
-            // PreviewRenderer에도 알림
             if (window.PreviewRenderer) {
                 window.PreviewRenderer.setCanvasSize(this.canvasSize);
             }
@@ -611,9 +610,11 @@ const App = {
                 src: asset.src || '',
                 duration: asset.duration || 0,
                 thumbnail: asset.thumbnail || '',
+                resolution: asset.resolution || '',
                 addedAt: Date.now()
             };
             this.mediaAssets.push(newAsset);
+            return newAsset;
         },
         
         removeMediaAsset(assetId) {
@@ -629,30 +630,79 @@ const App = {
             }
         },
         
+        // 미디어 자산 패널에서 드래그 시작 (타임라인으로)
         onMediaAssetDragStart(event, asset) {
-            event.dataTransfer.setData('text/wai-asset', JSON.stringify(asset));
+            const transferData = [{
+                type: asset.type,
+                id: asset.id,
+                name: asset.name,
+                src: asset.src || '',
+                duration: asset.duration || 10,
+                resolution: asset.resolution || ''
+            }];
+            event.dataTransfer.setData('text/wai-asset', JSON.stringify(transferData));
             event.dataTransfer.effectAllowed = 'copy';
+            
+            // 드래그 이미지 생성
+            const dragImage = document.createElement('div');
+            const icons = { video: '🎬', image: '🖼️', sound: '🎵' };
+            dragImage.textContent = (icons[asset.type] || '📁') + ' ' + asset.name;
+            dragImage.style.cssText = 'position:absolute;top:-1000px;padding:8px 16px;background:#3b82f6;color:#fff;border-radius:6px;font-size:12px;font-weight:bold;white-space:nowrap;';
+            document.body.appendChild(dragImage);
+            event.dataTransfer.setDragImage(dragImage, 0, 0);
+            setTimeout(() => document.body.removeChild(dragImage), 0);
         },
         
+        // 미디어 자산 패널에 드롭 (타임라인 클립 또는 외부 파일)
         onMediaAssetDrop(event) {
             event.preventDefault();
+            this.mediaAssetDragOver = false;
             
+            // 1. 타임라인 클립 드롭 처리
             const clipData = event.dataTransfer.getData('text/wai-clip');
             if (clipData) {
                 try {
                     const clip = JSON.parse(clipData);
                     this.addMediaAsset({
-                        name: clip.name || clip.fileName,
-                        type: clip.type,
-                        src: clip.src,
-                        duration: clip.duration,
-                        thumbnail: clip.thumbnail
+                        name: clip.name || clip.fileName || 'Clip',
+                        type: clip.type || 'video',
+                        src: clip.src || '',
+                        duration: clip.duration || 0,
+                        thumbnail: clip.thumbnail || '',
+                        resolution: clip.resolution || ''
                     });
+                    return;
                 } catch (e) {
-                    console.warn('클립 파싱 오류:', e);
+                    console.warn('클립 데이터 파싱 오류:', e);
                 }
             }
             
+            // 2. 모달에서 드래그한 자산 처리
+            const assetData = event.dataTransfer.getData('text/wai-asset');
+            if (assetData) {
+                try {
+                    const assets = JSON.parse(assetData);
+                    const assetArray = Array.isArray(assets) ? assets : [assets];
+                    assetArray.forEach(asset => {
+                        // 이미 존재하는 자산인지 확인 (src 기준)
+                        const exists = this.mediaAssets.some(a => a.src === asset.src && asset.src);
+                        if (!exists) {
+                            this.addMediaAsset({
+                                name: asset.name || 'Asset',
+                                type: asset.type || 'video',
+                                src: asset.src || '',
+                                duration: this.parseDuration(asset.duration) || 0,
+                                resolution: asset.resolution || ''
+                            });
+                        }
+                    });
+                    return;
+                } catch (e) {
+                    console.warn('자산 데이터 파싱 오류:', e);
+                }
+            }
+            
+            // 3. 외부 파일 드롭 처리
             if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
                 Array.from(event.dataTransfer.files).forEach(file => {
                     const url = URL.createObjectURL(file);
@@ -673,6 +723,11 @@ const App = {
         onMediaAssetDragOver(event) {
             event.preventDefault();
             event.dataTransfer.dropEffect = 'copy';
+            this.mediaAssetDragOver = true;
+        },
+        
+        onMediaAssetDragLeave(event) {
+            this.mediaAssetDragOver = false;
         },
         
         onMediaAssetDoubleClick(asset) {
@@ -684,7 +739,8 @@ const App = {
             const icons = {
                 video: 'fas fa-film',
                 image: 'fas fa-image',
-                sound: 'fas fa-music'
+                sound: 'fas fa-music',
+                effect: 'fas fa-wand-magic-sparkles'
             };
             return icons[type] || 'fas fa-file';
         },
@@ -700,11 +756,31 @@ const App = {
         setupAssetEventListeners() {
             document.addEventListener('wai-asset-add-to-timeline', this.handleAssetAddToTimeline);
             document.addEventListener('wai-timeline-drop', this.handleTimelineDrop);
+            document.addEventListener('wai-clip-to-asset', this.handleClipToAsset);
         },
         
         removeAssetEventListeners() {
             document.removeEventListener('wai-asset-add-to-timeline', this.handleAssetAddToTimeline);
             document.removeEventListener('wai-timeline-drop', this.handleTimelineDrop);
+            document.removeEventListener('wai-clip-to-asset', this.handleClipToAsset);
+        },
+        
+        // 타임라인 클립을 미디어 자산으로 추가하는 이벤트 핸들러
+        handleClipToAsset(e) {
+            const clip = e.detail;
+            if (!clip) return;
+            
+            // 이미 존재하는 자산인지 확인
+            const exists = this.mediaAssets.some(a => a.src === clip.src && clip.src);
+            if (!exists) {
+                this.addMediaAsset({
+                    name: clip.name || 'Clip',
+                    type: clip.type || 'video',
+                    src: clip.src || '',
+                    duration: clip.duration || 0,
+                    resolution: clip.resolution || ''
+                });
+            }
         },
         
         handleAssetAddToTimeline(e) {
