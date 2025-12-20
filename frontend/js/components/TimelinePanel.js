@@ -1,6 +1,7 @@
 // Timeline Panel Component - CapCut Style
 // 트랙 레이아웃 복구, 헤더 완전접기, 컨텍스트 메뉴 반응형
 // 스크롤바 호버 확대, 트랙헤더 줄이기만 가능
+// 클립 드래그 아웃 (미디어 자산 패널로) 지원
 
 const TimelinePanel = {
     props: ['vm'],
@@ -279,6 +280,7 @@ const TimelinePanel = {
                     <div class="ctx-item" :class="{ disabled: !isClipAtPlayhead(clipContextMenu.clip) }" @click="isClipAtPlayhead(clipContextMenu.clip) && cutAndDeleteLeftForClip(clipContextMenu.clip); closeContextMenus()"><i class="fa-solid fa-scissors w-4"></i><span>자르기 + 왼쪽 삭제</span></div>
                     <div class="ctx-item" :class="{ disabled: !isClipAtPlayhead(clipContextMenu.clip) }" @click="isClipAtPlayhead(clipContextMenu.clip) && cutAndDeleteRightForClip(clipContextMenu.clip); closeContextMenus()"><i class="fa-solid fa-scissors w-4"></i><span>자르기 + 오른쪽 삭제</span></div>
                     <div class="h-px bg-ui-border my-1"></div>
+                    <div class="ctx-item" @click="exportClipToAsset(clipContextMenu.clip); closeContextMenus()"><i class="fa-solid fa-file-export w-4"></i><span>미디어 자산으로 내보내기</span></div>
                     <div class="ctx-item" @click="openVolumePopup($event, clipContextMenu.clip)"><i class="fa-solid fa-volume-high w-4"></i><span>볼륨 ({{ clipContextMenu.clip.volume || 100 }}%)</span></div>
                     <div class="ctx-item" @click="duplicateClip(clipContextMenu.clip); closeContextMenus()"><i class="fa-solid fa-copy w-4"></i><span>클립 복제</span></div>
                     <div class="h-px bg-ui-border my-1"></div>
@@ -342,6 +344,8 @@ const TimelinePanel = {
             isResolutionDropdownOpen: false, 
             isAspectDropdownOpen: false, 
             isExternalDragOver: false,
+            isDraggingClipOut: false,
+            clipDragOutData: null,
             aspectRatioOptions: [
                 { value: '원본', label: '원본' },
                 { value: '16:9', label: '16:9' },
@@ -725,7 +729,7 @@ const TimelinePanel = {
         injectStyles: function() {
             if (document.getElementById('timeline-custom-styles')) return;
             var style = document.createElement('style'); style.id = 'timeline-custom-styles';
-            style.textContent = '.playhead-line-body{position:absolute;top:24px;width:2px;background:#ef4444;pointer-events:none;z-index:35;transform:translateX(-1px);}.playhead-head{position:absolute;top:2px;width:12px;height:20px;background:transparent;border:2px solid #ef4444;border-radius:0 0 4px 4px;transform:translateX(-6px);cursor:ew-resize;z-index:50;}.playhead-head::after{content:"";position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid #ef4444;}.timeline-select-no-arrow{-webkit-appearance:none;-moz-appearance:none;appearance:none;}.master-volume-popup{display:none;}.master-volume-popup.show{display:flex;}.track-header-container{position:relative;display:flex;flex-direction:column;overflow:hidden;}.track-header-list{scrollbar-width:none;-ms-overflow-style:none;}.track-header-list::-webkit-scrollbar{display:none;}.track-header-inner{position:relative;}.has-submenu{position:relative;}.clip.dragging{opacity:0.8;z-index:100;}.header-resize-handle{position:absolute;right:0;width:3px;cursor:col-resize;background:transparent;z-index:60;transition:background 0.15s;}.header-resize-handle:hover,.header-resize-handle.resizing{background:#3b82f6;}.timeline-scroll-enhanced::-webkit-scrollbar{width:8px;height:8px;}.timeline-scroll-enhanced::-webkit-scrollbar-track{background:rgba(0,0,0,0.1);}.timeline-scroll-enhanced::-webkit-scrollbar-thumb{background:rgba(100,100,100,0.5);border-radius:4px;}.timeline-scroll-enhanced:hover::-webkit-scrollbar{width:14px;height:14px;}.timeline-scroll-enhanced:hover::-webkit-scrollbar-thumb{background:rgba(100,100,100,0.7);}.timeline-scroll-enhanced{scrollbar-width:thin;scrollbar-color:rgba(100,100,100,0.5) rgba(0,0,0,0.1);}';
+            style.textContent = '.playhead-line-body{position:absolute;top:24px;width:2px;background:#ef4444;pointer-events:none;z-index:35;transform:translateX(-1px);}.playhead-head{position:absolute;top:2px;width:12px;height:20px;background:transparent;border:2px solid #ef4444;border-radius:0 0 4px 4px;transform:translateX(-6px);cursor:ew-resize;z-index:50;}.playhead-head::after{content:"";position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid #ef4444;}.timeline-select-no-arrow{-webkit-appearance:none;-moz-appearance:none;appearance:none;}.master-volume-popup{display:none;}.master-volume-popup.show{display:flex;}.track-header-container{position:relative;display:flex;flex-direction:column;overflow:hidden;}.track-header-list{scrollbar-width:none;-ms-overflow-style:none;}.track-header-list::-webkit-scrollbar{display:none;}.track-header-inner{position:relative;}.has-submenu{position:relative;}.clip.dragging{opacity:0.8;z-index:100;}.clip.dragging-out{opacity:0.5;border:2px dashed #3b82f6;}.header-resize-handle{position:absolute;right:0;width:3px;cursor:col-resize;background:transparent;z-index:60;transition:background 0.15s;}.header-resize-handle:hover,.header-resize-handle.resizing{background:#3b82f6;}.timeline-scroll-enhanced::-webkit-scrollbar{width:8px;height:8px;}.timeline-scroll-enhanced::-webkit-scrollbar-track{background:rgba(0,0,0,0.1);}.timeline-scroll-enhanced::-webkit-scrollbar-thumb{background:rgba(100,100,100,0.5);border-radius:4px;}.timeline-scroll-enhanced:hover::-webkit-scrollbar{width:14px;height:14px;}.timeline-scroll-enhanced:hover::-webkit-scrollbar-thumb{background:rgba(100,100,100,0.7);}.timeline-scroll-enhanced{scrollbar-width:thin;scrollbar-color:rgba(100,100,100,0.5) rgba(0,0,0,0.1);}';
             document.head.appendChild(style);
         },
         getVolumeIcon: function(v) { return v === 0 ? 'fa-solid fa-volume-xmark' : v < 30 ? 'fa-solid fa-volume-off' : v < 70 ? 'fa-solid fa-volume-low' : 'fa-solid fa-volume-high'; },
@@ -781,7 +785,7 @@ const TimelinePanel = {
         updateVolumePopupFromEvent: function(e) { var track = e.target.closest('.volume-track'); if (!track) return; var rect = track.getBoundingClientRect(); var val = Math.round(Math.max(0, Math.min(200, (1 - (e.clientY - rect.top) / rect.height) * 200))); this.volumePopup.value = val; if (this.volumePopup.clip) { this.volumePopup.clip.volume = val; if (window.PreviewRenderer) window.PreviewRenderer.updateClipVolume(this.volumePopup.clip.id, val / 100); } },
         isClipAtPlayhead: function(clip) { return this.vm.currentTime > clip.start && this.vm.currentTime < clip.start + clip.duration; },
         onWindowResize: function() { this.adjustLayout(); this.updateViewportSize(); this.updateTrackYPositions(); },
-        updateViewportSize: function() { var c = document.getElementById('timeline-scroll-container'); if (c) this.viewportWidth = c.clientWidth; },
+updateViewportSize: function() { var c = document.getElementById('timeline-scroll-container'); if (c) this.viewportWidth = c.clientWidth; },
         onTimelineScroll: function(e) { this.scrollLeft = e.target.scrollLeft; var headerList = this.$refs.trackHeaderList; if (headerList && !this._syncingScroll) { this._syncingScroll = true; headerList.scrollTop = e.target.scrollTop; var self = this; this.$nextTick(function() { self._syncingScroll = false; }); } },
         isClipVisible: function(clip) { var s = clip.start * this.pixelsPerSecond; var en = (clip.start + clip.duration) * this.pixelsPerSecond; return en >= this.scrollLeft - 100 && s <= this.scrollLeft + this.viewportWidth + 100; },
         getVisibleClipsForTrack: function(trackId) { var self = this; return this.vm.clips.filter(function(c) { return c.trackId === trackId && self.isClipVisible(c); }); },
@@ -801,7 +805,7 @@ const TimelinePanel = {
         toggleResolutionDropdown: function() { this.isResolutionDropdownOpen = !this.isResolutionDropdownOpen; if (this.isResolutionDropdownOpen) this.isAspectDropdownOpen = false; },
         selectResolution: function(v) { if (this.vm) { this.vm.resolution = v; this.applyAspectRatio(this.vm.aspectRatio); } this.isResolutionDropdownOpen = false; },
         clipStyle: function(clip, track) { var h = this.getTrackHeight(track.id); return { left: clip.start * this.pixelsPerSecond + 'px', width: Math.max(20, clip.duration * this.pixelsPerSecond) + 'px', top: '1px', height: (h - 2) + 'px' }; },
-        getClipClasses: function(clip) { var sel = this.selectedClipIds.indexOf(clip.id) >= 0; var dragging = this.isDraggingClip && this.draggingClipIds.indexOf(clip.id) >= 0; return { 'clip-selected': sel && this.selectedClipIds.length === 1, 'clip-multi-selected': sel && this.selectedClipIds.length > 1, 'dragging': dragging }; },
+        getClipClasses: function(clip) { var sel = this.selectedClipIds.indexOf(clip.id) >= 0; var dragging = this.isDraggingClip && this.draggingClipIds.indexOf(clip.id) >= 0; var draggingOut = this.isDraggingClipOut && this.clipDragOutData && this.clipDragOutData.id === clip.id; return { 'clip-selected': sel && this.selectedClipIds.length === 1, 'clip-multi-selected': sel && this.selectedClipIds.length > 1, 'dragging': dragging, 'dragging-out': draggingOut }; },
         selectClip: function(clipId, mod) {
             mod = mod || {}; var self = this;
             var clip = this.vm.clips.find(function(c) { return c.id === clipId; }); if (!clip) return;
@@ -840,11 +844,64 @@ const TimelinePanel = {
             if (this.isDraggingMasterVolume) this.updateMasterVolumeFromEvent(e);
             if (this.isDraggingVolumePopup) this.updateVolumePopupFromEvent(e);
             if (this.isDraggingClipVolume && this.volumeDragClip) { var dy = this.volumeDragStartY - e.clientY; var newVol = Math.max(0, Math.min(200, Math.round(this.volumeDragStartVolume + dy * 2))); this.volumeDragClip.volume = newVol; if (window.PreviewRenderer) window.PreviewRenderer.updateClipVolume(this.volumeDragClip.id, newVol / 100); }
-            if (this.pendingClickClipId && !this.isDraggingClip && this.draggingClipIds.length > 0) { if (Math.abs(e.clientX - this.dragStartX) > 3 || Math.abs(e.clientY - this.dragStartY) > 3) { this.isDraggingClip = true; this.pendingClickClipId = null; } }
+            if (this.pendingClickClipId && !this.isDraggingClip && this.draggingClipIds.length > 0) { 
+                if (Math.abs(e.clientX - this.dragStartX) > 3 || Math.abs(e.clientY - this.dragStartY) > 3) { 
+                    // 타임라인 영역 밖으로 드래그하는지 확인
+                    var timelinePanel = document.getElementById('timeline-main-panel');
+                    if (timelinePanel) {
+                        var rect = timelinePanel.getBoundingClientRect();
+                        if (e.clientY < rect.top || e.clientY > rect.bottom) {
+                            // 타임라인 밖으로 드래그 - 미디어 자산으로 내보내기 모드
+                            this.startClipDragOut(e);
+                        } else {
+                            this.isDraggingClip = true; 
+                        }
+                    } else {
+                        this.isDraggingClip = true;
+                    }
+                    this.pendingClickClipId = null; 
+                } 
+            }
             if (this.isDraggingClip && this.draggingClipIds.length > 0) this.handleClipDrag(e);
             if (this.isResizingClip && this.resizingClip) this.handleClipResize(e);
         },
+        // 클립을 타임라인 밖으로 드래그 시작
+        startClipDragOut: function(e) {
+            if (this.draggingClipIds.length === 0) return;
+            
+            var self = this;
+            var clip = this.vm.clips.find(function(c) { return c.id === self.draggingClipIds[0]; });
+            if (!clip) return;
+            
+            this.isDraggingClipOut = true;
+            this.clipDragOutData = {
+                id: clip.id,
+                name: clip.name,
+                type: clip.type,
+                src: clip.src || '',
+                duration: clip.duration,
+                volume: clip.volume || 100
+            };
+            
+            // 드래그 이미지 생성을 위한 가상 드래그 시뮬레이션
+            // 실제로는 마우스 따라다니는 고스트 이미지로 표시
+        },
         onDocumentMouseUp: function(e) {
+            // 클립 외부 드래그 종료 시 미디어 자산 패널에 드롭 확인
+            if (this.isDraggingClipOut && this.clipDragOutData) {
+                var mediaAssetPanel = document.querySelector('.media-asset-drop-zone');
+                if (mediaAssetPanel) {
+                    var rect = mediaAssetPanel.getBoundingClientRect();
+                    if (e.clientX >= rect.left && e.clientX <= rect.right && 
+                        e.clientY >= rect.top && e.clientY <= rect.bottom) {
+                        // 미디어 자산 패널에 드롭됨
+                        this.exportClipToAsset(this.clipDragOutData);
+                    }
+                }
+                this.isDraggingClipOut = false;
+                this.clipDragOutData = null;
+            }
+            
             if (this.pendingClickClipId && !this.isDraggingClip) this.selectClip(this.pendingClickClipId, this.pendingClickModifiers || {});
             this.pendingClickClipId = null; this.pendingClickModifiers = null;
             this.isResizingHeader = false; this.isResizingTrack = false; this.resizingTrackId = null;
@@ -854,6 +911,24 @@ const TimelinePanel = {
             if (this.isDraggingMasterVolume) this.isDraggingMasterVolume = false;
             this.isDraggingClipVolume = false; this.volumeDragClip = null;
             this.isDraggingVolumePopup = false;
+        },
+        // 클립을 미디어 자산으로 내보내기
+        exportClipToAsset: function(clip) {
+            var clipData = clip.id ? clip : this.vm.clips.find(function(c) { return c.id === clip.id; });
+            if (!clipData) clipData = clip;
+            
+            var event = new CustomEvent('wai-clip-to-asset', {
+                detail: {
+                    id: clipData.id,
+                    name: clipData.name || 'Clip',
+                    type: clipData.type || 'video',
+                    src: clipData.src || '',
+                    duration: clipData.duration || 0,
+                    resolution: clipData.resolution || ''
+                },
+                bubbles: true
+            });
+            document.dispatchEvent(event);
         },
         handleClipDrag: function(e) {
             var self = this; var dx = e.clientX - this.dragStartX; var dt = dx / this.pixelsPerSecond;
