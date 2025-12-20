@@ -105,11 +105,11 @@ const TimelinePanel = {
             </div>
             
             <!-- 메인 타임라인 영역 -->
-            <div v-if="!vm.isTimelineCollapsed" class="flex-grow flex overflow-hidden min-h-0">
+            <div v-if="!vm.isTimelineCollapsed" class="flex-grow flex overflow-hidden min-h-0 relative">
                 <!-- 트랙 헤더 (고정, 스케일 영향 없음) -->
-                <div class="track-header-container bg-bg-panel border-r border-ui-border flex-shrink-0 overflow-hidden" :style="{ width: currentHeaderWidth + 'px' }">
+                <div class="track-header-container bg-bg-panel border-r border-ui-border flex-shrink-0 flex flex-col" :style="{ width: currentHeaderWidth + 'px' }">
                     <!-- 헤더 타이틀 -->
-                    <div class="h-6 border-b border-ui-border flex items-center justify-between px-2 text-[9px] font-bold text-text-sub bg-bg-panel">
+                    <div class="h-6 border-b border-ui-border flex items-center justify-between px-2 text-[9px] font-bold text-text-sub bg-bg-panel shrink-0">
                         <div class="flex items-center gap-1">
                             <button class="tool-btn w-5 h-5" title="트랙 추가" @click="addTrack"><i class="fa-solid fa-plus" style="font-size: 9px;"></i></button>
                             <span v-show="!isTrackHeaderCollapsed">TRACKS</span>
@@ -119,33 +119,39 @@ const TimelinePanel = {
                         </button>
                     </div>
                     <!-- 트랙 헤더 목록 -->
-                    <div class="track-header-list overflow-y-auto" :style="{ height: 'calc(100% - 24px)' }" @scroll="syncHeaderScroll">
-                        <div v-for="(track, index) in vm.tracks" :key="track.id" :data-track-id="track.id"
-                            class="border-b border-ui-border flex items-center px-1 group bg-bg-panel relative"
-                            :class="{ 'opacity-50': track.isLocked, 'bg-ui-accent/20': dragOverTrackId === track.id }"
-                            :style="{ height: getTrackHeight(track.id) + 'px' }"
-                            draggable="true" @dragstart="startTrackDrag($event, track, index)" @dragover.prevent="handleTrackDragOver($event, track)" @dragleave="handleTrackDragLeave" @drop.prevent="handleTrackDrop($event, track, index)" @dragend="endTrackDrag" @contextmenu.prevent="openTrackContextMenu($event, track, index)" @wheel.stop="onTrackHeaderWheel($event, track)">
-                            <button class="w-4 h-4 flex items-center justify-center rounded mr-1 shrink-0 hover:bg-bg-hover" :class="track.isMain ? 'text-yellow-400' : 'text-text-sub opacity-30 hover:opacity-100'" @click.stop="setMainTrack(track)">
-                                <i :class="track.isMain ? 'fa-solid fa-star' : 'fa-regular fa-star'" style="font-size: 10px;"></i>
-                            </button>
-                            <template v-if="!isTrackHeaderCollapsed">
-                                <div class="flex items-center gap-0.5 mr-1 shrink-0" v-show="getTrackHeight(track.id) >= 30">
-                                    <button class="track-control-btn" :class="{ 'active': !track.isHidden }" @click.stop="track.isHidden = !track.isHidden"><i :class="track.isHidden ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'" style="font-size: 8px;"></i></button>
-                                    <button class="track-control-btn" :class="{ 'locked': track.isLocked }" @click.stop="track.isLocked = !track.isLocked"><i :class="track.isLocked ? 'fa-solid fa-lock' : 'fa-solid fa-lock-open'" style="font-size: 8px;"></i></button>
-                                </div>
-                                <div v-show="getTrackHeight(track.id) >= 24" class="w-1 h-2/3 rounded mr-1 shrink-0" :style="{ backgroundColor: track.color || '#666' }"></div>
-                                <input v-show="getTrackHeight(track.id) >= 24" type="text" class="text-[10px] truncate flex-1 text-text-main bg-transparent border-none outline-none min-w-0" :class="{ 'text-text-sub italic': track.name === 'NONE' }" :value="track.name === 'NONE' ? '' : track.name" @input="updateTrackName(track, $event.target.value)" :disabled="track.isLocked" @mousedown.stop :placeholder="'Track ' + (index + 1)" />
-                            </template>
-                            <div class="absolute left-0 right-0 bottom-0 h-1 cursor-ns-resize hover:bg-ui-accent/50 z-10" @mousedown.prevent.stop="startTrackResize($event, track)"></div>
+                    <div ref="trackHeaderList" class="track-header-list flex-grow overflow-hidden relative" @scroll="onHeaderScroll">
+                        <div class="track-header-inner" :style="{ height: totalTrackHeight + 'px' }">
+                            <div v-for="(track, index) in vm.tracks" :key="track.id" :data-track-id="track.id"
+                                class="border-b border-ui-border flex items-center px-1 group bg-bg-panel relative"
+                                :class="{ 'opacity-50': track.isLocked, 'bg-ui-accent/20': dragOverTrackId === track.id }"
+                                :style="{ height: getTrackHeight(track.id) + 'px' }"
+                                draggable="true" @dragstart="startTrackDrag($event, track, index)" @dragover.prevent="handleTrackDragOver($event, track)" @dragleave="handleTrackDragLeave" @drop.prevent="handleTrackDrop($event, track, index)" @dragend="endTrackDrag" @contextmenu.prevent="openTrackContextMenu($event, track, index)" @wheel.stop="onTrackHeaderWheel($event, track)">
+                                <button class="w-4 h-4 flex items-center justify-center rounded mr-1 shrink-0 hover:bg-bg-hover" :class="track.isMain ? 'text-yellow-400' : 'text-text-sub opacity-30 hover:opacity-100'" @click.stop="setMainTrack(track)">
+                                    <i :class="track.isMain ? 'fa-solid fa-star' : 'fa-regular fa-star'" style="font-size: 10px;"></i>
+                                </button>
+                                <template v-if="!isTrackHeaderCollapsed">
+                                    <div class="flex items-center gap-0.5 mr-1 shrink-0" v-show="getTrackHeight(track.id) >= 30">
+                                        <button class="track-control-btn" :class="{ 'active': !track.isHidden }" @click.stop="track.isHidden = !track.isHidden"><i :class="track.isHidden ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'" style="font-size: 8px;"></i></button>
+                                        <button class="track-control-btn" :class="{ 'locked': track.isLocked }" @click.stop="track.isLocked = !track.isLocked"><i :class="track.isLocked ? 'fa-solid fa-lock' : 'fa-solid fa-lock-open'" style="font-size: 8px;"></i></button>
+                                    </div>
+                                    <div v-show="getTrackHeight(track.id) >= 24" class="w-1 h-2/3 rounded mr-1 shrink-0" :style="{ backgroundColor: track.color || '#666' }"></div>
+                                    <input v-show="getTrackHeight(track.id) >= 24" type="text" class="text-[10px] truncate flex-1 text-text-main bg-transparent border-none outline-none min-w-0" :class="{ 'text-text-sub italic': track.name === 'NONE' }" :value="track.name === 'NONE' ? '' : track.name" @input="updateTrackName(track, $event.target.value)" :disabled="track.isLocked" @mousedown.stop :placeholder="'Track ' + (index + 1)" />
+                                </template>
+                                <div class="absolute left-0 right-0 bottom-0 h-1 cursor-ns-resize hover:bg-ui-accent/50 z-10" @mousedown.prevent.stop="startTrackResize($event, track)"></div>
+                            </div>
                         </div>
                     </div>
-                    <!-- 헤더 리사이즈 핸들 -->
-                    <div v-show="!isTrackHeaderCollapsed" class="absolute top-0 bottom-0 w-1 cursor-col-resize hover:bg-ui-accent/50" style="right: 0; z-index: 50;" @mousedown.prevent="startHeaderResize"></div>
+                    <!-- 헤더 리사이즈 핸들 (트랙 영역에만 표시) -->
+                    <div v-show="!isTrackHeaderCollapsed" 
+                        class="header-resize-handle" 
+                        :class="{ 'resizing': isResizingHeader }"
+                        :style="{ top: '24px', height: totalTrackHeight + 'px' }"
+                        @mousedown.prevent="startHeaderResize"></div>
                 </div>
 
                 <!-- 타임라인 레인 (스크롤 가능) -->
-                <div id="timeline-scroll-container" class="flex-grow overflow-auto relative" @scroll="onTimelineScroll">
-                    <div id="timeline-lane-container" class="relative min-w-max" @mousedown="handleLaneMouseDown" @mouseenter="isMouseInLane = true" @mouseleave="isMouseInLane = false" @wheel.prevent="handleLaneWheel">
+                <div id="timeline-scroll-container" ref="timelineScrollContainer" class="flex-grow overflow-auto relative timeline-scroll-enhanced" @scroll="onTimelineScroll">
+                    <div id="timeline-lane-container" class="relative min-w-max" :style="{ minHeight: totalTrackHeight + 24 + 'px' }" @mousedown="handleLaneMouseDown" @mouseenter="isMouseInLane = true" @mouseleave="isMouseInLane = false" @wheel.prevent="handleLaneWheel">
                         <!-- 룰러 -->
                         <div id="timeline-ruler" class="h-6 border-b border-ui-border sticky top-0 relative" :style="{ width: totalTimelineWidth + 'px' }" style="z-index: 20; background: var(--bg-panel);">
                             <template v-for="mark in visibleRulerMarks" :key="'ruler-' + mark.time">
@@ -208,7 +214,7 @@ const TimelinePanel = {
                             </div>
                         </div>
                         
-                        <div class="playhead-line-body" :style="{ left: vm.currentTime * pixelsPerSecond + 'px' }"></div>
+                        <div class="playhead-line-body" :style="{ left: vm.currentTime * pixelsPerSecond + 'px', height: totalTrackHeight + 'px' }"></div>
                     </div>
                 </div>
             </div>
@@ -223,7 +229,7 @@ const TimelinePanel = {
             </div>
             
             <!-- 트랙 컨텍스트 메뉴 -->
-            <div v-if="trackContextMenu" class="context-menu" :style="{ top: trackContextMenu.y + 'px', left: trackContextMenu.x + 'px' }" @click.stop>
+            <div v-if="trackContextMenu" class="context-menu" :style="contextMenuStyle(trackContextMenu)" @click.stop>
                 <!-- 위로/아래로 이동 최상단 -->
                 <div class="ctx-item" @click="moveTrackUp(trackContextMenu.index)"><i class="fa-solid fa-arrow-up w-4"></i><span>위로 이동</span></div>
                 <div class="ctx-item" @click="moveTrackDown(trackContextMenu.index)"><i class="fa-solid fa-arrow-down w-4"></i><span>아래로 이동</span></div>
@@ -249,7 +255,7 @@ const TimelinePanel = {
             </div>
             
             <!-- 높이 서브메뉴 -->
-            <div v-if="heightSubmenu.visible" class="context-menu" :style="{ top: heightSubmenu.y + 'px', left: heightSubmenu.x + 'px' }" @mouseenter="cancelCloseHeightSubmenu" @mouseleave="scheduleCloseHeightSubmenu" @click.stop>
+            <div v-if="heightSubmenu.visible" class="context-menu" :style="heightSubmenuStyle" @mouseenter="cancelCloseHeightSubmenu" @mouseleave="scheduleCloseHeightSubmenu" @click.stop>
                 <div class="ctx-item" @click="applyHeightPreset('low')"><i class="fa-solid fa-compress-alt w-4"></i><span>낮음 (20px)</span></div>
                 <div class="ctx-item" @click="applyHeightPreset('medium')"><i class="fa-solid fa-minus w-4"></i><span>중간 (40px)</span></div>
                 <div class="ctx-item" @click="applyHeightPreset('high')"><i class="fa-solid fa-expand-alt w-4"></i><span>높음 (80px)</span></div>
@@ -258,7 +264,7 @@ const TimelinePanel = {
             </div>
             
             <!-- 클립 컨텍스트 메뉴 -->
-            <div v-if="clipContextMenu" class="context-menu" :style="{ top: clipContextMenu.y + 'px', left: clipContextMenu.x + 'px' }" @click.stop>
+            <div v-if="clipContextMenu" class="context-menu" :style="contextMenuStyle(clipContextMenu)" @click.stop>
                 <template v-if="clipContextMenu.clip">
                     <div class="ctx-item" :class="{ disabled: !isClipAtPlayhead(clipContextMenu.clip) }" @click="isClipAtPlayhead(clipContextMenu.clip) && cutAtPlayheadForClip(clipContextMenu.clip); closeContextMenus()"><i class="fa-solid fa-scissors w-4"></i><span>플레이헤드에서 자르기</span></div>
                     <div class="ctx-item" :class="{ disabled: !isClipAtPlayhead(clipContextMenu.clip) }" @click="isClipAtPlayhead(clipContextMenu.clip) && cutAndDeleteLeftForClip(clipContextMenu.clip); closeContextMenus()"><i class="fa-solid fa-scissors w-4"></i><span>자르기 + 왼쪽 삭제</span></div>
@@ -277,20 +283,23 @@ const TimelinePanel = {
     `,
     data() {
         return {
-            trackHeaderWidth: 180, collapsedHeaderWidth: 28, isResizingHeader: false, resizeStartX: 0, resizeStartWidth: 0,
+            trackHeaderWidth: 180, 
+            initialHeaderWidth: 180,
+            collapsedHeaderWidth: 28, 
+            isResizingHeader: false, 
+            resizeStartX: 0, 
+            resizeStartWidth: 0,
             isTrackHeaderCollapsed: false,
             trackContextMenu: null, clipContextMenu: null,
             draggingTrackId: null, draggingTrackIndex: null, dragOverTrackId: null,
             trackHeights: {}, isResizingTrack: false, resizingTrackId: null, resizeStartY: 0, resizeStartHeight: 0,
             minTrackHeight: 20, defaultTrackHeight: 40,
-            // 트랙 높이 프리셋
             trackHeightPresets: {
                 low: 20,
                 medium: 40,
                 high: 80,
                 default: 40
             },
-            // 높이 서브메뉴
             heightSubmenu: { visible: false, x: 0, y: 0, target: 'this' },
             heightSubmenuCloseTimer: null,
             wheelAdjustMode: { active: false, target: 'this' },
@@ -323,7 +332,9 @@ const TimelinePanel = {
             thumbnailCache: {}, waveformCache: {}, videoMetaCache: {}, currentDragTrackIndex: null,
             volumePopup: { visible: false, x: 0, y: 0, clip: null, value: 100 }, isDraggingVolumePopup: false,
             trackYPositions: [],
-            isMouseInLane: false
+            isMouseInLane: false,
+            contextMenuHeight: 280,
+            submenuHeight: 120
         };
     },
     computed: {
@@ -332,6 +343,11 @@ const TimelinePanel = {
         maxClipEnd() { let max = 60; this.vm.clips.forEach(c => { if (c.start + c.duration > max) max = c.start + c.duration; }); return max; },
         totalDuration() { return Math.max(300, this.maxClipEnd + 60); },
         totalTimelineWidth() { return this.totalDuration * this.pixelsPerSecond; },
+        totalTrackHeight() { 
+            let total = 0;
+            this.vm.tracks.forEach(t => { total += this.getTrackHeight(t.id); });
+            return total;
+        },
         currentHeaderWidth() { return this.isTrackHeaderCollapsed ? this.collapsedHeaderWidth : this.trackHeaderWidth; },
         zoomDisplayText() { return this.pixelsPerSecond >= 60 ? Math.round(this.pixelsPerSecond) + 'px/s' : this.pixelsPerSecond >= 1 ? this.pixelsPerSecond.toFixed(1) + 'px/s' : (this.pixelsPerSecond * 60).toFixed(1) + 'px/m'; },
         visibleTimeRange() { return { startTime: Math.max(0, this.scrollLeft / this.pixelsPerSecond - 10), endTime: (this.scrollLeft + this.viewportWidth) / this.pixelsPerSecond + 10 }; },
@@ -356,7 +372,24 @@ const TimelinePanel = {
         },
         canUndo() { return this.historyIndex > 0; },
         canRedo() { return this.historyIndex < this.historyStack.length - 1; },
-        hasSelectedClips() { return this.selectedClipIds.length > 0; }
+        hasSelectedClips() { return this.selectedClipIds.length > 0; },
+        heightSubmenuStyle() {
+            const menuWidth = 160;
+            const menuHeight = this.submenuHeight;
+            let x = this.heightSubmenu.x;
+            let y = this.heightSubmenu.y;
+            
+            // 화면 오른쪽 경계 체크
+            if (x + menuWidth > window.innerWidth) {
+                x = this.heightSubmenu.x - menuWidth - 150;
+            }
+            // 화면 하단 경계 체크
+            if (y + menuHeight > window.innerHeight) {
+                y = window.innerHeight - menuHeight - 10;
+            }
+            
+            return { top: y + 'px', left: x + 'px' };
+        }
     },
     watch: {
         'vm.clips': { handler() { if (!this.isUndoRedoAction) this.saveToHistory(); this.generateThumbnailsForNewClips(); }, deep: true },
@@ -391,16 +424,40 @@ const TimelinePanel = {
         if (this.heightSubmenuCloseTimer) clearTimeout(this.heightSubmenuCloseTimer);
     },
     methods: {
+        // 컨텍스트 메뉴 위치 계산 (반응형)
+        contextMenuStyle(menu) {
+            if (!menu) return {};
+            const menuWidth = 180;
+            const menuHeight = this.contextMenuHeight;
+            let x = menu.x;
+            let y = menu.y;
+            
+            // 화면 오른쪽 경계 체크
+            if (x + menuWidth > window.innerWidth) {
+                x = window.innerWidth - menuWidth - 10;
+            }
+            // 화면 하단 경계 체크
+            if (y + menuHeight > window.innerHeight) {
+                y = window.innerHeight - menuHeight - 10;
+            }
+            // 최소값 보장
+            if (x < 0) x = 10;
+            if (y < 0) y = 10;
+            
+            return { top: y + 'px', left: x + 'px' };
+        },
+        // 헤더 스크롤 동기화
+        onHeaderScroll(e) {
+            const sc = this.$refs.timelineScrollContainer;
+            if (sc && !this._syncingScroll) {
+                this._syncingScroll = true;
+                sc.scrollTop = e.target.scrollTop;
+                this.$nextTick(() => { this._syncingScroll = false; });
+            }
+        },
         // 트랙 헤더 접기/펼치기
         toggleTrackHeaderCollapse() {
             this.isTrackHeaderCollapsed = !this.isTrackHeaderCollapsed;
-        },
-        // 트랙 헤더 스크롤 동기화
-        syncHeaderScroll(e) {
-            const laneContainer = document.getElementById('timeline-scroll-container');
-            if (laneContainer) {
-                // 수직 스크롤만 동기화 (트랙 헤더는 수평 스크롤 없음)
-            }
         },
         // 트랙 헤더에서 휠로 높이 조절
         onTrackHeaderWheel(e, track) {
@@ -467,7 +524,7 @@ const TimelinePanel = {
                 target: this.heightSubmenu.target
             };
             this.closeContextMenus();
-            // 3초 후 자동 비활성화
+            // 5초 후 자동 비활성화
             setTimeout(() => {
                 this.wheelAdjustMode.active = false;
             }, 5000);
@@ -590,7 +647,6 @@ const TimelinePanel = {
             this.masterVolume = Math.max(0, Math.min(100, this.masterVolume + delta));
         },
         handleLaneWheel(e) {
-            // 트랙 레인 영역에서만 줌 작동
             if (!this.isMouseInLane) return;
             
             const sc = document.getElementById('timeline-scroll-container'); 
@@ -648,17 +704,26 @@ const TimelinePanel = {
             if (document.getElementById('timeline-custom-styles')) return;
             const style = document.createElement('style'); style.id = 'timeline-custom-styles';
             style.textContent = `
-                .playhead-line-body{position:absolute;top:24px;bottom:0;width:2px;background:#ef4444;pointer-events:none;z-index:35;transform:translateX(-1px);}
+                .playhead-line-body{position:absolute;top:24px;width:2px;background:#ef4444;pointer-events:none;z-index:35;transform:translateX(-1px);}
                 .playhead-head{position:absolute;top:2px;width:12px;height:20px;background:transparent;border:2px solid #ef4444;border-radius:0 0 4px 4px;transform:translateX(-6px);cursor:ew-resize;z-index:50;}
                 .playhead-head::after{content:'';position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid #ef4444;}
                 .timeline-select-no-arrow{-webkit-appearance:none;-moz-appearance:none;appearance:none;}
                 .master-volume-popup{display:none;}
                 .master-volume-popup.show{display:flex;}
-                .track-header-container{position:relative;display:flex;flex-direction:column;}
+                .track-header-container{position:relative;display:flex;flex-direction:column;overflow:hidden;}
                 .track-header-list{scrollbar-width:none;-ms-overflow-style:none;}
                 .track-header-list::-webkit-scrollbar{display:none;}
+                .track-header-inner{position:relative;}
                 .has-submenu{position:relative;}
                 .clip.dragging{opacity:0.8;z-index:100;}
+                .header-resize-handle{position:absolute;right:0;width:3px;cursor:col-resize;background:transparent;z-index:60;transition:background 0.15s;}
+                .header-resize-handle:hover,.header-resize-handle.resizing{background:#3b82f6;}
+                .timeline-scroll-enhanced::-webkit-scrollbar{width:6px;height:6px;}
+                .timeline-scroll-enhanced::-webkit-scrollbar-track{background:rgba(0,0,0,0.1);}
+                .timeline-scroll-enhanced::-webkit-scrollbar-thumb{background:rgba(100,100,100,0.5);border-radius:3px;}
+                .timeline-scroll-enhanced:hover::-webkit-scrollbar{width:12px;height:12px;}
+                .timeline-scroll-enhanced:hover::-webkit-scrollbar-thumb{background:rgba(100,100,100,0.7);}
+                .timeline-scroll-enhanced{scrollbar-width:thin;scrollbar-color:rgba(100,100,100,0.5) rgba(0,0,0,0.1);}
             `;
             document.head.appendChild(style);
         },
@@ -772,9 +837,11 @@ const TimelinePanel = {
         onTimelineScroll(e) { 
             this.scrollLeft = e.target.scrollLeft;
             // 트랙 헤더 수직 스크롤 동기화
-            const headerList = document.querySelector('.track-header-list');
-            if (headerList) {
+            const headerList = this.$refs.trackHeaderList;
+            if (headerList && !this._syncingScroll) {
+                this._syncingScroll = true;
                 headerList.scrollTop = e.target.scrollTop;
+                this.$nextTick(() => { this._syncingScroll = false; });
             }
         },
         isClipVisible(clip) { const s = clip.start * this.pixelsPerSecond, e = (clip.start + clip.duration) * this.pixelsPerSecond; return e >= this.scrollLeft - 100 && s <= this.scrollLeft + this.viewportWidth + 100; },
@@ -847,7 +914,11 @@ const TimelinePanel = {
             }
         },
         onDocumentMouseMove(e) {
-            if (this.isResizingHeader && !this.isTrackHeaderCollapsed) this.trackHeaderWidth = Math.max(120, Math.min(400, this.resizeStartWidth + (e.clientX - this.resizeStartX)));
+            if (this.isResizingHeader && !this.isTrackHeaderCollapsed) {
+                // 줄이기만 가능 (initialHeaderWidth보다 커질 수 없음)
+                const newWidth = this.resizeStartWidth + (e.clientX - this.resizeStartX);
+                this.trackHeaderWidth = Math.max(this.collapsedHeaderWidth + 10, Math.min(this.initialHeaderWidth, newWidth));
+            }
             if (this.isResizingTrack && this.resizingTrackId) { this.trackHeights[this.resizingTrackId] = Math.max(this.minTrackHeight, this.resizeStartHeight + (e.clientY - this.resizeStartY)); this.trackHeights = { ...this.trackHeights }; }
             if (this.isDraggingPlayhead) this.updatePlayheadPosition(e);
             if (this.isDraggingMasterVolume) this.updateMasterVolumeFromEvent(e);
