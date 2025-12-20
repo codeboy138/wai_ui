@@ -4,6 +4,7 @@
 // 클립 드래그 아웃 (미디어 자산 패널로) 지원
 // 필름스트립 프레임 표시 개선 - 타임스케일 연동
 // 플레이 버튼 패널 확장, 룰러 숫자 겹침 방지
+// 클립 겹침 불가 원칙 복구, 사운드 분리 기능
 
 const TimelinePanel = {
     props: ['vm'],
@@ -278,12 +279,15 @@ const TimelinePanel = {
                 <div class="ctx-item" @click="enableWheelAdjust"><i class="fa-solid fa-mouse w-4"></i><span>휠로 조절</span></div>
             </div>
             
-            <!-- 클립 컨텍스트 메뉴 -->
+            <!-- 클립 컨텍스트 메뉴 - 사운드 분리 추가 -->
             <div v-if="clipContextMenu" class="context-menu" :style="getContextMenuStyle(clipContextMenu)" @click.stop>
                 <template v-if="clipContextMenu.clip">
                     <div class="ctx-item" :class="{ disabled: !isClipAtPlayhead(clipContextMenu.clip) }" @click="isClipAtPlayhead(clipContextMenu.clip) && cutAtPlayheadForClip(clipContextMenu.clip); closeContextMenus()"><i class="fa-solid fa-scissors w-4"></i><span>플레이헤드에서 자르기</span></div>
                     <div class="ctx-item" :class="{ disabled: !isClipAtPlayhead(clipContextMenu.clip) }" @click="isClipAtPlayhead(clipContextMenu.clip) && cutAndDeleteLeftForClip(clipContextMenu.clip); closeContextMenus()"><i class="fa-solid fa-scissors w-4"></i><span>자르기 + 왼쪽 삭제</span></div>
                     <div class="ctx-item" :class="{ disabled: !isClipAtPlayhead(clipContextMenu.clip) }" @click="isClipAtPlayhead(clipContextMenu.clip) && cutAndDeleteRightForClip(clipContextMenu.clip); closeContextMenus()"><i class="fa-solid fa-scissors w-4"></i><span>자르기 + 오른쪽 삭제</span></div>
+                    <div class="h-px bg-ui-border my-1"></div>
+                    <div class="ctx-item" :class="{ disabled: !canExtractAudio(clipContextMenu.clip) }" @click="canExtractAudio(clipContextMenu.clip) && extractAudioFromClip(clipContextMenu.clip); closeContextMenus()"><i class="fa-solid fa-music w-4"></i><span>사운드 분리</span></div>
+                    <div class="ctx-item" @click="toggleClipMute(clipContextMenu.clip); closeContextMenus()"><i :class="clipContextMenu.clip.isMuted ? 'fa-solid fa-volume-xmark w-4' : 'fa-solid fa-volume-high w-4'"></i><span>{{ clipContextMenu.clip.isMuted ? '음소거 해제' : '음소거' }}</span></div>
                     <div class="h-px bg-ui-border my-1"></div>
                     <div class="ctx-item" @click="exportClipToAsset(clipContextMenu.clip); closeContextMenus()"><i class="fa-solid fa-file-export w-4"></i><span>미디어 자산으로 내보내기</span></div>
                     <div class="ctx-item" @click="openVolumePopup($event, clipContextMenu.clip)"><i class="fa-solid fa-volume-high w-4"></i><span>볼륨 ({{ clipContextMenu.clip.volume || 100 }}%)</span></div>
@@ -384,6 +388,8 @@ const TimelinePanel = {
             MAX_RULER_MARKS: 200,
             // 룰러 라벨 최소 간격 (픽셀)
             MIN_RULER_LABEL_SPACING: 60,
+            // 클립 겹침 방지용 최소 간격 (초)
+            CLIP_MIN_GAP: 0.01,
             masterVolume: 100, 
             previousVolume: 100, 
             isDraggingMasterVolume: false,
@@ -402,7 +408,7 @@ const TimelinePanel = {
             trackYPositions: [],
             isMouseInLane: false,
             contextMenuWidth: 180,
-            contextMenuHeight: 280,
+            contextMenuHeight: 320,
             submenuWidth: 160,
             submenuHeight: 140
         };
@@ -486,7 +492,6 @@ const TimelinePanel = {
                         label = self.formatRulerTime(time);
                         lastLabelPosition = pos;
                     }
-                    // 간격이 부족하면 라벨 없이 마크만 표시
                 }
                 
                 marks.push({ 
@@ -686,7 +691,6 @@ const TimelinePanel = {
         },
         getOriginalVideoSize: function() {
             var currentTime = this.vm.currentTime;
-            var self = this;
             var activeVideoClip = this.vm.clips.find(function(clip) {
                 if (clip.type !== 'video') return false;
                 return currentTime >= clip.start && currentTime < clip.start + clip.duration;
@@ -790,39 +794,24 @@ const TimelinePanel = {
         getFilmstripFrames: function(clip) {
             var clipPixelWidth = this.getClipPixelWidth(clip);
             var pps = this.pixelsPerSecond;
-            
             var dynamicFrameWidth;
-            if (pps >= 100) {
-                dynamicFrameWidth = this.MAX_FILMSTRIP_FRAME_WIDTH;
-            } else if (pps >= 50) {
-                dynamicFrameWidth = 60;
-            } else if (pps >= 20) {
-                dynamicFrameWidth = this.FILMSTRIP_FRAME_WIDTH;
-            } else if (pps >= 10) {
-                dynamicFrameWidth = 30;
-            } else {
-                dynamicFrameWidth = this.MIN_FILMSTRIP_FRAME_WIDTH;
-            }
-            
+            if (pps >= 100) { dynamicFrameWidth = this.MAX_FILMSTRIP_FRAME_WIDTH; }
+            else if (pps >= 50) { dynamicFrameWidth = 60; }
+            else if (pps >= 20) { dynamicFrameWidth = this.FILMSTRIP_FRAME_WIDTH; }
+            else if (pps >= 10) { dynamicFrameWidth = 30; }
+            else { dynamicFrameWidth = this.MIN_FILMSTRIP_FRAME_WIDTH; }
             var frameCount = Math.max(1, Math.ceil(clipPixelWidth / dynamicFrameWidth));
             var actualFrameWidth = clipPixelWidth / frameCount;
-            
             var frames = [];
             var cached = this.thumbnailCache[clip.id] || {};
             var cachedKeys = Object.keys(cached);
             var cachedCount = cachedKeys.length;
-            
             for (var i = 0; i < frameCount; i++) {
                 var framePosition = i / frameCount;
                 var thumbnailIndex = Math.floor(framePosition * cachedCount);
                 var src = cached[thumbnailIndex] || (clip.type === 'image' ? clip.src : null);
-                
-                frames.push({ 
-                    width: actualFrameWidth, 
-                    src: src 
-                });
+                frames.push({ width: actualFrameWidth, src: src });
             }
-            
             return frames;
         },
         getThumbnail: function(clip, pos) { if (!clip.src || clip.type !== 'video') return null; var cached = this.thumbnailCache[clip.id]; if (!cached) return null; var keys = Object.keys(cached); return cached[Math.floor(pos * keys.length)] || null; },
@@ -923,35 +912,24 @@ const TimelinePanel = {
         },
         startClipDragOut: function(e) {
             if (this.draggingClipIds.length === 0) return;
-            
             var self = this;
             var clip = this.vm.clips.find(function(c) { return c.id === self.draggingClipIds[0]; });
             if (!clip) return;
-            
             this.isDraggingClipOut = true;
-            this.clipDragOutData = {
-                id: clip.id,
-                name: clip.name,
-                type: clip.type,
-                src: clip.src || '',
-                duration: clip.duration,
-                volume: clip.volume || 100
-            };
+            this.clipDragOutData = { id: clip.id, name: clip.name, type: clip.type, src: clip.src || '', duration: clip.duration, volume: clip.volume || 100 };
         },
         onDocumentMouseUp: function(e) {
             if (this.isDraggingClipOut && this.clipDragOutData) {
                 var mediaAssetPanel = document.querySelector('.media-asset-drop-zone');
                 if (mediaAssetPanel) {
                     var rect = mediaAssetPanel.getBoundingClientRect();
-                    if (e.clientX >= rect.left && e.clientX <= rect.right && 
-                        e.clientY >= rect.top && e.clientY <= rect.bottom) {
+                    if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
                         this.exportClipToAsset(this.clipDragOutData);
                     }
                 }
                 this.isDraggingClipOut = false;
                 this.clipDragOutData = null;
             }
-            
             if (this.pendingClickClipId && !this.isDraggingClip) this.selectClip(this.pendingClickClipId, this.pendingClickModifiers || {});
             this.pendingClickClipId = null; this.pendingClickModifiers = null;
             this.isResizingHeader = false; this.isResizingTrack = false; this.resizingTrackId = null;
@@ -965,38 +943,148 @@ const TimelinePanel = {
         exportClipToAsset: function(clip) {
             var clipData = clip.id ? clip : this.vm.clips.find(function(c) { return c.id === clip.id; });
             if (!clipData) clipData = clip;
-            
             var event = new CustomEvent('wai-clip-to-asset', {
-                detail: {
-                    id: clipData.id,
-                    name: clipData.name || 'Clip',
-                    type: clipData.type || 'video',
-                    src: clipData.src || '',
-                    duration: clipData.duration || 0,
-                    resolution: clipData.resolution || ''
-                },
+                detail: { id: clipData.id, name: clipData.name || 'Clip', type: clipData.type || 'video', src: clipData.src || '', duration: clipData.duration || 0, resolution: clipData.resolution || '' },
                 bubbles: true
             });
             document.dispatchEvent(event);
         },
-        handleClipDrag: function(e) {
-            var self = this; var dx = e.clientX - this.dragStartX; var dt = dx / this.pixelsPerSecond;
-            var lane = document.getElementById('timeline-lane-container');
-            if (lane) {
-                var rect = lane.getBoundingClientRect(); var relY = e.clientY - rect.top - 24;
-                var newIdx = this.getTrackIndexFromY(relY);
-                if (newIdx !== -1 && this.currentDragTrackIndex !== null && newIdx !== this.currentDragTrackIndex) {
-                    var target = this.vm.tracks[newIdx];
-                    if (target && !target.isLocked) { this.draggingClipIds.forEach(function(cid) { var c = self.vm.clips.find(function(cl) { return cl.id === cid; }); if (c) { c.trackId = target.id; self.dragStartTrackIds[cid] = target.id; } }); this.currentDragTrackIndex = newIdx; }
+        // 클립 겹침 검사 - 같은 트랙 내 다른 클립과 겹치는지 확인
+        getClipsInTrack: function(trackId, excludeClipIds) {
+            excludeClipIds = excludeClipIds || [];
+            var self = this;
+            return this.vm.clips.filter(function(c) {
+                return c.trackId === trackId && excludeClipIds.indexOf(c.id) < 0;
+            }).sort(function(a, b) { return a.start - b.start; });
+        },
+        // 클립이 특정 위치에서 겹치는지 확인하고 유효한 위치 반환
+        findValidClipPosition: function(clip, newStart, targetTrackId, excludeClipIds) {
+            var trackClips = this.getClipsInTrack(targetTrackId, excludeClipIds);
+            var clipEnd = newStart + clip.duration;
+            var minGap = this.CLIP_MIN_GAP;
+            
+            // 겹치는 클립이 있는지 확인
+            for (var i = 0; i < trackClips.length; i++) {
+                var other = trackClips[i];
+                var otherEnd = other.start + other.duration;
+                
+                // 겹침 감지
+                if (newStart < otherEnd && clipEnd > other.start) {
+                    // 왼쪽으로 이동하려 했다면 다른 클립 끝으로 스냅
+                    if (newStart < other.start) {
+                        return { position: other.start - clip.duration - minGap, snapped: true, blocked: false };
+                    }
+                    // 오른쪽으로 이동하려 했다면 다른 클립 끝으로 스냅
+                    else {
+                        return { position: otherEnd + minGap, snapped: true, blocked: false };
+                    }
                 }
             }
-            this.draggingClipIds.forEach(function(id) { var c = self.vm.clips.find(function(cl) { return cl.id === id; }); if (!c) return; var ns = Math.max(0, self.dragStartPositions[id] + dt); if (self.vm.isMagnet) { var snap = self.findSnapPosition(ns, c, self.draggingClipIds); if (snap.snapped) ns = snap.position; } c.start = ns; });
+            
+            // 겹침 없음
+            return { position: newStart, snapped: false, blocked: false };
+        },
+        // 클립 드래그 핸들러 - 겹침 방지 로직 추가
+        handleClipDrag: function(e) {
+            var self = this;
+            var dx = e.clientX - this.dragStartX;
+            var dt = dx / this.pixelsPerSecond;
+            var lane = document.getElementById('timeline-lane-container');
+            
+            if (lane) {
+                var rect = lane.getBoundingClientRect();
+                var relY = e.clientY - rect.top - 24;
+                var newIdx = this.getTrackIndexFromY(relY);
+                
+                if (newIdx !== -1 && this.currentDragTrackIndex !== null && newIdx !== this.currentDragTrackIndex) {
+                    var target = this.vm.tracks[newIdx];
+                    if (target && !target.isLocked) {
+                        // 트랙 변경 시 겹침 검사
+                        var canMove = true;
+                        this.draggingClipIds.forEach(function(cid) {
+                            var c = self.vm.clips.find(function(cl) { return cl.id === cid; });
+                            if (c) {
+                                var result = self.findValidClipPosition(c, c.start, target.id, self.draggingClipIds);
+                                if (result.blocked) canMove = false;
+                            }
+                        });
+                        
+                        if (canMove) {
+                            this.draggingClipIds.forEach(function(cid) {
+                                var c = self.vm.clips.find(function(cl) { return cl.id === cid; });
+                                if (c) {
+                                    c.trackId = target.id;
+                                    self.dragStartTrackIds[cid] = target.id;
+                                }
+                            });
+                            this.currentDragTrackIndex = newIdx;
+                        }
+                    }
+                }
+            }
+            
+            // 시간 위치 업데이트 (겹침 방지 적용)
+            this.draggingClipIds.forEach(function(id) {
+                var c = self.vm.clips.find(function(cl) { return cl.id === id; });
+                if (!c) return;
+                
+                var ns = Math.max(0, self.dragStartPositions[id] + dt);
+                
+                // 스냅 적용
+                if (self.vm.isMagnet) {
+                    var snap = self.findSnapPosition(ns, c, self.draggingClipIds);
+                    if (snap.snapped) ns = snap.position;
+                }
+                
+                // 겹침 방지 적용
+                var validPos = self.findValidClipPosition(c, ns, c.trackId, self.draggingClipIds);
+                c.start = Math.max(0, validPos.position);
+            });
         },
         startClipResize: function(e, clip, dir) { var self = this; var t = this.vm.tracks.find(function(tr) { return tr.id === clip.trackId; }); if (t && t.isLocked) return; e.preventDefault(); this.isResizingClip = true; this.resizingClip = clip; this.resizeDirection = dir; this.dragStartX = e.clientX; this.resizeStartClipStart = clip.start; this.resizeStartClipDuration = clip.duration; },
+        // 클립 리사이즈 핸들러 - 겹침 방지 로직 추가
         handleClipResize: function(e) {
             var dt = (e.clientX - this.dragStartX) / this.pixelsPerSecond;
-            if (this.resizeDirection === 'left') { var ns = this.resizeStartClipStart + dt; var nd = this.resizeStartClipDuration - dt; if (ns < 0) { nd += ns; ns = 0; } if (nd < 0.5) { nd = 0.5; ns = this.resizeStartClipStart + this.resizeStartClipDuration - 0.5; } this.resizingClip.start = ns; this.resizingClip.duration = nd; }
-            else { var nd2 = this.resizeStartClipDuration + dt; if (nd2 < 0.5) nd2 = 0.5; this.resizingClip.duration = nd2; }
+            var clip = this.resizingClip;
+            var trackClips = this.getClipsInTrack(clip.trackId, [clip.id]);
+            
+            if (this.resizeDirection === 'left') {
+                var ns = this.resizeStartClipStart + dt;
+                var nd = this.resizeStartClipDuration - dt;
+                
+                if (ns < 0) { nd += ns; ns = 0; }
+                if (nd < 0.5) { nd = 0.5; ns = this.resizeStartClipStart + this.resizeStartClipDuration - 0.5; }
+                
+                // 왼쪽 리사이즈 시 이전 클립과 겹침 방지
+                for (var i = 0; i < trackClips.length; i++) {
+                    var other = trackClips[i];
+                    var otherEnd = other.start + other.duration;
+                    if (otherEnd > ns && other.start < this.resizeStartClipStart) {
+                        ns = otherEnd + this.CLIP_MIN_GAP;
+                        nd = this.resizeStartClipStart + this.resizeStartClipDuration - ns;
+                        break;
+                    }
+                }
+                
+                clip.start = ns;
+                clip.duration = nd;
+            } else {
+                var nd2 = this.resizeStartClipDuration + dt;
+                if (nd2 < 0.5) nd2 = 0.5;
+                
+                var clipEnd = clip.start + nd2;
+                
+                // 오른쪽 리사이즈 시 다음 클립과 겹침 방지
+                for (var j = 0; j < trackClips.length; j++) {
+                    var other2 = trackClips[j];
+                    if (other2.start > clip.start && clipEnd > other2.start) {
+                        nd2 = other2.start - clip.start - this.CLIP_MIN_GAP;
+                        break;
+                    }
+                }
+                
+                clip.duration = Math.max(0.5, nd2);
+            }
         },
         findSnapPosition: function(ns, clip, excludeIds) {
             excludeIds = excludeIds || []; var sd = 10 / this.pixelsPerSecond; var ce = ns + clip.duration;
@@ -1022,9 +1110,24 @@ const TimelinePanel = {
         openClipContextMenu: function(e, track, clip) { clip = clip || null; this.trackContextMenu = null; this.heightSubmenu.visible = false; if (clip && this.selectedClipIds.indexOf(clip.id) < 0) { this.selectedClipIds = [clip.id]; this.syncVmSelectedClip(); } this.clipContextMenu = { x: e.clientX, y: e.clientY, track: track, clip: clip, time: this.getTimeFromMouseEvent(e) }; },
         getTimeFromMouseEvent: function(e) { var lane = document.getElementById('timeline-lane-container'); if (!lane) return 0; return Math.max(0, (e.clientX - lane.getBoundingClientRect().left) / this.pixelsPerSecond); },
         closeContextMenus: function() { this.trackContextMenu = null; this.clipContextMenu = null; this.heightSubmenu.visible = false; },
-        duplicateClip: function(clip) { var nc = Object.assign({}, clip, { id: 'c_' + Date.now(), start: clip.start + clip.duration + 0.5 }); this.vm.clips.push(nc); },
+        duplicateClip: function(clip) { 
+            var nc = Object.assign({}, clip, { id: 'c_' + Date.now(), start: clip.start + clip.duration + 0.5 }); 
+            // 복제 시 겹침 방지
+            var validPos = this.findValidClipPosition(nc, nc.start, nc.trackId, []);
+            nc.start = validPos.position;
+            this.vm.clips.push(nc); 
+        },
         deleteClip: function(clip) { this.vm.clips = this.vm.clips.filter(function(c) { return c.id !== clip.id; }); this.selectedClipIds = this.selectedClipIds.filter(function(id) { return id !== clip.id; }); this.syncVmSelectedClip(); },
-        addClipAtPosition: function() { if (!this.clipContextMenu) return; var t = this.clipContextMenu.track; var time = this.clipContextMenu.time || 0; this.vm.clips.push({ id: 'c_' + Date.now(), trackId: t.id, name: 'New Clip', start: time, duration: 5, type: 'video', volume: 100 }); },
+        addClipAtPosition: function() { 
+            if (!this.clipContextMenu) return; 
+            var t = this.clipContextMenu.track; 
+            var time = this.clipContextMenu.time || 0; 
+            var newClip = { id: 'c_' + Date.now(), trackId: t.id, name: 'New Clip', start: time, duration: 5, type: 'video', volume: 100 };
+            // 추가 시 겹침 방지
+            var validPos = this.findValidClipPosition(newClip, time, t.id, []);
+            newClip.start = validPos.position;
+            this.vm.clips.push(newClip); 
+        },
         deleteSelectedClips: function() { if (!this.hasSelectedClips) return; var self = this; this.vm.clips = this.vm.clips.filter(function(c) { return self.selectedClipIds.indexOf(c.id) < 0; }); this.selectedClipIds = []; this.syncVmSelectedClip(); },
         cutAtPlayhead: function() { if (!this.hasSelectedClips) return; var self = this; this.selectedClipIds.forEach(function(cid) { var c = self.vm.clips.find(function(cl) { return cl.id === cid; }); if (c && self.isClipAtPlayhead(c)) { var origDur = c.duration; var relTime = self.vm.currentTime - c.start; c.duration = relTime; self.vm.clips.push(Object.assign({}, c, { id: 'c_' + Date.now(), start: self.vm.currentTime, duration: origDur - relTime })); } }); },
         cutAtPlayheadForClip: function(clip) { if (!this.isClipAtPlayhead(clip)) return; var origDur = clip.duration; var relTime = this.vm.currentTime - clip.start; clip.duration = relTime; this.vm.clips.push(Object.assign({}, clip, { id: 'c_' + Date.now(), start: this.vm.currentTime, duration: origDur - relTime })); },
@@ -1032,28 +1135,92 @@ const TimelinePanel = {
         cutAndDeleteRightSelected: function() { if (!this.hasSelectedClips) return; var self = this; this.selectedClipIds.forEach(function(cid) { var c = self.vm.clips.find(function(cl) { return cl.id === cid; }); if (c && self.isClipAtPlayhead(c)) { c.duration = self.vm.currentTime - c.start; } }); },
         cutAndDeleteLeftForClip: function(clip) { if (!this.isClipAtPlayhead(clip)) return; clip.duration = clip.start + clip.duration - this.vm.currentTime; clip.start = this.vm.currentTime; },
         cutAndDeleteRightForClip: function(clip) { if (!this.isClipAtPlayhead(clip)) return; clip.duration = this.vm.currentTime - clip.start; },
+        
+        // 사운드 분리 관련 메서드
+        canExtractAudio: function(clip) {
+            // 비디오 클립만 사운드 분리 가능
+            return clip && clip.type === 'video' && clip.src;
+        },
+        toggleClipMute: function(clip) {
+            if (!clip) return;
+            clip.isMuted = !clip.isMuted;
+        },
+        extractAudioFromClip: function(clip) {
+            if (!this.canExtractAudio(clip)) return;
+            
+            var self = this;
+            
+            // 오디오 트랙 찾기 또는 생성
+            var audioTrack = this.vm.tracks.find(function(t) { return t.type === 'audio'; });
+            if (!audioTrack) {
+                // 오디오 트랙이 없으면 새로 생성
+                audioTrack = {
+                    id: 't_audio_' + Date.now(),
+                    name: 'Audio',
+                    type: 'audio',
+                    color: '#22c55e',
+                    isHidden: false,
+                    isLocked: false,
+                    isMain: false
+                };
+                this.vm.tracks.push(audioTrack);
+                this.trackHeights[audioTrack.id] = this.defaultTrackHeight;
+                this.trackHeights = Object.assign({}, this.trackHeights);
+            }
+            
+            // 새 오디오 클립 생성
+            var audioClip = {
+                id: 'c_audio_' + Date.now(),
+                trackId: audioTrack.id,
+                name: clip.name + ' (Audio)',
+                start: clip.start,
+                duration: clip.duration,
+                type: 'sound',
+                src: clip.src,
+                volume: clip.volume || 100,
+                sourceClipId: clip.id
+            };
+            
+            // 겹침 방지 적용
+            var validPos = this.findValidClipPosition(audioClip, audioClip.start, audioTrack.id, []);
+            audioClip.start = validPos.position;
+            
+            // 원본 클립 음소거 옵션 표시
+            Swal.fire({
+                title: '사운드 분리',
+                text: '원본 비디오 클립을 음소거 하시겠습니까?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: '음소거',
+                cancelButtonText: '유지',
+                background: '#1e1e1e',
+                color: '#fff',
+                confirmButtonColor: '#3b82f6'
+            }).then(function(result) {
+                if (result.isConfirmed) {
+                    clip.isMuted = true;
+                }
+                // 오디오 클립 추가
+                self.vm.clips.push(audioClip);
+            });
+        },
+        
         handleLaneMouseDown: function(e) { if (e.target.id === 'timeline-ruler' || e.target.closest('#timeline-ruler')) this.updatePlayheadPosition(e); },
         startPlayheadDrag: function(e) { this.isDraggingPlayhead = true; this.updatePlayheadPosition(e); },
         updatePlayheadPosition: function(e) { var lane = document.getElementById('timeline-lane-container'); if (!lane) return; var time = Math.max(0, (e.clientX - lane.getBoundingClientRect().left) / this.pixelsPerSecond); if (this.vm.isMagnet) { var snap = null; var minD = 10 / this.pixelsPerSecond; this.vm.clips.forEach(function(c) { if (Math.abs(time - c.start) < minD) { minD = Math.abs(time - c.start); snap = c.start; } if (Math.abs(time - (c.start + c.duration)) < minD) { minD = Math.abs(time - (c.start + c.duration)); snap = c.start + c.duration; } }); if (snap !== null) time = snap; } this.vm.currentTime = time; },
         togglePlayback: function() { if (typeof this.vm.togglePlayback === 'function') this.vm.togglePlayback(); else this.vm.isPlaying = !this.vm.isPlaying; },
         seekToStart: function() { if (typeof this.vm.seekToStart === 'function') this.vm.seekToStart(); else this.vm.currentTime = 0; },
         seekToEnd: function() { var max = 0; this.vm.clips.forEach(function(c) { if (c.start + c.duration > max) max = c.start + c.duration; }); this.vm.currentTime = max; },
-        // 5초 뒤로 이동
         seekBackward: function() {
             var newTime = Math.max(0, this.vm.currentTime - 5);
             this.vm.currentTime = newTime;
-            if (window.PreviewRenderer) {
-                window.PreviewRenderer.setCurrentTime(newTime);
-            }
+            if (window.PreviewRenderer) { window.PreviewRenderer.setCurrentTime(newTime); }
         },
-        // 5초 앞으로 이동
         seekForward: function() {
             var maxTime = this.maxClipEnd;
             var newTime = Math.min(maxTime, this.vm.currentTime + 5);
             this.vm.currentTime = newTime;
-            if (window.PreviewRenderer) {
-                window.PreviewRenderer.setCurrentTime(newTime);
-            }
+            if (window.PreviewRenderer) { window.PreviewRenderer.setCurrentTime(newTime); }
         },
         adjustLayout: function() { var p = document.getElementById('preview-main-container'); if (p) p.style.height = this.vm.isTimelineCollapsed ? 'calc(100% - 32px)' : '50%'; this.calculateDynamicZoomRange(); },
         toggleCollapse: function() { this.vm.isTimelineCollapsed = !this.vm.isTimelineCollapsed; var self = this; this.$nextTick(function() { self.adjustLayout(); }); },
@@ -1061,7 +1228,7 @@ const TimelinePanel = {
         formatRulerTime: function(s) { if (s >= 3600) { var h = Math.floor(s/3600); var m = Math.floor((s%3600)/60); var sec = Math.floor(s%60); return h + ':' + String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0'); } else if (s >= 60) { var m2 = Math.floor(s/60); var sec2 = Math.floor(s%60); return m2 + ':' + String(sec2).padStart(2,'0'); } return s + 's'; },
         onExternalDragOver: function(e) { if (e.dataTransfer.types.indexOf('text/wai-asset') >= 0) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; this.isExternalDragOver = true; this.updateDropIndicator(e); } },
         onExternalDragLeave: function(e) { var rect = e.currentTarget.getBoundingClientRect(); if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) { this.isExternalDragOver = false; this.dropIndicator.visible = false; } },
-        updateDropIndicator: function(e) { var lane = document.getElementById('timeline-lane-container'); if (!lane) return; var rect = lane.getBoundingClientRect(); var relY = e.clientY - rect.top - 24; var accH = 0; var targetTrack = null; var self = this; for (var i = 0; i < this.vm.tracks.length; i++) { var t = this.vm.tracks[i]; var h = this.getTrackHeight(t.id); if (relY >= accH && relY < accH + h) { targetTrack = t; break; } accH += h; } if (!targetTrack) { this.dropIndicator.visible = false; return; } var dropTime = Math.max(0, (e.clientX - rect.left) / this.pixelsPerSecond); this.dropIndicator = { visible: true, trackId: targetTrack.id, left: dropTime * this.pixelsPerSecond, width: 5 * this.pixelsPerSecond }; },
+        updateDropIndicator: function(e) { var lane = document.getElementById('timeline-lane-container'); if (!lane) return; var rect = lane.getBoundingClientRect(); var relY = e.clientY - rect.top - 24; var accH = 0; var targetTrack = null; for (var i = 0; i < this.vm.tracks.length; i++) { var t = this.vm.tracks[i]; var h = this.getTrackHeight(t.id); if (relY >= accH && relY < accH + h) { targetTrack = t; break; } accH += h; } if (!targetTrack) { this.dropIndicator.visible = false; return; } var dropTime = Math.max(0, (e.clientX - rect.left) / this.pixelsPerSecond); this.dropIndicator = { visible: true, trackId: targetTrack.id, left: dropTime * this.pixelsPerSecond, width: 5 * this.pixelsPerSecond }; },
         onExternalDrop: function(e) { e.preventDefault(); this.isExternalDragOver = false; this.dropIndicator.visible = false; var assetData; try { var raw = e.dataTransfer.getData('text/wai-asset'); if (!raw) return; assetData = JSON.parse(raw); } catch (err) { return; } var assets = Array.isArray(assetData) ? assetData : [assetData]; if (assets.length === 0) return; var lane = document.getElementById('timeline-lane-container'); var dropTime = this.vm.currentTime; var targetTrackId = null; if (lane) { var rect = lane.getBoundingClientRect(); dropTime = Math.max(0, (e.clientX - rect.left) / this.pixelsPerSecond); var relY = e.clientY - rect.top - 24; var accH = 0; for (var i = 0; i < this.vm.tracks.length; i++) { var t = this.vm.tracks[i]; var h = this.getTrackHeight(t.id); if (relY >= accH && relY < accH + h) { targetTrackId = t.id; break; } accH += h; } } document.dispatchEvent(new CustomEvent('wai-timeline-drop', { detail: { assets: assets, dropTime: dropTime, targetTrackId: targetTrackId }, bubbles: true })); }
     }
 };
