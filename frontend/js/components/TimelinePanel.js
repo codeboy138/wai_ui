@@ -1,5 +1,5 @@
 // Timeline Panel Component - CapCut Style
-// 비디오 프레임 캡처, 오디오 파형, 볼륨 컨트롤
+// 비디오 프레임 캡처, 오디오 파형, 볼륨 컨트롤, 트랙 간 이동 개선
 
 const TimelinePanel = {
     props: ['vm'],
@@ -138,7 +138,7 @@ const TimelinePanel = {
                         <div class="playhead-head" :style="{ left: vm.currentTime * pixelsPerSecond + 'px' }" @mousedown.stop.prevent="startPlayheadDrag"></div>
                     </div>
                     
-                    <div v-for="(track, idx) in vm.tracks" :key="track.id" :data-track-id="track.id"
+                    <div v-for="(track, idx) in vm.tracks" :key="track.id" :data-track-id="track.id" :data-track-index="idx"
                         class="border-b border-ui-border relative track-lane"
                         :class="{ 'opacity-30': track.isHidden }"
                         :style="{ height: getTrackHeight(track.id) + 'px' }"
@@ -199,8 +199,8 @@ const TimelinePanel = {
             <!-- 볼륨 팝업 -->
             <div v-if="volumePopup.visible" class="clip-volume-popup" :style="{ top: volumePopup.y + 'px', left: volumePopup.x + 'px' }" @mousedown.stop>
                 <div class="volume-track" @mousedown="startVolumePopupDrag">
-                    <div class="volume-fill" :style="{ height: volumePopup.value + '%' }"></div>
-                    <div class="volume-thumb" :style="{ bottom: 'calc(' + volumePopup.value + '% - 7px)' }"></div>
+                    <div class="volume-fill" :style="{ height: Math.min(100, volumePopup.value / 2) + '%' }"></div>
+                    <div class="volume-thumb" :style="{ bottom: 'calc(' + Math.min(100, volumePopup.value / 2) + '% - 7px)' }"></div>
                 </div>
                 <span class="volume-value">{{ volumePopup.value }}%</span>
             </div>
@@ -236,8 +236,6 @@ const TimelinePanel = {
             </div>
         </div>
     `,
-// 코드연결지점
-// 코드연결지점
     data() {
         return {
             trackHeaderWidth: 180, collapsedHeaderWidth: 70, isResizingHeader: false, resizeStartX: 0, resizeStartWidth: 0,
@@ -259,8 +257,9 @@ const TimelinePanel = {
             MAX_FILMSTRIP_FRAMES: 12, MAX_WAVEFORM_BARS: 60, MAX_RULER_MARKS: 200,
             masterVolume: 100, previousVolume: 100, isDraggingMasterVolume: false,
             isDraggingClipVolume: false, volumeDragClip: null, volumeDragStartY: 0, volumeDragStartVolume: 0,
-            thumbnailCache: {}, currentDragTrackIndex: null,
-            volumePopup: { visible: false, x: 0, y: 0, clip: null, value: 100 }, isDraggingVolumePopup: false
+            thumbnailCache: {}, waveformCache: {}, currentDragTrackIndex: null,
+            volumePopup: { visible: false, x: 0, y: 0, clip: null, value: 100 }, isDraggingVolumePopup: false,
+            trackYPositions: []
         };
     },
     computed: {
@@ -296,21 +295,26 @@ const TimelinePanel = {
         hasSelectedClips() { return this.selectedClipIds.length > 0; }
     },
     watch: {
-        'vm.clips': { handler() { if (!this.isUndoRedoAction) this.saveToHistory(); }, deep: true },
-        'vm.tracks': { handler() { if (!this.isUndoRedoAction) this.saveToHistory(); }, deep: true },
+        'vm.clips': { handler() { if (!this.isUndoRedoAction) this.saveToHistory(); this.generateThumbnailsForNewClips(); }, deep: true },
+        'vm.tracks': { handler() { if (!this.isUndoRedoAction) this.saveToHistory(); this.updateTrackYPositions(); }, deep: true },
         'vm.zoom': { handler(v) { if (v && v !== this.currentDisplayZoom) this.currentDisplayZoom = v; }, immediate: true },
-        masterVolume(v) { document.querySelectorAll('video, audio').forEach(el => { el.volume = v / 100; }); }
+        masterVolume(v) { 
+            if (window.PreviewRenderer) window.PreviewRenderer.setMasterVolume(v / 100);
+            document.querySelectorAll('video, audio').forEach(el => { el.volume = v / 100; }); 
+        },
+        trackHeights: { handler() { this.updateTrackYPositions(); }, deep: true }
     },
     mounted() {
         this.$nextTick(() => {
             this.adjustLayout(); this.injectStyles(); this.initTrackHeights();
             this.currentDisplayZoom = this.vm.zoom || 20; this.saveToHistory();
-            this.calculateDynamicZoomRange(); this.updateViewportSize();
+            this.calculateDynamicZoomRange(); this.updateViewportSize(); this.updateTrackYPositions();
             window.addEventListener('resize', this.onWindowResize);
             document.addEventListener('click', this.onDocumentClick);
             document.addEventListener('mousemove', this.onDocumentMouseMove);
             document.addEventListener('mouseup', this.onDocumentMouseUp);
             document.addEventListener('keydown', this.onDocumentKeyDown);
+            this.generateThumbnailsForNewClips();
         });
     },
     beforeUnmount() {
@@ -320,7 +324,26 @@ const TimelinePanel = {
         document.removeEventListener('mouseup', this.onDocumentMouseUp);
         document.removeEventListener('keydown', this.onDocumentKeyDown);
     },
+// 코드연결지점
+// 코드연결지점
     methods: {
+        updateTrackYPositions() {
+            let accY = 0;
+            this.trackYPositions = this.vm.tracks.map(track => {
+                const h = this.getTrackHeight(track.id);
+                const pos = { id: track.id, top: accY, bottom: accY + h, height: h };
+                accY += h;
+                return pos;
+            });
+        },
+        getTrackIndexFromY(relativeY) {
+            for (let i = 0; i < this.trackYPositions.length; i++) {
+                const pos = this.trackYPositions[i];
+                if (relativeY >= pos.top && relativeY < pos.bottom) return i;
+            }
+            if (relativeY < 0) return 0;
+            return this.trackYPositions.length - 1;
+        },
         getTrackHeight(trackId) { return this.trackHeights[trackId] || this.defaultTrackHeight; },
         injectStyles() {
             if (document.getElementById('timeline-custom-styles')) return;
@@ -332,22 +355,83 @@ const TimelinePanel = {
         toggleMute() { if (this.masterVolume > 0) { this.previousVolume = this.masterVolume; this.masterVolume = 0; } else { this.masterVolume = this.previousVolume || 100; } },
         startMasterVolumeDrag(e) { this.isDraggingMasterVolume = true; this.updateMasterVolumeFromEvent(e); },
         updateMasterVolumeFromEvent(e) { const track = e.target.closest('.volume-track'); if (!track) return; const rect = track.getBoundingClientRect(); this.masterVolume = Math.round(Math.max(0, Math.min(100, (1 - (e.clientY - rect.top) / rect.height) * 100))); },
+        generateThumbnailsForNewClips() {
+            this.vm.clips.forEach(clip => {
+                if (clip.type === 'video' && clip.src && !this.thumbnailCache[clip.id]) this.generateVideoThumbnails(clip);
+            });
+        },
+        generateVideoThumbnails(clip) {
+            if (!clip.src) return;
+            const video = document.createElement('video');
+            video.crossOrigin = 'anonymous'; video.muted = true; video.preload = 'metadata';
+            video.onloadedmetadata = () => {
+                const duration = video.duration || clip.duration || 10;
+                const frameCount = Math.min(10, Math.ceil(duration / 2));
+                const frames = {}; let loaded = 0;
+                const captureFrame = (index) => { video.currentTime = (index / frameCount) * duration; };
+                video.onseeked = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 80; canvas.height = 45;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    try { frames[loaded] = canvas.toDataURL('image/jpeg', 0.6); } catch (e) { frames[loaded] = null; }
+                    loaded++;
+                    if (loaded < frameCount) captureFrame(loaded);
+                    else { this.thumbnailCache[clip.id] = frames; video.remove(); }
+                };
+                captureFrame(0);
+            };
+            video.onerror = () => { this.thumbnailCache[clip.id] = {}; };
+            video.src = clip.src;
+        },
         getFilmstripFrames(clip) {
-            const w = this.getClipPixelWidth(clip), frameW = Math.max(30, Math.min(60, w / this.MAX_FILMSTRIP_FRAMES)), count = Math.min(this.MAX_FILMSTRIP_FRAMES, Math.ceil(w / frameW)), frames = [];
-            for (let i = 0; i < count; i++) { frames.push({ width: i === count - 1 ? w - frameW * i : frameW, src: clip.type === 'image' ? clip.src : this.getThumbnail(clip, i / count) }); }
+            const w = this.getClipPixelWidth(clip);
+            const frameW = Math.max(40, Math.min(80, w / this.MAX_FILMSTRIP_FRAMES));
+            const count = Math.min(this.MAX_FILMSTRIP_FRAMES, Math.ceil(w / frameW));
+            const frames = [];
+            const cached = this.thumbnailCache[clip.id] || {};
+            const cachedKeys = Object.keys(cached);
+            for (let i = 0; i < count; i++) {
+                const frameIndex = Math.floor((i / count) * (cachedKeys.length || 1));
+                const src = cached[frameIndex] || (clip.type === 'image' ? clip.src : null);
+                frames.push({ width: i === count - 1 ? w - frameW * i : frameW, src: src });
+            }
             return frames;
         },
-        getThumbnail(clip, pos) { if (!clip.src || clip.type !== 'video') return null; const key = `${clip.id}_${Math.floor(pos * 10)}`; return this.thumbnailCache[key] || null; },
+        getThumbnail(clip, pos) { 
+            if (!clip.src || clip.type !== 'video') return null; 
+            const cached = this.thumbnailCache[clip.id];
+            if (!cached) return null;
+            const keys = Object.keys(cached);
+            const index = Math.floor(pos * keys.length);
+            return cached[index] || null;
+        },
         getWaveformBars(clip) {
-            const w = this.getClipPixelWidth(clip), count = Math.min(this.MAX_WAVEFORM_BARS, Math.max(15, Math.floor(w / 3))), bars = [], bw = 100 / count * 0.6;
-            for (let i = 0; i < count; i++) { const x = (i / count) * 100, amp = 12 + Math.sin(i * 0.8 + (clip.id.charCodeAt(0) || 0)) * 10 + (i % 4) * 3; bars.push({ x, y: 50 - amp, w: bw, h: amp * 2 }); }
+            const w = this.getClipPixelWidth(clip);
+            const count = Math.min(this.MAX_WAVEFORM_BARS, Math.max(15, Math.floor(w / 3)));
+            const bars = [], bw = 100 / count * 0.6;
+            let waveData = this.waveformCache[clip.id];
+            if (!waveData) {
+                waveData = [];
+                for (let i = 0; i < 100; i++) waveData.push(12 + Math.sin(i * 0.8 + (clip.id.charCodeAt(0) || 0)) * 10 + (i % 4) * 3);
+                this.waveformCache[clip.id] = waveData;
+            }
+            for (let i = 0; i < count; i++) { 
+                const x = (i / count) * 100;
+                const dataIndex = Math.floor((i / count) * waveData.length);
+                const amp = waveData[dataIndex] || 15;
+                bars.push({ x, y: 50 - amp, w: bw, h: amp * 2 }); 
+            }
             return bars;
         },
         getWaveformHeight(track) { return Math.max(14, Math.floor((this.getTrackHeight(track.id) - 18) * 0.35)); },
         getWaveformBgColor(clip) { return clip.type === 'sound' ? 'rgba(34,197,94,0.15)' : 'rgba(59,130,246,0.1)'; },
         getWaveformBarColor(clip) { return clip.type === 'sound' ? 'rgba(34,197,94,0.8)' : 'rgba(59,130,246,0.6)'; },
         getVolumeLinePosition(clip) { return Math.min(95, Math.max(5, ((clip.volume || 100) / 200) * 100)); },
-        startClipVolumeDrag(e, clip) { e.preventDefault(); this.isDraggingClipVolume = true; this.volumeDragClip = clip; this.volumeDragStartY = e.clientY; this.volumeDragStartVolume = clip.volume || 100; },
+        startClipVolumeDrag(e, clip) { 
+            e.preventDefault(); this.isDraggingClipVolume = true; this.volumeDragClip = clip;
+            this.volumeDragStartY = e.clientY; this.volumeDragStartVolume = clip.volume || 100; 
+        },
         openVolumePopup(e, clip) {
             this.closeContextMenus();
             const rect = e.target.getBoundingClientRect();
@@ -356,11 +440,16 @@ const TimelinePanel = {
         startVolumePopupDrag(e) { this.isDraggingVolumePopup = true; this.updateVolumePopupFromEvent(e); },
         updateVolumePopupFromEvent(e) {
             const track = e.target.closest('.volume-track'); if (!track) return;
-            const rect = track.getBoundingClientRect(), val = Math.round(Math.max(0, Math.min(200, (1 - (e.clientY - rect.top) / rect.height) * 200)));
-            this.volumePopup.value = val; if (this.volumePopup.clip) this.volumePopup.clip.volume = val;
+            const rect = track.getBoundingClientRect();
+            const val = Math.round(Math.max(0, Math.min(200, (1 - (e.clientY - rect.top) / rect.height) * 200)));
+            this.volumePopup.value = val; 
+            if (this.volumePopup.clip) {
+                this.volumePopup.clip.volume = val;
+                if (window.PreviewRenderer) window.PreviewRenderer.updateClipVolume(this.volumePopup.clip.id, val / 100);
+            }
         },
         isClipAtPlayhead(clip) { return this.vm.currentTime > clip.start && this.vm.currentTime < clip.start + clip.duration; },
-        onWindowResize() { this.adjustLayout(); this.updateViewportSize(); },
+        onWindowResize() { this.adjustLayout(); this.updateViewportSize(); this.updateTrackYPositions(); },
         updateViewportSize() { const c = document.getElementById('timeline-scroll-container'); if (c) this.viewportWidth = c.clientWidth; },
         onTimelineScroll(e) { this.scrollLeft = e.target.scrollLeft; },
         isClipVisible(clip) { const s = clip.start * this.pixelsPerSecond, e = (clip.start + clip.duration) * this.pixelsPerSecond; return e >= this.scrollLeft - 100 && s <= this.scrollLeft + this.viewportWidth + 100; },
@@ -378,7 +467,7 @@ const TimelinePanel = {
         toggleZoomMode() { this.zoomMode = this.zoomMode === 'cursor' ? 'playhead' : 'cursor'; },
         handleZoomInput(e) { this.setZoom(Number(e.target.value), this.zoomMode === 'playhead' ? 'playhead' : null); },
         setZoom(z, center = null) { this.currentDisplayZoom = Math.max(this.zoomMin, Math.min(this.zoomMax, z)); this.vm.zoom = this.currentDisplayZoom; if (center === 'playhead') this.$nextTick(() => { const sc = document.getElementById('timeline-scroll-container'); if (sc) { sc.scrollLeft = this.vm.currentTime * this.pixelsPerSecond - (sc.clientWidth - this.currentHeaderWidth) / 2; this.scrollLeft = sc.scrollLeft; } }); },
-        initTrackHeights() { this.vm.tracks.forEach(t => { if (!this.trackHeights[t.id]) this.trackHeights[t.id] = this.defaultTrackHeight; }); },
+        initTrackHeights() { this.vm.tracks.forEach(t => { if (!this.trackHeights[t.id]) this.trackHeights[t.id] = this.defaultTrackHeight; }); this.updateTrackYPositions(); },
         toggleAllTrackNames() { this.isTrackNamesCollapsed = !this.isTrackNamesCollapsed; },
         toggleResolutionDropdown() { this.isResolutionDropdownOpen = !this.isResolutionDropdownOpen; },
         selectResolution(v) { if (this.vm) this.vm.resolution = v; this.isResolutionDropdownOpen = false; },
@@ -418,7 +507,12 @@ const TimelinePanel = {
             if (this.isDraggingPlayhead) this.updatePlayheadPosition(e);
             if (this.isDraggingMasterVolume) this.updateMasterVolumeFromEvent(e);
             if (this.isDraggingVolumePopup) this.updateVolumePopupFromEvent(e);
-            if (this.isDraggingClipVolume && this.volumeDragClip) { const dy = this.volumeDragStartY - e.clientY; this.volumeDragClip.volume = Math.max(0, Math.min(200, Math.round(this.volumeDragStartVolume + dy * 2))); }
+            if (this.isDraggingClipVolume && this.volumeDragClip) { 
+                const dy = this.volumeDragStartY - e.clientY; 
+                const newVol = Math.max(0, Math.min(200, Math.round(this.volumeDragStartVolume + dy * 2)));
+                this.volumeDragClip.volume = newVol;
+                if (window.PreviewRenderer) window.PreviewRenderer.updateClipVolume(this.volumeDragClip.id, newVol / 100);
+            }
             if (this.pendingClickClipId && !this.isDraggingClip && this.draggingClipIds.length > 0) { if (Math.abs(e.clientX - this.dragStartX) > 3 || Math.abs(e.clientY - this.dragStartY) > 3) { this.isDraggingClip = true; this.pendingClickClipId = null; } }
             if (this.isDraggingClip && this.draggingClipIds.length > 0) this.handleClipDrag(e);
             if (this.isResizingClip && this.resizingClip) this.handleClipResize(e);
@@ -438,8 +532,7 @@ const TimelinePanel = {
             const lane = document.getElementById('timeline-lane-container');
             if (lane) {
                 const rect = lane.getBoundingClientRect(), relY = e.clientY - rect.top - 24;
-                let accH = 0, newIdx = -1;
-                for (let i = 0; i < this.vm.tracks.length; i++) { const h = this.getTrackHeight(this.vm.tracks[i].id); if (relY >= accH && relY < accH + h) { newIdx = i; break; } accH += h; }
+                const newIdx = this.getTrackIndexFromY(relY);
                 if (newIdx !== -1 && this.currentDragTrackIndex !== null && newIdx !== this.currentDragTrackIndex) {
                     const target = this.vm.tracks[newIdx];
                     if (target && !target.isLocked) {
