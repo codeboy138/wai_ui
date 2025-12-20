@@ -2,6 +2,7 @@
 // - Canvas2D 기반 프리뷰 렌더러
 // - 줌 배율 표시
 // - DOM PreviewCanvas가 박스 상호작용 담당
+// - 오디오 출력 지원
 
 (function (global) {
 
@@ -21,6 +22,10 @@
         
         // 초기화 완료 플래그
         initialized: false,
+        
+        // 오디오 관리
+        audioElements: new Map(),
+        masterVolume: 1.0,
 
         /**
          * 초기화
@@ -45,7 +50,7 @@
 
             this.ctx = ctx;
             this.initialized = true;
-            console.log('[PreviewRenderer] Canvas2D mode initialized');
+            console.log('[PreviewRenderer] Canvas2D mode initialized with audio support');
 
             // 리사이즈 이벤트 등록
             this.handleResize = this.resize.bind(this);
@@ -159,8 +164,95 @@
          */
         setCurrentTime(time) {
             this.currentTime = time;
-            // PreviewCanvas 컴포넌트가 Vue의 반응성을 통해 자동으로 업데이트됨
-            // 여기서는 추가 처리 불필요
+            // 오디오 동기화
+            this.syncAudioToTime(time);
+        },
+        
+        /**
+         * 외부 API: 마스터 볼륨 설정
+         */
+        setMasterVolume(volume) {
+            this.masterVolume = Math.max(0, Math.min(1, volume));
+            // 모든 오디오 요소에 볼륨 적용
+            this.audioElements.forEach((info, el) => {
+                const clipVolume = info.clipVolume || 1;
+                el.volume = this.masterVolume * clipVolume;
+            });
+            // DOM의 video/audio 요소에도 적용
+            document.querySelectorAll('video, audio').forEach(el => {
+                if (!this.audioElements.has(el)) {
+                    el.volume = this.masterVolume;
+                }
+            });
+        },
+        
+        /**
+         * 오디오 요소 등록
+         */
+        registerAudioElement(element, clipId, clipVolume = 1) {
+            if (!element) return;
+            
+            // muted 해제
+            element.muted = false;
+            element.volume = this.masterVolume * clipVolume;
+            
+            this.audioElements.set(element, {
+                clipId: clipId,
+                clipVolume: clipVolume
+            });
+        },
+        
+        /**
+         * 오디오 요소 등록 해제
+         */
+        unregisterAudioElement(element) {
+            this.audioElements.delete(element);
+        },
+        
+        /**
+         * 클립 볼륨 업데이트
+         */
+        updateClipVolume(clipId, volume) {
+            this.audioElements.forEach((info, el) => {
+                if (info.clipId === clipId) {
+                    info.clipVolume = volume;
+                    el.volume = this.masterVolume * volume;
+                }
+            });
+        },
+        
+        /**
+         * 오디오 시간 동기화
+         */
+        syncAudioToTime(time) {
+            this.audioElements.forEach((info, el) => {
+                // 재생 시간과 오디오 시간이 크게 다르면 동기화
+                if (Math.abs(el.currentTime - time) > 0.1) {
+                    el.currentTime = time;
+                }
+            });
+        },
+        
+        /**
+         * 재생 시작
+         */
+        play() {
+            this.audioElements.forEach((info, el) => {
+                if (el.paused) {
+                    el.play().catch(() => {});
+                }
+            });
+        },
+        
+        /**
+         * 재생 일시정지
+         */
+        pause() {
+            this.audioElements.forEach((info, el) => {
+                if (!el.paused) {
+                    el.pause();
+                }
+            });
         },
         
         /**
@@ -178,6 +270,7 @@
                 global.removeEventListener('resize', this.handleResize);
                 this.handleResize = null;
             }
+            this.audioElements.clear();
             this.canvas = null;
             this.ctx = null;
             this.vm = null;
