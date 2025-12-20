@@ -2,7 +2,7 @@
 // 레이블 스타일: 미디어 자산 섹션 기준 통일
 // Z-Index: 전체 100, 상단 200, 중단 300, 하단 400
 // 컬럼 호버 시 레이블 ↔ Z-Index 교체 표시
-// 기능 로직 변경 없음
+// 셀 클릭 기능 복구 버전
 const LayerPanel = {
     props: ['vm'],
     template: `
@@ -77,7 +77,7 @@ const LayerPanel = {
                             :class="getCellClass(i, row.type)"
                             class="w-12 h-5 border rounded flex items-center justify-center cursor-pointer hover:border-white transition-all relative"
                             :style="cellStyle(i, row.type, col.color)"
-                            @click="handleCellClick(i, row.type, col.color)"
+                            @click.stop="handleCellClick(i, row.type, col)"
                             @contextmenu.prevent="openCellContextMenu($event, i, row.type, col)"
                             data-action="js:layerCellAction"
                         >
@@ -209,24 +209,27 @@ const LayerPanel = {
 
         getColRole(colIdx) {
             const roles = ['full', 'high', 'mid', 'low'];
-            return roles[colIdx] || `col${colIdx}`;
+            return roles[colIdx] || 'col' + colIdx;
         },
+        
         getRowName(rowType) {
             if (rowType === 'EFF') return 'effect';
             if (rowType === 'TXT') return 'text';
             if (rowType === 'BG')  return 'bg';
             return (rowType || '').toLowerCase();
         },
+        
         getSlotKey(colIdx, rowType) {
-            return `${this.getColRole(colIdx)}_${this.getRowName(rowType)}`;
+            return this.getColRole(colIdx) + '_' + this.getRowName(rowType);
         },
+        
         cellSlotKey(colIdx, rowType) {
             return this.getSlotKey(colIdx, rowType);
         },
 
         findBoxByCell(colIdx, rowType) {
             const slotKey = this.cellSlotKey(colIdx, rowType);
-            return this.vm.canvasBoxes.find(b => b.slotKey === slotKey) || null;
+            return this.vm.canvasBoxes.find(function(b) { return b.slotKey === slotKey; }) || null;
         },
 
         isActive(colIdx, rowType) {
@@ -258,16 +261,116 @@ const LayerPanel = {
 
         // Z-Index 계산: 컬럼 기본값 + 행 오프셋
         getZIndexForCell(colIdx, rowType) {
-            const row = this.rows.find(r => r.type === rowType);
+            const row = this.rows.find(function(r) { return r.type === rowType; });
             const offset = row ? row.zOffset : 0;
             const base = this.colZIndexBase[colIdx] || (colIdx + 1) * 100;
             return base + offset;
         },
 
-        handleCellClick(colIdx, rowType, color) {
-            if (this.$parent && typeof this.$parent.addLayerBox === 'function') {
-                this.$parent.addLayerBox(colIdx, rowType, color);
+        // 셀 클릭 핸들러 - 레이어 박스 추가/토글
+        handleCellClick(colIdx, rowType, col) {
+            const existingBox = this.findBoxByCell(colIdx, rowType);
+            
+            if (existingBox) {
+                // 이미 존재하면 선택하거나 설정 모달 열기
+                if (this.vm && typeof this.vm.setSelectedBoxId === 'function') {
+                    this.vm.setSelectedBoxId(existingBox.id);
+                }
+                if (this.vm && typeof this.vm.openLayerConfig === 'function') {
+                    this.vm.openLayerConfig(existingBox.id);
+                }
+            } else {
+                // 새 레이어 박스 생성
+                this.addLayerBoxDirect(colIdx, rowType, col);
             }
+        },
+
+        // 직접 레이어 박스 추가 (app-root.js의 addLayerBox 대신 사용)
+        addLayerBoxDirect(colIdx, rowType, col) {
+            const zIndex = this.getZIndexForCell(colIdx, rowType);
+            const slotKey = this.getSlotKey(colIdx, rowType);
+            const colRole = this.getColRole(colIdx);
+            
+            // 캔버스 크기 가져오기
+            const canvasW = (this.vm && this.vm.canvasSize) ? this.vm.canvasSize.w : 1920;
+            const canvasH = (this.vm && this.vm.canvasSize) ? this.vm.canvasSize.h : 1080;
+            
+            // 컬럼 역할에 따른 영역 계산
+            let x = 0, y = 0, w = canvasW, h = canvasH;
+            const third = canvasH / 3;
+            
+            if (colRole === 'high') {
+                y = 0;
+                h = third;
+            } else if (colRole === 'mid') {
+                y = third;
+                h = third;
+            } else if (colRole === 'low') {
+                y = third * 2;
+                h = third;
+            }
+            // 'full'은 전체 영역 그대로 사용
+            
+            const newBox = {
+                id: 'box_' + slotKey + '_' + Date.now(),
+                slotKey: slotKey,
+                colIdx: colIdx,
+                colId: col.id,
+                colRole: colRole,
+                rowType: rowType,
+                type: rowType,
+                zIndex: zIndex,
+                color: col.color,
+                layerBgColor: 'transparent',
+                x: x,
+                y: y,
+                w: w,
+                h: h,
+                nx: x / canvasW,
+                ny: y / canvasH,
+                nw: w / canvasW,
+                nh: h / canvasH,
+                isHidden: false,
+                layerName: col.name + ' ' + this.getRowLabel(rowType),
+                textContent: '',
+                textStyle: {
+                    fontSize: 48,
+                    fillColor: '#ffffff',
+                    strokeColor: '#000000',
+                    strokeWidth: 0,
+                    textAlign: 'center',
+                    vAlign: 'middle',
+                    backgroundColor: 'transparent',
+                    letterSpacing: 0,
+                    lineHeight: 1.4,
+                    shadow: {
+                        offsetX: 2,
+                        offsetY: 2,
+                        blur: 4,
+                        color: '#000000'
+                    }
+                },
+                mediaType: 'none',
+                mediaSrc: '',
+                mediaFit: 'cover'
+            };
+            
+            // vm.canvasBoxes에 직접 추가
+            if (this.vm && this.vm.canvasBoxes) {
+                this.vm.canvasBoxes.push(newBox);
+                
+                // 선택 상태로 설정
+                if (typeof this.vm.setSelectedBoxId === 'function') {
+                    this.vm.setSelectedBoxId(newBox.id);
+                }
+            }
+        },
+
+        getRowLabel(rowType) {
+            if (rowType === 'EFF') return '이펙트';
+            if (rowType === 'TXT') return '텍스트';
+            if (rowType === 'BG') return '배경';
+            return rowType;
         },
 
         openCellContextMenu(e, colIdx, rowType, col) {
@@ -281,9 +384,9 @@ const LayerPanel = {
             this.cellContextMenu = {
                 x: e.clientX,
                 y: e.clientY,
-                colIdx,
-                rowType,
-                col,
+                colIdx: colIdx,
+                rowType: rowType,
+                col: col,
                 boxId: box.id,
                 isHidden: box.isHidden || false
             };
@@ -292,13 +395,19 @@ const LayerPanel = {
         toggleCellVisibility() {
             if (!this.cellContextMenu) return;
             
-            const { boxId } = this.cellContextMenu;
-            const boxIndex = this.vm.canvasBoxes.findIndex(b => b.id === boxId);
+            var boxId = this.cellContextMenu.boxId;
+            var boxIndex = -1;
+            for (var i = 0; i < this.vm.canvasBoxes.length; i++) {
+                if (this.vm.canvasBoxes[i].id === boxId) {
+                    boxIndex = i;
+                    break;
+                }
+            }
             
             if (boxIndex !== -1) {
-                const box = this.vm.canvasBoxes[boxIndex];
-                const newBoxes = [...this.vm.canvasBoxes];
-                newBoxes[boxIndex] = { ...box, isHidden: !box.isHidden };
+                var box = this.vm.canvasBoxes[boxIndex];
+                var newBoxes = this.vm.canvasBoxes.slice();
+                newBoxes[boxIndex] = Object.assign({}, box, { isHidden: !box.isHidden });
                 this.vm.canvasBoxes = newBoxes;
             }
             
@@ -308,8 +417,8 @@ const LayerPanel = {
         deleteCellLayer() {
             if (!this.cellContextMenu) return;
             
-            const { boxId } = this.cellContextMenu;
-            this.vm.canvasBoxes = this.vm.canvasBoxes.filter(b => b.id !== boxId);
+            var boxId = this.cellContextMenu.boxId;
+            this.vm.canvasBoxes = this.vm.canvasBoxes.filter(function(b) { return b.id !== boxId; });
             
             if (this.vm.selectedBoxId === boxId) {
                 this.vm.selectedBoxId = null;
@@ -319,11 +428,21 @@ const LayerPanel = {
         },
 
         updateColName(id, name) {
-            const col = this.vm.layerCols.find(c => c.id === id);
+            var col = null;
+            for (var i = 0; i < this.vm.layerCols.length; i++) {
+                if (this.vm.layerCols[i].id === id) {
+                    col = this.vm.layerCols[i];
+                    break;
+                }
+            }
             if (col) col.name = name;
-            this.vm.canvasBoxes = this.vm.canvasBoxes.map(box =>
-                box.colId === id ? { ...box, layerName: name } : box
-            );
+            
+            this.vm.canvasBoxes = this.vm.canvasBoxes.map(function(box) {
+                if (box.colId === id) {
+                    return Object.assign({}, box, { layerName: name });
+                }
+                return box;
+            });
         },
 
         openColContextMenu(e, id, index) {
@@ -332,13 +451,19 @@ const LayerPanel = {
         },
 
         handleColColor(color) {
-            const colId = this.colContextMenu.colId;
-            this.vm.layerCols = this.vm.layerCols.map(col =>
-                col.id === colId ? { ...col, color: color } : col
-            );
-            this.vm.canvasBoxes = this.vm.canvasBoxes.map(box =>
-                box.colId === colId ? { ...box, color: color } : box
-            );
+            var colId = this.colContextMenu.colId;
+            this.vm.layerCols = this.vm.layerCols.map(function(col) {
+                if (col.id === colId) {
+                    return Object.assign({}, col, { color: color });
+                }
+                return col;
+            });
+            this.vm.canvasBoxes = this.vm.canvasBoxes.map(function(box) {
+                if (box.colId === colId) {
+                    return Object.assign({}, box, { color: color });
+                }
+                return box;
+            });
             this.colContextMenu = null;
         },
 
@@ -354,9 +479,9 @@ const LayerPanel = {
                 return;
             }
 
-            const result = await Swal.fire({
+            var result = await Swal.fire({
                 title: '레이어 초기화',
-                text: `캔버스의 모든 레이어(${this.vm.canvasBoxes.length}개)를 삭제하시겠습니까?`,
+                text: '캔버스의 모든 레이어(' + this.vm.canvasBoxes.length + '개)를 삭제하시겠습니까?',
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonText: '초기화',
@@ -385,48 +510,50 @@ const LayerPanel = {
         },
 
         buildLayerMatrixSnapshot(name) {
-            const columns = this.vm.layerCols.map((col, colIdx) => {
-                const colRole = this.getColRole(colIdx);
-                const slots = this.rows.map(row => {
-                    const slotKey = this.getSlotKey(colIdx, row.type);
-                    const box = this.vm.canvasBoxes.find(b => b.slotKey === slotKey);
-                    const used = !!box;
-                    const zIndex = this.getZIndexForCell(colIdx, row.type);
+            var self = this;
+            var columns = this.vm.layerCols.map(function(col, colIdx) {
+                var colRole = self.getColRole(colIdx);
+                var slots = self.rows.map(function(row) {
+                    var slotKey = self.getSlotKey(colIdx, row.type);
+                    var box = self.vm.canvasBoxes.find(function(b) { return b.slotKey === slotKey; });
+                    var used = !!box;
+                    var zIndex = self.getZIndexForCell(colIdx, row.type);
                     
-                    let boxData = null;
+                    var boxData = null;
                     if (box) {
-                        boxData = { ...box };
+                        boxData = Object.assign({}, box);
                     }
                     
                     return {
                         rowType: row.type,
                         rowLabel: row.label,
-                        slotKey,
-                        used,
+                        slotKey: slotKey,
+                        used: used,
                         isHidden: box ? box.isHidden : false,
-                        zIndex,
-                        boxData
+                        zIndex: zIndex,
+                        boxData: boxData
                     };
                 });
                 return {
                     id: col.id,
                     name: col.name,
                     color: col.color,
-                    colRole,
-                    slots
+                    colRole: colRole,
+                    slots: slots
                 };
             });
 
             return {
                 templateName: name,
                 savedAt: new Date().toISOString(),
-                columns,
-                canvasBoxes: this.vm.canvasBoxes.map(b => ({ ...b }))
+                columns: columns,
+                canvasBoxes: this.vm.canvasBoxes.map(function(b) { return Object.assign({}, b); })
             };
         },
 
         async saveLayerTemplate() {
-            const { value: name } = await Swal.fire({ 
+            var self = this;
+            var result = await Swal.fire({ 
                 title: '레이어 템플릿 저장', 
                 input: 'text', 
                 inputLabel: '메인 레이어 이름', 
@@ -436,13 +563,15 @@ const LayerPanel = {
                 color: '#fff', 
                 confirmButtonColor: '#3b82f6' 
             });
+            
+            var name = result.value;
             if (name) {
-                const snapshot = this.buildLayerMatrixSnapshot(name);
-                const json = JSON.stringify(snapshot, null, 2);
+                var snapshot = this.buildLayerMatrixSnapshot(name);
+                var json = JSON.stringify(snapshot, null, 2);
 
                 this.vm.saveLayerTemplate(name, json);
 
-                const btn = document.getElementById('panel-right-layer-save-template-btn');
+                var btn = document.getElementById('panel-right-layer-save-template-btn');
                 if (btn) {
                     btn.setAttribute('data-dev', json);
                 }
@@ -464,3 +593,5 @@ const LayerPanel = {
         }
     }
 };
+
+window.LayerPanel = LayerPanel;
