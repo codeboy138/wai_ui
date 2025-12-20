@@ -621,6 +621,18 @@ html, body {
     box-shadow: 0 0 0 2px #22c55e;
 }
 
+/* 클립 드래그 아웃 스타일 */
+.clip.dragging {
+    opacity: 0.8;
+    z-index: 100;
+}
+
+.clip.dragging-out {
+    opacity: 0.5;
+    border: 2px dashed #3b82f6 !important;
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+}
+
 @keyframes clipSnapFlash {
     0% { box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.8); }
     100% { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2); }
@@ -773,40 +785,6 @@ html, body {
     opacity: 1;
 }
 
-.clip-volume-indicator {
-    position: absolute;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: #fbbf24;
-    cursor: ns-resize;
-    z-index: 20;
-    transition: height 0.1s;
-}
-
-.clip-volume-indicator:hover {
-    height: 4px;
-    background: #f59e0b;
-}
-
-.clip-volume-indicator::before {
-    content: '';
-    position: absolute;
-    left: -4px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 8px;
-    height: 8px;
-    background: #fbbf24;
-    border-radius: 50%;
-    opacity: 0;
-    transition: opacity 0.1s;
-}
-
-.clip-volume-indicator:hover::before {
-    opacity: 1;
-}
-
 /* 트랙 컨트롤 버튼 */
 .track-control-btn {
     width: 20px;
@@ -877,7 +855,7 @@ html, body {
 }
 
 /* ================================
-   마스터 볼륨 컨트롤 (개선)
+   마스터 볼륨 컨트롤
    ================================ */
 .master-volume-container {
     position: relative;
@@ -999,75 +977,6 @@ html, body {
     min-width: 40px;
 }
 
-/* 구 볼륨 슬라이더 (호환성) */
-.volume-slider-container {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.volume-slider-popup {
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    background: var(--color-bg-panel);
-    border: 1px solid var(--color-ui-border);
-    border-radius: 6px;
-    padding: 8px;
-    margin-bottom: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-    z-index: 100;
-    display: none;
-}
-
-.volume-slider-container:hover .volume-slider-popup,
-.volume-slider-popup:hover {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-}
-
-.volume-slider-vertical {
-    width: 4px;
-    height: 80px;
-    background: var(--color-bg-input);
-    border-radius: 2px;
-    position: relative;
-    cursor: pointer;
-}
-
-.volume-slider-fill {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: var(--color-ui-accent);
-    border-radius: 2px;
-    transition: height 0.1s;
-}
-
-.volume-slider-thumb {
-    position: absolute;
-    left: 50%;
-    transform: translate(-50%, 50%);
-    width: 12px;
-    height: 12px;
-    background: white;
-    border-radius: 50%;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-    cursor: grab;
-}
-
-.volume-slider-value {
-    font-size: 10px;
-    color: var(--color-text-sub);
-    text-align: center;
-    min-width: 30px;
-}
-
 /* ================================
    컨텍스트 메뉴
    ================================ */
@@ -1117,11 +1026,11 @@ html, body {
     align-items: center;
     gap: 8px;
     width: 100%;
-    padding: 8px 12px;
+    padding: 6px 12px;
     border: none;
     background: transparent;
     color: var(--color-text-main);
-    font-size: 12px;
+    font-size: 11px;
     text-align: left;
     cursor: pointer;
     transition: background-color 0.1s;
@@ -1331,7 +1240,7 @@ body:not(.dev-mode-active):not(.dev-mode-full) .dev-highlight { display: none; }
 }
 
 /* ================================
-   클립 내부 레이아웃 스타일 (구버전 호환)
+   클립 내부 레이아웃 스타일
    ================================ */
 .clip-filename {
     position: absolute;
@@ -1374,7 +1283,7 @@ body:not(.dev-mode-active):not(.dev-mode-full) .dev-highlight { display: none; }
 }
 
 /* ================================
-   트랙 헤더 고정 스타일 (추가)
+   트랙 헤더 고정 스타일
    ================================ */
 .track-header-container {
     position: relative;
@@ -1400,12 +1309,16 @@ body:not(.dev-mode-active):not(.dev-mode-full) .dev-highlight { display: none; }
     border-top: 2px solid var(--color-ui-accent);
 }
 
+/* 코드연결지점 */
+/* 코드연결지점 */
+
 /* ================================
-   미디어 자산 패널 스타일 (추가)
+   미디어 자산 패널 스타일
    ================================ */
 .media-asset-drop-zone {
-    min-height: 96px;
-    transition: background-color 0.15s ease;
+    min-height: 80px;
+    transition: all 0.2s ease;
+    border-radius: 4px;
 }
 
 .media-asset-drop-zone:hover {
@@ -1413,21 +1326,24 @@ body:not(.dev-mode-active):not(.dev-mode-full) .dev-highlight { display: none; }
 }
 
 .media-asset-drop-zone.drag-over {
-    background-color: rgba(59, 130, 246, 0.15);
+    background-color: rgba(59, 130, 246, 0.15) !important;
     outline: 2px dashed var(--color-ui-accent);
     outline-offset: -2px;
 }
 
 .media-asset-item {
     transition: all 0.15s ease;
+    border-radius: 6px;
 }
 
 .media-asset-item:hover {
-    background-color: var(--color-bg-hover);
+    background-color: var(--color-bg-hover) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .media-asset-item:active {
-    transform: scale(0.98);
+    transform: translateY(0);
 }
 
 .media-asset-item.dragging {
@@ -1435,25 +1351,7 @@ body:not(.dev-mode-active):not(.dev-mode-full) .dev-highlight { display: none; }
 }
 
 /* ================================
-   프리뷰 렌더러 스타일 (추가)
-   ================================ */
-.preview-renderer-container {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    height: 100%;
-    background: #000;
-}
-
-.preview-canvas-wrapper {
-    position: relative;
-    background: #000;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-}
-
-/* ================================
-   타임라인 클립 추가 스타일 (추가)
+   타임라인 클립 스타일
    ================================ */
 .timeline-clip {
     position: absolute;
@@ -1519,7 +1417,7 @@ body:not(.dev-mode-active):not(.dev-mode-full) .dev-highlight { display: none; }
 }
 
 /* ================================
-   타임라인 눈금자 스타일 (추가)
+   타임라인 눈금자 스타일
    ================================ */
 .timeline-ruler {
     position: sticky;
@@ -1549,7 +1447,7 @@ body:not(.dev-mode-active):not(.dev-mode-full) .dev-highlight { display: none; }
 }
 
 /* ================================
-   플레이헤드 상단 스타일 (추가)
+   플레이헤드 상단 스타일
    ================================ */
 .playhead-top {
     position: absolute;
@@ -1574,7 +1472,7 @@ body:not(.dev-mode-active):not(.dev-mode-full) .dev-highlight { display: none; }
 }
 
 /* ================================
-   볼륨 컨트롤 래퍼 (추가)
+   볼륨 컨트롤 래퍼
    ================================ */
 .volume-control-wrapper {
     position: relative;
@@ -1594,7 +1492,7 @@ body:not(.dev-mode-active):not(.dev-mode-full) .dev-highlight { display: none; }
 }
 
 /* ================================
-   트랙 레인 스타일 (추가)
+   트랙 레인 스타일
    ================================ */
 .track-lanes {
     position: relative;
@@ -1609,7 +1507,7 @@ body:not(.dev-mode-active):not(.dev-mode-full) .dev-highlight { display: none; }
 }
 
 /* ================================
-   퀵바 스타일 (추가)
+   퀵바 스타일
    ================================ */
 .timeline-quickbar {
     min-height: 36px;
@@ -1628,7 +1526,7 @@ body:not(.dev-mode-active):not(.dev-mode-full) .dev-highlight { display: none; }
 }
 
 /* ================================
-   waveform SVG 스타일 (추가)
+   waveform SVG 스타일
    ================================ */
 .waveform-svg {
     width: 100%;
@@ -1637,7 +1535,7 @@ body:not(.dev-mode-active):not(.dev-mode-full) .dev-highlight { display: none; }
 }
 
 /* ================================
-   필름스트립 프레임 스타일 (추가)
+   필름스트립 프레임 스타일
    ================================ */
 .filmstrip-frame {
     height: 100%;
@@ -1646,158 +1544,23 @@ body:not(.dev-mode-active):not(.dev-mode-full) .dev-highlight { display: none; }
     flex-shrink: 0;
     opacity: 0.8;
 }
-/* ================================
-   미디어 자산 패널 스타일 (추가)
-   ================================ */
-.media-asset-drop-zone {
-    transition: background-color 0.15s ease;
-}
-
-.media-asset-drop-zone:hover {
-    background-color: rgba(59, 130, 246, 0.05);
-}
-
-.media-asset-drop-zone.drag-over {
-    background-color: rgba(59, 130, 246, 0.15);
-    outline: 2px dashed var(--color-ui-accent);
-    outline-offset: -2px;
-}
-
-.media-asset-item {
-    transition: all 0.15s ease;
-}
-
-.media-asset-item:hover {
-    background-color: var(--color-bg-hover);
-}
-
-.media-asset-item:active {
-    transform: scale(0.98);
-}
-
-.media-asset-item.dragging {
-    opacity: 0.5;
-}
 
 /* ================================
-   트랙 헤더 고정 스타일 (추가)
+   프리뷰 렌더러 스타일
    ================================ */
-.track-header-container {
-    position: relative;
-    z-index: 10;
-    flex-shrink: 0;
-    background: var(--color-bg-panel);
-}
-
-.track-headers-list {
-    overflow-y: auto;
-    overflow-x: hidden;
-}
-
-.track-header {
-    transition: background-color 0.15s ease;
-}
-
-.track-header:hover {
-    background-color: var(--color-bg-hover);
-}
-
-.track-header.track-drag-over {
-    border-top: 2px solid var(--color-ui-accent);
-}
-
-/* ================================
-   타임라인 추가 스타일
-   ================================ */
-.timeline-clip {
-    position: absolute;
-    background: var(--color-ui-accent);
-    border-radius: 4px;
-    overflow: hidden;
-    border: 1px solid transparent;
-    transition: border-color 0.15s ease;
-}
-
-.timeline-clip:hover {
-    border-color: rgba(255, 255, 255, 0.3);
-}
-
-.timeline-clip.selected {
-    border-color: white;
-    box-shadow: 0 0 0 1px white, 0 0 8px rgba(59, 130, 246, 0.5);
-}
-
-.timeline-clip.clip-video {
-    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-}
-
-.timeline-clip.clip-audio {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-}
-
-.timeline-clip .clip-label {
-    position: absolute;
-    bottom: 2px;
-    left: 4px;
-    right: 4px;
-    font-size: 10px;
-    color: white;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    pointer-events: none;
-}
-
-.timeline-clip .clip-resize-handle {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 10px;
-    cursor: ew-resize;
-    background: transparent;
-}
-
-.timeline-clip .clip-resize-handle:hover {
-    background: rgba(255, 255, 255, 0.2);
-}
-
-.timeline-clip .clip-resize-handle.left {
-    left: 0;
-    border-radius: 4px 0 0 4px;
-}
-
-.timeline-clip .clip-resize-handle.right {
-    right: 0;
-    border-radius: 0 4px 4px 0;
-}
-
-/* ================================
-   컨텍스트 메뉴 아이템 스타일 (추가)
-   ================================ */
-.context-menu-item {
+.preview-renderer-container {
     display: flex;
     align-items: center;
-    gap: 8px;
+    justify-content: center;
     width: 100%;
-    padding: 6px 12px;
-    border: none;
-    background: transparent;
-    color: var(--color-text-main);
-    font-size: 11px;
-    text-align: left;
-    cursor: pointer;
-    transition: background-color 0.1s;
+    height: 100%;
+    background: #000;
 }
 
-.context-menu-item:hover {
-    background: var(--color-bg-hover);
-}
-
-.context-menu-item i {
-    width: 16px;
-    text-align: center;
-    color: var(--color-text-sub);
+.preview-canvas-wrapper {
+    position: relative;
+    background: #000;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
 }
 
 /* === END OF FILE === */
