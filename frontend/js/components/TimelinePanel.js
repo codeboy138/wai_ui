@@ -27,17 +27,31 @@ const TimelinePanel = {
                         <button class="tool-btn" @click="seekToEnd" title="끝으로"><i class="fa-solid fa-forward-step"></i></button>
                     </div>
                     <!-- 마스터 볼륨 -->
-                    <div class="master-volume-container ml-2">
-                        <button class="tool-btn" :class="{ 'text-red-400': masterVolume === 0 }" @click="toggleMute" :title="'마스터 볼륨: ' + masterVolume + '%'">
+                    <div class="master-volume-container ml-2" @mouseenter="showMasterVolume = true" @mouseleave="onMasterVolumeLeave">
+                        <button class="tool-btn" :class="{ 'text-red-400': masterVolume === 0 }" @click="toggleMute" :title="'마스터 볼륨: ' + masterVolume + '%'" @wheel.prevent="onMasterVolumeWheel">
                             <i :class="getVolumeIcon(masterVolume)"></i>
                         </button>
-                        <div class="master-volume-popup">
+                        <div class="master-volume-popup" :class="{ 'show': showMasterVolume }" @mouseenter="showMasterVolume = true" @mouseleave="onMasterVolumeLeave" @wheel.prevent="onMasterVolumeWheel">
                             <div class="volume-track" @mousedown="startMasterVolumeDrag">
                                 <div class="volume-fill" :style="{ height: masterVolume + '%' }"></div>
                                 <div class="volume-thumb" :style="{ bottom: 'calc(' + masterVolume + '% - 6px)' }"></div>
                             </div>
                             <span class="volume-value">{{ masterVolume }}%</span>
                         </div>
+                    </div>
+                    <!-- 전체보기, 커서중심줌 버튼 이동 -->
+                    <div class="flex items-center gap-1 ml-2">
+                        <button class="tool-btn w-6 h-6" @click="zoomToFit" title="전체 보기"><i class="fa-solid fa-expand"></i></button>
+                        <button class="tool-btn w-6 h-6" :class="{ 'bg-ui-accent text-white': zoomMode === 'playhead' }" @click="toggleZoomMode" :title="zoomMode === 'cursor' ? '커서 중심 줌' : '플레이헤드 중심 줌'"><i class="fa-solid fa-crosshairs"></i></button>
+                    </div>
+                    <!-- 스냅 토글 (레이블 제거) -->
+                    <div class="flex items-center gap-1 ml-2">
+                        <button class="tool-btn" :class="{ 'bg-ui-accent text-white': vm.isMagnet }" @click="vm.isMagnet = !vm.isMagnet" title="스냅 토글">
+                            <i class="fa-solid fa-magnet"></i>
+                        </button>
+                        <button class="tool-btn" :class="{ 'bg-ui-accent text-white': vm.isAutoRipple }" @click="vm.isAutoRipple = !vm.isAutoRipple" title="리플 토글">
+                            <i class="fa-solid fa-link"></i>
+                        </button>
                     </div>
                     <div class="flex items-center gap-2 ml-4 text-[10px]">
                         <select class="timeline-select-no-arrow bg-bg-input border border-ui-border rounded px-2 py-0.5 text-text-main text-[10px]" :value="vm.aspectRatio" @change="onAspectChange($event)">
@@ -57,8 +71,6 @@ const TimelinePanel = {
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button class="tool-btn w-6 h-6" @click="zoomToFit" title="전체 보기"><i class="fa-solid fa-expand"></i></button>
-                    <button class="tool-btn w-6 h-6" :class="{ 'bg-ui-accent text-white': zoomMode === 'playhead' }" @click="toggleZoomMode" :title="zoomMode === 'cursor' ? '커서 중심 줌' : '플레이헤드 중심 줌'"><i class="fa-solid fa-crosshairs"></i></button>
                     <span class="text-[10px] text-text-sub w-12 text-right">{{ zoomDisplayText }}</span>
                     <input type="range" :min="zoomMin" :max="zoomMax" :value="currentDisplayZoom" @input="handleZoomInput($event)" class="w-20 accent-ui-accent h-1" />
                 </div>
@@ -85,14 +97,6 @@ const TimelinePanel = {
                 <div class="flex gap-2 items-center">
                     <span v-if="selectedClipIds.length > 0" class="text-ui-accent">{{ selectedClipIds.length }}개 선택</span>
                     <span v-else class="text-text-sub">클립 미선택</span>
-                    <button :class="{ 'bg-bg-input border-ui-accent text-ui-accent': vm.isMagnet }" class="flex items-center gap-1 px-2 py-0.5 rounded border border-transparent text-[10px] hover:bg-ui-selected" @click="vm.isMagnet = !vm.isMagnet">
-                        <i class="fa-solid fa-magnet"></i><span>스냅</span>
-                    </button>
-                    <button :class="{ 'bg-bg-input border-ui-accent text-ui-accent': vm.isAutoRipple }" class="flex items-center gap-1 px-2 py-0.5 rounded border border-transparent text-[10px] hover:bg-ui-selected" @click="vm.isAutoRipple = !vm.isAutoRipple">
-                        <i class="fa-solid fa-link"></i><span>리플</span>
-                    </button>
-                    <div class="w-px h-4 bg-ui-border mx-1"></div>
-                    <button class="tool-btn" title="트랙 추가" @click="addTrack"><i class="fa-solid fa-plus"></i></button>
                 </div>
             </div>
             
@@ -101,7 +105,11 @@ const TimelinePanel = {
                 <!-- 트랙 헤더 -->
                 <div class="sticky-col bg-bg-panel border-r border-ui-border relative" style="z-index: 30;">
                     <div class="h-6 border-b border-ui-border flex items-center justify-between px-2 text-[9px] font-bold text-text-sub bg-bg-panel sticky top-0" style="z-index: 40;">
-                        <span v-show="!isTrackNamesCollapsed">TRACKS</span>
+                        <!-- 트랙 추가 버튼을 좌측으로 이동 -->
+                        <div class="flex items-center gap-1">
+                            <button class="tool-btn w-5 h-5" title="트랙 추가" @click="addTrack"><i class="fa-solid fa-plus" style="font-size: 9px;"></i></button>
+                            <span v-show="!isTrackNamesCollapsed">TRACKS</span>
+                        </div>
                         <button class="w-4 h-4 flex items-center justify-center rounded hover:bg-bg-hover text-[8px]" @click="toggleAllTrackNames">
                             <i :class="isTrackNamesCollapsed ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash'" style="font-size: 8px;"></i>
                         </button>
@@ -126,7 +134,7 @@ const TimelinePanel = {
                 </div>
 
                 <!-- 타임라인 레인 -->
-                <div id="timeline-lane-container" class="relative min-w-max" @mousedown="handleLaneMouseDown">
+                <div id="timeline-lane-container" class="relative min-w-max" @mousedown="handleLaneMouseDown" @mouseenter="isMouseInLane = true" @mouseleave="isMouseInLane = false">
                     <div id="timeline-ruler" class="h-6 border-b border-ui-border sticky top-0 relative" :style="{ width: totalTimelineWidth + 'px' }" style="z-index: 20;">
                         <template v-for="mark in visibleRulerMarks" :key="'ruler-' + mark.time">
                             <div v-if="mark.isMajor" class="absolute top-0 bottom-0 border-l border-ui-border" :style="{ left: mark.position + 'px' }">
@@ -256,10 +264,12 @@ const TimelinePanel = {
             zoomMin: 1, zoomMax: 200, scrollLeft: 0, viewportWidth: 1000,
             MAX_FILMSTRIP_FRAMES: 12, MAX_WAVEFORM_BARS: 60, MAX_RULER_MARKS: 200,
             masterVolume: 100, previousVolume: 100, isDraggingMasterVolume: false,
+            showMasterVolume: false, masterVolumeHideTimer: null,
             isDraggingClipVolume: false, volumeDragClip: null, volumeDragStartY: 0, volumeDragStartVolume: 0,
             thumbnailCache: {}, waveformCache: {}, currentDragTrackIndex: null,
             volumePopup: { visible: false, x: 0, y: 0, clip: null, value: 100 }, isDraggingVolumePopup: false,
-            trackYPositions: []
+            trackYPositions: [],
+            isMouseInLane: false
         };
     },
     computed: {
@@ -323,10 +333,22 @@ const TimelinePanel = {
         document.removeEventListener('mousemove', this.onDocumentMouseMove);
         document.removeEventListener('mouseup', this.onDocumentMouseUp);
         document.removeEventListener('keydown', this.onDocumentKeyDown);
+        if (this.masterVolumeHideTimer) clearTimeout(this.masterVolumeHideTimer);
     },
 // 코드연결지점
 // 코드연결지점
     methods: {
+        // 마스터 볼륨 호버 관련
+        onMasterVolumeLeave() {
+            if (this.isDraggingMasterVolume) return;
+            this.masterVolumeHideTimer = setTimeout(() => {
+                if (!this.isDraggingMasterVolume) this.showMasterVolume = false;
+            }, 200);
+        },
+        onMasterVolumeWheel(e) {
+            const delta = e.deltaY > 0 ? -5 : 5;
+            this.masterVolume = Math.max(0, Math.min(100, this.masterVolume + delta));
+        },
         updateTrackYPositions() {
             let accY = 0;
             this.trackYPositions = this.vm.tracks.map(track => {
@@ -348,12 +370,16 @@ const TimelinePanel = {
         injectStyles() {
             if (document.getElementById('timeline-custom-styles')) return;
             const style = document.createElement('style'); style.id = 'timeline-custom-styles';
-            style.textContent = `.playhead-line-body{position:absolute;top:24px;bottom:0;width:2px;background:#ef4444;pointer-events:none;z-index:35;transform:translateX(-1px);}.playhead-head{position:absolute;top:2px;width:12px;height:20px;background:transparent;border:2px solid #ef4444;border-radius:0 0 4px 4px;transform:translateX(-6px);cursor:ew-resize;z-index:50;}.playhead-head::after{content:'';position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid #ef4444;}.timeline-select-no-arrow{-webkit-appearance:none;-moz-appearance:none;appearance:none;}`;
+            style.textContent = `.playhead-line-body{position:absolute;top:24px;bottom:0;width:2px;background:#ef4444;pointer-events:none;z-index:35;transform:translateX(-1px);}.playhead-head{position:absolute;top:2px;width:12px;height:20px;background:transparent;border:2px solid #ef4444;border-radius:0 0 4px 4px;transform:translateX(-6px);cursor:ew-resize;z-index:50;}.playhead-head::after{content:'';position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid #ef4444;}.timeline-select-no-arrow{-webkit-appearance:none;-moz-appearance:none;appearance:none;}.master-volume-popup{display:none;}.master-volume-popup.show{display:flex;}`;
             document.head.appendChild(style);
         },
         getVolumeIcon(v) { return v === 0 ? 'fa-solid fa-volume-xmark' : v < 30 ? 'fa-solid fa-volume-off' : v < 70 ? 'fa-solid fa-volume-low' : 'fa-solid fa-volume-high'; },
         toggleMute() { if (this.masterVolume > 0) { this.previousVolume = this.masterVolume; this.masterVolume = 0; } else { this.masterVolume = this.previousVolume || 100; } },
-        startMasterVolumeDrag(e) { this.isDraggingMasterVolume = true; this.updateMasterVolumeFromEvent(e); },
+        startMasterVolumeDrag(e) { 
+            this.isDraggingMasterVolume = true; 
+            if (this.masterVolumeHideTimer) { clearTimeout(this.masterVolumeHideTimer); this.masterVolumeHideTimer = null; }
+            this.updateMasterVolumeFromEvent(e); 
+        },
         updateMasterVolumeFromEvent(e) { const track = e.target.closest('.volume-track'); if (!track) return; const rect = track.getBoundingClientRect(); this.masterVolume = Math.round(Math.max(0, Math.min(100, (1 - (e.clientY - rect.top) / rect.height) * 100))); },
         generateThumbnailsForNewClips() {
             this.vm.clips.forEach(clip => {
@@ -524,9 +550,12 @@ const TimelinePanel = {
             this.isDraggingPlayhead = false; this.isDraggingClip = false;
             this.draggingClipIds = []; this.dragStartPositions = {}; this.dragStartTrackIds = {}; this.currentDragTrackIndex = null;
             this.isResizingClip = false; this.resizingClip = null;
-            this.isDraggingMasterVolume = false; this.isDraggingClipVolume = false; this.volumeDragClip = null;
+            if (this.isDraggingMasterVolume) { this.isDraggingMasterVolume = false; }
+            this.isDraggingClipVolume = false; this.volumeDragClip = null;
             this.isDraggingVolumePopup = false;
         },
+// 코드연결지점
+// 코드연결지점
         handleClipDrag(e) {
             const dx = e.clientX - this.dragStartX, dt = dx / this.pixelsPerSecond;
             const lane = document.getElementById('timeline-lane-container');
@@ -603,7 +632,25 @@ const TimelinePanel = {
         onExternalDragLeave(e) { const rect = e.currentTarget.getBoundingClientRect(); if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) { this.isExternalDragOver = false; this.dropIndicator.visible = false; } },
         updateDropIndicator(e) { const lane = document.getElementById('timeline-lane-container'); if (!lane) return; const rect = lane.getBoundingClientRect(), relY = e.clientY - rect.top - 24; let accH = 0, targetTrack = null; for (const t of this.vm.tracks) { const h = this.getTrackHeight(t.id); if (relY >= accH && relY < accH + h) { targetTrack = t; break; } accH += h; } if (!targetTrack) { this.dropIndicator.visible = false; return; } const dropTime = Math.max(0, (e.clientX - rect.left) / this.pixelsPerSecond); this.dropIndicator = { visible: true, trackId: targetTrack.id, left: dropTime * this.pixelsPerSecond, width: 5 * this.pixelsPerSecond }; },
         onExternalDrop(e) { e.preventDefault(); this.isExternalDragOver = false; this.dropIndicator.visible = false; let assetData; try { const raw = e.dataTransfer.getData('text/wai-asset'); if (!raw) return; assetData = JSON.parse(raw); } catch (err) { return; } const assets = Array.isArray(assetData) ? assetData : [assetData]; if (assets.length === 0) return; const lane = document.getElementById('timeline-lane-container'); let dropTime = this.vm.currentTime, targetTrackId = null; if (lane) { const rect = lane.getBoundingClientRect(); dropTime = Math.max(0, (e.clientX - rect.left) / this.pixelsPerSecond); const relY = e.clientY - rect.top - 24; let accH = 0; for (const t of this.vm.tracks) { const h = this.getTrackHeight(t.id); if (relY >= accH && relY < accH + h) { targetTrackId = t.id; break; } accH += h; } } document.dispatchEvent(new CustomEvent('wai-timeline-drop', { detail: { assets, dropTime, targetTrackId }, bubbles: true })); },
-        handleWheel(e) { const sc = document.getElementById('timeline-scroll-container'); if (!sc) return; if (e.shiftKey || e.ctrlKey) { const zf = this.currentDisplayZoom > 10 ? 0.15 : 0.3, delta = e.deltaY > 0 ? -this.currentDisplayZoom * zf : this.currentDisplayZoom * zf, nz = Math.max(this.zoomMin, Math.min(this.zoomMax, this.currentDisplayZoom + delta)); if (this.zoomMode === 'playhead') this.setZoom(nz, 'playhead'); else { const lane = document.getElementById('timeline-lane-container'); if (lane) { const rect = lane.getBoundingClientRect(), cx = e.clientX - rect.left, ct = (sc.scrollLeft + cx) / this.pixelsPerSecond; this.currentDisplayZoom = nz; this.vm.zoom = nz; this.$nextTick(() => { sc.scrollLeft = ct * this.pixelsPerSecond - cx; this.scrollLeft = sc.scrollLeft; }); } else this.setZoom(nz); } } else { sc.scrollLeft += e.deltaY; this.scrollLeft = sc.scrollLeft; } }
+        handleWheel(e) { 
+            const sc = document.getElementById('timeline-scroll-container'); 
+            if (!sc) return; 
+            // 트랙 내에 있을 때만 줌 작동
+            if ((e.shiftKey || e.ctrlKey) && this.isMouseInLane) { 
+                const zf = this.currentDisplayZoom > 10 ? 0.15 : 0.3, delta = e.deltaY > 0 ? -this.currentDisplayZoom * zf : this.currentDisplayZoom * zf, nz = Math.max(this.zoomMin, Math.min(this.zoomMax, this.currentDisplayZoom + delta)); 
+                if (this.zoomMode === 'playhead') this.setZoom(nz, 'playhead'); 
+                else { 
+                    const lane = document.getElementById('timeline-lane-container'); 
+                    if (lane) { 
+                        const rect = lane.getBoundingClientRect(), cx = e.clientX - rect.left, ct = (sc.scrollLeft + cx) / this.pixelsPerSecond; 
+                        this.currentDisplayZoom = nz; this.vm.zoom = nz; 
+                        this.$nextTick(() => { sc.scrollLeft = ct * this.pixelsPerSecond - cx; this.scrollLeft = sc.scrollLeft; }); 
+                    } else this.setZoom(nz); 
+                } 
+            } else { 
+                sc.scrollLeft += e.deltaY; this.scrollLeft = sc.scrollLeft; 
+            } 
+        }
     }
 };
 
