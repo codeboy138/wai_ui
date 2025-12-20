@@ -1,5 +1,5 @@
 // Timeline Panel Component - CapCut Style
-// 트랙 하단 고정, 헤더 완전접기, 컨텍스트 메뉴 반응형
+// 트랙 레이아웃 복구, 헤더 완전접기, 컨텍스트 메뉴 반응형
 // 스크롤바 호버 확대, 트랙헤더 줄이기만 가능
 
 const TimelinePanel = {
@@ -15,7 +15,6 @@ const TimelinePanel = {
             <!-- 타임라인 헤더 (플레이 버튼 바) -->
             <div class="h-8 bg-bg-panel border-b border-ui-border flex items-center px-2 justify-between shrink-0">
                 <div class="flex items-center gap-2">
-                    <!-- 접기 버튼: 접힌 상태면 펼치기 아이콘 -->
                     <button class="hover:text-text-main w-6 h-6 flex items-center justify-center rounded hover:bg-bg-hover" @click="toggleCollapse" :title="vm.isTimelineCollapsed ? '타임라인 펼치기' : '타임라인 접기'">
                         <i :class="['fa-solid', vm.isTimelineCollapsed ? 'fa-chevron-up' : 'fa-chevron-down']"></i>
                     </button>
@@ -27,7 +26,6 @@ const TimelinePanel = {
                         </button>
                         <button class="tool-btn" @click="seekToEnd" title="끝으로"><i class="fa-solid fa-forward-step"></i></button>
                     </div>
-                    <!-- 마스터 볼륨 -->
                     <div class="master-volume-container ml-2" @mouseenter="showMasterVolume = true" @mouseleave="onMasterVolumeLeave">
                         <button class="tool-btn" :class="{ 'text-red-400': masterVolume === 0 }" @click="toggleMute" :title="'마스터 볼륨: ' + masterVolume + '%'" @wheel.stop.prevent="onMasterVolumeWheel">
                             <i :class="getVolumeIcon(masterVolume)"></i>
@@ -41,7 +39,6 @@ const TimelinePanel = {
                         </div>
                     </div>
                     <div class="flex items-center gap-2 ml-4 text-[10px]">
-                        <!-- 화면비율 드롭다운 -->
                         <div class="relative aspect-ratio-dropdown-wrapper">
                             <button class="timeline-select-no-arrow bg-bg-input border border-ui-border rounded px-2 py-0.5 text-text-main text-[10px] min-w-[50px] text-left flex items-center justify-between gap-1" @click="toggleAspectDropdown">
                                 <span>{{ vm.aspectRatio }}</span>
@@ -53,7 +50,6 @@ const TimelinePanel = {
                                 </div>
                             </div>
                         </div>
-                        <!-- 해상도 드롭다운 -->
                         <div class="relative resolution-dropdown-wrapper">
                             <button class="timeline-select-no-arrow bg-bg-input border border-ui-border rounded px-2 py-0.5 text-text-main text-[10px] min-w-[40px] text-left" @click="toggleResolutionDropdown">{{ vm.resolution }}</button>
                             <div v-if="isResolutionDropdownOpen" class="absolute top-full left-0 mt-1 bg-bg-panel border border-ui-border rounded shadow-lg z-50 min-w-[140px]">
@@ -105,7 +101,7 @@ const TimelinePanel = {
             </div>
             
             <!-- 메인 타임라인 영역 -->
-            <div v-if="!vm.isTimelineCollapsed" class="flex-grow flex overflow-hidden min-h-0 relative timeline-main-area">
+            <div v-if="!vm.isTimelineCollapsed" class="flex-grow flex overflow-hidden min-h-0 relative">
                 <!-- 트랙 헤더 (고정) -->
                 <div 
                     class="track-header-container bg-bg-panel border-r border-ui-border flex-shrink-0 flex flex-col relative"
@@ -116,7 +112,6 @@ const TimelinePanel = {
                     <!-- 헤더 타이틀 -->
                     <div class="h-6 border-b border-ui-border flex items-center justify-between px-2 text-[9px] font-bold text-text-sub bg-bg-panel shrink-0">
                         <div class="flex items-center gap-1">
-                            <!-- 접힌 상태: 펼치기 버튼 / 펼친 상태: 트랙추가 버튼 -->
                             <button v-if="isTrackHeaderCollapsed" class="tool-btn w-5 h-5" title="헤더 펼치기" @click="expandTrackHeader">
                                 <i class="fa-solid fa-chevron-right" style="font-size: 9px;"></i>
                             </button>
@@ -129,9 +124,9 @@ const TimelinePanel = {
                             <i class="fa-solid fa-chevron-left" style="font-size: 8px;"></i>
                         </button>
                     </div>
-                    <!-- 트랙 헤더 목록 (하단 정렬) -->
-                    <div ref="trackHeaderList" class="track-header-list flex-grow overflow-hidden relative flex flex-col justify-end" @scroll="onHeaderScroll">
-                        <div class="track-header-inner">
+                    <!-- 트랙 헤더 목록 -->
+                    <div ref="trackHeaderList" class="track-header-list flex-grow overflow-hidden relative" @scroll="onHeaderScroll">
+                        <div class="track-header-inner" :style="{ height: totalTrackHeight + 'px' }">
                             <div v-for="(track, index) in vm.tracks" :key="track.id" :data-track-id="track.id"
                                 class="border-b border-ui-border flex items-center px-1 group bg-bg-panel relative"
                                 :class="{ 'opacity-50': track.isLocked, 'bg-ui-accent/20': dragOverTrackId === track.id }"
@@ -152,15 +147,15 @@ const TimelinePanel = {
                             </div>
                         </div>
                     </div>
-                    <!-- 헤더 리사이즈 핸들 (트랙 영역에만) -->
+                    <!-- 헤더 리사이즈 핸들 -->
                     <div v-show="!isTrackHeaderCollapsed" 
                         class="header-resize-handle" 
                         :class="{ 'resizing': isResizingHeader }"
-                        :style="headerResizeHandleStyle"
+                        :style="{ top: '24px', height: totalTrackHeight + 'px' }"
                         @mousedown.prevent="startHeaderResize"></div>
                     <!-- 접힌 상태에서 호버 시 펼치기 화살표 -->
                     <div v-if="isTrackHeaderCollapsed && isHoveringHeaderArea" 
-                        class="absolute inset-0 flex items-center justify-center bg-bg-hover/80 cursor-pointer z-20"
+                        class="absolute inset-0 top-6 flex items-center justify-center bg-bg-hover/80 cursor-pointer z-20"
                         @click="expandTrackHeader">
                         <i class="fa-solid fa-chevron-right text-ui-accent"></i>
                     </div>
@@ -168,9 +163,9 @@ const TimelinePanel = {
 
                 <!-- 타임라인 레인 (스크롤 가능) -->
                 <div id="timeline-scroll-container" ref="timelineScrollContainer" class="flex-grow overflow-auto relative timeline-scroll-enhanced" @scroll="onTimelineScroll">
-                    <div id="timeline-lane-container" class="relative min-w-max flex flex-col" :style="laneContainerStyle" @mousedown="handleLaneMouseDown" @mouseenter="isMouseInLane = true" @mouseleave="isMouseInLane = false" @wheel.prevent="handleLaneWheel">
+                    <div id="timeline-lane-container" class="relative min-w-max" :style="{ minHeight: totalTrackHeight + 24 + 'px' }" @mousedown="handleLaneMouseDown" @mouseenter="isMouseInLane = true" @mouseleave="isMouseInLane = false" @wheel.prevent="handleLaneWheel">
                         <!-- 룰러 -->
-                        <div id="timeline-ruler" class="h-6 border-b border-ui-border sticky top-0 relative shrink-0" :style="{ width: totalTimelineWidth + 'px' }" style="z-index: 20; background: var(--bg-panel);">
+                        <div id="timeline-ruler" class="h-6 border-b border-ui-border sticky top-0 relative" :style="{ width: totalTimelineWidth + 'px' }" style="z-index: 20; background: var(--bg-panel);">
                             <template v-for="mark in visibleRulerMarks" :key="'ruler-' + mark.time">
                                 <div v-if="mark.isMajor" class="absolute top-0 bottom-0 border-l border-ui-border" :style="{ left: mark.position + 'px' }">
                                     <span class="absolute top-0 left-1 text-[9px] text-text-sub whitespace-nowrap">{{ mark.label }}</span>
@@ -181,60 +176,57 @@ const TimelinePanel = {
                             <div class="playhead-head" :style="{ left: vm.currentTime * pixelsPerSecond + 'px' }" @mousedown.stop.prevent="startPlayheadDrag"></div>
                         </div>
                         
-                        <!-- 트랙 영역 래퍼 (하단 정렬) -->
-                        <div class="track-lanes-wrapper flex-grow flex flex-col justify-end">
-                            <!-- 트랙 레인 -->
-                            <div v-for="(track, idx) in vm.tracks" :key="track.id" :data-track-id="track.id" :data-track-index="idx"
-                                class="border-b border-ui-border relative track-lane shrink-0"
-                                :class="{ 'opacity-30': track.isHidden }"
-                                :style="{ height: getTrackHeight(track.id) + 'px' }"
-                                @mousedown="onTrackLaneMouseDown($event, track)"
-                                @contextmenu.prevent="openClipContextMenu($event, track)">
+                        <!-- 트랙 레인 -->
+                        <div v-for="(track, idx) in vm.tracks" :key="track.id" :data-track-id="track.id" :data-track-index="idx"
+                            class="border-b border-ui-border relative track-lane"
+                            :class="{ 'opacity-30': track.isHidden }"
+                            :style="{ height: getTrackHeight(track.id) + 'px' }"
+                            @mousedown="onTrackLaneMouseDown($event, track)"
+                            @contextmenu.prevent="openClipContextMenu($event, track)">
+                            
+                            <div v-if="dropIndicator.visible && dropIndicator.trackId === track.id"
+                                class="absolute top-1 bottom-1 bg-ui-accent/30 border-2 border-dashed border-ui-accent rounded pointer-events-none z-20"
+                                :style="{ left: dropIndicator.left + 'px', width: dropIndicator.width + 'px' }"></div>
+                            
+                            <!-- 클립 -->
+                            <div v-for="clip in getVisibleClipsForTrack(track.id)" :key="clip.id" :data-clip-id="clip.id"
+                                class="clip absolute cursor-pointer"
+                                :class="getClipClasses(clip)"
+                                :style="clipStyle(clip, track)"
+                                @mousedown.stop="onClipMouseDown($event, clip, track)"
+                                @contextmenu.stop.prevent="openClipContextMenu($event, track, clip)">
                                 
-                                <div v-if="dropIndicator.visible && dropIndicator.trackId === track.id"
-                                    class="absolute top-1 bottom-1 bg-ui-accent/30 border-2 border-dashed border-ui-accent rounded pointer-events-none z-20"
-                                    :style="{ left: dropIndicator.left + 'px', width: dropIndicator.width + 'px' }"></div>
+                                <div class="absolute inset-0" :style="getClipBackgroundStyle(clip, track)"></div>
                                 
-                                <!-- 클립 -->
-                                <div v-for="clip in getVisibleClipsForTrack(track.id)" :key="clip.id" :data-clip-id="clip.id"
-                                    class="clip absolute cursor-pointer"
-                                    :class="getClipClasses(clip)"
-                                    :style="clipStyle(clip, track)"
-                                    @mousedown.stop="onClipMouseDown($event, clip, track)"
-                                    @contextmenu.stop.prevent="openClipContextMenu($event, track, clip)">
-                                    
-                                    <div class="absolute inset-0" :style="getClipBackgroundStyle(clip, track)"></div>
-                                    
-                                    <div v-if="clip.type === 'video' || clip.type === 'image'" class="absolute inset-0 top-[18px]" :style="{ bottom: getWaveformHeight(track) + 'px' }">
-                                        <div class="clip-filmstrip h-full">
-                                            <div v-for="(frame, fi) in getFilmstripFrames(clip)" :key="'f'+fi"
-                                                class="clip-filmstrip-frame"
-                                                :style="{ width: frame.width + 'px', backgroundImage: frame.src ? 'url(' + frame.src + ')' : 'none', backgroundColor: frame.src ? 'transparent' : '#1a1a2e' }">
-                                                <i v-if="!frame.src" class="fa-solid fa-film" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:rgba(255,255,255,0.1);font-size:12px;"></i>
-                                            </div>
+                                <div v-if="clip.type === 'video' || clip.type === 'image'" class="absolute inset-0 top-[18px]" :style="{ bottom: getWaveformHeight(track) + 'px' }">
+                                    <div class="clip-filmstrip h-full">
+                                        <div v-for="(frame, fi) in getFilmstripFrames(clip)" :key="'f'+fi"
+                                            class="clip-filmstrip-frame"
+                                            :style="{ width: frame.width + 'px', backgroundImage: frame.src ? 'url(' + frame.src + ')' : 'none', backgroundColor: frame.src ? 'transparent' : '#1a1a2e' }">
+                                            <i v-if="!frame.src" class="fa-solid fa-film" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:rgba(255,255,255,0.1);font-size:12px;"></i>
                                         </div>
                                     </div>
-                                    
-                                    <div class="clip-title-bar">
-                                        <span class="clip-name">{{ clip.name }}</span>
-                                        <span class="clip-duration">{{ formatClipDuration(clip.duration) }}</span>
-                                    </div>
-                                    
-                                    <div class="clip-waveform-area" :style="{ height: getWaveformHeight(track) + 'px' }">
-                                        <svg class="clip-waveform-svg" preserveAspectRatio="none" viewBox="0 0 100 100">
-                                            <rect x="0" y="0" width="100" height="100" :fill="getWaveformBgColor(clip)" />
-                                            <rect v-for="(bar, bi) in getWaveformBars(clip)" :key="'w'+bi" :x="bar.x" :y="bar.y" :width="bar.w" :height="bar.h" :fill="getWaveformBarColor(clip)" />
-                                        </svg>
-                                        <div class="clip-volume-line" :style="{ bottom: getVolumeLinePosition(clip) + '%' }" @mousedown.stop="startClipVolumeDrag($event, clip)"></div>
-                                    </div>
-                                    
-                                    <div class="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20" style="z-index:15;" @mousedown.stop="startClipResize($event, clip, 'left')"></div>
-                                    <div class="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20" style="z-index:15;" @mousedown.stop="startClipResize($event, clip, 'right')"></div>
                                 </div>
+                                
+                                <div class="clip-title-bar">
+                                    <span class="clip-name">{{ clip.name }}</span>
+                                    <span class="clip-duration">{{ formatClipDuration(clip.duration) }}</span>
+                                </div>
+                                
+                                <div class="clip-waveform-area" :style="{ height: getWaveformHeight(track) + 'px' }">
+                                    <svg class="clip-waveform-svg" preserveAspectRatio="none" viewBox="0 0 100 100">
+                                        <rect x="0" y="0" width="100" height="100" :fill="getWaveformBgColor(clip)" />
+                                        <rect v-for="(bar, bi) in getWaveformBars(clip)" :key="'w'+bi" :x="bar.x" :y="bar.y" :width="bar.w" :height="bar.h" :fill="getWaveformBarColor(clip)" />
+                                    </svg>
+                                    <div class="clip-volume-line" :style="{ bottom: getVolumeLinePosition(clip) + '%' }" @mousedown.stop="startClipVolumeDrag($event, clip)"></div>
+                                </div>
+                                
+                                <div class="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20" style="z-index:15;" @mousedown.stop="startClipResize($event, clip, 'left')"></div>
+                                <div class="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20" style="z-index:15;" @mousedown.stop="startClipResize($event, clip, 'right')"></div>
                             </div>
                         </div>
                         
-                        <div class="playhead-line-body" :style="{ left: vm.currentTime * pixelsPerSecond + 'px', top: '24px', height: totalTrackHeight + 'px' }"></div>
+                        <div class="playhead-line-body" :style="{ left: vm.currentTime * pixelsPerSecond + 'px', height: totalTrackHeight + 'px' }"></div>
                     </div>
                 </div>
             </div>
@@ -298,7 +290,7 @@ const TimelinePanel = {
             </div>
         </div>
     `,
-    data() {
+    data: function() {
         return {
             trackHeaderWidth: 180, 
             initialHeaderWidth: 180,
@@ -400,7 +392,7 @@ const TimelinePanel = {
         };
     },
     computed: {
-        formattedTime() { 
+        formattedTime: function() { 
             var t = this.vm.currentTime || 0;
             var h = Math.floor(t/3600);
             var m = Math.floor((t%3600)/60);
@@ -409,55 +401,37 @@ const TimelinePanel = {
             var pad = function(n) { return String(n).padStart(2,'0'); };
             return pad(h) + ':' + pad(m) + ':' + pad(s) + ':' + pad(f);
         },
-        pixelsPerSecond() { return this.currentDisplayZoom; },
-        maxClipEnd() { 
+        pixelsPerSecond: function() { return this.currentDisplayZoom; },
+        maxClipEnd: function() { 
             var max = 60; 
-            var self = this;
             this.vm.clips.forEach(function(c) { 
                 if (c.start + c.duration > max) max = c.start + c.duration; 
             }); 
             return max; 
         },
-        totalDuration() { return Math.max(300, this.maxClipEnd + 60); },
-        totalTimelineWidth() { return this.totalDuration * this.pixelsPerSecond; },
-        totalTrackHeight() { 
+        totalDuration: function() { return Math.max(300, this.maxClipEnd + 60); },
+        totalTimelineWidth: function() { return this.totalDuration * this.pixelsPerSecond; },
+        totalTrackHeight: function() { 
             var total = 0;
             var self = this;
             this.vm.tracks.forEach(function(t) { total += self.getTrackHeight(t.id); });
             return total;
         },
-        currentHeaderWidth() { 
+        currentHeaderWidth: function() { 
             return this.isTrackHeaderCollapsed ? this.collapsedHeaderWidth : this.trackHeaderWidth; 
         },
-        headerResizeHandleStyle() {
-            return {
-                position: 'absolute',
-                right: '0',
-                top: '24px',
-                width: '3px',
-                height: this.totalTrackHeight + 'px',
-                cursor: 'col-resize',
-                background: this.isResizingHeader ? '#3b82f6' : 'transparent',
-                zIndex: '60'
-            };
-        },
-        laneContainerStyle() {
-            return {
-                minHeight: (this.totalTrackHeight + 24) + 'px'
-            };
-        },
-        zoomDisplayText() { 
+        zoomDisplayText: function() { 
             if (this.pixelsPerSecond >= 60) return Math.round(this.pixelsPerSecond) + 'px/s';
             if (this.pixelsPerSecond >= 1) return this.pixelsPerSecond.toFixed(1) + 'px/s';
             return (this.pixelsPerSecond * 60).toFixed(1) + 'px/m';
         },
-        visibleTimeRange() { 
+        visibleTimeRange: function() { 
             return { 
                 startTime: Math.max(0, this.scrollLeft / this.pixelsPerSecond - 10), 
                 endTime: (this.scrollLeft + this.viewportWidth) / this.pixelsPerSecond + 10 
             }; 
         },
-        visibleRulerMarks() {
+        visibleRulerMarks: function() {
             var marks = [];
             var pps = this.pixelsPerSecond;
             var startTime = this.visibleTimeRange.startTime;
@@ -492,12 +466,10 @@ const TimelinePanel = {
             }
             return marks;
         },
-        canUndo() { return this.historyIndex > 0; },
-        canRedo() { return this.historyIndex < this.historyStack.length - 1; },
-        hasSelectedClips() { return this.selectedClipIds.length > 0; }
+        canUndo: function() { return this.historyIndex > 0; },
+        canRedo: function() { return this.historyIndex < this.historyStack.length - 1; },
+        hasSelectedClips: function() { return this.selectedClipIds.length > 0; }
     },
-// 코드연결지점
-// 코드연결지점
     watch: {
         'vm.clips': { 
             handler: function() { 
@@ -557,7 +529,6 @@ const TimelinePanel = {
         if (this.heightSubmenuCloseTimer) clearTimeout(this.heightSubmenuCloseTimer);
     },
     methods: {
-        // 컨텍스트 메뉴 위치 계산 (반응형 - 화면 밖 방지)
         getContextMenuStyle: function(menu) {
             if (!menu) return {};
             var x = menu.x;
@@ -565,53 +536,30 @@ const TimelinePanel = {
             var vw = window.innerWidth;
             var vh = window.innerHeight;
             
-            if (x + this.contextMenuWidth > vw) {
-                x = vw - this.contextMenuWidth - 10;
-            }
-            if (y + this.contextMenuHeight > vh) {
-                y = vh - this.contextMenuHeight - 10;
-            }
+            if (x + this.contextMenuWidth > vw) x = vw - this.contextMenuWidth - 10;
+            if (y + this.contextMenuHeight > vh) y = vh - this.contextMenuHeight - 10;
             if (x < 10) x = 10;
             if (y < 10) y = 10;
             
             return { top: y + 'px', left: x + 'px' };
         },
-        
         getHeightSubmenuStyle: function() {
             var x = this.heightSubmenu.x;
             var y = this.heightSubmenu.y;
             var vw = window.innerWidth;
             var vh = window.innerHeight;
             
-            if (x + this.submenuWidth > vw) {
-                x = this.heightSubmenu.x - this.submenuWidth - this.contextMenuWidth;
-            }
-            if (y + this.submenuHeight > vh) {
-                y = vh - this.submenuHeight - 10;
-            }
+            if (x + this.submenuWidth > vw) x = this.heightSubmenu.x - this.submenuWidth - this.contextMenuWidth;
+            if (y + this.submenuHeight > vh) y = vh - this.submenuHeight - 10;
             if (x < 10) x = 10;
             if (y < 10) y = 10;
             
             return { top: y + 'px', left: x + 'px' };
         },
-        
-        // 헤더 영역 호버 감지
-        onHeaderAreaEnter: function() {
-            this.isHoveringHeaderArea = true;
-        },
-        onHeaderAreaLeave: function() {
-            this.isHoveringHeaderArea = false;
-        },
-        
-        // 트랙 헤더 접기/펼치기
-        collapseTrackHeader: function() {
-            this.isTrackHeaderCollapsed = true;
-        },
-        expandTrackHeader: function() {
-            this.isTrackHeaderCollapsed = false;
-        },
-        
-        // 헤더 스크롤 동기화
+        onHeaderAreaEnter: function() { this.isHoveringHeaderArea = true; },
+        onHeaderAreaLeave: function() { this.isHoveringHeaderArea = false; },
+        collapseTrackHeader: function() { this.isTrackHeaderCollapsed = true; },
+        expandTrackHeader: function() { this.isTrackHeaderCollapsed = false; },
         onHeaderScroll: function(e) {
             var sc = this.$refs.timelineScrollContainer;
             if (sc && !this._syncingScroll) {
@@ -621,8 +569,6 @@ const TimelinePanel = {
                 this.$nextTick(function() { self._syncingScroll = false; });
             }
         },
-        
-        // 트랙 헤더에서 휠로 높이 조절
         onTrackHeaderWheel: function(e, track) {
             if (this.wheelAdjustMode.active) {
                 e.preventDefault();
@@ -641,26 +587,17 @@ const TimelinePanel = {
                 this.trackHeights = Object.assign({}, this.trackHeights);
             }
         },
-        
-        // 높이 서브메뉴
         openHeightSubmenu: function(e, target) {
             if (this.heightSubmenuCloseTimer) {
                 clearTimeout(this.heightSubmenuCloseTimer);
                 this.heightSubmenuCloseTimer = null;
             }
             var rect = e.currentTarget.getBoundingClientRect();
-            this.heightSubmenu = {
-                visible: true,
-                x: rect.right,
-                y: rect.top,
-                target: target
-            };
+            this.heightSubmenu = { visible: true, x: rect.right, y: rect.top, target: target };
         },
         scheduleCloseHeightSubmenu: function() {
             var self = this;
-            this.heightSubmenuCloseTimer = setTimeout(function() {
-                self.heightSubmenu.visible = false;
-            }, 150);
+            this.heightSubmenuCloseTimer = setTimeout(function() { self.heightSubmenu.visible = false; }, 150);
         },
         cancelCloseHeightSubmenu: function() {
             if (this.heightSubmenuCloseTimer) {
@@ -672,9 +609,7 @@ const TimelinePanel = {
             var height = this.trackHeightPresets[preset] || this.trackHeightPresets.default;
             var self = this;
             if (this.heightSubmenu.target === 'all') {
-                this.vm.tracks.forEach(function(t) {
-                    self.trackHeights[t.id] = height;
-                });
+                this.vm.tracks.forEach(function(t) { self.trackHeights[t.id] = height; });
             } else if (this.trackContextMenu && this.trackContextMenu.track) {
                 this.trackHeights[this.trackContextMenu.track.id] = height;
             }
@@ -682,315 +617,145 @@ const TimelinePanel = {
             this.closeContextMenus();
         },
         enableWheelAdjust: function() {
-            this.wheelAdjustMode = {
-                active: true,
-                target: this.heightSubmenu.target
-            };
+            this.wheelAdjustMode = { active: true, target: this.heightSubmenu.target };
             this.closeContextMenus();
             var self = this;
-            setTimeout(function() {
-                self.wheelAdjustMode.active = false;
-            }, 5000);
+            setTimeout(function() { self.wheelAdjustMode.active = false; }, 5000);
         },
-        
-        // 화면비율 드롭다운
         toggleAspectDropdown: function() { 
             this.isAspectDropdownOpen = !this.isAspectDropdownOpen; 
             if (this.isAspectDropdownOpen) this.isResolutionDropdownOpen = false;
         },
         selectAspectRatio: function(value) { 
-            if (this.vm) {
-                this.vm.aspectRatio = value;
-                this.applyAspectRatio(value);
-            }
+            if (this.vm) { this.vm.aspectRatio = value; this.applyAspectRatio(value); }
             this.isAspectDropdownOpen = false; 
         },
         applyAspectRatio: function(ratio) {
             if (!this.vm) return;
             var baseWidth = this.getBaseWidth();
             var newW, newH;
-            
             switch(ratio) {
-                case '원본':
-                    var originalSize = this.getOriginalVideoSize();
-                    if (originalSize) {
-                        newW = originalSize.width;
-                        newH = originalSize.height;
-                    } else {
-                        newW = 1920;
-                        newH = 1080;
-                    }
-                    break;
-                case '16:9':
-                    newW = baseWidth;
-                    newH = Math.round(baseWidth * 9 / 16);
-                    break;
-                case '9:16':
-                    newH = baseWidth;
-                    newW = Math.round(baseWidth * 9 / 16);
-                    break;
-                case '4:3':
-                    newW = baseWidth;
-                    newH = Math.round(baseWidth * 3 / 4);
-                    break;
-                case '1:1':
-                    newW = baseWidth;
-                    newH = baseWidth;
-                    break;
-                default:
-                    newW = 1920;
-                    newH = 1080;
+                case '원본': var os = this.getOriginalVideoSize(); if (os) { newW = os.width; newH = os.height; } else { newW = 1920; newH = 1080; } break;
+                case '16:9': newW = baseWidth; newH = Math.round(baseWidth * 9 / 16); break;
+                case '9:16': newH = baseWidth; newW = Math.round(baseWidth * 9 / 16); break;
+                case '4:3': newW = baseWidth; newH = Math.round(baseWidth * 3 / 4); break;
+                case '1:1': newW = baseWidth; newH = baseWidth; break;
+                default: newW = 1920; newH = 1080;
             }
-            
             this.vm.canvasSize = { w: newW, h: newH };
             var self = this;
-            this.$nextTick(function() {
-                if (typeof self.vm.recalculateCanvasScale === 'function') {
-                    self.vm.recalculateCanvasScale();
-                }
-            });
+            this.$nextTick(function() { if (typeof self.vm.recalculateCanvasScale === 'function') self.vm.recalculateCanvasScale(); });
         },
         getBaseWidth: function() {
-            switch(this.vm.resolution) {
-                case '4K': return 3840;
-                case 'FHD': return 1920;
-                case 'HD': return 1280;
-                default: return 1920;
-            }
+            switch(this.vm.resolution) { case '4K': return 3840; case 'FHD': return 1920; case 'HD': return 1280; default: return 1920; }
         },
         getOriginalVideoSize: function() {
             var currentTime = this.vm.currentTime;
             var self = this;
             var activeVideoClip = this.vm.clips.find(function(clip) {
                 if (clip.type !== 'video') return false;
-                var clipEnd = clip.start + clip.duration;
-                return currentTime >= clip.start && currentTime < clipEnd;
+                return currentTime >= clip.start && currentTime < clip.start + clip.duration;
             });
-            
             if (activeVideoClip && activeVideoClip.src) {
                 var meta = this.videoMetaCache[activeVideoClip.id];
-                if (meta) {
-                    return { width: meta.width, height: meta.height };
-                }
+                if (meta) return { width: meta.width, height: meta.height };
             }
             return null;
         },
         cacheVideoMetadata: function(clip) {
-            if (!clip.src || clip.type !== 'video') return;
-            if (this.videoMetaCache[clip.id]) return;
-            
+            if (!clip.src || clip.type !== 'video' || this.videoMetaCache[clip.id]) return;
             var self = this;
             var video = document.createElement('video');
             video.preload = 'metadata';
             video.onloadedmetadata = function() {
-                self.videoMetaCache[clip.id] = {
-                    width: video.videoWidth,
-                    height: video.videoHeight,
-                    duration: video.duration
-                };
+                self.videoMetaCache[clip.id] = { width: video.videoWidth, height: video.videoHeight, duration: video.duration };
                 video.remove();
-                
                 if (self.vm.aspectRatio === '원본') {
-                    var currentTime = self.vm.currentTime;
-                    var clipEnd = clip.start + clip.duration;
-                    if (currentTime >= clip.start && currentTime < clipEnd) {
-                        self.applyAspectRatio('원본');
-                    }
+                    var ct = self.vm.currentTime;
+                    if (ct >= clip.start && ct < clip.start + clip.duration) self.applyAspectRatio('원본');
                 }
             };
             video.src = clip.src;
         },
-        
         onMasterVolumeLeave: function() {
             if (this.isDraggingMasterVolume) return;
             var self = this;
-            this.masterVolumeHideTimer = setTimeout(function() {
-                if (!self.isDraggingMasterVolume) self.showMasterVolume = false;
-            }, 200);
+            this.masterVolumeHideTimer = setTimeout(function() { if (!self.isDraggingMasterVolume) self.showMasterVolume = false; }, 200);
         },
-        onMasterVolumeWheel: function(e) {
-            e.stopPropagation();
-            var delta = e.deltaY > 0 ? -5 : 5;
-            this.masterVolume = Math.max(0, Math.min(100, this.masterVolume + delta));
-        },
-        
+        onMasterVolumeWheel: function(e) { e.stopPropagation(); this.masterVolume = Math.max(0, Math.min(100, this.masterVolume + (e.deltaY > 0 ? -5 : 5))); },
         handleLaneWheel: function(e) {
             if (!this.isMouseInLane) return;
-            
             var sc = document.getElementById('timeline-scroll-container'); 
             if (!sc) return;
-            
             if (e.shiftKey || e.ctrlKey) { 
-                e.preventDefault();
-                e.stopPropagation();
+                e.preventDefault(); e.stopPropagation();
                 var zf = this.currentDisplayZoom > 10 ? 0.15 : 0.3;
                 var delta = e.deltaY > 0 ? -this.currentDisplayZoom * zf : this.currentDisplayZoom * zf;
                 var nz = Math.max(this.zoomMin, Math.min(this.zoomMax, this.currentDisplayZoom + delta)); 
-                
-                if (this.zoomMode === 'playhead') {
-                    this.setZoom(nz, 'playhead');
-                } else { 
+                if (this.zoomMode === 'playhead') { this.setZoom(nz, 'playhead'); } 
+                else { 
                     var lane = document.getElementById('timeline-lane-container'); 
                     if (lane) { 
                         var rect = lane.getBoundingClientRect();
                         var cx = e.clientX - rect.left;
                         var ct = (sc.scrollLeft + cx) / this.pixelsPerSecond; 
-                        this.currentDisplayZoom = nz; 
-                        this.vm.zoom = nz; 
+                        this.currentDisplayZoom = nz; this.vm.zoom = nz; 
                         var self = this;
-                        this.$nextTick(function() { 
-                            sc.scrollLeft = ct * self.pixelsPerSecond - cx; 
-                            self.scrollLeft = sc.scrollLeft; 
-                        }); 
-                    } else {
-                        this.setZoom(nz);
-                    }
+                        this.$nextTick(function() { sc.scrollLeft = ct * self.pixelsPerSecond - cx; self.scrollLeft = sc.scrollLeft; }); 
+                    } else { this.setZoom(nz); }
                 } 
-            } else { 
-                sc.scrollLeft += e.deltaY; 
-                this.scrollLeft = sc.scrollLeft; 
-            }
+            } else { sc.scrollLeft += e.deltaY; this.scrollLeft = sc.scrollLeft; }
         },
-        
         updateTrackYPositions: function() {
-            var accY = 0;
-            var self = this;
+            var accY = 0; var self = this;
             this.trackYPositions = this.vm.tracks.map(function(track) {
                 var h = self.getTrackHeight(track.id);
                 var pos = { id: track.id, top: accY, bottom: accY + h, height: h };
-                accY += h;
-                return pos;
+                accY += h; return pos;
             });
         },
-        
         getTrackIndexFromY: function(relativeY) {
             for (var i = 0; i < this.trackYPositions.length; i++) {
                 var pos = this.trackYPositions[i];
                 if (relativeY >= pos.top && relativeY < pos.bottom) return i;
             }
-            if (relativeY < 0) return 0;
-            return this.trackYPositions.length - 1;
+            return relativeY < 0 ? 0 : this.trackYPositions.length - 1;
         },
-        
-        getTrackHeight: function(trackId) { 
-            return this.trackHeights[trackId] || this.defaultTrackHeight; 
-        },
-        
+        getTrackHeight: function(trackId) { return this.trackHeights[trackId] || this.defaultTrackHeight; },
         injectStyles: function() {
             if (document.getElementById('timeline-custom-styles')) return;
-            var style = document.createElement('style'); 
-            style.id = 'timeline-custom-styles';
-            style.textContent = '\
-                .playhead-line-body{position:absolute;width:2px;background:#ef4444;pointer-events:none;z-index:35;transform:translateX(-1px);}\
-                .playhead-head{position:absolute;top:2px;width:12px;height:20px;background:transparent;border:2px solid #ef4444;border-radius:0 0 4px 4px;transform:translateX(-6px);cursor:ew-resize;z-index:50;}\
-                .playhead-head::after{content:\"\";position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid #ef4444;}\
-                .timeline-select-no-arrow{-webkit-appearance:none;-moz-appearance:none;appearance:none;}\
-                .master-volume-popup{display:none;}\
-                .master-volume-popup.show{display:flex;}\
-                .track-header-container{position:relative;display:flex;flex-direction:column;overflow:hidden;}\
-                .track-header-list{scrollbar-width:none;-ms-overflow-style:none;}\
-                .track-header-list::-webkit-scrollbar{display:none;}\
-                .track-header-inner{position:relative;}\
-                .has-submenu{position:relative;}\
-                .clip.dragging{opacity:0.8;z-index:100;}\
-                .header-resize-handle:hover{background:#3b82f6 !important;}\
-                .timeline-scroll-enhanced::-webkit-scrollbar{width:8px;height:8px;}\
-                .timeline-scroll-enhanced::-webkit-scrollbar-track{background:rgba(0,0,0,0.1);}\
-                .timeline-scroll-enhanced::-webkit-scrollbar-thumb{background:rgba(100,100,100,0.5);border-radius:4px;}\
-                .timeline-scroll-enhanced:hover::-webkit-scrollbar{width:14px;height:14px;}\
-                .timeline-scroll-enhanced:hover::-webkit-scrollbar-thumb{background:rgba(100,100,100,0.7);}\
-                .timeline-scroll-enhanced{scrollbar-width:thin;scrollbar-color:rgba(100,100,100,0.5) rgba(0,0,0,0.1);}\
-                .track-lanes-wrapper{min-height:0;}\
-                .timeline-main-area{display:flex;flex-direction:row;}\
-            ';
+            var style = document.createElement('style'); style.id = 'timeline-custom-styles';
+            style.textContent = '.playhead-line-body{position:absolute;top:24px;width:2px;background:#ef4444;pointer-events:none;z-index:35;transform:translateX(-1px);}.playhead-head{position:absolute;top:2px;width:12px;height:20px;background:transparent;border:2px solid #ef4444;border-radius:0 0 4px 4px;transform:translateX(-6px);cursor:ew-resize;z-index:50;}.playhead-head::after{content:"";position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid #ef4444;}.timeline-select-no-arrow{-webkit-appearance:none;-moz-appearance:none;appearance:none;}.master-volume-popup{display:none;}.master-volume-popup.show{display:flex;}.track-header-container{position:relative;display:flex;flex-direction:column;overflow:hidden;}.track-header-list{scrollbar-width:none;-ms-overflow-style:none;}.track-header-list::-webkit-scrollbar{display:none;}.track-header-inner{position:relative;}.has-submenu{position:relative;}.clip.dragging{opacity:0.8;z-index:100;}.header-resize-handle{position:absolute;right:0;width:3px;cursor:col-resize;background:transparent;z-index:60;transition:background 0.15s;}.header-resize-handle:hover,.header-resize-handle.resizing{background:#3b82f6;}.timeline-scroll-enhanced::-webkit-scrollbar{width:8px;height:8px;}.timeline-scroll-enhanced::-webkit-scrollbar-track{background:rgba(0,0,0,0.1);}.timeline-scroll-enhanced::-webkit-scrollbar-thumb{background:rgba(100,100,100,0.5);border-radius:4px;}.timeline-scroll-enhanced:hover::-webkit-scrollbar{width:14px;height:14px;}.timeline-scroll-enhanced:hover::-webkit-scrollbar-thumb{background:rgba(100,100,100,0.7);}.timeline-scroll-enhanced{scrollbar-width:thin;scrollbar-color:rgba(100,100,100,0.5) rgba(0,0,0,0.1);}';
             document.head.appendChild(style);
         },
-        
-        getVolumeIcon: function(v) { 
-            if (v === 0) return 'fa-solid fa-volume-xmark';
-            if (v < 30) return 'fa-solid fa-volume-off';
-            if (v < 70) return 'fa-solid fa-volume-low';
-            return 'fa-solid fa-volume-high';
-        },
-        toggleMute: function() { 
-            if (this.masterVolume > 0) { 
-                this.previousVolume = this.masterVolume; 
-                this.masterVolume = 0; 
-            } else { 
-                this.masterVolume = this.previousVolume || 100; 
-            } 
-        },
-        startMasterVolumeDrag: function(e) { 
-            this.isDraggingMasterVolume = true; 
-            if (this.masterVolumeHideTimer) { 
-                clearTimeout(this.masterVolumeHideTimer); 
-                this.masterVolumeHideTimer = null; 
-            }
-            this.updateMasterVolumeFromEvent(e); 
-        },
-        updateMasterVolumeFromEvent: function(e) { 
-            var track = e.target.closest('.volume-track'); 
-            if (!track) return; 
-            var rect = track.getBoundingClientRect(); 
-            this.masterVolume = Math.round(Math.max(0, Math.min(100, (1 - (e.clientY - rect.top) / rect.height) * 100))); 
-        },
-        
-        generateThumbnailsForNewClips: function() {
-            var self = this;
-            this.vm.clips.forEach(function(clip) {
-                if (clip.type === 'video' && clip.src) {
-                    if (!self.thumbnailCache[clip.id]) self.generateVideoThumbnails(clip);
-                    self.cacheVideoMetadata(clip);
-                }
-            });
-        },
+        getVolumeIcon: function(v) { return v === 0 ? 'fa-solid fa-volume-xmark' : v < 30 ? 'fa-solid fa-volume-off' : v < 70 ? 'fa-solid fa-volume-low' : 'fa-solid fa-volume-high'; },
+        toggleMute: function() { if (this.masterVolume > 0) { this.previousVolume = this.masterVolume; this.masterVolume = 0; } else { this.masterVolume = this.previousVolume || 100; } },
+        startMasterVolumeDrag: function(e) { this.isDraggingMasterVolume = true; if (this.masterVolumeHideTimer) { clearTimeout(this.masterVolumeHideTimer); this.masterVolumeHideTimer = null; } this.updateMasterVolumeFromEvent(e); },
+        updateMasterVolumeFromEvent: function(e) { var track = e.target.closest('.volume-track'); if (!track) return; var rect = track.getBoundingClientRect(); this.masterVolume = Math.round(Math.max(0, Math.min(100, (1 - (e.clientY - rect.top) / rect.height) * 100))); },
+        generateThumbnailsForNewClips: function() { var self = this; this.vm.clips.forEach(function(clip) { if (clip.type === 'video' && clip.src) { if (!self.thumbnailCache[clip.id]) self.generateVideoThumbnails(clip); self.cacheVideoMetadata(clip); } }); },
         generateVideoThumbnails: function(clip) {
-            if (!clip.src) return;
-            var self = this;
-            var video = document.createElement('video');
-            video.crossOrigin = 'anonymous'; 
-            video.muted = true; 
-            video.preload = 'metadata';
+            if (!clip.src) return; var self = this;
+            var video = document.createElement('video'); video.crossOrigin = 'anonymous'; video.muted = true; video.preload = 'metadata';
             video.onloadedmetadata = function() {
                 var duration = video.duration || clip.duration || 10;
                 var frameCount = Math.min(10, Math.ceil(duration / 2));
-                var frames = {}; 
-                var loaded = 0;
-                var captureFrame = function(index) { 
-                    video.currentTime = (index / frameCount) * duration; 
-                };
+                var frames = {}; var loaded = 0;
+                var captureFrame = function(index) { video.currentTime = (index / frameCount) * duration; };
                 video.onseeked = function() {
-                    var canvas = document.createElement('canvas');
-                    canvas.width = 80; 
-                    canvas.height = 45;
-                    var ctx = canvas.getContext('2d');
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    try { 
-                        frames[loaded] = canvas.toDataURL('image/jpeg', 0.6); 
-                    } catch (err) { 
-                        frames[loaded] = null; 
-                    }
-                    loaded++;
-                    if (loaded < frameCount) captureFrame(loaded);
-                    else { 
-                        self.thumbnailCache[clip.id] = frames; 
-                        video.remove(); 
-                    }
+                    var canvas = document.createElement('canvas'); canvas.width = 80; canvas.height = 45;
+                    var ctx = canvas.getContext('2d'); ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    try { frames[loaded] = canvas.toDataURL('image/jpeg', 0.6); } catch (err) { frames[loaded] = null; }
+                    loaded++; if (loaded < frameCount) captureFrame(loaded); else { self.thumbnailCache[clip.id] = frames; video.remove(); }
                 };
                 captureFrame(0);
             };
-            video.onerror = function() { 
-                self.thumbnailCache[clip.id] = {}; 
-            };
+            video.onerror = function() { self.thumbnailCache[clip.id] = {}; };
             video.src = clip.src;
         },
         getFilmstripFrames: function(clip) {
-            var w = this.getClipPixelWidth(clip);
-            var frameW = Math.max(40, Math.min(80, w / this.MAX_FILMSTRIP_FRAMES));
-            var count = Math.min(this.MAX_FILMSTRIP_FRAMES, Math.ceil(w / frameW));
-            var frames = [];
-            var cached = this.thumbnailCache[clip.id] || {};
-            var cachedKeys = Object.keys(cached);
+            var w = this.getClipPixelWidth(clip); var frameW = Math.max(40, Math.min(80, w / this.MAX_FILMSTRIP_FRAMES));
+            var count = Math.min(this.MAX_FILMSTRIP_FRAMES, Math.ceil(w / frameW)); var frames = [];
+            var cached = this.thumbnailCache[clip.id] || {}; var cachedKeys = Object.keys(cached);
             for (var i = 0; i < count; i++) {
                 var frameIndex = Math.floor((i / count) * (cachedKeys.length || 1));
                 var src = cached[frameIndex] || (clip.type === 'image' ? clip.src : null);
@@ -998,816 +763,165 @@ const TimelinePanel = {
             }
             return frames;
         },
-        getThumbnail: function(clip, pos) { 
-            if (!clip.src || clip.type !== 'video') return null; 
-            var cached = this.thumbnailCache[clip.id];
-            if (!cached) return null;
-            var keys = Object.keys(cached);
-            var index = Math.floor(pos * keys.length);
-            return cached[index] || null;
-        },
+        getThumbnail: function(clip, pos) { if (!clip.src || clip.type !== 'video') return null; var cached = this.thumbnailCache[clip.id]; if (!cached) return null; var keys = Object.keys(cached); return cached[Math.floor(pos * keys.length)] || null; },
         getWaveformBars: function(clip) {
-            var w = this.getClipPixelWidth(clip);
-            var count = Math.min(this.MAX_WAVEFORM_BARS, Math.max(15, Math.floor(w / 3)));
-            var bars = [];
-            var bw = 100 / count * 0.6;
+            var w = this.getClipPixelWidth(clip); var count = Math.min(this.MAX_WAVEFORM_BARS, Math.max(15, Math.floor(w / 3))); var bars = []; var bw = 100 / count * 0.6;
             var waveData = this.waveformCache[clip.id];
-            if (!waveData) {
-                waveData = [];
-                for (var i = 0; i < 100; i++) {
-                    waveData.push(12 + Math.sin(i * 0.8 + (clip.id.charCodeAt(0) || 0)) * 10 + (i % 4) * 3);
-                }
-                this.waveformCache[clip.id] = waveData;
-            }
-            for (var j = 0; j < count; j++) { 
-                var x = (j / count) * 100;
-                var dataIndex = Math.floor((j / count) * waveData.length);
-                var amp = waveData[dataIndex] || 15;
-                bars.push({ x: x, y: 50 - amp, w: bw, h: amp * 2 }); 
-            }
+            if (!waveData) { waveData = []; for (var i = 0; i < 100; i++) waveData.push(12 + Math.sin(i * 0.8 + (clip.id.charCodeAt(0) || 0)) * 10 + (i % 4) * 3); this.waveformCache[clip.id] = waveData; }
+            for (var j = 0; j < count; j++) { var x = (j / count) * 100; var dataIndex = Math.floor((j / count) * waveData.length); var amp = waveData[dataIndex] || 15; bars.push({ x: x, y: 50 - amp, w: bw, h: amp * 2 }); }
             return bars;
         },
-        getWaveformHeight: function(track) { 
-            return Math.max(14, Math.floor((this.getTrackHeight(track.id) - 18) * 0.35)); 
-        },
-        getWaveformBgColor: function(clip) { 
-            return clip.type === 'sound' ? 'rgba(34,197,94,0.15)' : 'rgba(59,130,246,0.1)'; 
-        },
-        getWaveformBarColor: function(clip) { 
-            return clip.type === 'sound' ? 'rgba(34,197,94,0.8)' : 'rgba(59,130,246,0.6)'; 
-        },
-        getVolumeLinePosition: function(clip) { 
-            return Math.min(95, Math.max(5, ((clip.volume || 100) / 200) * 100)); 
-        },
-        startClipVolumeDrag: function(e, clip) { 
-            e.preventDefault(); 
-            this.isDraggingClipVolume = true; 
-            this.volumeDragClip = clip;
-            this.volumeDragStartY = e.clientY; 
-            this.volumeDragStartVolume = clip.volume || 100; 
-        },
-        openVolumePopup: function(e, clip) {
-            this.closeContextMenus();
-            var rect = e.target.getBoundingClientRect();
-            this.volumePopup = { visible: true, x: rect.left - 20, y: rect.top - 130, clip: clip, value: clip.volume || 100 };
-        },
-        startVolumePopupDrag: function(e) { 
-            this.isDraggingVolumePopup = true; 
-            this.updateVolumePopupFromEvent(e); 
-        },
-        updateVolumePopupFromEvent: function(e) {
-            var track = e.target.closest('.volume-track'); 
-            if (!track) return;
-            var rect = track.getBoundingClientRect();
-            var val = Math.round(Math.max(0, Math.min(200, (1 - (e.clientY - rect.top) / rect.height) * 200)));
-            this.volumePopup.value = val; 
-            if (this.volumePopup.clip) {
-                this.volumePopup.clip.volume = val;
-                if (window.PreviewRenderer) window.PreviewRenderer.updateClipVolume(this.volumePopup.clip.id, val / 100);
-            }
-        },
-        isClipAtPlayhead: function(clip) { 
-            return this.vm.currentTime > clip.start && this.vm.currentTime < clip.start + clip.duration; 
-        },
-        onWindowResize: function() { 
-            this.adjustLayout(); 
-            this.updateViewportSize(); 
-            this.updateTrackYPositions(); 
-        },
-        updateViewportSize: function() { 
-            var c = document.getElementById('timeline-scroll-container'); 
-            if (c) this.viewportWidth = c.clientWidth; 
-        },
-        onTimelineScroll: function(e) { 
-            this.scrollLeft = e.target.scrollTop;
-            var headerList = this.$refs.trackHeaderList;
-            if (headerList && !this._syncingScroll) {
-                this._syncingScroll = true;
-                headerList.scrollTop = e.target.scrollTop;
-                var self = this;
-                this.$nextTick(function() { self._syncingScroll = false; });
-            }
-        },
-        isClipVisible: function(clip) { 
-            var s = clip.start * this.pixelsPerSecond;
-            var e = (clip.start + clip.duration) * this.pixelsPerSecond; 
-            return e >= this.scrollLeft - 100 && s <= this.scrollLeft + this.viewportWidth + 100; 
-        },
-        getVisibleClipsForTrack: function(trackId) { 
-            var self = this;
-            return this.vm.clips.filter(function(c) { 
-                return c.trackId === trackId && self.isClipVisible(c); 
-            }); 
-        },
-        calculateDynamicZoomRange: function() { 
-            var c = document.getElementById('timeline-scroll-container'); 
-            if (!c) return; 
-            this.zoomMin = Math.max(0.1, (c.clientWidth - 40) / Math.max(60, this.maxClipEnd + 30) / 2); 
-            if (this.currentDisplayZoom < this.zoomMin) this.currentDisplayZoom = this.zoomMin; 
-        },
-        zoomToFit: function() { 
-            var c = document.getElementById('timeline-scroll-container'); 
-            if (!c) return; 
-            this.currentDisplayZoom = Math.max(this.zoomMin, Math.min(this.zoomMax, (c.clientWidth - 40) / Math.max(10, this.maxClipEnd + 5))); 
-            this.vm.zoom = this.currentDisplayZoom; 
-            var self = this;
-            this.$nextTick(function() { c.scrollLeft = 0; self.scrollLeft = 0; }); 
-        },
-        updateTrackName: function(track, v) { 
-            track.name = v.trim() === '' ? 'NONE' : v; 
-        },
-        formatClipDuration: function(d) { 
-            if (!d) return '0:00'; 
-            var h = Math.floor(d/3600);
-            var m = Math.floor((d%3600)/60);
-            var s = Math.floor(d%60); 
-            if (h > 0) return h + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
-            return m + ':' + String(s).padStart(2,'0');
-        },
-        getClipPixelWidth: function(clip) { 
-            return Math.max(20, clip.duration * this.pixelsPerSecond); 
-        },
-        getClipBackgroundStyle: function(clip, track) { 
-            return { background: 'linear-gradient(180deg, ' + (track.color || '#3b82f6') + '50 0%, ' + (track.color || '#3b82f6') + '30 100%)' }; 
-        },
-        saveToHistory: function() { 
-            if (this.isUndoRedoAction) return; 
-            var state = { 
-                clips: JSON.parse(JSON.stringify(this.vm.clips)), 
-                tracks: JSON.parse(JSON.stringify(this.vm.tracks)) 
-            }; 
-            if (this.historyIndex < this.historyStack.length - 1) {
-                this.historyStack = this.historyStack.slice(0, this.historyIndex + 1);
-            }
-            this.historyStack.push(state); 
-            if (this.historyStack.length > this.maxHistorySize) this.historyStack.shift(); 
-            else this.historyIndex++; 
-        },
-        undo: function() { 
-            if (!this.canUndo) return; 
-            this.isUndoRedoAction = true; 
-            this.historyIndex--; 
-            var s = this.historyStack[this.historyIndex]; 
-            this.vm.clips = JSON.parse(JSON.stringify(s.clips)); 
-            this.vm.tracks = JSON.parse(JSON.stringify(s.tracks)); 
-            this.selectedClipIds = []; 
-            this.syncVmSelectedClip(); 
-            var self = this;
-            this.$nextTick(function() { self.isUndoRedoAction = false; }); 
-        },
-        redo: function() { 
-            if (!this.canRedo) return; 
-            this.isUndoRedoAction = true; 
-            this.historyIndex++; 
-            var s = this.historyStack[this.historyIndex]; 
-            this.vm.clips = JSON.parse(JSON.stringify(s.clips)); 
-            this.vm.tracks = JSON.parse(JSON.stringify(s.tracks)); 
-            this.selectedClipIds = []; 
-            this.syncVmSelectedClip(); 
-            var self = this;
-            this.$nextTick(function() { self.isUndoRedoAction = false; }); 
-        },
-        toggleZoomMode: function() { 
-            this.zoomMode = this.zoomMode === 'cursor' ? 'playhead' : 'cursor'; 
-        },
-        handleZoomInput: function(e) { 
-            this.setZoom(Number(e.target.value), this.zoomMode === 'playhead' ? 'playhead' : null); 
-        },
-        setZoom: function(z, center) { 
-            this.currentDisplayZoom = Math.max(this.zoomMin, Math.min(this.zoomMax, z)); 
-            this.vm.zoom = this.currentDisplayZoom; 
-            if (center === 'playhead') {
-                var self = this;
-                this.$nextTick(function() { 
-                    var sc = document.getElementById('timeline-scroll-container'); 
-                    if (sc) { 
-                        sc.scrollLeft = self.vm.currentTime * self.pixelsPerSecond - sc.clientWidth / 2; 
-                        self.scrollLeft = sc.scrollLeft; 
-                    } 
-                });
-            }
-        },
-        initTrackHeights: function() { 
-            var self = this;
-            this.vm.tracks.forEach(function(t) { 
-                if (!self.trackHeights[t.id]) self.trackHeights[t.id] = self.defaultTrackHeight; 
-            }); 
-            this.updateTrackYPositions(); 
-        },
-        toggleResolutionDropdown: function() { 
-            this.isResolutionDropdownOpen = !this.isResolutionDropdownOpen; 
-            if (this.isResolutionDropdownOpen) this.isAspectDropdownOpen = false; 
-        },
-        selectResolution: function(v) { 
-            if (this.vm) { 
-                this.vm.resolution = v; 
-                this.applyAspectRatio(this.vm.aspectRatio); 
-            } 
-            this.isResolutionDropdownOpen = false; 
-        },
-        clipStyle: function(clip, track) { 
-            var h = this.getTrackHeight(track.id); 
-            return { 
-                left: clip.start * this.pixelsPerSecond + 'px', 
-                width: Math.max(20, clip.duration * this.pixelsPerSecond) + 'px', 
-                top: '1px', 
-                height: (h - 2) + 'px' 
-            }; 
-        },
-        getClipClasses: function(clip) { 
-            var sel = this.selectedClipIds.indexOf(clip.id) >= 0; 
-            var dragging = this.isDraggingClip && this.draggingClipIds.indexOf(clip.id) >= 0;
-            return { 
-                'clip-selected': sel && this.selectedClipIds.length === 1, 
-                'clip-multi-selected': sel && this.selectedClipIds.length > 1,
-                'dragging': dragging
-            }; 
-        },
+        getWaveformHeight: function(track) { return Math.max(14, Math.floor((this.getTrackHeight(track.id) - 18) * 0.35)); },
+        getWaveformBgColor: function(clip) { return clip.type === 'sound' ? 'rgba(34,197,94,0.15)' : 'rgba(59,130,246,0.1)'; },
+        getWaveformBarColor: function(clip) { return clip.type === 'sound' ? 'rgba(34,197,94,0.8)' : 'rgba(59,130,246,0.6)'; },
+        getVolumeLinePosition: function(clip) { return Math.min(95, Math.max(5, ((clip.volume || 100) / 200) * 100)); },
+        startClipVolumeDrag: function(e, clip) { e.preventDefault(); this.isDraggingClipVolume = true; this.volumeDragClip = clip; this.volumeDragStartY = e.clientY; this.volumeDragStartVolume = clip.volume || 100; },
+        openVolumePopup: function(e, clip) { this.closeContextMenus(); var rect = e.target.getBoundingClientRect(); this.volumePopup = { visible: true, x: rect.left - 20, y: rect.top - 130, clip: clip, value: clip.volume || 100 }; },
+        startVolumePopupDrag: function(e) { this.isDraggingVolumePopup = true; this.updateVolumePopupFromEvent(e); },
+        updateVolumePopupFromEvent: function(e) { var track = e.target.closest('.volume-track'); if (!track) return; var rect = track.getBoundingClientRect(); var val = Math.round(Math.max(0, Math.min(200, (1 - (e.clientY - rect.top) / rect.height) * 200))); this.volumePopup.value = val; if (this.volumePopup.clip) { this.volumePopup.clip.volume = val; if (window.PreviewRenderer) window.PreviewRenderer.updateClipVolume(this.volumePopup.clip.id, val / 100); } },
+        isClipAtPlayhead: function(clip) { return this.vm.currentTime > clip.start && this.vm.currentTime < clip.start + clip.duration; },
+        onWindowResize: function() { this.adjustLayout(); this.updateViewportSize(); this.updateTrackYPositions(); },
+        updateViewportSize: function() { var c = document.getElementById('timeline-scroll-container'); if (c) this.viewportWidth = c.clientWidth; },
+        onTimelineScroll: function(e) { this.scrollLeft = e.target.scrollLeft; var headerList = this.$refs.trackHeaderList; if (headerList && !this._syncingScroll) { this._syncingScroll = true; headerList.scrollTop = e.target.scrollTop; var self = this; this.$nextTick(function() { self._syncingScroll = false; }); } },
+        isClipVisible: function(clip) { var s = clip.start * this.pixelsPerSecond; var en = (clip.start + clip.duration) * this.pixelsPerSecond; return en >= this.scrollLeft - 100 && s <= this.scrollLeft + this.viewportWidth + 100; },
+        getVisibleClipsForTrack: function(trackId) { var self = this; return this.vm.clips.filter(function(c) { return c.trackId === trackId && self.isClipVisible(c); }); },
+        calculateDynamicZoomRange: function() { var c = document.getElementById('timeline-scroll-container'); if (!c) return; this.zoomMin = Math.max(0.1, (c.clientWidth - 40) / Math.max(60, this.maxClipEnd + 30) / 2); if (this.currentDisplayZoom < this.zoomMin) this.currentDisplayZoom = this.zoomMin; },
+        zoomToFit: function() { var c = document.getElementById('timeline-scroll-container'); if (!c) return; this.currentDisplayZoom = Math.max(this.zoomMin, Math.min(this.zoomMax, (c.clientWidth - 40) / Math.max(10, this.maxClipEnd + 5))); this.vm.zoom = this.currentDisplayZoom; var self = this; this.$nextTick(function() { c.scrollLeft = 0; self.scrollLeft = 0; }); },
+        updateTrackName: function(track, v) { track.name = v.trim() === '' ? 'NONE' : v; },
+        formatClipDuration: function(d) { if (!d) return '0:00'; var h = Math.floor(d/3600); var m = Math.floor((d%3600)/60); var s = Math.floor(d%60); return h > 0 ? h + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0') : m + ':' + String(s).padStart(2,'0'); },
+        getClipPixelWidth: function(clip) { return Math.max(20, clip.duration * this.pixelsPerSecond); },
+        getClipBackgroundStyle: function(clip, track) { return { background: 'linear-gradient(180deg, ' + (track.color || '#3b82f6') + '50 0%, ' + (track.color || '#3b82f6') + '30 100%)' }; },
+        saveToHistory: function() { if (this.isUndoRedoAction) return; var state = { clips: JSON.parse(JSON.stringify(this.vm.clips)), tracks: JSON.parse(JSON.stringify(this.vm.tracks)) }; if (this.historyIndex < this.historyStack.length - 1) this.historyStack = this.historyStack.slice(0, this.historyIndex + 1); this.historyStack.push(state); if (this.historyStack.length > this.maxHistorySize) this.historyStack.shift(); else this.historyIndex++; },
+        undo: function() { if (!this.canUndo) return; this.isUndoRedoAction = true; this.historyIndex--; var s = this.historyStack[this.historyIndex]; this.vm.clips = JSON.parse(JSON.stringify(s.clips)); this.vm.tracks = JSON.parse(JSON.stringify(s.tracks)); this.selectedClipIds = []; this.syncVmSelectedClip(); var self = this; this.$nextTick(function() { self.isUndoRedoAction = false; }); },
+        redo: function() { if (!this.canRedo) return; this.isUndoRedoAction = true; this.historyIndex++; var s = this.historyStack[this.historyIndex]; this.vm.clips = JSON.parse(JSON.stringify(s.clips)); this.vm.tracks = JSON.parse(JSON.stringify(s.tracks)); this.selectedClipIds = []; this.syncVmSelectedClip(); var self = this; this.$nextTick(function() { self.isUndoRedoAction = false; }); },
+        toggleZoomMode: function() { this.zoomMode = this.zoomMode === 'cursor' ? 'playhead' : 'cursor'; },
+        handleZoomInput: function(e) { this.setZoom(Number(e.target.value), this.zoomMode === 'playhead' ? 'playhead' : null); },
+        setZoom: function(z, center) { this.currentDisplayZoom = Math.max(this.zoomMin, Math.min(this.zoomMax, z)); this.vm.zoom = this.currentDisplayZoom; if (center === 'playhead') { var self = this; this.$nextTick(function() { var sc = document.getElementById('timeline-scroll-container'); if (sc) { sc.scrollLeft = self.vm.currentTime * self.pixelsPerSecond - sc.clientWidth / 2; self.scrollLeft = sc.scrollLeft; } }); } },
+        initTrackHeights: function() { var self = this; this.vm.tracks.forEach(function(t) { if (!self.trackHeights[t.id]) self.trackHeights[t.id] = self.defaultTrackHeight; }); this.updateTrackYPositions(); },
+        toggleResolutionDropdown: function() { this.isResolutionDropdownOpen = !this.isResolutionDropdownOpen; if (this.isResolutionDropdownOpen) this.isAspectDropdownOpen = false; },
+        selectResolution: function(v) { if (this.vm) { this.vm.resolution = v; this.applyAspectRatio(this.vm.aspectRatio); } this.isResolutionDropdownOpen = false; },
+        clipStyle: function(clip, track) { var h = this.getTrackHeight(track.id); return { left: clip.start * this.pixelsPerSecond + 'px', width: Math.max(20, clip.duration * this.pixelsPerSecond) + 'px', top: '1px', height: (h - 2) + 'px' }; },
+        getClipClasses: function(clip) { var sel = this.selectedClipIds.indexOf(clip.id) >= 0; var dragging = this.isDraggingClip && this.draggingClipIds.indexOf(clip.id) >= 0; return { 'clip-selected': sel && this.selectedClipIds.length === 1, 'clip-multi-selected': sel && this.selectedClipIds.length > 1, 'dragging': dragging }; },
         selectClip: function(clipId, mod) {
-            mod = mod || {};
-            var self = this;
-            var clip = this.vm.clips.find(function(c) { return c.id === clipId; }); 
-            if (!clip) return;
-            
-            if (mod.ctrlKey || mod.metaKey) { 
-                var idx = this.selectedClipIds.indexOf(clipId); 
-                if (idx >= 0) this.selectedClipIds.splice(idx, 1); 
-                else this.selectedClipIds.push(clipId); 
-            }
-            else if (mod.shiftKey && this.lastSelectedClipId && this.lastSelectedTrackId === clip.trackId) { 
-                var tc = this.vm.clips.filter(function(c) { return c.trackId === clip.trackId; }).sort(function(a, b) { return a.start - b.start; }); 
-                var li = -1, ci = -1;
-                for (var i = 0; i < tc.length; i++) {
-                    if (tc[i].id === self.lastSelectedClipId) li = i;
-                    if (tc[i].id === clipId) ci = i;
-                }
-                if (li >= 0 && ci >= 0) {
-                    this.selectedClipIds = tc.slice(Math.min(li, ci), Math.max(li, ci) + 1).map(function(c) { return c.id; });
-                }
-            }
-            else { 
-                this.selectedClipIds = [clipId]; 
-            }
-            this.lastSelectedClipId = clipId; 
-            this.lastSelectedTrackId = clip.trackId; 
-            this.syncVmSelectedClip();
+            mod = mod || {}; var self = this;
+            var clip = this.vm.clips.find(function(c) { return c.id === clipId; }); if (!clip) return;
+            if (mod.ctrlKey || mod.metaKey) { var idx = this.selectedClipIds.indexOf(clipId); if (idx >= 0) this.selectedClipIds.splice(idx, 1); else this.selectedClipIds.push(clipId); }
+            else if (mod.shiftKey && this.lastSelectedClipId && this.lastSelectedTrackId === clip.trackId) { var tc = this.vm.clips.filter(function(c) { return c.trackId === clip.trackId; }).sort(function(a, b) { return a.start - b.start; }); var li = -1, ci = -1; for (var i = 0; i < tc.length; i++) { if (tc[i].id === self.lastSelectedClipId) li = i; if (tc[i].id === clipId) ci = i; } if (li >= 0 && ci >= 0) this.selectedClipIds = tc.slice(Math.min(li, ci), Math.max(li, ci) + 1).map(function(c) { return c.id; }); }
+            else { this.selectedClipIds = [clipId]; }
+            this.lastSelectedClipId = clipId; this.lastSelectedTrackId = clip.trackId; this.syncVmSelectedClip();
         },
-        clearSelection: function() { 
-            this.selectedClipIds = []; 
-            this.lastSelectedClipId = null; 
-            this.lastSelectedTrackId = null; 
-            this.syncVmSelectedClip(); 
-        },
+        clearSelection: function() { this.selectedClipIds = []; this.lastSelectedClipId = null; this.lastSelectedTrackId = null; this.syncVmSelectedClip(); },
         onClipMouseDown: function(e, clip, track) {
             if (track.isLocked) return;
-            this.dragStartX = e.clientX; 
-            this.dragStartY = e.clientY;
-            this.pendingClickClipId = clip.id; 
-            this.pendingClickModifiers = { ctrlKey: e.ctrlKey, metaKey: e.metaKey, shiftKey: e.shiftKey };
-            var trackIndex = -1;
-            for (var i = 0; i < this.vm.tracks.length; i++) {
-                if (this.vm.tracks[i].id === track.id) { trackIndex = i; break; }
-            }
+            this.dragStartX = e.clientX; this.dragStartY = e.clientY;
+            this.pendingClickClipId = clip.id; this.pendingClickModifiers = { ctrlKey: e.ctrlKey, metaKey: e.metaKey, shiftKey: e.shiftKey };
+            var trackIndex = -1; for (var i = 0; i < this.vm.tracks.length; i++) { if (this.vm.tracks[i].id === track.id) { trackIndex = i; break; } }
             this.currentDragTrackIndex = trackIndex;
-            
-            if (this.selectedClipIds.indexOf(clip.id) < 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey) { 
-                this.selectedClipIds = [clip.id]; 
-                this.lastSelectedClipId = clip.id; 
-                this.lastSelectedTrackId = clip.trackId; 
-                this.syncVmSelectedClip(); 
-            }
-            this.draggingClipIds = this.selectedClipIds.slice();
-            if (this.draggingClipIds.indexOf(clip.id) < 0) this.draggingClipIds = [clip.id];
-            
-            this.dragStartPositions = {}; 
-            this.dragStartTrackIds = {};
-            var self = this;
-            this.draggingClipIds.forEach(function(id) { 
-                var c = self.vm.clips.find(function(cl) { return cl.id === id; }); 
-                if (c) { 
-                    self.dragStartPositions[id] = c.start; 
-                    self.dragStartTrackIds[id] = c.trackId; 
-                } 
-            });
+            if (this.selectedClipIds.indexOf(clip.id) < 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey) { this.selectedClipIds = [clip.id]; this.lastSelectedClipId = clip.id; this.lastSelectedTrackId = clip.trackId; this.syncVmSelectedClip(); }
+            this.draggingClipIds = this.selectedClipIds.slice(); if (this.draggingClipIds.indexOf(clip.id) < 0) this.draggingClipIds = [clip.id];
+            this.dragStartPositions = {}; this.dragStartTrackIds = {}; var self = this;
+            this.draggingClipIds.forEach(function(id) { var c = self.vm.clips.find(function(cl) { return cl.id === id; }); if (c) { self.dragStartPositions[id] = c.start; self.dragStartTrackIds[id] = c.trackId; } });
         },
-        onTrackLaneMouseDown: function(e, track) { 
-            if (!e.target.closest('.clip')) this.clearSelection(); 
-        },
-        syncVmSelectedClip: function() { 
-            var self = this;
-            if (this.selectedClipIds.length === 1) {
-                this.vm.selectedClip = this.vm.clips.find(function(c) { return c.id === self.selectedClipIds[0]; }) || null;
-            } else {
-                this.vm.selectedClip = null;
-            }
-        },
-        onDocumentClick: function(e) { 
-            if (!e.target.closest('.context-menu') && !e.target.closest('.clip-volume-popup')) {
-                this.closeContextMenus(); 
-            }
-            if (!e.target.closest('.resolution-dropdown-wrapper')) this.isResolutionDropdownOpen = false; 
-            if (!e.target.closest('.aspect-ratio-dropdown-wrapper')) this.isAspectDropdownOpen = false; 
-            if (!e.target.closest('.clip-volume-popup') && !e.target.closest('.ctx-item')) this.volumePopup.visible = false; 
-        },
+        onTrackLaneMouseDown: function(e, track) { if (!e.target.closest('.clip')) this.clearSelection(); },
+        syncVmSelectedClip: function() { var self = this; this.vm.selectedClip = this.selectedClipIds.length === 1 ? this.vm.clips.find(function(c) { return c.id === self.selectedClipIds[0]; }) || null : null; },
+        onDocumentClick: function(e) { if (!e.target.closest('.context-menu') && !e.target.closest('.clip-volume-popup')) this.closeContextMenus(); if (!e.target.closest('.resolution-dropdown-wrapper')) this.isResolutionDropdownOpen = false; if (!e.target.closest('.aspect-ratio-dropdown-wrapper')) this.isAspectDropdownOpen = false; if (!e.target.closest('.clip-volume-popup') && !e.target.closest('.ctx-item')) this.volumePopup.visible = false; },
         onDocumentKeyDown: function(e) {
             if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') { e.preventDefault(); this.undo(); return; }
             if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); this.redo(); return; }
             if (e.key === 'Delete' && this.hasSelectedClips) this.deleteSelectedClips();
-            if ((e.ctrlKey || e.metaKey) && e.key === 'a') { 
-                e.preventDefault(); 
-                this.selectedClipIds = this.vm.clips.map(function(c) { return c.id; }); 
-                this.syncVmSelectedClip(); 
-            }
-            if (e.key === 'Escape') { 
-                this.clearSelection(); 
-                this.isResolutionDropdownOpen = false; 
-                this.isAspectDropdownOpen = false; 
-                this.volumePopup.visible = false; 
-                this.wheelAdjustMode.active = false;
-            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'a') { e.preventDefault(); this.selectedClipIds = this.vm.clips.map(function(c) { return c.id; }); this.syncVmSelectedClip(); }
+            if (e.key === 'Escape') { this.clearSelection(); this.isResolutionDropdownOpen = false; this.isAspectDropdownOpen = false; this.volumePopup.visible = false; this.wheelAdjustMode.active = false; }
         },
         onDocumentMouseMove: function(e) {
             var self = this;
-            
-            // 헤더 리사이즈 (줄이기만 가능)
-            if (this.isResizingHeader && !this.isTrackHeaderCollapsed) {
-                var newWidth = this.resizeStartWidth + (e.clientX - this.resizeStartX);
-                this.trackHeaderWidth = Math.max(this.minHeaderWidth, Math.min(this.initialHeaderWidth, newWidth));
-            }
-            if (this.isResizingTrack && this.resizingTrackId) { 
-                this.trackHeights[this.resizingTrackId] = Math.max(this.minTrackHeight, this.resizeStartHeight + (e.clientY - this.resizeStartY)); 
-                this.trackHeights = Object.assign({}, this.trackHeights);
-            }
+            if (this.isResizingHeader && !this.isTrackHeaderCollapsed) { var newWidth = this.resizeStartWidth + (e.clientX - this.resizeStartX); this.trackHeaderWidth = Math.max(this.minHeaderWidth, Math.min(this.initialHeaderWidth, newWidth)); }
+            if (this.isResizingTrack && this.resizingTrackId) { this.trackHeights[this.resizingTrackId] = Math.max(this.minTrackHeight, this.resizeStartHeight + (e.clientY - this.resizeStartY)); this.trackHeights = Object.assign({}, this.trackHeights); }
             if (this.isDraggingPlayhead) this.updatePlayheadPosition(e);
             if (this.isDraggingMasterVolume) this.updateMasterVolumeFromEvent(e);
             if (this.isDraggingVolumePopup) this.updateVolumePopupFromEvent(e);
-            if (this.isDraggingClipVolume && this.volumeDragClip) { 
-                var dy = this.volumeDragStartY - e.clientY; 
-                var newVol = Math.max(0, Math.min(200, Math.round(this.volumeDragStartVolume + dy * 2)));
-                this.volumeDragClip.volume = newVol;
-                if (window.PreviewRenderer) window.PreviewRenderer.updateClipVolume(this.volumeDragClip.id, newVol / 100);
-            }
-            if (this.pendingClickClipId && !this.isDraggingClip && this.draggingClipIds.length > 0) { 
-                if (Math.abs(e.clientX - this.dragStartX) > 3 || Math.abs(e.clientY - this.dragStartY) > 3) { 
-                    this.isDraggingClip = true; 
-                    this.pendingClickClipId = null; 
-                } 
-            }
+            if (this.isDraggingClipVolume && this.volumeDragClip) { var dy = this.volumeDragStartY - e.clientY; var newVol = Math.max(0, Math.min(200, Math.round(this.volumeDragStartVolume + dy * 2))); this.volumeDragClip.volume = newVol; if (window.PreviewRenderer) window.PreviewRenderer.updateClipVolume(this.volumeDragClip.id, newVol / 100); }
+            if (this.pendingClickClipId && !this.isDraggingClip && this.draggingClipIds.length > 0) { if (Math.abs(e.clientX - this.dragStartX) > 3 || Math.abs(e.clientY - this.dragStartY) > 3) { this.isDraggingClip = true; this.pendingClickClipId = null; } }
             if (this.isDraggingClip && this.draggingClipIds.length > 0) this.handleClipDrag(e);
             if (this.isResizingClip && this.resizingClip) this.handleClipResize(e);
         },
         onDocumentMouseUp: function(e) {
-            if (this.pendingClickClipId && !this.isDraggingClip) {
-                this.selectClip(this.pendingClickClipId, this.pendingClickModifiers || {});
-            }
-            this.pendingClickClipId = null; 
-            this.pendingClickModifiers = null;
-            this.isResizingHeader = false; 
-            this.isResizingTrack = false; 
-            this.resizingTrackId = null;
-            this.isDraggingPlayhead = false; 
-            this.isDraggingClip = false;
-            this.draggingClipIds = []; 
-            this.dragStartPositions = {}; 
-            this.dragStartTrackIds = {}; 
-            this.currentDragTrackIndex = null;
-            this.isResizingClip = false; 
-            this.resizingClip = null;
-            if (this.isDraggingMasterVolume) { this.isDraggingMasterVolume = false; }
-            this.isDraggingClipVolume = false; 
-            this.volumeDragClip = null;
+            if (this.pendingClickClipId && !this.isDraggingClip) this.selectClip(this.pendingClickClipId, this.pendingClickModifiers || {});
+            this.pendingClickClipId = null; this.pendingClickModifiers = null;
+            this.isResizingHeader = false; this.isResizingTrack = false; this.resizingTrackId = null;
+            this.isDraggingPlayhead = false; this.isDraggingClip = false;
+            this.draggingClipIds = []; this.dragStartPositions = {}; this.dragStartTrackIds = {}; this.currentDragTrackIndex = null;
+            this.isResizingClip = false; this.resizingClip = null;
+            if (this.isDraggingMasterVolume) this.isDraggingMasterVolume = false;
+            this.isDraggingClipVolume = false; this.volumeDragClip = null;
             this.isDraggingVolumePopup = false;
         },
         handleClipDrag: function(e) {
-            var self = this;
-            var dx = e.clientX - this.dragStartX;
-            var dt = dx / this.pixelsPerSecond;
+            var self = this; var dx = e.clientX - this.dragStartX; var dt = dx / this.pixelsPerSecond;
             var lane = document.getElementById('timeline-lane-container');
-            
             if (lane) {
-                var rect = lane.getBoundingClientRect();
-                var relY = e.clientY - rect.top - 24;
+                var rect = lane.getBoundingClientRect(); var relY = e.clientY - rect.top - 24;
                 var newIdx = this.getTrackIndexFromY(relY);
                 if (newIdx !== -1 && this.currentDragTrackIndex !== null && newIdx !== this.currentDragTrackIndex) {
                     var target = this.vm.tracks[newIdx];
-                    if (target && !target.isLocked) {
-                        this.draggingClipIds.forEach(function(cid) { 
-                            var c = self.vm.clips.find(function(cl) { return cl.id === cid; }); 
-                            if (c) { 
-                                c.trackId = target.id; 
-                                self.dragStartTrackIds[cid] = target.id; 
-                            } 
-                        }); 
-                        this.currentDragTrackIndex = newIdx;
-                    }
+                    if (target && !target.isLocked) { this.draggingClipIds.forEach(function(cid) { var c = self.vm.clips.find(function(cl) { return cl.id === cid; }); if (c) { c.trackId = target.id; self.dragStartTrackIds[cid] = target.id; } }); this.currentDragTrackIndex = newIdx; }
                 }
             }
-            
-            this.draggingClipIds.forEach(function(id) { 
-                var c = self.vm.clips.find(function(cl) { return cl.id === id; }); 
-                if (!c) return; 
-                var ns = Math.max(0, self.dragStartPositions[id] + dt); 
-                if (self.vm.isMagnet) { 
-                    var snap = self.findSnapPosition(ns, c, self.draggingClipIds); 
-                    if (snap.snapped) ns = snap.position; 
-                } 
-                c.start = ns;
-            });
+            this.draggingClipIds.forEach(function(id) { var c = self.vm.clips.find(function(cl) { return cl.id === id; }); if (!c) return; var ns = Math.max(0, self.dragStartPositions[id] + dt); if (self.vm.isMagnet) { var snap = self.findSnapPosition(ns, c, self.draggingClipIds); if (snap.snapped) ns = snap.position; } c.start = ns; });
         },
-        startClipResize: function(e, clip, dir) { 
-            var self = this;
-            var t = this.vm.tracks.find(function(tr) { return tr.id === clip.trackId; }); 
-            if (t && t.isLocked) return; 
-            e.preventDefault(); 
-            this.isResizingClip = true; 
-            this.resizingClip = clip; 
-            this.resizeDirection = dir; 
-            this.dragStartX = e.clientX; 
-            this.resizeStartClipStart = clip.start; 
-            this.resizeStartClipDuration = clip.duration; 
-        },
+        startClipResize: function(e, clip, dir) { var self = this; var t = this.vm.tracks.find(function(tr) { return tr.id === clip.trackId; }); if (t && t.isLocked) return; e.preventDefault(); this.isResizingClip = true; this.resizingClip = clip; this.resizeDirection = dir; this.dragStartX = e.clientX; this.resizeStartClipStart = clip.start; this.resizeStartClipDuration = clip.duration; },
         handleClipResize: function(e) {
             var dt = (e.clientX - this.dragStartX) / this.pixelsPerSecond;
-            if (this.resizeDirection === 'left') { 
-                var ns = this.resizeStartClipStart + dt;
-                var nd = this.resizeStartClipDuration - dt; 
-                if (ns < 0) { nd += ns; ns = 0; } 
-                if (nd < 0.5) { nd = 0.5; ns = this.resizeStartClipStart + this.resizeStartClipDuration - 0.5; } 
-                this.resizingClip.start = ns; 
-                this.resizingClip.duration = nd;
-            }
-            else { 
-                var nd2 = this.resizeStartClipDuration + dt; 
-                if (nd2 < 0.5) nd2 = 0.5; 
-                this.resizingClip.duration = nd2; 
-            }
+            if (this.resizeDirection === 'left') { var ns = this.resizeStartClipStart + dt; var nd = this.resizeStartClipDuration - dt; if (ns < 0) { nd += ns; ns = 0; } if (nd < 0.5) { nd = 0.5; ns = this.resizeStartClipStart + this.resizeStartClipDuration - 0.5; } this.resizingClip.start = ns; this.resizingClip.duration = nd; }
+            else { var nd2 = this.resizeStartClipDuration + dt; if (nd2 < 0.5) nd2 = 0.5; this.resizingClip.duration = nd2; }
         },
         findSnapPosition: function(ns, clip, excludeIds) {
-            excludeIds = excludeIds || [];
-            var sd = 10 / this.pixelsPerSecond;
-            var ce = ns + clip.duration;
-            var self = this;
-            
+            excludeIds = excludeIds || []; var sd = 10 / this.pixelsPerSecond; var ce = ns + clip.duration;
             if (Math.abs(ns - this.vm.currentTime) < sd) return { snapped: true, position: this.vm.currentTime };
             if (Math.abs(ce - this.vm.currentTime) < sd) return { snapped: true, position: this.vm.currentTime - clip.duration };
-            
-            for (var i = 0; i < this.vm.clips.length; i++) {
-                var c = this.vm.clips[i];
-                if (c.id === clip.id || excludeIds.indexOf(c.id) >= 0) continue; 
-                if (Math.abs(ns - (c.start + c.duration)) < sd) return { snapped: true, position: c.start + c.duration }; 
-                if (Math.abs(ns - c.start) < sd) return { snapped: true, position: c.start }; 
-                if (Math.abs(ce - c.start) < sd) return { snapped: true, position: c.start - clip.duration }; 
-            }
+            for (var i = 0; i < this.vm.clips.length; i++) { var c = this.vm.clips[i]; if (c.id === clip.id || excludeIds.indexOf(c.id) >= 0) continue; if (Math.abs(ns - (c.start + c.duration)) < sd) return { snapped: true, position: c.start + c.duration }; if (Math.abs(ns - c.start) < sd) return { snapped: true, position: c.start }; if (Math.abs(ce - c.start) < sd) return { snapped: true, position: c.start - clip.duration }; }
             return { snapped: false, position: ns };
         },
-        startTrackDrag: function(e, track, idx) { 
-            this.draggingTrackId = track.id; 
-            this.draggingTrackIndex = idx; 
-            e.dataTransfer.effectAllowed = 'move'; 
-            e.dataTransfer.setData('text/plain', track.id); 
-        },
-        handleTrackDragOver: function(e, track) { 
-            if (this.draggingTrackId && this.draggingTrackId !== track.id) this.dragOverTrackId = track.id; 
-        },
+        startTrackDrag: function(e, track, idx) { this.draggingTrackId = track.id; this.draggingTrackIndex = idx; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', track.id); },
+        handleTrackDragOver: function(e, track) { if (this.draggingTrackId && this.draggingTrackId !== track.id) this.dragOverTrackId = track.id; },
         handleTrackDragLeave: function() { this.dragOverTrackId = null; },
-        handleTrackDrop: function(e, targetTrack, targetIdx) { 
-            if (!this.draggingTrackId || this.draggingTrackId === targetTrack.id) { 
-                this.endTrackDrag(); 
-                return; 
-            } 
-            var fromIdx = this.draggingTrackIndex; 
-            if (fromIdx !== targetIdx) { 
-                var tracks = this.vm.tracks.slice();
-                var moved = tracks.splice(fromIdx, 1)[0];
-                tracks.splice(targetIdx, 0, moved); 
-                this.vm.tracks = tracks; 
-            } 
-            this.endTrackDrag(); 
-        },
-        endTrackDrag: function() { 
-            this.draggingTrackId = null; 
-            this.draggingTrackIndex = null; 
-            this.dragOverTrackId = null; 
-        },
-        moveTrackUp: function(idx) { 
-            if (idx <= 0) return; 
-            var t = this.vm.tracks.slice(); 
-            var temp = t[idx - 1];
-            t[idx - 1] = t[idx];
-            t[idx] = temp;
-            this.vm.tracks = t; 
-            this.closeContextMenus(); 
-        },
-        moveTrackDown: function(idx) { 
-            if (idx >= this.vm.tracks.length - 1) return; 
-            var t = this.vm.tracks.slice(); 
-            var temp = t[idx];
-            t[idx] = t[idx + 1];
-            t[idx + 1] = temp;
-            this.vm.tracks = t; 
-            this.closeContextMenus(); 
-        },
-        startTrackResize: function(e, track) { 
-            this.isResizingTrack = true; 
-            this.resizingTrackId = track.id; 
-            this.resizeStartY = e.clientY; 
-            this.resizeStartHeight = this.getTrackHeight(track.id); 
-        },
-        addTrack: function() { 
-            var colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899']; 
-            var t = { 
-                id: 't_' + Date.now(), 
-                name: 'NONE', 
-                color: colors[this.vm.tracks.length % colors.length], 
-                isHidden: false, 
-                isLocked: false, 
-                isMain: false 
-            }; 
-            this.vm.tracks.push(t); 
-            this.trackHeights[t.id] = this.defaultTrackHeight; 
-            this.trackHeights = Object.assign({}, this.trackHeights);
-        },
-        deleteTrack: function(track, idx) { 
-            if (this.vm.tracks.length <= 1) return; 
-            var self = this;
-            this.vm.clips = this.vm.clips.filter(function(c) { return c.trackId !== track.id; }); 
-            delete this.trackHeights[track.id]; 
-            this.trackHeights = Object.assign({}, this.trackHeights);
-            this.vm.tracks.splice(idx, 1); 
-            this.closeContextMenus(); 
-        },
-        duplicateTrack: function(track) { 
-            var idx = -1;
-            for (var i = 0; i < this.vm.tracks.length; i++) {
-                if (this.vm.tracks[i].id === track.id) { idx = i; break; }
-            }
-            var nt = Object.assign({}, track, { 
-                id: 't_' + Date.now(), 
-                name: track.name === 'NONE' ? 'NONE' : track.name + ' (복사)', 
-                isMain: false 
-            }); 
-            this.vm.tracks.splice(idx + 1, 0, nt); 
-            this.trackHeights[nt.id] = this.getTrackHeight(track.id); 
-            this.trackHeights = Object.assign({}, this.trackHeights);
-            this.closeContextMenus(); 
-        },
-        setMainTrack: function(track) { 
-            this.vm.tracks.forEach(function(t) { t.isMain = false; }); 
-            track.isMain = true; 
-        },
-        changeTrackColor: function(track) { 
-            var self = this;
-            Swal.fire({ 
-                title: '트랙 색상', 
-                input: 'text', 
-                inputValue: track.color, 
-                showCancelButton: true, 
-                background: '#1e1e1e', 
-                color: '#fff' 
-            }).then(function(result) {
-                if (result.value) track.color = result.value;
-                self.closeContextMenus();
-            });
-        },
-        openTrackContextMenu: function(e, track, idx) { 
-            this.clipContextMenu = null; 
-            this.heightSubmenu.visible = false; 
-            this.trackContextMenu = { x: e.clientX, y: e.clientY, track: track, index: idx }; 
-        },
-        openClipContextMenu: function(e, track, clip) { 
-            clip = clip || null;
-            this.trackContextMenu = null; 
-            this.heightSubmenu.visible = false; 
-            if (clip) { 
-                if (this.selectedClipIds.indexOf(clip.id) < 0) { 
-                    this.selectedClipIds = [clip.id]; 
-                    this.syncVmSelectedClip(); 
-                } 
-            } 
-            this.clipContextMenu = { x: e.clientX, y: e.clientY, track: track, clip: clip, time: this.getTimeFromMouseEvent(e) }; 
-        },
-        getTimeFromMouseEvent: function(e) { 
-            var lane = document.getElementById('timeline-lane-container'); 
-            if (!lane) return 0; 
-            return Math.max(0, (e.clientX - lane.getBoundingClientRect().left) / this.pixelsPerSecond); 
-        },
-        closeContextMenus: function() { 
-            this.trackContextMenu = null; 
-            this.clipContextMenu = null; 
-            this.heightSubmenu.visible = false; 
-        },
-        duplicateClip: function(clip) { 
-            var nc = Object.assign({}, clip, { id: 'c_' + Date.now(), start: clip.start + clip.duration + 0.5 }); 
-            this.vm.clips.push(nc); 
-        },
-        deleteClip: function(clip) { 
-            var self = this;
-            this.vm.clips = this.vm.clips.filter(function(c) { return c.id !== clip.id; }); 
-            this.selectedClipIds = this.selectedClipIds.filter(function(id) { return id !== clip.id; }); 
-            this.syncVmSelectedClip(); 
-        },
-        addClipAtPosition: function() { 
-            if (!this.clipContextMenu) return; 
-            var t = this.clipContextMenu.track;
-            var time = this.clipContextMenu.time || 0; 
-            this.vm.clips.push({ 
-                id: 'c_' + Date.now(), 
-                trackId: t.id, 
-                name: 'New Clip', 
-                start: time, 
-                duration: 5, 
-                type: 'video', 
-                volume: 100 
-            }); 
-        },
-        deleteSelectedClips: function() { 
-            if (!this.hasSelectedClips) return; 
-            var self = this;
-            this.vm.clips = this.vm.clips.filter(function(c) { return self.selectedClipIds.indexOf(c.id) < 0; }); 
-            this.selectedClipIds = []; 
-            this.syncVmSelectedClip(); 
-        },
-        cutAtPlayhead: function() { 
-            if (!this.hasSelectedClips) return; 
-            var self = this;
-            this.selectedClipIds.forEach(function(cid) { 
-                var c = self.vm.clips.find(function(cl) { return cl.id === cid; }); 
-                if (c && self.isClipAtPlayhead(c)) { 
-                    var origDur = c.duration;
-                    var relTime = self.vm.currentTime - c.start; 
-                    c.duration = relTime; 
-                    self.vm.clips.push(Object.assign({}, c, { id: 'c_' + Date.now(), start: self.vm.currentTime, duration: origDur - relTime })); 
-                } 
-            }); 
-        },
-        cutAtPlayheadForClip: function(clip) { 
-            if (!this.isClipAtPlayhead(clip)) return; 
-            var origDur = clip.duration;
-            var relTime = this.vm.currentTime - clip.start; 
-            clip.duration = relTime; 
-            this.vm.clips.push(Object.assign({}, clip, { id: 'c_' + Date.now(), start: this.vm.currentTime, duration: origDur - relTime })); 
-        },
-        cutAndDeleteLeftSelected: function() { 
-            if (!this.hasSelectedClips) return; 
-            var self = this;
-            this.selectedClipIds.forEach(function(cid) { 
-                var c = self.vm.clips.find(function(cl) { return cl.id === cid; }); 
-                if (c && self.isClipAtPlayhead(c)) { 
-                    c.duration = c.start + c.duration - self.vm.currentTime; 
-                    c.start = self.vm.currentTime; 
-                } 
-            }); 
-        },
-        cutAndDeleteRightSelected: function() { 
-            if (!this.hasSelectedClips) return; 
-            var self = this;
-            this.selectedClipIds.forEach(function(cid) { 
-                var c = self.vm.clips.find(function(cl) { return cl.id === cid; }); 
-                if (c && self.isClipAtPlayhead(c)) { 
-                    c.duration = self.vm.currentTime - c.start; 
-                } 
-            }); 
-        },
-        cutAndDeleteLeftForClip: function(clip) { 
-            if (!this.isClipAtPlayhead(clip)) return; 
-            clip.duration = clip.start + clip.duration - this.vm.currentTime; 
-            clip.start = this.vm.currentTime; 
-        },
-        cutAndDeleteRightForClip: function(clip) { 
-            if (!this.isClipAtPlayhead(clip)) return; 
-            clip.duration = this.vm.currentTime - clip.start; 
-        },
-        handleLaneMouseDown: function(e) { 
-            if (e.target.id === 'timeline-ruler' || e.target.closest('#timeline-ruler')) this.updatePlayheadPosition(e); 
-        },
-        startPlayheadDrag: function(e) { 
-            this.isDraggingPlayhead = true; 
-            this.updatePlayheadPosition(e); 
-        },
-        updatePlayheadPosition: function(e) { 
-            var lane = document.getElementById('timeline-lane-container'); 
-            if (!lane) return; 
-            var time = Math.max(0, (e.clientX - lane.getBoundingClientRect().left) / this.pixelsPerSecond); 
-            if (this.vm.isMagnet) { 
-                var snap = null;
-                var minD = 10 / this.pixelsPerSecond; 
-                var self = this;
-                this.vm.clips.forEach(function(c) { 
-                    if (Math.abs(time - c.start) < minD) { minD = Math.abs(time - c.start); snap = c.start; } 
-                    if (Math.abs(time - (c.start + c.duration)) < minD) { minD = Math.abs(time - (c.start + c.duration)); snap = c.start + c.duration; } 
-                }); 
-                if (snap !== null) time = snap; 
-            } 
-            this.vm.currentTime = time; 
-        },
-        togglePlayback: function() { 
-            if (typeof this.vm.togglePlayback === 'function') this.vm.togglePlayback(); 
-            else this.vm.isPlaying = !this.vm.isPlaying; 
-        },
-        seekToStart: function() { 
-            if (typeof this.vm.seekToStart === 'function') this.vm.seekToStart(); 
-            else this.vm.currentTime = 0; 
-        },
-        seekToEnd: function() { 
-            var max = 0; 
-            this.vm.clips.forEach(function(c) { if (c.start + c.duration > max) max = c.start + c.duration; }); 
-            this.vm.currentTime = max; 
-        },
-        adjustLayout: function() { 
-            var p = document.getElementById('preview-main-container'); 
-            if (p) p.style.height = this.vm.isTimelineCollapsed ? 'calc(100% - 32px)' : '50%'; 
-            this.calculateDynamicZoomRange(); 
-        },
-        toggleCollapse: function() { 
-            this.vm.isTimelineCollapsed = !this.vm.isTimelineCollapsed; 
-            var self = this;
-            this.$nextTick(function() { self.adjustLayout(); }); 
-        },
-        startHeaderResize: function(e) { 
-            if (this.isTrackHeaderCollapsed) return; 
-            this.isResizingHeader = true; 
-            this.resizeStartX = e.clientX; 
-            this.resizeStartWidth = this.trackHeaderWidth; 
-        },
-        formatRulerTime: function(s) { 
-            if (s >= 3600) { 
-                var h = Math.floor(s/3600);
-                var m = Math.floor((s%3600)/60);
-                var sec = Math.floor(s%60); 
-                return h + ':' + String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0'); 
-            } else if (s >= 60) { 
-                var m2 = Math.floor(s/60);
-                var sec2 = Math.floor(s%60); 
-                return m2 + ':' + String(sec2).padStart(2,'0'); 
-            } 
-            return s + 's'; 
-        },
-        onExternalDragOver: function(e) { 
-            if (e.dataTransfer.types.indexOf('text/wai-asset') >= 0) { 
-                e.preventDefault(); 
-                e.dataTransfer.dropEffect = 'copy'; 
-                this.isExternalDragOver = true; 
-                this.updateDropIndicator(e); 
-            } 
-        },
-        onExternalDragLeave: function(e) { 
-            var rect = e.currentTarget.getBoundingClientRect(); 
-            if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) { 
-                this.isExternalDragOver = false; 
-                this.dropIndicator.visible = false; 
-            } 
-        },
-        updateDropIndicator: function(e) { 
-            var lane = document.getElementById('timeline-lane-container'); 
-            if (!lane) return; 
-            var rect = lane.getBoundingClientRect();
-            var relY = e.clientY - rect.top - 24; 
-            var accH = 0;
-            var targetTrack = null; 
-            var self = this;
-            for (var i = 0; i < this.vm.tracks.length; i++) {
-                var t = this.vm.tracks[i];
-                var h = this.getTrackHeight(t.id); 
-                if (relY >= accH && relY < accH + h) { targetTrack = t; break; } 
-                accH += h; 
-            }
-            if (!targetTrack) { 
-                this.dropIndicator.visible = false; 
-                return; 
-            } 
-            var dropTime = Math.max(0, (e.clientX - rect.left) / this.pixelsPerSecond); 
-            this.dropIndicator = { visible: true, trackId: targetTrack.id, left: dropTime * this.pixelsPerSecond, width: 5 * this.pixelsPerSecond }; 
-        },
-        onExternalDrop: function(e) { 
-            e.preventDefault(); 
-            this.isExternalDragOver = false; 
-            this.dropIndicator.visible = false; 
-            var assetData; 
-            try { 
-                var raw = e.dataTransfer.getData('text/wai-asset'); 
-                if (!raw) return; 
-                assetData = JSON.parse(raw); 
-            } catch (err) { return; } 
-            var assets = Array.isArray(assetData) ? assetData : [assetData]; 
-            if (assets.length === 0) return; 
-            var lane = document.getElementById('timeline-lane-container'); 
-            var dropTime = this.vm.currentTime;
-            var targetTrackId = null; 
-            var self = this;
-            if (lane) { 
-                var rect = lane.getBoundingClientRect(); 
-                dropTime = Math.max(0, (e.clientX - rect.left) / this.pixelsPerSecond); 
-                var relY = e.clientY - rect.top - 24; 
-                var accH = 0; 
-                for (var i = 0; i < this.vm.tracks.length; i++) {
-                    var t = this.vm.tracks[i];
-                    var h = this.getTrackHeight(t.id); 
-                    if (relY >= accH && relY < accH + h) { targetTrackId = t.id; break; } 
-                    accH += h; 
-                }
-            } 
-            document.dispatchEvent(new CustomEvent('wai-timeline-drop', { detail: { assets: assets, dropTime: dropTime, targetTrackId: targetTrackId }, bubbles: true })); 
-        }
+        handleTrackDrop: function(e, targetTrack, targetIdx) { if (!this.draggingTrackId || this.draggingTrackId === targetTrack.id) { this.endTrackDrag(); return; } var fromIdx = this.draggingTrackIndex; if (fromIdx !== targetIdx) { var tracks = this.vm.tracks.slice(); var moved = tracks.splice(fromIdx, 1)[0]; tracks.splice(targetIdx, 0, moved); this.vm.tracks = tracks; } this.endTrackDrag(); },
+        endTrackDrag: function() { this.draggingTrackId = null; this.draggingTrackIndex = null; this.dragOverTrackId = null; },
+        moveTrackUp: function(idx) { if (idx <= 0) return; var t = this.vm.tracks.slice(); var temp = t[idx - 1]; t[idx - 1] = t[idx]; t[idx] = temp; this.vm.tracks = t; this.closeContextMenus(); },
+        moveTrackDown: function(idx) { if (idx >= this.vm.tracks.length - 1) return; var t = this.vm.tracks.slice(); var temp = t[idx]; t[idx] = t[idx + 1]; t[idx + 1] = temp; this.vm.tracks = t; this.closeContextMenus(); },
+        startTrackResize: function(e, track) { this.isResizingTrack = true; this.resizingTrackId = track.id; this.resizeStartY = e.clientY; this.resizeStartHeight = this.getTrackHeight(track.id); },
+        addTrack: function() { var colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899']; var t = { id: 't_' + Date.now(), name: 'NONE', color: colors[this.vm.tracks.length % colors.length], isHidden: false, isLocked: false, isMain: false }; this.vm.tracks.push(t); this.trackHeights[t.id] = this.defaultTrackHeight; this.trackHeights = Object.assign({}, this.trackHeights); },
+        deleteTrack: function(track, idx) { if (this.vm.tracks.length <= 1) return; this.vm.clips = this.vm.clips.filter(function(c) { return c.trackId !== track.id; }); delete this.trackHeights[track.id]; this.trackHeights = Object.assign({}, this.trackHeights); this.vm.tracks.splice(idx, 1); this.closeContextMenus(); },
+        duplicateTrack: function(track) { var idx = -1; for (var i = 0; i < this.vm.tracks.length; i++) { if (this.vm.tracks[i].id === track.id) { idx = i; break; } } var nt = Object.assign({}, track, { id: 't_' + Date.now(), name: track.name === 'NONE' ? 'NONE' : track.name + ' (복사)', isMain: false }); this.vm.tracks.splice(idx + 1, 0, nt); this.trackHeights[nt.id] = this.getTrackHeight(track.id); this.trackHeights = Object.assign({}, this.trackHeights); this.closeContextMenus(); },
+        setMainTrack: function(track) { this.vm.tracks.forEach(function(t) { t.isMain = false; }); track.isMain = true; },
+        changeTrackColor: function(track) { var self = this; Swal.fire({ title: '트랙 색상', input: 'text', inputValue: track.color, showCancelButton: true, background: '#1e1e1e', color: '#fff' }).then(function(result) { if (result.value) track.color = result.value; self.closeContextMenus(); }); },
+        openTrackContextMenu: function(e, track, idx) { this.clipContextMenu = null; this.heightSubmenu.visible = false; this.trackContextMenu = { x: e.clientX, y: e.clientY, track: track, index: idx }; },
+        openClipContextMenu: function(e, track, clip) { clip = clip || null; this.trackContextMenu = null; this.heightSubmenu.visible = false; if (clip && this.selectedClipIds.indexOf(clip.id) < 0) { this.selectedClipIds = [clip.id]; this.syncVmSelectedClip(); } this.clipContextMenu = { x: e.clientX, y: e.clientY, track: track, clip: clip, time: this.getTimeFromMouseEvent(e) }; },
+        getTimeFromMouseEvent: function(e) { var lane = document.getElementById('timeline-lane-container'); if (!lane) return 0; return Math.max(0, (e.clientX - lane.getBoundingClientRect().left) / this.pixelsPerSecond); },
+        closeContextMenus: function() { this.trackContextMenu = null; this.clipContextMenu = null; this.heightSubmenu.visible = false; },
+        duplicateClip: function(clip) { var nc = Object.assign({}, clip, { id: 'c_' + Date.now(), start: clip.start + clip.duration + 0.5 }); this.vm.clips.push(nc); },
+        deleteClip: function(clip) { this.vm.clips = this.vm.clips.filter(function(c) { return c.id !== clip.id; }); this.selectedClipIds = this.selectedClipIds.filter(function(id) { return id !== clip.id; }); this.syncVmSelectedClip(); },
+        addClipAtPosition: function() { if (!this.clipContextMenu) return; var t = this.clipContextMenu.track; var time = this.clipContextMenu.time || 0; this.vm.clips.push({ id: 'c_' + Date.now(), trackId: t.id, name: 'New Clip', start: time, duration: 5, type: 'video', volume: 100 }); },
+        deleteSelectedClips: function() { if (!this.hasSelectedClips) return; var self = this; this.vm.clips = this.vm.clips.filter(function(c) { return self.selectedClipIds.indexOf(c.id) < 0; }); this.selectedClipIds = []; this.syncVmSelectedClip(); },
+        cutAtPlayhead: function() { if (!this.hasSelectedClips) return; var self = this; this.selectedClipIds.forEach(function(cid) { var c = self.vm.clips.find(function(cl) { return cl.id === cid; }); if (c && self.isClipAtPlayhead(c)) { var origDur = c.duration; var relTime = self.vm.currentTime - c.start; c.duration = relTime; self.vm.clips.push(Object.assign({}, c, { id: 'c_' + Date.now(), start: self.vm.currentTime, duration: origDur - relTime })); } }); },
+        cutAtPlayheadForClip: function(clip) { if (!this.isClipAtPlayhead(clip)) return; var origDur = clip.duration; var relTime = this.vm.currentTime - clip.start; clip.duration = relTime; this.vm.clips.push(Object.assign({}, clip, { id: 'c_' + Date.now(), start: this.vm.currentTime, duration: origDur - relTime })); },
+        cutAndDeleteLeftSelected: function() { if (!this.hasSelectedClips) return; var self = this; this.selectedClipIds.forEach(function(cid) { var c = self.vm.clips.find(function(cl) { return cl.id === cid; }); if (c && self.isClipAtPlayhead(c)) { c.duration = c.start + c.duration - self.vm.currentTime; c.start = self.vm.currentTime; } }); },
+        cutAndDeleteRightSelected: function() { if (!this.hasSelectedClips) return; var self = this; this.selectedClipIds.forEach(function(cid) { var c = self.vm.clips.find(function(cl) { return cl.id === cid; }); if (c && self.isClipAtPlayhead(c)) { c.duration = self.vm.currentTime - c.start; } }); },
+        cutAndDeleteLeftForClip: function(clip) { if (!this.isClipAtPlayhead(clip)) return; clip.duration = clip.start + clip.duration - this.vm.currentTime; clip.start = this.vm.currentTime; },
+        cutAndDeleteRightForClip: function(clip) { if (!this.isClipAtPlayhead(clip)) return; clip.duration = this.vm.currentTime - clip.start; },
+        handleLaneMouseDown: function(e) { if (e.target.id === 'timeline-ruler' || e.target.closest('#timeline-ruler')) this.updatePlayheadPosition(e); },
+        startPlayheadDrag: function(e) { this.isDraggingPlayhead = true; this.updatePlayheadPosition(e); },
+        updatePlayheadPosition: function(e) { var lane = document.getElementById('timeline-lane-container'); if (!lane) return; var time = Math.max(0, (e.clientX - lane.getBoundingClientRect().left) / this.pixelsPerSecond); if (this.vm.isMagnet) { var snap = null; var minD = 10 / this.pixelsPerSecond; this.vm.clips.forEach(function(c) { if (Math.abs(time - c.start) < minD) { minD = Math.abs(time - c.start); snap = c.start; } if (Math.abs(time - (c.start + c.duration)) < minD) { minD = Math.abs(time - (c.start + c.duration)); snap = c.start + c.duration; } }); if (snap !== null) time = snap; } this.vm.currentTime = time; },
+        togglePlayback: function() { if (typeof this.vm.togglePlayback === 'function') this.vm.togglePlayback(); else this.vm.isPlaying = !this.vm.isPlaying; },
+        seekToStart: function() { if (typeof this.vm.seekToStart === 'function') this.vm.seekToStart(); else this.vm.currentTime = 0; },
+        seekToEnd: function() { var max = 0; this.vm.clips.forEach(function(c) { if (c.start + c.duration > max) max = c.start + c.duration; }); this.vm.currentTime = max; },
+        adjustLayout: function() { var p = document.getElementById('preview-main-container'); if (p) p.style.height = this.vm.isTimelineCollapsed ? 'calc(100% - 32px)' : '50%'; this.calculateDynamicZoomRange(); },
+        toggleCollapse: function() { this.vm.isTimelineCollapsed = !this.vm.isTimelineCollapsed; var self = this; this.$nextTick(function() { self.adjustLayout(); }); },
+        startHeaderResize: function(e) { if (this.isTrackHeaderCollapsed) return; this.isResizingHeader = true; this.resizeStartX = e.clientX; this.resizeStartWidth = this.trackHeaderWidth; },
+        formatRulerTime: function(s) { if (s >= 3600) { var h = Math.floor(s/3600); var m = Math.floor((s%3600)/60); var sec = Math.floor(s%60); return h + ':' + String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0'); } else if (s >= 60) { var m2 = Math.floor(s/60); var sec2 = Math.floor(s%60); return m2 + ':' + String(sec2).padStart(2,'0'); } return s + 's'; },
+        onExternalDragOver: function(e) { if (e.dataTransfer.types.indexOf('text/wai-asset') >= 0) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; this.isExternalDragOver = true; this.updateDropIndicator(e); } },
+        onExternalDragLeave: function(e) { var rect = e.currentTarget.getBoundingClientRect(); if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) { this.isExternalDragOver = false; this.dropIndicator.visible = false; } },
+        updateDropIndicator: function(e) { var lane = document.getElementById('timeline-lane-container'); if (!lane) return; var rect = lane.getBoundingClientRect(); var relY = e.clientY - rect.top - 24; var accH = 0; var targetTrack = null; var self = this; for (var i = 0; i < this.vm.tracks.length; i++) { var t = this.vm.tracks[i]; var h = this.getTrackHeight(t.id); if (relY >= accH && relY < accH + h) { targetTrack = t; break; } accH += h; } if (!targetTrack) { this.dropIndicator.visible = false; return; } var dropTime = Math.max(0, (e.clientX - rect.left) / this.pixelsPerSecond); this.dropIndicator = { visible: true, trackId: targetTrack.id, left: dropTime * this.pixelsPerSecond, width: 5 * this.pixelsPerSecond }; },
+        onExternalDrop: function(e) { e.preventDefault(); this.isExternalDragOver = false; this.dropIndicator.visible = false; var assetData; try { var raw = e.dataTransfer.getData('text/wai-asset'); if (!raw) return; assetData = JSON.parse(raw); } catch (err) { return; } var assets = Array.isArray(assetData) ? assetData : [assetData]; if (assets.length === 0) return; var lane = document.getElementById('timeline-lane-container'); var dropTime = this.vm.currentTime; var targetTrackId = null; if (lane) { var rect = lane.getBoundingClientRect(); dropTime = Math.max(0, (e.clientX - rect.left) / this.pixelsPerSecond); var relY = e.clientY - rect.top - 24; var accH = 0; for (var i = 0; i < this.vm.tracks.length; i++) { var t = this.vm.tracks[i]; var h = this.getTrackHeight(t.id); if (relY >= accH && relY < accH + h) { targetTrackId = t.id; break; } accH += h; } } document.dispatchEvent(new CustomEvent('wai-timeline-drop', { detail: { assets: assets, dropTime: dropTime, targetTrackId: targetTrackId }, bubbles: true })); }
     }
 };
 
