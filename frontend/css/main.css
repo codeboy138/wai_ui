@@ -107,7 +107,7 @@ html, body {
 }
 
 /* ================================
-   헤더 메뉴 드롭다운 (수정됨)
+   헤더 메뉴 드롭다운
    ================================ */
 .header-menu-wrapper {
     position: relative;
@@ -241,7 +241,7 @@ html, body {
 }
 
 /* ================================
-   모달 오버레이 - 드래그 통과 가능
+   모달 오버레이
    ================================ */
 .modal-overlay {
     position: fixed;
@@ -361,7 +361,6 @@ html, body {
     opacity: 0.5;
 }
 
-/* 썸네일 플레이스홀더 - 아이콘 정중앙 배치 */
 .asset-thumbnail-placeholder {
     position: absolute;
     top: 0;
@@ -378,7 +377,6 @@ html, body {
     background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(59, 130, 246, 0.15) 100%);
 }
 
-/* 썸네일 아이콘 정중앙 스타일 */
 .asset-thumbnail-icon-center {
     position: absolute;
     top: 50%;
@@ -474,7 +472,6 @@ html, body {
     transform: scale(1);
 }
 
-/* 리스트 뷰에서의 빠른추가 버튼 위치 조정 */
 .asset-grid.view-list .asset-quick-add-btn {
     position: relative;
     bottom: auto;
@@ -489,7 +486,7 @@ html, body {
 }
 
 /* ================================
-   타임라인 스타일 (배경 통일)
+   타임라인 스타일
    ================================ */
 .timeline-grid {
     display: grid;
@@ -524,7 +521,6 @@ html, body {
     opacity: 0.3;
 }
 
-/* 타임라인 배경 통일 - 강화 */
 #timeline-lane-container,
 #timeline-lane-container .track-lane,
 #timeline-ruler,
@@ -532,7 +528,6 @@ html, body {
     background-color: var(--color-timeline-bg) !important;
 }
 
-/* 트랙 레인 배경 완전 통일 */
 .track-lane {
     background: var(--color-timeline-bg) !important;
     transition: none !important;
@@ -578,7 +573,7 @@ html, body {
 }
 
 /* ================================
-   클립 스타일 (캡컷 스타일)
+   클립 스타일
    ================================ */
 .clip {
     border: 1px solid rgba(255, 255, 255, 0.15);
@@ -605,7 +600,6 @@ html, body {
     box-shadow: 0 0 0 2px #22c55e;
 }
 
-/* 클립 스냅 플래시 효과 */
 @keyframes clipSnapFlash {
     0% { box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.8); }
     100% { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2); }
@@ -651,7 +645,7 @@ html, body {
 }
 
 /* ================================
-   클립 필름 스트립 스타일 (캡컷 스타일)
+   클립 필름 스트립 스타일
    ================================ */
 .clip-filmstrip {
     display: flex;
@@ -697,7 +691,7 @@ html, body {
 }
 
 /* ================================
-   클립 파형 영역 (하단)
+   클립 파형 영역
    ================================ */
 .clip-waveform-area {
     position: absolute;
@@ -720,7 +714,7 @@ html, body {
 }
 
 /* ================================
-   클립 볼륨 라인 (드래그 가능)
+   클립 볼륨 라인
    ================================ */
 .clip-volume-line {
     position: absolute;
@@ -758,7 +752,6 @@ html, body {
     opacity: 1;
 }
 
-/* 구 볼륨 인디케이터 (호환성) */
 .clip-volume-indicator {
     position: absolute;
     left: 0;
@@ -858,7 +851,7 @@ html, body {
 }
 
 /* ================================
-   마스터 볼륨 컨트롤 (퀵바)
+   마스터 볼륨 컨트롤 (개선)
    ================================ */
 .master-volume-container {
     position: relative;
@@ -884,7 +877,7 @@ html, body {
     gap: 6px;
 }
 
-.master-volume-container:hover .master-volume-popup {
+.master-volume-popup.show {
     display: flex;
 }
 
@@ -1241,7 +1234,6 @@ body:not(.dev-mode-active):not(.dev-mode-full) .dev-highlight { display: none; }
     white-space: nowrap;
     border: 0;
 }
-
 /* ================================
    애니메이션
    ================================ */
