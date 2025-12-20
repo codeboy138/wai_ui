@@ -325,6 +325,7 @@ const App = {
             currentTime: 0,
             isPlaying: false,
             playbackTimer: null,
+            playbackLastTime: 0,
             dragItemIndex: null, 
             dragOverItemIndex: null, 
             
@@ -463,12 +464,14 @@ const App = {
             this.setupInspectorMode(); 
             this.setupAssetEventListeners();
             this.setupHeaderMenuClose();
+            this.setupKeyboardShortcuts();
             this.initPreviewRenderer();
         });
         window.vm = this; 
     },
     beforeUnmount() {
         this.removeAssetEventListeners();
+        this.removeKeyboardShortcuts();
         if (this.playbackTimer) {
             cancelAnimationFrame(this.playbackTimer);
         }
@@ -477,6 +480,53 @@ const App = {
         }
     },
     methods: {
+        // --- 키보드 단축키 설정 ---
+        setupKeyboardShortcuts() {
+            this._keyboardHandler = (e) => {
+                // 입력 필드에서는 단축키 무시
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
+                    return;
+                }
+                
+                // 스페이스바: 재생/정지 토글
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    this.togglePlayback();
+                }
+                
+                // Home: 처음으로
+                if (e.code === 'Home') {
+                    e.preventDefault();
+                    this.seekToStart();
+                }
+                
+                // End: 끝으로
+                if (e.code === 'End') {
+                    e.preventDefault();
+                    this.seekToEnd();
+                }
+                
+                // 왼쪽 화살표: 5초 뒤로
+                if (e.code === 'ArrowLeft' && !e.ctrlKey && !e.metaKey) {
+                    e.preventDefault();
+                    this.seekBackward();
+                }
+                
+                // 오른쪽 화살표: 5초 앞으로
+                if (e.code === 'ArrowRight' && !e.ctrlKey && !e.metaKey) {
+                    e.preventDefault();
+                    this.seekForward();
+                }
+            };
+            document.addEventListener('keydown', this._keyboardHandler);
+        },
+        
+        removeKeyboardShortcuts() {
+            if (this._keyboardHandler) {
+                document.removeEventListener('keydown', this._keyboardHandler);
+            }
+        },
+        
         // --- 화면 비율에 따른 캔버스 크기 업데이트 ---
         updateCanvasSizeFromAspectRatio(ratio) {
             const baseHeight = 1080;
@@ -850,7 +900,7 @@ const App = {
             return parseFloat(durationStr) || null;
         },
         
-        // --- Playback Controls ---
+        // --- Playback Controls (개선됨) ---
         togglePlayback() {
             this.isPlaying = !this.isPlaying;
             if (this.isPlaying) {
@@ -861,19 +911,23 @@ const App = {
         },
         
         startPlayback() {
-            let lastTime = performance.now();
+            this.playbackLastTime = performance.now();
             
             const animate = (currentTime) => {
                 if (!this.isPlaying) return;
                 
-                const delta = (currentTime - lastTime) / 1000;
-                lastTime = currentTime;
+                const delta = (currentTime - this.playbackLastTime) / 1000;
+                this.playbackLastTime = currentTime;
                 
                 this.currentTime += delta;
                 
+                // PreviewRenderer에 시간 동기화
                 if (window.PreviewRenderer) {
                     window.PreviewRenderer.setCurrentTime(this.currentTime);
                 }
+                
+                // 타임라인 스크롤 동기화 (플레이헤드가 화면 밖으로 나가면 스크롤)
+                this.scrollToPlayhead();
                 
                 const maxTime = this.getMaxClipEnd();
                 if (this.currentTime >= maxTime) {
@@ -895,6 +949,26 @@ const App = {
             }
         },
         
+        // 플레이헤드가 보이도록 스크롤
+        scrollToPlayhead() {
+            const container = document.getElementById('timeline-scroll-container');
+            if (!container) return;
+            
+            const playheadPosition = this.currentTime * this.zoom;
+            const scrollLeft = container.scrollLeft;
+            const viewportWidth = container.clientWidth;
+            const margin = 100; // 여백
+            
+            // 플레이헤드가 오른쪽으로 벗어나면 스크롤
+            if (playheadPosition > scrollLeft + viewportWidth - margin) {
+                container.scrollLeft = playheadPosition - viewportWidth + margin;
+            }
+            // 플레이헤드가 왼쪽으로 벗어나면 스크롤
+            else if (playheadPosition < scrollLeft + margin) {
+                container.scrollLeft = Math.max(0, playheadPosition - margin);
+            }
+        },
+        
         seekToStart() {
             this.currentTime = 0;
             if (window.PreviewRenderer) {
@@ -904,6 +978,23 @@ const App = {
         
         seekToEnd() {
             this.currentTime = this.getMaxClipEnd();
+            if (window.PreviewRenderer) {
+                window.PreviewRenderer.setCurrentTime(this.currentTime);
+            }
+        },
+        
+        // 5초 뒤로
+        seekBackward() {
+            this.currentTime = Math.max(0, this.currentTime - 5);
+            if (window.PreviewRenderer) {
+                window.PreviewRenderer.setCurrentTime(this.currentTime);
+            }
+        },
+        
+        // 5초 앞으로
+        seekForward() {
+            const maxTime = this.getMaxClipEnd();
+            this.currentTime = Math.min(maxTime, this.currentTime + 5);
             if (window.PreviewRenderer) {
                 window.PreviewRenderer.setCurrentTime(this.currentTime);
             }
