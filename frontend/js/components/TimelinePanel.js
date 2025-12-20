@@ -3,6 +3,7 @@
 // 스크롤바 호버 확대, 트랙헤더 줄이기만 가능
 // 클립 드래그 아웃 (미디어 자산 패널로) 지원
 // 필름스트립 프레임 표시 개선 - 타임스케일 연동
+// 플레이 버튼 패널 확장, 룰러 숫자 겹침 방지
 
 const TimelinePanel = {
     props: ['vm'],
@@ -14,7 +15,7 @@ const TimelinePanel = {
             @dragleave="onExternalDragLeave"
             @drop.prevent="onExternalDrop"
         >
-            <!-- 타임라인 헤더 (플레이 버튼 바) -->
+            <!-- 타임라인 헤더 (플레이 버튼 바) - 확장됨 -->
             <div class="h-8 bg-bg-panel border-b border-ui-border flex items-center px-2 justify-between shrink-0">
                 <div class="flex items-center gap-2">
                     <button class="hover:text-text-main w-6 h-6 flex items-center justify-center rounded hover:bg-bg-hover" @click="toggleCollapse" :title="vm.isTimelineCollapsed ? '타임라인 펼치기' : '타임라인 접기'">
@@ -22,11 +23,13 @@ const TimelinePanel = {
                     </button>
                     <span class="text-xs font-mono text-ui-accent font-bold">{{ formattedTime }}</span>
                     <div class="flex items-center gap-1 ml-2">
-                        <button class="tool-btn" @click="seekToStart" title="처음으로"><i class="fa-solid fa-backward-step"></i></button>
-                        <button class="tool-btn" @click="togglePlayback" :title="vm.isPlaying ? '일시정지' : '재생'">
+                        <button class="tool-btn" @click="seekToStart" title="처음으로 (Home)"><i class="fa-solid fa-backward-step"></i></button>
+                        <button class="tool-btn" @click="seekBackward" title="5초 뒤로 (←)"><i class="fa-solid fa-backward"></i></button>
+                        <button class="tool-btn w-8" @click="togglePlayback" :title="vm.isPlaying ? '일시정지 (Space)' : '재생 (Space)'">
                             <i :class="vm.isPlaying ? 'fa-solid fa-pause' : 'fa-solid fa-play'"></i>
                         </button>
-                        <button class="tool-btn" @click="seekToEnd" title="끝으로"><i class="fa-solid fa-forward-step"></i></button>
+                        <button class="tool-btn" @click="seekForward" title="5초 앞으로 (→)"><i class="fa-solid fa-forward"></i></button>
+                        <button class="tool-btn" @click="seekToEnd" title="끝으로 (End)"><i class="fa-solid fa-forward-step"></i></button>
                     </div>
                     <div class="master-volume-container ml-2" @mouseenter="showMasterVolume = true" @mouseleave="onMasterVolumeLeave">
                         <button class="tool-btn" :class="{ 'text-red-400': masterVolume === 0 }" @click="toggleMute" :title="'마스터 볼륨: ' + masterVolume + '%'" @wheel.stop.prevent="onMasterVolumeWheel">
@@ -101,7 +104,8 @@ const TimelinePanel = {
                     </button>
                 </div>
             </div>
-            
+// 코드연결지점
+// 코드연결지점
             <!-- 메인 타임라인 영역 -->
             <div v-if="!vm.isTimelineCollapsed" class="flex-grow flex overflow-hidden min-h-0 relative">
                 <!-- 트랙 헤더 (고정) -->
@@ -170,7 +174,7 @@ const TimelinePanel = {
                         <div id="timeline-ruler" class="h-6 border-b border-ui-border sticky top-0 relative" :style="{ width: totalTimelineWidth + 'px' }" style="z-index: 20; background: var(--bg-panel);">
                             <template v-for="mark in visibleRulerMarks" :key="'ruler-' + mark.time">
                                 <div v-if="mark.isMajor" class="absolute top-0 bottom-0 border-l border-ui-border" :style="{ left: mark.position + 'px' }">
-                                    <span class="absolute top-0 left-1 text-[9px] text-text-sub whitespace-nowrap">{{ mark.label }}</span>
+                                    <span v-if="mark.label" class="absolute top-0 left-1 text-[9px] text-text-sub whitespace-nowrap">{{ mark.label }}</span>
                                 </div>
                                 <div v-else-if="mark.isMid" class="absolute bottom-0 h-3 border-l border-ui-border opacity-50" :style="{ left: mark.position + 'px' }"></div>
                                 <div v-else class="absolute bottom-0 h-1.5 border-l border-ui-border opacity-30" :style="{ left: mark.position + 'px' }"></div>
@@ -293,6 +297,8 @@ const TimelinePanel = {
             </div>
         </div>
     `,
+// 코드연결지점
+// 코드연결지점
     data: function() {
         return {
             trackHeaderWidth: 180, 
@@ -370,12 +376,14 @@ const TimelinePanel = {
             zoomMax: 200, 
             scrollLeft: 0, 
             viewportWidth: 1000,
-            // 필름스트립 프레임 설정 - 개선됨
-            FILMSTRIP_FRAME_WIDTH: 40,  // 기본 프레임 너비 (픽셀)
-            MIN_FILMSTRIP_FRAME_WIDTH: 20,  // 최소 프레임 너비
-            MAX_FILMSTRIP_FRAME_WIDTH: 80,  // 최대 프레임 너비
+            // 필름스트립 프레임 설정
+            FILMSTRIP_FRAME_WIDTH: 40,
+            MIN_FILMSTRIP_FRAME_WIDTH: 20,
+            MAX_FILMSTRIP_FRAME_WIDTH: 80,
             MAX_WAVEFORM_BARS: 60, 
             MAX_RULER_MARKS: 200,
+            // 룰러 라벨 최소 간격 (픽셀)
+            MIN_RULER_LABEL_SPACING: 60,
             masterVolume: 100, 
             previousVolume: 100, 
             isDraggingMasterVolume: false,
@@ -439,6 +447,7 @@ const TimelinePanel = {
                 endTime: (this.scrollLeft + this.viewportWidth) / this.pixelsPerSecond + 10 
             }; 
         },
+        // 개선된 룰러 마크 - 라벨 겹침 방지
         visibleRulerMarks: function() {
             var marks = [];
             var pps = this.pixelsPerSecond;
@@ -446,17 +455,22 @@ const TimelinePanel = {
             var endTime = this.visibleTimeRange.endTime;
             var majorInt, minorInt, microInt;
             
+            // 줌 레벨에 따른 간격 조정
             if (pps >= 150) { majorInt = 1; minorInt = 0.5; microInt = 0.1; }
             else if (pps >= 100) { majorInt = 1; minorInt = 0.5; microInt = 0.25; }
             else if (pps >= 50) { majorInt = 2; minorInt = 1; microInt = 0.5; }
             else if (pps >= 20) { majorInt = 5; minorInt = 1; microInt = null; }
             else if (pps >= 10) { majorInt = 10; minorInt = 5; microInt = 1; }
             else if (pps >= 5) { majorInt = 30; minorInt = 10; microInt = 5; }
-            else { majorInt = 60; minorInt = 30; microInt = 10; }
+            else if (pps >= 2) { majorInt = 60; minorInt = 30; microInt = 10; }
+            else { majorInt = 120; minorInt = 60; microInt = 30; }
             
             var smallest = microInt || minorInt;
             var alignedStart = Math.floor(startTime / smallest) * smallest;
             var self = this;
+            
+            // 라벨 겹침 방지를 위한 마지막 라벨 위치 추적
+            var lastLabelPosition = -this.MIN_RULER_LABEL_SPACING;
             
             for (var t = alignedStart; t <= endTime && marks.length < this.MAX_RULER_MARKS; t += smallest) {
                 if (t < 0) continue;
@@ -464,12 +478,23 @@ const TimelinePanel = {
                 var pos = time * pps;
                 var isMajor = Math.abs(time % majorInt) < 0.001;
                 var isMid = !isMajor && Math.abs(time % minorInt) < 0.001;
+                
+                // 라벨 표시 여부 결정 - 최소 간격 확보
+                var label = '';
+                if (isMajor) {
+                    if ((pos - lastLabelPosition) >= self.MIN_RULER_LABEL_SPACING) {
+                        label = self.formatRulerTime(time);
+                        lastLabelPosition = pos;
+                    }
+                    // 간격이 부족하면 라벨 없이 마크만 표시
+                }
+                
                 marks.push({ 
                     time: time, 
                     position: pos, 
                     isMajor: isMajor, 
                     isMid: isMid, 
-                    label: isMajor ? self.formatRulerTime(time) : '' 
+                    label: label 
                 });
             }
             return marks;
@@ -536,6 +561,8 @@ const TimelinePanel = {
         if (this.masterVolumeHideTimer) clearTimeout(this.masterVolumeHideTimer);
         if (this.heightSubmenuCloseTimer) clearTimeout(this.heightSubmenuCloseTimer);
     },
+// 코드연결지점
+// 코드연결지점
     methods: {
         getContextMenuStyle: function(menu) {
             if (!menu) return {};
@@ -746,7 +773,6 @@ const TimelinePanel = {
             var video = document.createElement('video'); video.crossOrigin = 'anonymous'; video.muted = true; video.preload = 'metadata';
             video.onloadedmetadata = function() {
                 var duration = video.duration || clip.duration || 10;
-                // 더 많은 프레임 캡처 (초당 1프레임 기준, 최대 60프레임)
                 var frameCount = Math.min(60, Math.max(10, Math.ceil(duration)));
                 var frames = {}; var loaded = 0;
                 var captureFrame = function(index) { video.currentTime = (index / frameCount) * duration; };
@@ -761,30 +787,24 @@ const TimelinePanel = {
             video.onerror = function() { self.thumbnailCache[clip.id] = {}; };
             video.src = clip.src;
         },
-        // 개선된 필름스트립 프레임 계산 - 타임스케일 연동, 클립 전체 채움
         getFilmstripFrames: function(clip) {
             var clipPixelWidth = this.getClipPixelWidth(clip);
             var pps = this.pixelsPerSecond;
             
-            // 줌 레벨에 따른 프레임 너비 조정
-            // 줌이 클수록 (확대) 프레임을 더 크게, 줌이 작을수록 (축소) 프레임을 더 작게
             var dynamicFrameWidth;
             if (pps >= 100) {
-                dynamicFrameWidth = this.MAX_FILMSTRIP_FRAME_WIDTH; // 80px
+                dynamicFrameWidth = this.MAX_FILMSTRIP_FRAME_WIDTH;
             } else if (pps >= 50) {
                 dynamicFrameWidth = 60;
             } else if (pps >= 20) {
-                dynamicFrameWidth = this.FILMSTRIP_FRAME_WIDTH; // 40px
+                dynamicFrameWidth = this.FILMSTRIP_FRAME_WIDTH;
             } else if (pps >= 10) {
                 dynamicFrameWidth = 30;
             } else {
-                dynamicFrameWidth = this.MIN_FILMSTRIP_FRAME_WIDTH; // 20px
+                dynamicFrameWidth = this.MIN_FILMSTRIP_FRAME_WIDTH;
             }
             
-            // 클립 전체를 채우기 위한 프레임 개수 계산
             var frameCount = Math.max(1, Math.ceil(clipPixelWidth / dynamicFrameWidth));
-            
-            // 실제 프레임 너비 (클립을 정확히 채우도록 조정)
             var actualFrameWidth = clipPixelWidth / frameCount;
             
             var frames = [];
@@ -793,8 +813,7 @@ const TimelinePanel = {
             var cachedCount = cachedKeys.length;
             
             for (var i = 0; i < frameCount; i++) {
-                // 프레임 위치에 해당하는 썸네일 인덱스 계산
-                var framePosition = i / frameCount; // 0~1 사이 비율
+                var framePosition = i / frameCount;
                 var thumbnailIndex = Math.floor(framePosition * cachedCount);
                 var src = cached[thumbnailIndex] || (clip.type === 'image' ? clip.src : null);
                 
@@ -1019,6 +1038,23 @@ const TimelinePanel = {
         togglePlayback: function() { if (typeof this.vm.togglePlayback === 'function') this.vm.togglePlayback(); else this.vm.isPlaying = !this.vm.isPlaying; },
         seekToStart: function() { if (typeof this.vm.seekToStart === 'function') this.vm.seekToStart(); else this.vm.currentTime = 0; },
         seekToEnd: function() { var max = 0; this.vm.clips.forEach(function(c) { if (c.start + c.duration > max) max = c.start + c.duration; }); this.vm.currentTime = max; },
+        // 5초 뒤로 이동
+        seekBackward: function() {
+            var newTime = Math.max(0, this.vm.currentTime - 5);
+            this.vm.currentTime = newTime;
+            if (window.PreviewRenderer) {
+                window.PreviewRenderer.setCurrentTime(newTime);
+            }
+        },
+        // 5초 앞으로 이동
+        seekForward: function() {
+            var maxTime = this.maxClipEnd;
+            var newTime = Math.min(maxTime, this.vm.currentTime + 5);
+            this.vm.currentTime = newTime;
+            if (window.PreviewRenderer) {
+                window.PreviewRenderer.setCurrentTime(newTime);
+            }
+        },
         adjustLayout: function() { var p = document.getElementById('preview-main-container'); if (p) p.style.height = this.vm.isTimelineCollapsed ? 'calc(100% - 32px)' : '50%'; this.calculateDynamicZoomRange(); },
         toggleCollapse: function() { this.vm.isTimelineCollapsed = !this.vm.isTimelineCollapsed; var self = this; this.$nextTick(function() { self.adjustLayout(); }); },
         startHeaderResize: function(e) { if (this.isTrackHeaderCollapsed) return; this.isResizingHeader = true; this.resizeStartX = e.clientX; this.resizeStartWidth = this.trackHeaderWidth; },
