@@ -1,5 +1,7 @@
 // Layer Panel Component (Matrix UI 구현)
-// 레이블 스타일: AssetManagerModal 기준 통일 (text-[14px] 헤더, text-[11px] 버튼/레이블)
+// 레이블 스타일: 미디어 자산 섹션 기준 통일
+// Z-Index: 전체 100, 상단 200, 중단 300, 하단 400
+// 컬럼 호버 시 레이블 ↔ Z-Index 교체 표시
 // 기능 로직 변경 없음
 const LayerPanel = {
     props: ['vm'],
@@ -11,58 +13,46 @@ const LayerPanel = {
             <!-- 헤더: 레이어 관리 -->
             <div
                 id="panel-right-layer-header"
-                class="h-8 bg-bg-hover flex items-center justify-between px-3 cursor-pointer border-b border-ui-border"
+                class="flex items-center justify-between p-2 cursor-pointer hover:bg-bg-hover"
                 @click="isCollapsed = !isCollapsed"
                 data-action="js:toggleLayerPanelCollapse"
             >
                 <div class="flex items-center gap-2">
-                    <span class="text-[14px] font-bold text-text-main flex items-center gap-2">
-                        <i class="fa-solid fa-layer-group text-ui-accent"></i> 레이어 관리
-                    </span>
+                    <i :class="isCollapsed ? 'fas fa-chevron-right' : 'fas fa-chevron-down'" class="text-xs w-3 text-text-sub"></i>
+                    <i class="fa-solid fa-layer-group text-ui-accent"></i>
+                    <span class="text-xs font-medium">레이어 관리</span>
                     <span
                         v-if="vm.layerMainName"
                         id="panel-right-layer-mainname-badge"
-                        class="text-[11px] text-ui-accent border border-ui-accent px-1 rounded"
+                        class="text-xxs text-text-sub"
                     >
-                        {{ vm.layerMainName }}
+                        ({{ vm.layerMainName }})
                     </span>
                 </div>
-                <i
-                    :class="['fa-solid', isCollapsed ? 'fa-chevron-down' : 'fa-chevron-up']"
-                    class="text-text-sub text-[11px]"
-                ></i>
             </div>
 
             <!-- 본문: 매트릭스 / 템플릿 저장 -->
-            <div v-if="!isCollapsed" id="panel-right-layer-body" class="p-2">
+            <div v-if="!isCollapsed" id="panel-right-layer-body" class="px-2 pb-2">
                 <!-- 컬럼 헤더 행 -->
                 <div
                     id="panel-right-layer-matrix-container"
-                    class="overflow-x-auto pb-1"
+                    class="overflow-x-auto"
                 >
                     <div class="flex gap-px mb-px min-w-max">
-                        <div class="w-14 shrink-0"></div>
+                        <div class="w-12 shrink-0"></div>
                         <div
                             v-for="(col, i) in vm.layerCols"
                             :key="col.id"
                             :id="'panel-right-layer-col-' + col.id"
-                            class="w-14 text-center py-px rounded text-[11px] font-bold text-white cursor-context-menu hover:brightness-110 relative group"
+                            class="w-12 h-5 text-center rounded text-xxs font-bold text-white cursor-context-menu hover:brightness-110 relative flex items-center justify-center"
                             :style="{ backgroundColor: col.color }"
                             @contextmenu.prevent="openColContextMenu($event, col.id, i)"
+                            @mouseenter="hoverColIndex = i"
+                            @mouseleave="hoverColIndex = null"
                         >
-                            <input
-                                :id="'panel-right-layer-col-name-' + col.id"
-                                type="text"
-                                :value="col.name"
-                                @input="updateColName(col.id, $event.target.value)"
-                                class="bg-transparent text-center w-full outline-none text-[11px] font-bold"
-                                @click.stop
-                            />
-                            <div
-                                class="absolute top-0 right-0 text-[9px] opacity-0 group-hover:opacity-100 p-0.5 bg-black/50 rounded"
-                            >
-                                Z:{{ getZIndexForCell(i, 'TXT') }}
-                            </div>
+                            <!-- 기본: 컬럼 레이블 / 호버: Z-Index -->
+                            <span v-if="hoverColIndex !== i" class="truncate px-0.5">{{ col.name }}</span>
+                            <span v-else class="font-mono">{{ getColZIndex(i) }}</span>
                         </div>
                     </div>
 
@@ -75,7 +65,7 @@ const LayerPanel = {
                     >
                         <div
                             :id="'panel-right-layer-rowlabel-' + row.type"
-                            class="w-14 shrink-0 text-[11px] flex items-center justify-end pr-1 font-bold"
+                            class="w-12 shrink-0 text-xxs flex items-center justify-end pr-1 font-bold h-5"
                             :style="{ color: row.color }"
                         >
                             {{ row.label }}
@@ -85,7 +75,7 @@ const LayerPanel = {
                             :key="col.id + row.type"
                             :id="'panel-right-layer-cell-' + col.id + '-' + row.type"
                             :class="getCellClass(i, row.type)"
-                            class="w-14 h-6 border rounded flex flex-col items-center justify-center cursor-pointer hover:border-white transition-all relative"
+                            class="w-12 h-5 border rounded flex items-center justify-center cursor-pointer hover:border-white transition-all relative"
                             :style="cellStyle(i, row.type, col.color)"
                             @click="handleCellClick(i, row.type, col.color)"
                             @contextmenu.prevent="openCellContextMenu($event, i, row.type, col)"
@@ -94,11 +84,11 @@ const LayerPanel = {
                             <!-- 숨김 상태 아이콘 -->
                             <i 
                                 v-if="isCellHidden(i, row.type)" 
-                                class="fa-solid fa-eye-slash text-[9px] absolute top-0 left-0 text-text-sub"
+                                class="fa-solid fa-eye-slash text-[8px] absolute top-0 left-0 text-text-sub"
                             ></i>
                             <span
-                                class="text-[11px] font-bold text-white drop-shadow-md"
-                                style="text-shadow: 0 0 3px black"
+                                class="text-xxs font-bold text-white drop-shadow-md"
+                                style="text-shadow: 0 0 2px black"
                             >
                                 {{ getZIndexForCell(i, row.type) }}
                             </span>
@@ -110,17 +100,17 @@ const LayerPanel = {
                 <div class="mt-2 flex justify-between items-center">
                     <button
                         id="panel-right-layer-template-manage-btn"
-                        class="text-[11px] bg-ui-border text-text-sub hover:bg-ui-selected hover:text-white px-3 py-1 rounded transition-colors"
+                        class="text-xxs bg-ui-border text-text-sub hover:bg-ui-selected hover:text-white px-2 py-0.5 rounded transition-colors"
                         @click="openLayerTemplateModal"
                         data-action="js:openLayerTemplateModal"
                         title="저장된 레이어 템플릿 관리"
                     >
                         레이어관리
                     </button>
-                    <div class="flex gap-2">
+                    <div class="flex gap-1">
                         <button
                             id="panel-right-layer-reset-btn"
-                            class="text-[11px] bg-ui-border text-text-sub hover:bg-ui-danger hover:text-white px-3 py-1 rounded transition-colors"
+                            class="text-xxs bg-ui-border text-text-sub hover:bg-ui-danger hover:text-white px-2 py-0.5 rounded transition-colors"
                             @click="resetAllLayers"
                             data-action="js:layerResetAll"
                             title="캔버스의 모든 레이어를 삭제합니다"
@@ -129,7 +119,7 @@ const LayerPanel = {
                         </button>
                         <button
                             id="panel-right-layer-save-template-btn"
-                            class="text-[11px] bg-ui-accent text-white px-3 py-1 rounded hover:bg-blue-600"
+                            class="text-xxs bg-ui-accent text-white px-2 py-0.5 rounded hover:bg-blue-600"
                             @click="saveLayerTemplate"
                             data-action="js:layerSaveTemplate"
                         >
@@ -171,14 +161,14 @@ const LayerPanel = {
                     class="ctx-item"
                     @click="toggleCellVisibility"
                 >
-                    <span class="text-[11px]">{{ cellContextMenu.isHidden ? '표시' : '숨김' }}</span>
+                    <span class="text-xxs">{{ cellContextMenu.isHidden ? '표시' : '숨김' }}</span>
                     <i :class="cellContextMenu.isHidden ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash'"></i>
                 </div>
                 <div 
                     class="ctx-item text-red-400 hover:!bg-ui-danger"
                     @click="deleteCellLayer"
                 >
-                    <span class="text-[11px]">삭제</span>
+                    <span class="text-xxs">삭제</span>
                     <i class="fa-solid fa-trash"></i>
                 </div>
             </div>
@@ -189,11 +179,14 @@ const LayerPanel = {
             isCollapsed: false,
             colContextMenu: null,
             cellContextMenu: null,
+            hoverColIndex: null,
             rows: [
                 { type: 'EFF', label: 'Effect', color: '#ef4444', zOffset: 80 },
                 { type: 'TXT', label: 'Text', color: '#eab308', zOffset: 40 },
                 { type: 'BG',  label: 'BG', color: '#3b82f6', zOffset: 20 }
             ],
+            // 컬럼별 기본 Z-Index: 전체 100, 상단 200, 중단 300, 하단 400
+            colZIndexBase: [100, 200, 300, 400],
             COLORS: COLORS
         };
     },
@@ -207,6 +200,11 @@ const LayerPanel = {
         closeAllMenus() {
             this.colContextMenu = null;
             this.cellContextMenu = null;
+        },
+
+        // 컬럼 Z-Index 반환 (호버 시 표시용)
+        getColZIndex(colIdx) {
+            return this.colZIndexBase[colIdx] || (colIdx + 1) * 100;
         },
 
         getColRole(colIdx) {
@@ -258,10 +256,11 @@ const LayerPanel = {
             };
         },
 
+        // Z-Index 계산: 컬럼 기본값 + 행 오프셋
         getZIndexForCell(colIdx, rowType) {
             const row = this.rows.find(r => r.type === rowType);
             const offset = row ? row.zOffset : 0;
-            const base = (colIdx * 100) + 100;
+            const base = this.colZIndexBase[colIdx] || (colIdx + 1) * 100;
             return base + offset;
         },
 
