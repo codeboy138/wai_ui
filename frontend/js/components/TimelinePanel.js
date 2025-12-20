@@ -2,6 +2,7 @@
 // 트랙 레이아웃 복구, 헤더 완전접기, 컨텍스트 메뉴 반응형
 // 스크롤바 호버 확대, 트랙헤더 줄이기만 가능
 // 클립 드래그 아웃 (미디어 자산 패널로) 지원
+// 필름스트립 프레임 표시 개선 - 타임스케일 연동
 
 const TimelinePanel = {
     props: ['vm'],
@@ -200,11 +201,11 @@ const TimelinePanel = {
                                 <div class="absolute inset-0" :style="getClipBackgroundStyle(clip, track)"></div>
                                 
                                 <div v-if="clip.type === 'video' || clip.type === 'image'" class="absolute inset-0 top-[18px]" :style="{ bottom: getWaveformHeight(track) + 'px' }">
-                                    <div class="clip-filmstrip h-full">
+                                    <div class="clip-filmstrip h-full flex overflow-hidden">
                                         <div v-for="(frame, fi) in getFilmstripFrames(clip)" :key="'f'+fi"
-                                            class="clip-filmstrip-frame"
+                                            class="clip-filmstrip-frame flex-shrink-0 h-full bg-cover bg-center bg-no-repeat relative"
                                             :style="{ width: frame.width + 'px', backgroundImage: frame.src ? 'url(' + frame.src + ')' : 'none', backgroundColor: frame.src ? 'transparent' : '#1a1a2e' }">
-                                            <i v-if="!frame.src" class="fa-solid fa-film" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:rgba(255,255,255,0.1);font-size:12px;"></i>
+                                            <i v-if="!frame.src" class="fa-solid fa-film absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white/10 text-[10px]"></i>
                                         </div>
                                     </div>
                                 </div>
@@ -369,7 +370,10 @@ const TimelinePanel = {
             zoomMax: 200, 
             scrollLeft: 0, 
             viewportWidth: 1000,
-            MAX_FILMSTRIP_FRAMES: 12, 
+            // 필름스트립 프레임 설정 - 개선됨
+            FILMSTRIP_FRAME_WIDTH: 40,  // 기본 프레임 너비 (픽셀)
+            MIN_FILMSTRIP_FRAME_WIDTH: 20,  // 최소 프레임 너비
+            MAX_FILMSTRIP_FRAME_WIDTH: 80,  // 최대 프레임 너비
             MAX_WAVEFORM_BARS: 60, 
             MAX_RULER_MARKS: 200,
             masterVolume: 100, 
@@ -729,7 +733,7 @@ const TimelinePanel = {
         injectStyles: function() {
             if (document.getElementById('timeline-custom-styles')) return;
             var style = document.createElement('style'); style.id = 'timeline-custom-styles';
-            style.textContent = '.playhead-line-body{position:absolute;top:24px;width:2px;background:#ef4444;pointer-events:none;z-index:35;transform:translateX(-1px);}.playhead-head{position:absolute;top:2px;width:12px;height:20px;background:transparent;border:2px solid #ef4444;border-radius:0 0 4px 4px;transform:translateX(-6px);cursor:ew-resize;z-index:50;}.playhead-head::after{content:"";position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid #ef4444;}.timeline-select-no-arrow{-webkit-appearance:none;-moz-appearance:none;appearance:none;}.master-volume-popup{display:none;}.master-volume-popup.show{display:flex;}.track-header-container{position:relative;display:flex;flex-direction:column;overflow:hidden;}.track-header-list{scrollbar-width:none;-ms-overflow-style:none;}.track-header-list::-webkit-scrollbar{display:none;}.track-header-inner{position:relative;}.has-submenu{position:relative;}.clip.dragging{opacity:0.8;z-index:100;}.clip.dragging-out{opacity:0.5;border:2px dashed #3b82f6;}.header-resize-handle{position:absolute;right:0;width:3px;cursor:col-resize;background:transparent;z-index:60;transition:background 0.15s;}.header-resize-handle:hover,.header-resize-handle.resizing{background:#3b82f6;}.timeline-scroll-enhanced::-webkit-scrollbar{width:8px;height:8px;}.timeline-scroll-enhanced::-webkit-scrollbar-track{background:rgba(0,0,0,0.1);}.timeline-scroll-enhanced::-webkit-scrollbar-thumb{background:rgba(100,100,100,0.5);border-radius:4px;}.timeline-scroll-enhanced:hover::-webkit-scrollbar{width:14px;height:14px;}.timeline-scroll-enhanced:hover::-webkit-scrollbar-thumb{background:rgba(100,100,100,0.7);}.timeline-scroll-enhanced{scrollbar-width:thin;scrollbar-color:rgba(100,100,100,0.5) rgba(0,0,0,0.1);}';
+            style.textContent = '.playhead-line-body{position:absolute;top:24px;width:2px;background:#ef4444;pointer-events:none;z-index:35;transform:translateX(-1px);}.playhead-head{position:absolute;top:2px;width:12px;height:20px;background:transparent;border:2px solid #ef4444;border-radius:0 0 4px 4px;transform:translateX(-6px);cursor:ew-resize;z-index:50;}.playhead-head::after{content:"";position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid #ef4444;}.timeline-select-no-arrow{-webkit-appearance:none;-moz-appearance:none;appearance:none;}.master-volume-popup{display:none;}.master-volume-popup.show{display:flex;}.track-header-container{position:relative;display:flex;flex-direction:column;overflow:hidden;}.track-header-list{scrollbar-width:none;-ms-overflow-style:none;}.track-header-list::-webkit-scrollbar{display:none;}.track-header-inner{position:relative;}.has-submenu{position:relative;}.clip.dragging{opacity:0.8;z-index:100;}.clip.dragging-out{opacity:0.5;border:2px dashed #3b82f6;}.header-resize-handle{position:absolute;right:0;width:3px;cursor:col-resize;background:transparent;z-index:60;transition:background 0.15s;}.header-resize-handle:hover,.header-resize-handle.resizing{background:#3b82f6;}.timeline-scroll-enhanced::-webkit-scrollbar{width:8px;height:8px;}.timeline-scroll-enhanced::-webkit-scrollbar-track{background:rgba(0,0,0,0.1);}.timeline-scroll-enhanced::-webkit-scrollbar-thumb{background:rgba(100,100,100,0.5);border-radius:4px;}.timeline-scroll-enhanced:hover::-webkit-scrollbar{width:14px;height:14px;}.timeline-scroll-enhanced:hover::-webkit-scrollbar-thumb{background:rgba(100,100,100,0.7);}.timeline-scroll-enhanced{scrollbar-width:thin;scrollbar-color:rgba(100,100,100,0.5) rgba(0,0,0,0.1);}.clip-filmstrip{display:flex;overflow:hidden;}.clip-filmstrip-frame{flex-shrink:0;height:100%;background-size:cover;background-position:center;background-repeat:no-repeat;border-right:1px solid rgba(0,0,0,0.3);}';
             document.head.appendChild(style);
         },
         getVolumeIcon: function(v) { return v === 0 ? 'fa-solid fa-volume-xmark' : v < 30 ? 'fa-solid fa-volume-off' : v < 70 ? 'fa-solid fa-volume-low' : 'fa-solid fa-volume-high'; },
@@ -742,7 +746,8 @@ const TimelinePanel = {
             var video = document.createElement('video'); video.crossOrigin = 'anonymous'; video.muted = true; video.preload = 'metadata';
             video.onloadedmetadata = function() {
                 var duration = video.duration || clip.duration || 10;
-                var frameCount = Math.min(10, Math.ceil(duration / 2));
+                // 더 많은 프레임 캡처 (초당 1프레임 기준, 최대 60프레임)
+                var frameCount = Math.min(60, Math.max(10, Math.ceil(duration)));
                 var frames = {}; var loaded = 0;
                 var captureFrame = function(index) { video.currentTime = (index / frameCount) * duration; };
                 video.onseeked = function() {
@@ -756,15 +761,49 @@ const TimelinePanel = {
             video.onerror = function() { self.thumbnailCache[clip.id] = {}; };
             video.src = clip.src;
         },
+        // 개선된 필름스트립 프레임 계산 - 타임스케일 연동, 클립 전체 채움
         getFilmstripFrames: function(clip) {
-            var w = this.getClipPixelWidth(clip); var frameW = Math.max(40, Math.min(80, w / this.MAX_FILMSTRIP_FRAMES));
-            var count = Math.min(this.MAX_FILMSTRIP_FRAMES, Math.ceil(w / frameW)); var frames = [];
-            var cached = this.thumbnailCache[clip.id] || {}; var cachedKeys = Object.keys(cached);
-            for (var i = 0; i < count; i++) {
-                var frameIndex = Math.floor((i / count) * (cachedKeys.length || 1));
-                var src = cached[frameIndex] || (clip.type === 'image' ? clip.src : null);
-                frames.push({ width: i === count - 1 ? w - frameW * i : frameW, src: src });
+            var clipPixelWidth = this.getClipPixelWidth(clip);
+            var pps = this.pixelsPerSecond;
+            
+            // 줌 레벨에 따른 프레임 너비 조정
+            // 줌이 클수록 (확대) 프레임을 더 크게, 줌이 작을수록 (축소) 프레임을 더 작게
+            var dynamicFrameWidth;
+            if (pps >= 100) {
+                dynamicFrameWidth = this.MAX_FILMSTRIP_FRAME_WIDTH; // 80px
+            } else if (pps >= 50) {
+                dynamicFrameWidth = 60;
+            } else if (pps >= 20) {
+                dynamicFrameWidth = this.FILMSTRIP_FRAME_WIDTH; // 40px
+            } else if (pps >= 10) {
+                dynamicFrameWidth = 30;
+            } else {
+                dynamicFrameWidth = this.MIN_FILMSTRIP_FRAME_WIDTH; // 20px
             }
+            
+            // 클립 전체를 채우기 위한 프레임 개수 계산
+            var frameCount = Math.max(1, Math.ceil(clipPixelWidth / dynamicFrameWidth));
+            
+            // 실제 프레임 너비 (클립을 정확히 채우도록 조정)
+            var actualFrameWidth = clipPixelWidth / frameCount;
+            
+            var frames = [];
+            var cached = this.thumbnailCache[clip.id] || {};
+            var cachedKeys = Object.keys(cached);
+            var cachedCount = cachedKeys.length;
+            
+            for (var i = 0; i < frameCount; i++) {
+                // 프레임 위치에 해당하는 썸네일 인덱스 계산
+                var framePosition = i / frameCount; // 0~1 사이 비율
+                var thumbnailIndex = Math.floor(framePosition * cachedCount);
+                var src = cached[thumbnailIndex] || (clip.type === 'image' ? clip.src : null);
+                
+                frames.push({ 
+                    width: actualFrameWidth, 
+                    src: src 
+                });
+            }
+            
             return frames;
         },
         getThumbnail: function(clip, pos) { if (!clip.src || clip.type !== 'video') return null; var cached = this.thumbnailCache[clip.id]; if (!cached) return null; var keys = Object.keys(cached); return cached[Math.floor(pos * keys.length)] || null; },
@@ -785,7 +824,7 @@ const TimelinePanel = {
         updateVolumePopupFromEvent: function(e) { var track = e.target.closest('.volume-track'); if (!track) return; var rect = track.getBoundingClientRect(); var val = Math.round(Math.max(0, Math.min(200, (1 - (e.clientY - rect.top) / rect.height) * 200))); this.volumePopup.value = val; if (this.volumePopup.clip) { this.volumePopup.clip.volume = val; if (window.PreviewRenderer) window.PreviewRenderer.updateClipVolume(this.volumePopup.clip.id, val / 100); } },
         isClipAtPlayhead: function(clip) { return this.vm.currentTime > clip.start && this.vm.currentTime < clip.start + clip.duration; },
         onWindowResize: function() { this.adjustLayout(); this.updateViewportSize(); this.updateTrackYPositions(); },
-updateViewportSize: function() { var c = document.getElementById('timeline-scroll-container'); if (c) this.viewportWidth = c.clientWidth; },
+        updateViewportSize: function() { var c = document.getElementById('timeline-scroll-container'); if (c) this.viewportWidth = c.clientWidth; },
         onTimelineScroll: function(e) { this.scrollLeft = e.target.scrollLeft; var headerList = this.$refs.trackHeaderList; if (headerList && !this._syncingScroll) { this._syncingScroll = true; headerList.scrollTop = e.target.scrollTop; var self = this; this.$nextTick(function() { self._syncingScroll = false; }); } },
         isClipVisible: function(clip) { var s = clip.start * this.pixelsPerSecond; var en = (clip.start + clip.duration) * this.pixelsPerSecond; return en >= this.scrollLeft - 100 && s <= this.scrollLeft + this.viewportWidth + 100; },
         getVisibleClipsForTrack: function(trackId) { var self = this; return this.vm.clips.filter(function(c) { return c.trackId === trackId && self.isClipVisible(c); }); },
@@ -846,12 +885,10 @@ updateViewportSize: function() { var c = document.getElementById('timeline-scrol
             if (this.isDraggingClipVolume && this.volumeDragClip) { var dy = this.volumeDragStartY - e.clientY; var newVol = Math.max(0, Math.min(200, Math.round(this.volumeDragStartVolume + dy * 2))); this.volumeDragClip.volume = newVol; if (window.PreviewRenderer) window.PreviewRenderer.updateClipVolume(this.volumeDragClip.id, newVol / 100); }
             if (this.pendingClickClipId && !this.isDraggingClip && this.draggingClipIds.length > 0) { 
                 if (Math.abs(e.clientX - this.dragStartX) > 3 || Math.abs(e.clientY - this.dragStartY) > 3) { 
-                    // 타임라인 영역 밖으로 드래그하는지 확인
                     var timelinePanel = document.getElementById('timeline-main-panel');
                     if (timelinePanel) {
                         var rect = timelinePanel.getBoundingClientRect();
                         if (e.clientY < rect.top || e.clientY > rect.bottom) {
-                            // 타임라인 밖으로 드래그 - 미디어 자산으로 내보내기 모드
                             this.startClipDragOut(e);
                         } else {
                             this.isDraggingClip = true; 
@@ -865,7 +902,6 @@ updateViewportSize: function() { var c = document.getElementById('timeline-scrol
             if (this.isDraggingClip && this.draggingClipIds.length > 0) this.handleClipDrag(e);
             if (this.isResizingClip && this.resizingClip) this.handleClipResize(e);
         },
-        // 클립을 타임라인 밖으로 드래그 시작
         startClipDragOut: function(e) {
             if (this.draggingClipIds.length === 0) return;
             
@@ -882,19 +918,14 @@ updateViewportSize: function() { var c = document.getElementById('timeline-scrol
                 duration: clip.duration,
                 volume: clip.volume || 100
             };
-            
-            // 드래그 이미지 생성을 위한 가상 드래그 시뮬레이션
-            // 실제로는 마우스 따라다니는 고스트 이미지로 표시
         },
         onDocumentMouseUp: function(e) {
-            // 클립 외부 드래그 종료 시 미디어 자산 패널에 드롭 확인
             if (this.isDraggingClipOut && this.clipDragOutData) {
                 var mediaAssetPanel = document.querySelector('.media-asset-drop-zone');
                 if (mediaAssetPanel) {
                     var rect = mediaAssetPanel.getBoundingClientRect();
                     if (e.clientX >= rect.left && e.clientX <= rect.right && 
                         e.clientY >= rect.top && e.clientY <= rect.bottom) {
-                        // 미디어 자산 패널에 드롭됨
                         this.exportClipToAsset(this.clipDragOutData);
                     }
                 }
@@ -912,7 +943,6 @@ updateViewportSize: function() { var c = document.getElementById('timeline-scrol
             this.isDraggingClipVolume = false; this.volumeDragClip = null;
             this.isDraggingVolumePopup = false;
         },
-        // 클립을 미디어 자산으로 내보내기
         exportClipToAsset: function(clip) {
             var clipData = clip.id ? clip : this.vm.clips.find(function(c) { return c.id === clip.id; });
             if (!clipData) clipData = clip;
