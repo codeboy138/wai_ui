@@ -39,11 +39,19 @@ const TimelinePanel = {
                         </div>
                     </div>
                     <div class="flex items-center gap-2 ml-4 text-[10px]">
-                        <select class="timeline-select-no-arrow bg-bg-input border border-ui-border rounded px-2 py-0.5 text-text-main text-[10px]" :value="vm.aspectRatio" @change="onAspectChange($event)">
-                            <option value="16:9">16:9</option>
-                            <option value="9:16">9:16</option>
-                            <option value="1:1">1:1</option>
-                        </select>
+                        <!-- 화면비율 드롭다운 -->
+                        <div class="relative aspect-ratio-dropdown-wrapper">
+                            <button class="timeline-select-no-arrow bg-bg-input border border-ui-border rounded px-2 py-0.5 text-text-main text-[10px] min-w-[50px] text-left flex items-center justify-between gap-1" @click="toggleAspectDropdown">
+                                <span>{{ vm.aspectRatio }}</span>
+                                <i class="fa-solid fa-chevron-down text-[8px] text-text-sub"></i>
+                            </button>
+                            <div v-if="isAspectDropdownOpen" class="absolute top-full left-0 mt-1 bg-bg-panel border border-ui-border rounded shadow-lg z-50 min-w-[100px]">
+                                <div v-for="opt in aspectRatioOptions" :key="opt.value" class="px-3 py-1.5 text-[10px] text-text-main hover:bg-bg-hover cursor-pointer flex justify-between gap-2" :class="{ 'bg-bg-hover': vm.aspectRatio === opt.value }" @click="selectAspectRatio(opt.value)">
+                                    <span>{{ opt.label }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- 해상도 드롭다운 -->
                         <div class="relative resolution-dropdown-wrapper">
                             <button class="timeline-select-no-arrow bg-bg-input border border-ui-border rounded px-2 py-0.5 text-text-main text-[10px] min-w-[40px] text-left" @click="toggleResolutionDropdown">{{ vm.resolution }}</button>
                             <div v-if="isResolutionDropdownOpen" class="absolute top-full left-0 mt-1 bg-bg-panel border border-ui-border rounded shadow-lg z-50 min-w-[140px]">
@@ -83,7 +91,6 @@ const TimelinePanel = {
                     <span v-if="selectedClipIds.length > 0" class="text-ui-accent">{{ selectedClipIds.length }}개 선택</span>
                     <span v-else class="text-text-sub">클립 미선택</span>
                     <div class="w-px h-4 bg-ui-border mx-1"></div>
-                    <!-- 전체보기, 커서중심, 스냅, 리플 버튼 이동 -->
                     <button class="tool-btn w-6 h-6" @click="zoomToFit" title="전체 보기"><i class="fa-solid fa-expand"></i></button>
                     <button class="tool-btn w-6 h-6" :class="{ 'bg-ui-accent text-white': zoomMode === 'playhead' }" @click="toggleZoomMode" :title="zoomMode === 'cursor' ? '커서 중심 줌' : '플레이헤드 중심 줌'"><i class="fa-solid fa-crosshairs"></i></button>
                     <button class="tool-btn" :class="{ 'bg-ui-accent text-white': vm.isMagnet }" @click="vm.isMagnet = !vm.isMagnet" title="스냅 토글">
@@ -159,10 +166,8 @@ const TimelinePanel = {
                             @mousedown.stop="onClipMouseDown($event, clip, track)"
                             @contextmenu.stop.prevent="openClipContextMenu($event, track, clip)">
                             
-                            <!-- 클립 배경 -->
                             <div class="absolute inset-0" :style="getClipBackgroundStyle(clip, track)"></div>
                             
-                            <!-- 필름스트립 (비디오/이미지) -->
                             <div v-if="clip.type === 'video' || clip.type === 'image'" class="absolute inset-0 top-[18px]" :style="{ bottom: getWaveformHeight(track) + 'px' }">
                                 <div class="clip-filmstrip h-full">
                                     <div v-for="(frame, fi) in getFilmstripFrames(clip)" :key="'f'+fi"
@@ -173,13 +178,11 @@ const TimelinePanel = {
                                 </div>
                             </div>
                             
-                            <!-- 타이틀 바 -->
                             <div class="clip-title-bar">
                                 <span class="clip-name">{{ clip.name }}</span>
                                 <span class="clip-duration">{{ formatClipDuration(clip.duration) }}</span>
                             </div>
                             
-                            <!-- 오디오 파형 -->
                             <div class="clip-waveform-area" :style="{ height: getWaveformHeight(track) + 'px' }">
                                 <svg class="clip-waveform-svg" preserveAspectRatio="none" viewBox="0 0 100 100">
                                     <rect x="0" y="0" width="100" height="100" :fill="getWaveformBgColor(clip)" />
@@ -188,7 +191,6 @@ const TimelinePanel = {
                                 <div class="clip-volume-line" :style="{ bottom: getVolumeLinePosition(clip) + '%' }" @mousedown.stop="startClipVolumeDrag($event, clip)"></div>
                             </div>
                             
-                            <!-- 리사이즈 핸들 -->
                             <div class="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20" style="z-index:15;" @mousedown.stop="startClipResize($event, clip, 'left')"></div>
                             <div class="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20" style="z-index:15;" @mousedown.stop="startClipResize($event, clip, 'right')"></div>
                         </div>
@@ -250,8 +252,20 @@ const TimelinePanel = {
             isResizingClip: false, resizingClip: null, resizeDirection: null, resizeStartClipStart: 0, resizeStartClipDuration: 0,
             isDraggingPlayhead: false, isTrackNamesCollapsed: false,
             pendingClickClipId: null, pendingClickModifiers: null,
-            isResolutionDropdownOpen: false, isExternalDragOver: false,
-            resolutionOptions: [{ value: '4K', label: '4K', pixels: '3840×2160' }, { value: 'FHD', label: 'FHD', pixels: '1920×1080' }, { value: 'HD', label: 'HD', pixels: '1280×720' }],
+            isResolutionDropdownOpen: false, isAspectDropdownOpen: false, isExternalDragOver: false,
+            // 화면비율 옵션 - 원본, 1:1, 4:3 추가
+            aspectRatioOptions: [
+                { value: '원본', label: '원본' },
+                { value: '16:9', label: '16:9' },
+                { value: '9:16', label: '9:16' },
+                { value: '4:3', label: '4:3' },
+                { value: '1:1', label: '1:1' }
+            ],
+            resolutionOptions: [
+                { value: '4K', label: '4K', pixels: '3840×2160' },
+                { value: 'FHD', label: 'FHD', pixels: '1920×1080' },
+                { value: 'HD', label: 'HD', pixels: '1280×720' }
+            ],
             zoomMode: 'cursor', currentDisplayZoom: 20,
             historyStack: [], historyIndex: -1, maxHistorySize: 50, isUndoRedoAction: false,
             dropIndicator: { visible: false, trackId: null, left: 0, width: 0 },
@@ -260,7 +274,7 @@ const TimelinePanel = {
             masterVolume: 100, previousVolume: 100, isDraggingMasterVolume: false,
             showMasterVolume: false, masterVolumeHideTimer: null,
             isDraggingClipVolume: false, volumeDragClip: null, volumeDragStartY: 0, volumeDragStartVolume: 0,
-            thumbnailCache: {}, waveformCache: {}, currentDragTrackIndex: null,
+            thumbnailCache: {}, waveformCache: {}, videoMetaCache: {}, currentDragTrackIndex: null,
             volumePopup: { visible: false, x: 0, y: 0, clip: null, value: 100 }, isDraggingVolumePopup: false,
             trackYPositions: [],
             isMouseInLane: false
@@ -332,6 +346,118 @@ const TimelinePanel = {
 // 코드연결지점
 // 코드연결지점
     methods: {
+        // 화면비율 드롭다운
+        toggleAspectDropdown() { 
+            this.isAspectDropdownOpen = !this.isAspectDropdownOpen; 
+            if (this.isAspectDropdownOpen) this.isResolutionDropdownOpen = false;
+        },
+        selectAspectRatio(value) { 
+            if (this.vm) {
+                this.vm.aspectRatio = value;
+                this.applyAspectRatio(value);
+            }
+            this.isAspectDropdownOpen = false; 
+        },
+        applyAspectRatio(ratio) {
+            if (!this.vm) return;
+            
+            const baseWidth = this.getBaseWidth();
+            let newW, newH;
+            
+            switch(ratio) {
+                case '원본':
+                    // 원본은 현재 활성 클립의 비디오 해상도 사용
+                    const originalSize = this.getOriginalVideoSize();
+                    if (originalSize) {
+                        newW = originalSize.width;
+                        newH = originalSize.height;
+                    } else {
+                        newW = 1920;
+                        newH = 1080;
+                    }
+                    break;
+                case '16:9':
+                    newW = baseWidth;
+                    newH = Math.round(baseWidth * 9 / 16);
+                    break;
+                case '9:16':
+                    newH = baseWidth;
+                    newW = Math.round(baseWidth * 9 / 16);
+                    break;
+                case '4:3':
+                    newW = baseWidth;
+                    newH = Math.round(baseWidth * 3 / 4);
+                    break;
+                case '1:1':
+                    newW = baseWidth;
+                    newH = baseWidth;
+                    break;
+                default:
+                    newW = 1920;
+                    newH = 1080;
+            }
+            
+            this.vm.canvasSize = { w: newW, h: newH };
+            
+            // 캔버스 스케일 재계산 요청
+            this.$nextTick(() => {
+                if (typeof this.vm.recalculateCanvasScale === 'function') {
+                    this.vm.recalculateCanvasScale();
+                }
+            });
+        },
+        getBaseWidth() {
+            // 해상도에 따른 기본 너비
+            switch(this.vm.resolution) {
+                case '4K': return 3840;
+                case 'FHD': return 1920;
+                case 'HD': return 1280;
+                default: return 1920;
+            }
+        },
+        getOriginalVideoSize() {
+            // 현재 시간에 활성화된 비디오 클립의 원본 해상도 반환
+            const currentTime = this.vm.currentTime;
+            const activeVideoClip = this.vm.clips.find(clip => {
+                if (clip.type !== 'video') return false;
+                const clipEnd = clip.start + clip.duration;
+                return currentTime >= clip.start && currentTime < clipEnd;
+            });
+            
+            if (activeVideoClip && activeVideoClip.src) {
+                const meta = this.videoMetaCache[activeVideoClip.id];
+                if (meta) {
+                    return { width: meta.width, height: meta.height };
+                }
+            }
+            return null;
+        },
+        // 비디오 메타데이터 캐싱
+        cacheVideoMetadata(clip) {
+            if (!clip.src || clip.type !== 'video') return;
+            if (this.videoMetaCache[clip.id]) return;
+            
+            const video = document.createElement('video');
+            video.preload = 'metadata';
+            video.onloadedmetadata = () => {
+                this.videoMetaCache[clip.id] = {
+                    width: video.videoWidth,
+                    height: video.videoHeight,
+                    duration: video.duration
+                };
+                video.remove();
+                
+                // 원본 비율이 선택되어 있고 이 클립이 활성화되면 캔버스 크기 업데이트
+                if (this.vm.aspectRatio === '원본') {
+                    const currentTime = this.vm.currentTime;
+                    const clipEnd = clip.start + clip.duration;
+                    if (currentTime >= clip.start && currentTime < clipEnd) {
+                        this.applyAspectRatio('원본');
+                    }
+                }
+            };
+            video.src = clip.src;
+        },
         onMasterVolumeLeave() {
             if (this.isDraggingMasterVolume) return;
             this.masterVolumeHideTimer = setTimeout(() => {
@@ -343,7 +469,6 @@ const TimelinePanel = {
             const delta = e.deltaY > 0 ? -5 : 5;
             this.masterVolume = Math.max(0, Math.min(100, this.masterVolume + delta));
         },
-        // 트랙 레인 내에서만 휠 줌 처리
         handleLaneWheel(e) {
             const sc = document.getElementById('timeline-scroll-container'); 
             if (!sc) return;
@@ -412,7 +537,10 @@ const TimelinePanel = {
         updateMasterVolumeFromEvent(e) { const track = e.target.closest('.volume-track'); if (!track) return; const rect = track.getBoundingClientRect(); this.masterVolume = Math.round(Math.max(0, Math.min(100, (1 - (e.clientY - rect.top) / rect.height) * 100))); },
         generateThumbnailsForNewClips() {
             this.vm.clips.forEach(clip => {
-                if (clip.type === 'video' && clip.src && !this.thumbnailCache[clip.id]) this.generateVideoThumbnails(clip);
+                if (clip.type === 'video' && clip.src) {
+                    if (!this.thumbnailCache[clip.id]) this.generateVideoThumbnails(clip);
+                    this.cacheVideoMetadata(clip);
+                }
             });
         },
         generateVideoThumbnails(clip) {
@@ -511,7 +639,7 @@ const TimelinePanel = {
         getVisibleClipsForTrack(trackId) { return this.vm.clips.filter(c => c.trackId === trackId && this.isClipVisible(c)); },
         calculateDynamicZoomRange() { const c = document.getElementById('timeline-scroll-container'); if (!c) return; this.zoomMin = Math.max(0.1, (c.clientWidth - this.currentHeaderWidth - 40) / Math.max(60, this.maxClipEnd + 30) / 2); if (this.currentDisplayZoom < this.zoomMin) this.currentDisplayZoom = this.zoomMin; },
         zoomToFit() { const c = document.getElementById('timeline-scroll-container'); if (!c) return; this.currentDisplayZoom = Math.max(this.zoomMin, Math.min(this.zoomMax, (c.clientWidth - this.currentHeaderWidth - 40) / Math.max(10, this.maxClipEnd + 5))); this.vm.zoom = this.currentDisplayZoom; this.$nextTick(() => { c.scrollLeft = 0; this.scrollLeft = 0; }); },
-        onAspectChange(e) { if (this.vm) this.vm.aspectRatio = e.target.value; },
+        onAspectChange(e) { if (this.vm) { this.vm.aspectRatio = e.target.value; this.applyAspectRatio(e.target.value); } },
         updateTrackName(track, v) { track.name = v.trim() === '' ? 'NONE' : v; },
         formatClipDuration(d) { if (!d) return '0:00'; const h = Math.floor(d/3600), m = Math.floor((d%3600)/60), s = Math.floor(d%60); return h > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${m}:${String(s).padStart(2,'0')}`; },
         getClipPixelWidth(clip) { return Math.max(20, clip.duration * this.pixelsPerSecond); },
@@ -524,8 +652,8 @@ const TimelinePanel = {
         setZoom(z, center = null) { this.currentDisplayZoom = Math.max(this.zoomMin, Math.min(this.zoomMax, z)); this.vm.zoom = this.currentDisplayZoom; if (center === 'playhead') this.$nextTick(() => { const sc = document.getElementById('timeline-scroll-container'); if (sc) { sc.scrollLeft = this.vm.currentTime * this.pixelsPerSecond - (sc.clientWidth - this.currentHeaderWidth) / 2; this.scrollLeft = sc.scrollLeft; } }); },
         initTrackHeights() { this.vm.tracks.forEach(t => { if (!this.trackHeights[t.id]) this.trackHeights[t.id] = this.defaultTrackHeight; }); this.updateTrackYPositions(); },
         toggleAllTrackNames() { this.isTrackNamesCollapsed = !this.isTrackNamesCollapsed; },
-        toggleResolutionDropdown() { this.isResolutionDropdownOpen = !this.isResolutionDropdownOpen; },
-        selectResolution(v) { if (this.vm) this.vm.resolution = v; this.isResolutionDropdownOpen = false; },
+        toggleResolutionDropdown() { this.isResolutionDropdownOpen = !this.isResolutionDropdownOpen; if (this.isResolutionDropdownOpen) this.isAspectDropdownOpen = false; },
+        selectResolution(v) { if (this.vm) { this.vm.resolution = v; this.applyAspectRatio(this.vm.aspectRatio); } this.isResolutionDropdownOpen = false; },
         clipStyle(clip, track) { const h = this.getTrackHeight(track.id); return { left: clip.start * this.pixelsPerSecond + 'px', width: Math.max(20, clip.duration * this.pixelsPerSecond) + 'px', top: '1px', height: (h - 2) + 'px' }; },
         getClipClasses(clip) { const sel = this.selectedClipIds.includes(clip.id); return { 'clip-selected': sel && this.selectedClipIds.length === 1, 'clip-multi-selected': sel && this.selectedClipIds.length > 1 }; },
         selectClip(clipId, mod = {}) {
@@ -548,13 +676,13 @@ const TimelinePanel = {
         },
         onTrackLaneMouseDown(e, track) { if (!e.target.closest('.clip')) this.clearSelection(); },
         syncVmSelectedClip() { this.vm.selectedClip = this.selectedClipIds.length === 1 ? this.vm.clips.find(c => c.id === this.selectedClipIds[0]) || null : null; },
-        onDocumentClick(e) { if (!e.target.closest('.context-menu') && !e.target.closest('.clip-volume-popup')) this.closeContextMenus(); if (!e.target.closest('.resolution-dropdown-wrapper')) this.isResolutionDropdownOpen = false; if (!e.target.closest('.clip-volume-popup') && !e.target.closest('.ctx-item')) this.volumePopup.visible = false; },
+        onDocumentClick(e) { if (!e.target.closest('.context-menu') && !e.target.closest('.clip-volume-popup')) this.closeContextMenus(); if (!e.target.closest('.resolution-dropdown-wrapper')) this.isResolutionDropdownOpen = false; if (!e.target.closest('.aspect-ratio-dropdown-wrapper')) this.isAspectDropdownOpen = false; if (!e.target.closest('.clip-volume-popup') && !e.target.closest('.ctx-item')) this.volumePopup.visible = false; },
         onDocumentKeyDown(e) {
             if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') { e.preventDefault(); this.undo(); return; }
             if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); this.redo(); return; }
             if (e.key === 'Delete' && this.hasSelectedClips) this.deleteSelectedClips();
             if ((e.ctrlKey || e.metaKey) && e.key === 'a') { e.preventDefault(); this.selectedClipIds = this.vm.clips.map(c => c.id); this.syncVmSelectedClip(); }
-            if (e.key === 'Escape') { this.clearSelection(); this.isResolutionDropdownOpen = false; this.volumePopup.visible = false; }
+            if (e.key === 'Escape') { this.clearSelection(); this.isResolutionDropdownOpen = false; this.isAspectDropdownOpen = false; this.volumePopup.visible = false; }
         },
         onDocumentMouseMove(e) {
             if (this.isResizingHeader && !this.isTrackNamesCollapsed) this.trackHeaderWidth = Math.max(120, Math.min(400, this.resizeStartWidth + (e.clientX - this.resizeStartX)));
