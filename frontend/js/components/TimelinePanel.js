@@ -1,6 +1,7 @@
 // Timeline Panel Component - CapCut Style
 // 비디오 프레임 캡처, 오디오 파형, 볼륨 컨트롤, 트랙 간 이동 개선
 // 트랙 높이 컨텍스트 메뉴 (초기화/높음/중간/낮음) 추가
+// 트랙 헤더 고정, 클립 충돌 없는 이동 구현
 
 const TimelinePanel = {
     props: ['vm'],
@@ -103,101 +104,112 @@ const TimelinePanel = {
                 </div>
             </div>
             
-            <!-- 메인 타임라인 -->
-            <div v-if="!vm.isTimelineCollapsed" id="timeline-scroll-container" class="flex-grow overflow-auto timeline-grid relative min-h-0" :style="{ gridTemplateColumns: currentHeaderWidth + 'px 1fr' }" @scroll="onTimelineScroll">
-                <!-- 트랙 헤더 -->
-                <div class="sticky-col bg-bg-panel border-r border-ui-border relative" style="z-index: 30;">
-                    <div class="h-6 border-b border-ui-border flex items-center justify-between px-2 text-[9px] font-bold text-text-sub bg-bg-panel sticky top-0" style="z-index: 40;">
+            <!-- 메인 타임라인 영역 -->
+            <div v-if="!vm.isTimelineCollapsed" class="flex-grow flex overflow-hidden min-h-0">
+                <!-- 트랙 헤더 (고정, 스케일 영향 없음) -->
+                <div class="track-header-container bg-bg-panel border-r border-ui-border flex-shrink-0 overflow-hidden" :style="{ width: currentHeaderWidth + 'px' }">
+                    <!-- 헤더 타이틀 -->
+                    <div class="h-6 border-b border-ui-border flex items-center justify-between px-2 text-[9px] font-bold text-text-sub bg-bg-panel">
                         <div class="flex items-center gap-1">
                             <button class="tool-btn w-5 h-5" title="트랙 추가" @click="addTrack"><i class="fa-solid fa-plus" style="font-size: 9px;"></i></button>
-                            <span v-show="!isTrackNamesCollapsed">TRACKS</span>
+                            <span v-show="!isTrackHeaderCollapsed">TRACKS</span>
                         </div>
-                        <button class="w-4 h-4 flex items-center justify-center rounded hover:bg-bg-hover text-[8px]" @click="toggleAllTrackNames">
-                            <i :class="isTrackNamesCollapsed ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash'" style="font-size: 8px;"></i>
+                        <button class="w-4 h-4 flex items-center justify-center rounded hover:bg-bg-hover text-[8px]" @click="toggleTrackHeaderCollapse" :title="isTrackHeaderCollapsed ? '헤더 펼치기' : '헤더 접기'">
+                            <i :class="isTrackHeaderCollapsed ? 'fa-solid fa-chevron-right' : 'fa-solid fa-chevron-left'" style="font-size: 8px;"></i>
                         </button>
                     </div>
-                    <div v-for="(track, index) in vm.tracks" :key="track.id" :data-track-id="track.id"
-                        class="border-b border-ui-border flex items-center px-1 group bg-bg-panel relative"
-                        :class="{ 'opacity-50': track.isLocked, 'bg-ui-accent/20': dragOverTrackId === track.id }"
-                        :style="{ height: getTrackHeight(track.id) + 'px' }"
-                        draggable="true" @dragstart="startTrackDrag($event, track, index)" @dragover.prevent="handleTrackDragOver($event, track)" @dragleave="handleTrackDragLeave" @drop.prevent="handleTrackDrop($event, track, index)" @dragend="endTrackDrag" @contextmenu.prevent="openTrackContextMenu($event, track, index)">
-                        <button class="w-4 h-4 flex items-center justify-center rounded mr-1 shrink-0 hover:bg-bg-hover" :class="track.isMain ? 'text-yellow-400' : 'text-text-sub opacity-30 hover:opacity-100'" @click.stop="setMainTrack(track)">
-                            <i :class="track.isMain ? 'fa-solid fa-star' : 'fa-regular fa-star'" style="font-size: 10px;"></i>
-                        </button>
-                        <div class="flex items-center gap-0.5 mr-1 shrink-0" v-show="getTrackHeight(track.id) >= 30">
-                            <button class="track-control-btn" :class="{ 'active': !track.isHidden }" @click.stop="track.isHidden = !track.isHidden"><i :class="track.isHidden ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'" style="font-size: 8px;"></i></button>
-                            <button class="track-control-btn" :class="{ 'locked': track.isLocked }" @click.stop="track.isLocked = !track.isLocked"><i :class="track.isLocked ? 'fa-solid fa-lock' : 'fa-solid fa-lock-open'" style="font-size: 8px;"></i></button>
+                    <!-- 트랙 헤더 목록 -->
+                    <div class="track-header-list overflow-y-auto" :style="{ height: 'calc(100% - 24px)' }" @scroll="syncHeaderScroll">
+                        <div v-for="(track, index) in vm.tracks" :key="track.id" :data-track-id="track.id"
+                            class="border-b border-ui-border flex items-center px-1 group bg-bg-panel relative"
+                            :class="{ 'opacity-50': track.isLocked, 'bg-ui-accent/20': dragOverTrackId === track.id }"
+                            :style="{ height: getTrackHeight(track.id) + 'px' }"
+                            draggable="true" @dragstart="startTrackDrag($event, track, index)" @dragover.prevent="handleTrackDragOver($event, track)" @dragleave="handleTrackDragLeave" @drop.prevent="handleTrackDrop($event, track, index)" @dragend="endTrackDrag" @contextmenu.prevent="openTrackContextMenu($event, track, index)" @wheel.stop="onTrackHeaderWheel($event, track)">
+                            <button class="w-4 h-4 flex items-center justify-center rounded mr-1 shrink-0 hover:bg-bg-hover" :class="track.isMain ? 'text-yellow-400' : 'text-text-sub opacity-30 hover:opacity-100'" @click.stop="setMainTrack(track)">
+                                <i :class="track.isMain ? 'fa-solid fa-star' : 'fa-regular fa-star'" style="font-size: 10px;"></i>
+                            </button>
+                            <template v-if="!isTrackHeaderCollapsed">
+                                <div class="flex items-center gap-0.5 mr-1 shrink-0" v-show="getTrackHeight(track.id) >= 30">
+                                    <button class="track-control-btn" :class="{ 'active': !track.isHidden }" @click.stop="track.isHidden = !track.isHidden"><i :class="track.isHidden ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'" style="font-size: 8px;"></i></button>
+                                    <button class="track-control-btn" :class="{ 'locked': track.isLocked }" @click.stop="track.isLocked = !track.isLocked"><i :class="track.isLocked ? 'fa-solid fa-lock' : 'fa-solid fa-lock-open'" style="font-size: 8px;"></i></button>
+                                </div>
+                                <div v-show="getTrackHeight(track.id) >= 24" class="w-1 h-2/3 rounded mr-1 shrink-0" :style="{ backgroundColor: track.color || '#666' }"></div>
+                                <input v-show="getTrackHeight(track.id) >= 24" type="text" class="text-[10px] truncate flex-1 text-text-main bg-transparent border-none outline-none min-w-0" :class="{ 'text-text-sub italic': track.name === 'NONE' }" :value="track.name === 'NONE' ? '' : track.name" @input="updateTrackName(track, $event.target.value)" :disabled="track.isLocked" @mousedown.stop :placeholder="'Track ' + (index + 1)" />
+                            </template>
+                            <div class="absolute left-0 right-0 bottom-0 h-1 cursor-ns-resize hover:bg-ui-accent/50 z-10" @mousedown.prevent.stop="startTrackResize($event, track)"></div>
                         </div>
-                        <div v-show="!isTrackNamesCollapsed" class="w-1 h-2/3 rounded mr-1 shrink-0" :style="{ backgroundColor: track.color || '#666' }"></div>
-                        <input v-show="!isTrackNamesCollapsed && getTrackHeight(track.id) >= 24" type="text" class="text-[10px] truncate flex-1 text-text-main bg-transparent border-none outline-none min-w-0" :class="{ 'text-text-sub italic': track.name === 'NONE' }" :value="track.name === 'NONE' ? '' : track.name" @input="updateTrackName(track, $event.target.value)" :disabled="track.isLocked" @mousedown.stop :placeholder="'Track ' + (index + 1)" />
-                        <div class="absolute left-0 right-0 bottom-0 h-1 cursor-ns-resize hover:bg-ui-accent/50 z-10" @mousedown.prevent.stop="startTrackResize($event, track)"></div>
                     </div>
-                    <div v-show="!isTrackNamesCollapsed" class="absolute top-0 bottom-0 w-1 cursor-col-resize hover:bg-ui-accent/50" style="right: 0; z-index: 50;" @mousedown.prevent="startHeaderResize"></div>
+                    <!-- 헤더 리사이즈 핸들 -->
+                    <div v-show="!isTrackHeaderCollapsed" class="absolute top-0 bottom-0 w-1 cursor-col-resize hover:bg-ui-accent/50" style="right: 0; z-index: 50;" @mousedown.prevent="startHeaderResize"></div>
                 </div>
 
-                <!-- 타임라인 레인 -->
-                <div id="timeline-lane-container" class="relative min-w-max" @mousedown="handleLaneMouseDown" @mouseenter="isMouseInLane = true" @mouseleave="isMouseInLane = false" @wheel.prevent="handleLaneWheel">
-                    <div id="timeline-ruler" class="h-6 border-b border-ui-border sticky top-0 relative" :style="{ width: totalTimelineWidth + 'px' }" style="z-index: 20;">
-                        <template v-for="mark in visibleRulerMarks" :key="'ruler-' + mark.time">
-                            <div v-if="mark.isMajor" class="absolute top-0 bottom-0 border-l border-ui-border" :style="{ left: mark.position + 'px' }">
-                                <span class="absolute top-0 left-1 text-[9px] text-text-sub whitespace-nowrap">{{ mark.label }}</span>
-                            </div>
-                            <div v-else-if="mark.isMid" class="absolute bottom-0 h-3 border-l border-ui-border opacity-50" :style="{ left: mark.position + 'px' }"></div>
-                            <div v-else class="absolute bottom-0 h-1.5 border-l border-ui-border opacity-30" :style="{ left: mark.position + 'px' }"></div>
-                        </template>
-                        <div class="playhead-head" :style="{ left: vm.currentTime * pixelsPerSecond + 'px' }" @mousedown.stop.prevent="startPlayheadDrag"></div>
-                    </div>
-                    
-                    <div v-for="(track, idx) in vm.tracks" :key="track.id" :data-track-id="track.id" :data-track-index="idx"
-                        class="border-b border-ui-border relative track-lane"
-                        :class="{ 'opacity-30': track.isHidden }"
-                        :style="{ height: getTrackHeight(track.id) + 'px' }"
-                        @mousedown="onTrackLaneMouseDown($event, track)"
-                        @contextmenu.prevent="openClipContextMenu($event, track)">
+                <!-- 타임라인 레인 (스크롤 가능) -->
+                <div id="timeline-scroll-container" class="flex-grow overflow-auto relative" @scroll="onTimelineScroll">
+                    <div id="timeline-lane-container" class="relative min-w-max" @mousedown="handleLaneMouseDown" @mouseenter="isMouseInLane = true" @mouseleave="isMouseInLane = false" @wheel.prevent="handleLaneWheel">
+                        <!-- 룰러 -->
+                        <div id="timeline-ruler" class="h-6 border-b border-ui-border sticky top-0 relative" :style="{ width: totalTimelineWidth + 'px' }" style="z-index: 20; background: var(--bg-panel);">
+                            <template v-for="mark in visibleRulerMarks" :key="'ruler-' + mark.time">
+                                <div v-if="mark.isMajor" class="absolute top-0 bottom-0 border-l border-ui-border" :style="{ left: mark.position + 'px' }">
+                                    <span class="absolute top-0 left-1 text-[9px] text-text-sub whitespace-nowrap">{{ mark.label }}</span>
+                                </div>
+                                <div v-else-if="mark.isMid" class="absolute bottom-0 h-3 border-l border-ui-border opacity-50" :style="{ left: mark.position + 'px' }"></div>
+                                <div v-else class="absolute bottom-0 h-1.5 border-l border-ui-border opacity-30" :style="{ left: mark.position + 'px' }"></div>
+                            </template>
+                            <div class="playhead-head" :style="{ left: vm.currentTime * pixelsPerSecond + 'px' }" @mousedown.stop.prevent="startPlayheadDrag"></div>
+                        </div>
                         
-                        <div v-if="dropIndicator.visible && dropIndicator.trackId === track.id"
-                            class="absolute top-1 bottom-1 bg-ui-accent/30 border-2 border-dashed border-ui-accent rounded pointer-events-none z-20"
-                            :style="{ left: dropIndicator.left + 'px', width: dropIndicator.width + 'px' }"></div>
-                        
-                        <!-- 클립 -->
-                        <div v-for="clip in getVisibleClipsForTrack(track.id)" :key="clip.id" :data-clip-id="clip.id"
-                            class="clip absolute cursor-pointer"
-                            :class="getClipClasses(clip)"
-                            :style="clipStyle(clip, track)"
-                            @mousedown.stop="onClipMouseDown($event, clip, track)"
-                            @contextmenu.stop.prevent="openClipContextMenu($event, track, clip)">
+                        <!-- 트랙 레인 -->
+                        <div v-for="(track, idx) in vm.tracks" :key="track.id" :data-track-id="track.id" :data-track-index="idx"
+                            class="border-b border-ui-border relative track-lane"
+                            :class="{ 'opacity-30': track.isHidden }"
+                            :style="{ height: getTrackHeight(track.id) + 'px' }"
+                            @mousedown="onTrackLaneMouseDown($event, track)"
+                            @contextmenu.prevent="openClipContextMenu($event, track)">
                             
-                            <div class="absolute inset-0" :style="getClipBackgroundStyle(clip, track)"></div>
+                            <div v-if="dropIndicator.visible && dropIndicator.trackId === track.id"
+                                class="absolute top-1 bottom-1 bg-ui-accent/30 border-2 border-dashed border-ui-accent rounded pointer-events-none z-20"
+                                :style="{ left: dropIndicator.left + 'px', width: dropIndicator.width + 'px' }"></div>
                             
-                            <div v-if="clip.type === 'video' || clip.type === 'image'" class="absolute inset-0 top-[18px]" :style="{ bottom: getWaveformHeight(track) + 'px' }">
-                                <div class="clip-filmstrip h-full">
-                                    <div v-for="(frame, fi) in getFilmstripFrames(clip)" :key="'f'+fi"
-                                        class="clip-filmstrip-frame"
-                                        :style="{ width: frame.width + 'px', backgroundImage: frame.src ? 'url(' + frame.src + ')' : 'none', backgroundColor: frame.src ? 'transparent' : '#1a1a2e' }">
-                                        <i v-if="!frame.src" class="fa-solid fa-film" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:rgba(255,255,255,0.1);font-size:12px;"></i>
+                            <!-- 클립 -->
+                            <div v-for="clip in getVisibleClipsForTrack(track.id)" :key="clip.id" :data-clip-id="clip.id"
+                                class="clip absolute cursor-pointer"
+                                :class="getClipClasses(clip)"
+                                :style="clipStyle(clip, track)"
+                                @mousedown.stop="onClipMouseDown($event, clip, track)"
+                                @contextmenu.stop.prevent="openClipContextMenu($event, track, clip)">
+                                
+                                <div class="absolute inset-0" :style="getClipBackgroundStyle(clip, track)"></div>
+                                
+                                <div v-if="clip.type === 'video' || clip.type === 'image'" class="absolute inset-0 top-[18px]" :style="{ bottom: getWaveformHeight(track) + 'px' }">
+                                    <div class="clip-filmstrip h-full">
+                                        <div v-for="(frame, fi) in getFilmstripFrames(clip)" :key="'f'+fi"
+                                            class="clip-filmstrip-frame"
+                                            :style="{ width: frame.width + 'px', backgroundImage: frame.src ? 'url(' + frame.src + ')' : 'none', backgroundColor: frame.src ? 'transparent' : '#1a1a2e' }">
+                                            <i v-if="!frame.src" class="fa-solid fa-film" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:rgba(255,255,255,0.1);font-size:12px;"></i>
+                                        </div>
                                     </div>
                                 </div>
+                                
+                                <div class="clip-title-bar">
+                                    <span class="clip-name">{{ clip.name }}</span>
+                                    <span class="clip-duration">{{ formatClipDuration(clip.duration) }}</span>
+                                </div>
+                                
+                                <div class="clip-waveform-area" :style="{ height: getWaveformHeight(track) + 'px' }">
+                                    <svg class="clip-waveform-svg" preserveAspectRatio="none" viewBox="0 0 100 100">
+                                        <rect x="0" y="0" width="100" height="100" :fill="getWaveformBgColor(clip)" />
+                                        <rect v-for="(bar, bi) in getWaveformBars(clip)" :key="'w'+bi" :x="bar.x" :y="bar.y" :width="bar.w" :height="bar.h" :fill="getWaveformBarColor(clip)" />
+                                    </svg>
+                                    <div class="clip-volume-line" :style="{ bottom: getVolumeLinePosition(clip) + '%' }" @mousedown.stop="startClipVolumeDrag($event, clip)"></div>
+                                </div>
+                                
+                                <div class="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20" style="z-index:15;" @mousedown.stop="startClipResize($event, clip, 'left')"></div>
+                                <div class="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20" style="z-index:15;" @mousedown.stop="startClipResize($event, clip, 'right')"></div>
                             </div>
-                            
-                            <div class="clip-title-bar">
-                                <span class="clip-name">{{ clip.name }}</span>
-                                <span class="clip-duration">{{ formatClipDuration(clip.duration) }}</span>
-                            </div>
-                            
-                            <div class="clip-waveform-area" :style="{ height: getWaveformHeight(track) + 'px' }">
-                                <svg class="clip-waveform-svg" preserveAspectRatio="none" viewBox="0 0 100 100">
-                                    <rect x="0" y="0" width="100" height="100" :fill="getWaveformBgColor(clip)" />
-                                    <rect v-for="(bar, bi) in getWaveformBars(clip)" :key="'w'+bi" :x="bar.x" :y="bar.y" :width="bar.w" :height="bar.h" :fill="getWaveformBarColor(clip)" />
-                                </svg>
-                                <div class="clip-volume-line" :style="{ bottom: getVolumeLinePosition(clip) + '%' }" @mousedown.stop="startClipVolumeDrag($event, clip)"></div>
-                            </div>
-                            
-                            <div class="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20" style="z-index:15;" @mousedown.stop="startClipResize($event, clip, 'left')"></div>
-                            <div class="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20" style="z-index:15;" @mousedown.stop="startClipResize($event, clip, 'right')"></div>
                         </div>
+                        
+                        <div class="playhead-line-body" :style="{ left: vm.currentTime * pixelsPerSecond + 'px' }"></div>
                     </div>
-                    
-                    <div class="playhead-line-body" :style="{ left: vm.currentTime * pixelsPerSecond + 'px' }"></div>
                 </div>
             </div>
             
@@ -212,20 +224,37 @@ const TimelinePanel = {
             
             <!-- 트랙 컨텍스트 메뉴 -->
             <div v-if="trackContextMenu" class="context-menu" :style="{ top: trackContextMenu.y + 'px', left: trackContextMenu.x + 'px' }" @click.stop>
+                <!-- 위로/아래로 이동 최상단 -->
+                <div class="ctx-item" @click="moveTrackUp(trackContextMenu.index)"><i class="fa-solid fa-arrow-up w-4"></i><span>위로 이동</span></div>
+                <div class="ctx-item" @click="moveTrackDown(trackContextMenu.index)"><i class="fa-solid fa-arrow-down w-4"></i><span>아래로 이동</span></div>
+                <div class="h-px bg-ui-border my-1"></div>
                 <div class="ctx-item" @click="setMainTrack(trackContextMenu.track); closeContextMenus()"><i class="fa-solid fa-star w-4"></i><span>메인 트랙 설정</span></div>
                 <div class="ctx-item" @click="duplicateTrack(trackContextMenu.track)"><i class="fa-solid fa-copy w-4"></i><span>트랙 복제</span></div>
                 <div class="ctx-item" @click="changeTrackColor(trackContextMenu.track)"><i class="fa-solid fa-palette w-4"></i><span>색상 변경</span></div>
                 <div class="h-px bg-ui-border my-1"></div>
-                <div class="px-2 py-1 text-[9px] text-text-sub">트랙 높이</div>
-                <div class="ctx-item" @click="setTrackHeightPreset(trackContextMenu.track, 'default')"><i class="fa-solid fa-undo w-4"></i><span>초기화</span></div>
-                <div class="ctx-item" @click="setTrackHeightPreset(trackContextMenu.track, 'high')"><i class="fa-solid fa-arrows-up-down w-4"></i><span>높음</span></div>
-                <div class="ctx-item" @click="setTrackHeightPreset(trackContextMenu.track, 'medium')"><i class="fa-solid fa-minus w-4"></i><span>중간</span></div>
-                <div class="ctx-item" @click="setTrackHeightPreset(trackContextMenu.track, 'low')"><i class="fa-solid fa-compress-alt w-4"></i><span>낮음</span></div>
-                <div class="h-px bg-ui-border my-1"></div>
-                <div class="ctx-item" @click="moveTrackUp(trackContextMenu.index)"><i class="fa-solid fa-arrow-up w-4"></i><span>위로 이동</span></div>
-                <div class="ctx-item" @click="moveTrackDown(trackContextMenu.index)"><i class="fa-solid fa-arrow-down w-4"></i><span>아래로 이동</span></div>
+                <!-- 높이: 이 트랙 서브메뉴 -->
+                <div class="ctx-item has-submenu" @mouseenter="openHeightSubmenu($event, 'this')" @mouseleave="scheduleCloseHeightSubmenu">
+                    <i class="fa-solid fa-arrows-up-down w-4"></i>
+                    <span>높이: 이 트랙</span>
+                    <i class="fa-solid fa-chevron-right ml-auto text-[8px]"></i>
+                </div>
+                <!-- 높이: 전체 서브메뉴 -->
+                <div class="ctx-item has-submenu" @mouseenter="openHeightSubmenu($event, 'all')" @mouseleave="scheduleCloseHeightSubmenu">
+                    <i class="fa-solid fa-layer-group w-4"></i>
+                    <span>높이: 전체</span>
+                    <i class="fa-solid fa-chevron-right ml-auto text-[8px]"></i>
+                </div>
                 <div class="h-px bg-ui-border my-1"></div>
                 <div class="ctx-item text-red-400" @click="deleteTrack(trackContextMenu.track, trackContextMenu.index)"><i class="fa-solid fa-trash w-4"></i><span>삭제</span></div>
+            </div>
+            
+            <!-- 높이 서브메뉴 -->
+            <div v-if="heightSubmenu.visible" class="context-menu" :style="{ top: heightSubmenu.y + 'px', left: heightSubmenu.x + 'px' }" @mouseenter="cancelCloseHeightSubmenu" @mouseleave="scheduleCloseHeightSubmenu" @click.stop>
+                <div class="ctx-item" @click="applyHeightPreset('low')"><i class="fa-solid fa-compress-alt w-4"></i><span>낮음 (20px)</span></div>
+                <div class="ctx-item" @click="applyHeightPreset('medium')"><i class="fa-solid fa-minus w-4"></i><span>중간 (40px)</span></div>
+                <div class="ctx-item" @click="applyHeightPreset('high')"><i class="fa-solid fa-expand-alt w-4"></i><span>높음 (80px)</span></div>
+                <div class="h-px bg-ui-border my-1"></div>
+                <div class="ctx-item" @click="enableWheelAdjust"><i class="fa-solid fa-mouse w-4"></i><span>휠로 조절</span></div>
             </div>
             
             <!-- 클립 컨텍스트 메뉴 -->
@@ -248,22 +277,27 @@ const TimelinePanel = {
     `,
     data() {
         return {
-            trackHeaderWidth: 180, collapsedHeaderWidth: 70, isResizingHeader: false, resizeStartX: 0, resizeStartWidth: 0,
+            trackHeaderWidth: 180, collapsedHeaderWidth: 28, isResizingHeader: false, resizeStartX: 0, resizeStartWidth: 0,
+            isTrackHeaderCollapsed: false,
             trackContextMenu: null, clipContextMenu: null,
             draggingTrackId: null, draggingTrackIndex: null, dragOverTrackId: null,
             trackHeights: {}, isResizingTrack: false, resizingTrackId: null, resizeStartY: 0, resizeStartHeight: 0,
-            minTrackHeight: 24, defaultTrackHeight: 60,
+            minTrackHeight: 20, defaultTrackHeight: 40,
             // 트랙 높이 프리셋
             trackHeightPresets: {
-                low: 40,
-                medium: 60,
-                high: 100,
-                default: 60
+                low: 20,
+                medium: 40,
+                high: 80,
+                default: 40
             },
+            // 높이 서브메뉴
+            heightSubmenu: { visible: false, x: 0, y: 0, target: 'this' },
+            heightSubmenuCloseTimer: null,
+            wheelAdjustMode: { active: false, target: 'this' },
             selectedClipIds: [], lastSelectedClipId: null, lastSelectedTrackId: null,
             isDraggingClip: false, draggingClipIds: [], dragStartX: 0, dragStartY: 0, dragStartPositions: {}, dragStartTrackIds: {},
             isResizingClip: false, resizingClip: null, resizeDirection: null, resizeStartClipStart: 0, resizeStartClipDuration: 0,
-            isDraggingPlayhead: false, isTrackNamesCollapsed: false,
+            isDraggingPlayhead: false,
             pendingClickClipId: null, pendingClickModifiers: null,
             isResolutionDropdownOpen: false, isAspectDropdownOpen: false, isExternalDragOver: false,
             aspectRatioOptions: [
@@ -298,7 +332,7 @@ const TimelinePanel = {
         maxClipEnd() { let max = 60; this.vm.clips.forEach(c => { if (c.start + c.duration > max) max = c.start + c.duration; }); return max; },
         totalDuration() { return Math.max(300, this.maxClipEnd + 60); },
         totalTimelineWidth() { return this.totalDuration * this.pixelsPerSecond; },
-        currentHeaderWidth() { return this.isTrackNamesCollapsed ? this.collapsedHeaderWidth : this.trackHeaderWidth; },
+        currentHeaderWidth() { return this.isTrackHeaderCollapsed ? this.collapsedHeaderWidth : this.trackHeaderWidth; },
         zoomDisplayText() { return this.pixelsPerSecond >= 60 ? Math.round(this.pixelsPerSecond) + 'px/s' : this.pixelsPerSecond >= 1 ? this.pixelsPerSecond.toFixed(1) + 'px/s' : (this.pixelsPerSecond * 60).toFixed(1) + 'px/m'; },
         visibleTimeRange() { return { startTime: Math.max(0, this.scrollLeft / this.pixelsPerSecond - 10), endTime: (this.scrollLeft + this.viewportWidth) / this.pixelsPerSecond + 10 }; },
         visibleRulerMarks() {
@@ -354,14 +388,89 @@ const TimelinePanel = {
         document.removeEventListener('mouseup', this.onDocumentMouseUp);
         document.removeEventListener('keydown', this.onDocumentKeyDown);
         if (this.masterVolumeHideTimer) clearTimeout(this.masterVolumeHideTimer);
+        if (this.heightSubmenuCloseTimer) clearTimeout(this.heightSubmenuCloseTimer);
     },
     methods: {
-        // 트랙 높이 프리셋 설정
-        setTrackHeightPreset(track, preset) {
+        // 트랙 헤더 접기/펼치기
+        toggleTrackHeaderCollapse() {
+            this.isTrackHeaderCollapsed = !this.isTrackHeaderCollapsed;
+        },
+        // 트랙 헤더 스크롤 동기화
+        syncHeaderScroll(e) {
+            const laneContainer = document.getElementById('timeline-scroll-container');
+            if (laneContainer) {
+                // 수직 스크롤만 동기화 (트랙 헤더는 수평 스크롤 없음)
+            }
+        },
+        // 트랙 헤더에서 휠로 높이 조절
+        onTrackHeaderWheel(e, track) {
+            if (this.wheelAdjustMode.active) {
+                e.preventDefault();
+                e.stopPropagation();
+                const delta = e.deltaY > 0 ? -5 : 5;
+                if (this.wheelAdjustMode.target === 'all') {
+                    this.vm.tracks.forEach(t => {
+                        const currentHeight = this.getTrackHeight(t.id);
+                        this.trackHeights[t.id] = Math.max(this.minTrackHeight, Math.min(120, currentHeight + delta));
+                    });
+                } else {
+                    const currentHeight = this.getTrackHeight(track.id);
+                    this.trackHeights[track.id] = Math.max(this.minTrackHeight, Math.min(120, currentHeight + delta));
+                }
+                this.trackHeights = { ...this.trackHeights };
+            }
+        },
+        // 높이 서브메뉴 열기
+        openHeightSubmenu(e, target) {
+            if (this.heightSubmenuCloseTimer) {
+                clearTimeout(this.heightSubmenuCloseTimer);
+                this.heightSubmenuCloseTimer = null;
+            }
+            const rect = e.currentTarget.getBoundingClientRect();
+            this.heightSubmenu = {
+                visible: true,
+                x: rect.right,
+                y: rect.top,
+                target: target
+            };
+        },
+        // 서브메뉴 닫기 예약
+        scheduleCloseHeightSubmenu() {
+            this.heightSubmenuCloseTimer = setTimeout(() => {
+                this.heightSubmenu.visible = false;
+            }, 150);
+        },
+        // 서브메뉴 닫기 취소
+        cancelCloseHeightSubmenu() {
+            if (this.heightSubmenuCloseTimer) {
+                clearTimeout(this.heightSubmenuCloseTimer);
+                this.heightSubmenuCloseTimer = null;
+            }
+        },
+        // 높이 프리셋 적용
+        applyHeightPreset(preset) {
             const height = this.trackHeightPresets[preset] || this.trackHeightPresets.default;
-            this.trackHeights[track.id] = height;
+            if (this.heightSubmenu.target === 'all') {
+                this.vm.tracks.forEach(t => {
+                    this.trackHeights[t.id] = height;
+                });
+            } else if (this.trackContextMenu && this.trackContextMenu.track) {
+                this.trackHeights[this.trackContextMenu.track.id] = height;
+            }
             this.trackHeights = { ...this.trackHeights };
             this.closeContextMenus();
+        },
+        // 휠 조절 모드 활성화
+        enableWheelAdjust() {
+            this.wheelAdjustMode = {
+                active: true,
+                target: this.heightSubmenu.target
+            };
+            this.closeContextMenus();
+            // 3초 후 자동 비활성화
+            setTimeout(() => {
+                this.wheelAdjustMode.active = false;
+            }, 5000);
         },
         // 화면비율 드롭다운
         toggleAspectDropdown() { 
@@ -538,7 +647,19 @@ const TimelinePanel = {
         injectStyles() {
             if (document.getElementById('timeline-custom-styles')) return;
             const style = document.createElement('style'); style.id = 'timeline-custom-styles';
-            style.textContent = `.playhead-line-body{position:absolute;top:24px;bottom:0;width:2px;background:#ef4444;pointer-events:none;z-index:35;transform:translateX(-1px);}.playhead-head{position:absolute;top:2px;width:12px;height:20px;background:transparent;border:2px solid #ef4444;border-radius:0 0 4px 4px;transform:translateX(-6px);cursor:ew-resize;z-index:50;}.playhead-head::after{content:'';position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid #ef4444;}.timeline-select-no-arrow{-webkit-appearance:none;-moz-appearance:none;appearance:none;}.master-volume-popup{display:none;}.master-volume-popup.show{display:flex;}`;
+            style.textContent = `
+                .playhead-line-body{position:absolute;top:24px;bottom:0;width:2px;background:#ef4444;pointer-events:none;z-index:35;transform:translateX(-1px);}
+                .playhead-head{position:absolute;top:2px;width:12px;height:20px;background:transparent;border:2px solid #ef4444;border-radius:0 0 4px 4px;transform:translateX(-6px);cursor:ew-resize;z-index:50;}
+                .playhead-head::after{content:'';position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid #ef4444;}
+                .timeline-select-no-arrow{-webkit-appearance:none;-moz-appearance:none;appearance:none;}
+                .master-volume-popup{display:none;}
+                .master-volume-popup.show{display:flex;}
+                .track-header-container{position:relative;display:flex;flex-direction:column;}
+                .track-header-list{scrollbar-width:none;-ms-overflow-style:none;}
+                .track-header-list::-webkit-scrollbar{display:none;}
+                .has-submenu{position:relative;}
+                .clip.dragging{opacity:0.8;z-index:100;}
+            `;
             document.head.appendChild(style);
         },
         getVolumeIcon(v) { return v === 0 ? 'fa-solid fa-volume-xmark' : v < 30 ? 'fa-solid fa-volume-off' : v < 70 ? 'fa-solid fa-volume-low' : 'fa-solid fa-volume-high'; },
@@ -648,11 +769,18 @@ const TimelinePanel = {
         isClipAtPlayhead(clip) { return this.vm.currentTime > clip.start && this.vm.currentTime < clip.start + clip.duration; },
         onWindowResize() { this.adjustLayout(); this.updateViewportSize(); this.updateTrackYPositions(); },
         updateViewportSize() { const c = document.getElementById('timeline-scroll-container'); if (c) this.viewportWidth = c.clientWidth; },
-        onTimelineScroll(e) { this.scrollLeft = e.target.scrollLeft; },
+        onTimelineScroll(e) { 
+            this.scrollLeft = e.target.scrollLeft;
+            // 트랙 헤더 수직 스크롤 동기화
+            const headerList = document.querySelector('.track-header-list');
+            if (headerList) {
+                headerList.scrollTop = e.target.scrollTop;
+            }
+        },
         isClipVisible(clip) { const s = clip.start * this.pixelsPerSecond, e = (clip.start + clip.duration) * this.pixelsPerSecond; return e >= this.scrollLeft - 100 && s <= this.scrollLeft + this.viewportWidth + 100; },
         getVisibleClipsForTrack(trackId) { return this.vm.clips.filter(c => c.trackId === trackId && this.isClipVisible(c)); },
-        calculateDynamicZoomRange() { const c = document.getElementById('timeline-scroll-container'); if (!c) return; this.zoomMin = Math.max(0.1, (c.clientWidth - this.currentHeaderWidth - 40) / Math.max(60, this.maxClipEnd + 30) / 2); if (this.currentDisplayZoom < this.zoomMin) this.currentDisplayZoom = this.zoomMin; },
-        zoomToFit() { const c = document.getElementById('timeline-scroll-container'); if (!c) return; this.currentDisplayZoom = Math.max(this.zoomMin, Math.min(this.zoomMax, (c.clientWidth - this.currentHeaderWidth - 40) / Math.max(10, this.maxClipEnd + 5))); this.vm.zoom = this.currentDisplayZoom; this.$nextTick(() => { c.scrollLeft = 0; this.scrollLeft = 0; }); },
+        calculateDynamicZoomRange() { const c = document.getElementById('timeline-scroll-container'); if (!c) return; this.zoomMin = Math.max(0.1, (c.clientWidth - 40) / Math.max(60, this.maxClipEnd + 30) / 2); if (this.currentDisplayZoom < this.zoomMin) this.currentDisplayZoom = this.zoomMin; },
+        zoomToFit() { const c = document.getElementById('timeline-scroll-container'); if (!c) return; this.currentDisplayZoom = Math.max(this.zoomMin, Math.min(this.zoomMax, (c.clientWidth - 40) / Math.max(10, this.maxClipEnd + 5))); this.vm.zoom = this.currentDisplayZoom; this.$nextTick(() => { c.scrollLeft = 0; this.scrollLeft = 0; }); },
         onAspectChange(e) { if (this.vm) { this.vm.aspectRatio = e.target.value; this.applyAspectRatio(e.target.value); } },
         updateTrackName(track, v) { track.name = v.trim() === '' ? 'NONE' : v; },
         formatClipDuration(d) { if (!d) return '0:00'; const h = Math.floor(d/3600), m = Math.floor((d%3600)/60), s = Math.floor(d%60); return h > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${m}:${String(s).padStart(2,'0')}`; },
@@ -663,13 +791,20 @@ const TimelinePanel = {
         redo() { if (!this.canRedo) return; this.isUndoRedoAction = true; this.historyIndex++; const s = this.historyStack[this.historyIndex]; this.vm.clips = JSON.parse(JSON.stringify(s.clips)); this.vm.tracks = JSON.parse(JSON.stringify(s.tracks)); this.selectedClipIds = []; this.syncVmSelectedClip(); this.$nextTick(() => { this.isUndoRedoAction = false; }); },
         toggleZoomMode() { this.zoomMode = this.zoomMode === 'cursor' ? 'playhead' : 'cursor'; },
         handleZoomInput(e) { this.setZoom(Number(e.target.value), this.zoomMode === 'playhead' ? 'playhead' : null); },
-        setZoom(z, center = null) { this.currentDisplayZoom = Math.max(this.zoomMin, Math.min(this.zoomMax, z)); this.vm.zoom = this.currentDisplayZoom; if (center === 'playhead') this.$nextTick(() => { const sc = document.getElementById('timeline-scroll-container'); if (sc) { sc.scrollLeft = this.vm.currentTime * this.pixelsPerSecond - (sc.clientWidth - this.currentHeaderWidth) / 2; this.scrollLeft = sc.scrollLeft; } }); },
+        setZoom(z, center = null) { this.currentDisplayZoom = Math.max(this.zoomMin, Math.min(this.zoomMax, z)); this.vm.zoom = this.currentDisplayZoom; if (center === 'playhead') this.$nextTick(() => { const sc = document.getElementById('timeline-scroll-container'); if (sc) { sc.scrollLeft = this.vm.currentTime * this.pixelsPerSecond - sc.clientWidth / 2; this.scrollLeft = sc.scrollLeft; } }); },
         initTrackHeights() { this.vm.tracks.forEach(t => { if (!this.trackHeights[t.id]) this.trackHeights[t.id] = this.defaultTrackHeight; }); this.updateTrackYPositions(); },
-        toggleAllTrackNames() { this.isTrackNamesCollapsed = !this.isTrackNamesCollapsed; },
         toggleResolutionDropdown() { this.isResolutionDropdownOpen = !this.isResolutionDropdownOpen; if (this.isResolutionDropdownOpen) this.isAspectDropdownOpen = false; },
         selectResolution(v) { if (this.vm) { this.vm.resolution = v; this.applyAspectRatio(this.vm.aspectRatio); } this.isResolutionDropdownOpen = false; },
         clipStyle(clip, track) { const h = this.getTrackHeight(track.id); return { left: clip.start * this.pixelsPerSecond + 'px', width: Math.max(20, clip.duration * this.pixelsPerSecond) + 'px', top: '1px', height: (h - 2) + 'px' }; },
-        getClipClasses(clip) { const sel = this.selectedClipIds.includes(clip.id); return { 'clip-selected': sel && this.selectedClipIds.length === 1, 'clip-multi-selected': sel && this.selectedClipIds.length > 1 }; },
+        getClipClasses(clip) { 
+            const sel = this.selectedClipIds.includes(clip.id); 
+            const dragging = this.isDraggingClip && this.draggingClipIds.includes(clip.id);
+            return { 
+                'clip-selected': sel && this.selectedClipIds.length === 1, 
+                'clip-multi-selected': sel && this.selectedClipIds.length > 1,
+                'dragging': dragging
+            }; 
+        },
         selectClip(clipId, mod = {}) {
             const clip = this.vm.clips.find(c => c.id === clipId); if (!clip) return;
             if (mod.ctrlKey || mod.metaKey) { const idx = this.selectedClipIds.indexOf(clipId); if (idx >= 0) this.selectedClipIds.splice(idx, 1); else this.selectedClipIds.push(clipId); }
@@ -690,16 +825,29 @@ const TimelinePanel = {
         },
         onTrackLaneMouseDown(e, track) { if (!e.target.closest('.clip')) this.clearSelection(); },
         syncVmSelectedClip() { this.vm.selectedClip = this.selectedClipIds.length === 1 ? this.vm.clips.find(c => c.id === this.selectedClipIds[0]) || null : null; },
-        onDocumentClick(e) { if (!e.target.closest('.context-menu') && !e.target.closest('.clip-volume-popup')) this.closeContextMenus(); if (!e.target.closest('.resolution-dropdown-wrapper')) this.isResolutionDropdownOpen = false; if (!e.target.closest('.aspect-ratio-dropdown-wrapper')) this.isAspectDropdownOpen = false; if (!e.target.closest('.clip-volume-popup') && !e.target.closest('.ctx-item')) this.volumePopup.visible = false; },
+        onDocumentClick(e) { 
+            if (!e.target.closest('.context-menu') && !e.target.closest('.clip-volume-popup')) {
+                this.closeContextMenus(); 
+            }
+            if (!e.target.closest('.resolution-dropdown-wrapper')) this.isResolutionDropdownOpen = false; 
+            if (!e.target.closest('.aspect-ratio-dropdown-wrapper')) this.isAspectDropdownOpen = false; 
+            if (!e.target.closest('.clip-volume-popup') && !e.target.closest('.ctx-item')) this.volumePopup.visible = false; 
+        },
         onDocumentKeyDown(e) {
             if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') { e.preventDefault(); this.undo(); return; }
             if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); this.redo(); return; }
             if (e.key === 'Delete' && this.hasSelectedClips) this.deleteSelectedClips();
             if ((e.ctrlKey || e.metaKey) && e.key === 'a') { e.preventDefault(); this.selectedClipIds = this.vm.clips.map(c => c.id); this.syncVmSelectedClip(); }
-            if (e.key === 'Escape') { this.clearSelection(); this.isResolutionDropdownOpen = false; this.isAspectDropdownOpen = false; this.volumePopup.visible = false; }
+            if (e.key === 'Escape') { 
+                this.clearSelection(); 
+                this.isResolutionDropdownOpen = false; 
+                this.isAspectDropdownOpen = false; 
+                this.volumePopup.visible = false; 
+                this.wheelAdjustMode.active = false;
+            }
         },
         onDocumentMouseMove(e) {
-            if (this.isResizingHeader && !this.isTrackNamesCollapsed) this.trackHeaderWidth = Math.max(120, Math.min(400, this.resizeStartWidth + (e.clientX - this.resizeStartX)));
+            if (this.isResizingHeader && !this.isTrackHeaderCollapsed) this.trackHeaderWidth = Math.max(120, Math.min(400, this.resizeStartWidth + (e.clientX - this.resizeStartX)));
             if (this.isResizingTrack && this.resizingTrackId) { this.trackHeights[this.resizingTrackId] = Math.max(this.minTrackHeight, this.resizeStartHeight + (e.clientY - this.resizeStartY)); this.trackHeights = { ...this.trackHeights }; }
             if (this.isDraggingPlayhead) this.updatePlayheadPosition(e);
             if (this.isDraggingMasterVolume) this.updateMasterVolumeFromEvent(e);
@@ -728,30 +876,55 @@ const TimelinePanel = {
         handleClipDrag(e) {
             const dx = e.clientX - this.dragStartX, dt = dx / this.pixelsPerSecond;
             const lane = document.getElementById('timeline-lane-container');
+            
+            // 트랙 간 이동 처리 (충돌 검사 없이 자유롭게 이동)
             if (lane) {
                 const rect = lane.getBoundingClientRect(), relY = e.clientY - rect.top - 24;
                 const newIdx = this.getTrackIndexFromY(relY);
                 if (newIdx !== -1 && this.currentDragTrackIndex !== null && newIdx !== this.currentDragTrackIndex) {
                     const target = this.vm.tracks[newIdx];
                     if (target && !target.isLocked) {
-                        let canMove = true;
-                        for (const cid of this.draggingClipIds) { const c = this.vm.clips.find(cl => cl.id === cid); if (c && this.hasCollision(target.id, Math.max(0, this.dragStartPositions[cid] + dt), c.duration, this.draggingClipIds)) { canMove = false; break; } }
-                        if (canMove) { this.draggingClipIds.forEach(cid => { const c = this.vm.clips.find(cl => cl.id === cid); if (c) { c.trackId = target.id; this.dragStartTrackIds[cid] = target.id; } }); this.currentDragTrackIndex = newIdx; }
+                        // 충돌 검사 없이 트랙 이동 허용
+                        this.draggingClipIds.forEach(cid => { 
+                            const c = this.vm.clips.find(cl => cl.id === cid); 
+                            if (c) { 
+                                c.trackId = target.id; 
+                                this.dragStartTrackIds[cid] = target.id; 
+                            } 
+                        }); 
+                        this.currentDragTrackIndex = newIdx;
                     }
                 }
             }
-            const newPos = {};
-            this.draggingClipIds.forEach(id => { const c = this.vm.clips.find(cl => cl.id === id); if (!c) return; let ns = Math.max(0, this.dragStartPositions[id] + dt); if (this.vm.isMagnet) { const snap = this.findSnapPosition(ns, c, this.draggingClipIds); if (snap.snapped) ns = snap.position; } newPos[id] = ns; });
-            let canMove = true; for (const id of this.draggingClipIds) { const c = this.vm.clips.find(cl => cl.id === id); if (c && this.hasCollision(c.trackId, newPos[id], c.duration, this.draggingClipIds)) { canMove = false; break; } }
-            if (canMove) this.draggingClipIds.forEach(id => { const c = this.vm.clips.find(cl => cl.id === id); if (c && newPos[id] !== undefined) c.start = newPos[id]; });
+            
+            // 수평 이동 (스냅만 적용, 충돌 검사 없음)
+            this.draggingClipIds.forEach(id => { 
+                const c = this.vm.clips.find(cl => cl.id === id); 
+                if (!c) return; 
+                let ns = Math.max(0, this.dragStartPositions[id] + dt); 
+                if (this.vm.isMagnet) { 
+                    const snap = this.findSnapPosition(ns, c, this.draggingClipIds); 
+                    if (snap.snapped) ns = snap.position; 
+                } 
+                c.start = ns;
+            });
         },
         startClipResize(e, clip, dir) { const t = this.vm.tracks.find(tr => tr.id === clip.trackId); if (t && t.isLocked) return; e.preventDefault(); this.isResizingClip = true; this.resizingClip = clip; this.resizeDirection = dir; this.dragStartX = e.clientX; this.resizeStartClipStart = clip.start; this.resizeStartClipDuration = clip.duration; },
         handleClipResize(e) {
             const dt = (e.clientX - this.dragStartX) / this.pixelsPerSecond;
-            if (this.resizeDirection === 'left') { let ns = this.resizeStartClipStart + dt, nd = this.resizeStartClipDuration - dt; if (ns < 0) { nd += ns; ns = 0; } if (nd < 0.5) { nd = 0.5; ns = this.resizeStartClipStart + this.resizeStartClipDuration - 0.5; } if (!this.hasCollision(this.resizingClip.trackId, ns, nd, [this.resizingClip.id])) { this.resizingClip.start = ns; this.resizingClip.duration = nd; } }
-            else { let nd = this.resizeStartClipDuration + dt; if (nd < 0.5) nd = 0.5; if (!this.hasCollision(this.resizingClip.trackId, this.resizingClip.start, nd, [this.resizingClip.id])) this.resizingClip.duration = nd; }
+            if (this.resizeDirection === 'left') { 
+                let ns = this.resizeStartClipStart + dt, nd = this.resizeStartClipDuration - dt; 
+                if (ns < 0) { nd += ns; ns = 0; } 
+                if (nd < 0.5) { nd = 0.5; ns = this.resizeStartClipStart + this.resizeStartClipDuration - 0.5; } 
+                this.resizingClip.start = ns; 
+                this.resizingClip.duration = nd;
+            }
+            else { 
+                let nd = this.resizeStartClipDuration + dt; 
+                if (nd < 0.5) nd = 0.5; 
+                this.resizingClip.duration = nd; 
+            }
         },
-        hasCollision(trackId, start, dur, excludeIds = []) { const end = start + dur; for (const c of this.vm.clips.filter(c => c.trackId === trackId && !excludeIds.includes(c.id))) { if (start < c.start + c.duration && end > c.start) return true; } return false; },
         findSnapPosition(ns, clip, excludeIds = []) {
             const sd = 10 / this.pixelsPerSecond, ce = ns + clip.duration;
             if (Math.abs(ns - this.vm.currentTime) < sd) return { snapped: true, position: this.vm.currentTime };
@@ -767,16 +940,15 @@ const TimelinePanel = {
         moveTrackUp(idx) { if (idx <= 0) return; const t = [...this.vm.tracks]; [t[idx - 1], t[idx]] = [t[idx], t[idx - 1]]; this.vm.tracks = t; this.closeContextMenus(); },
         moveTrackDown(idx) { if (idx >= this.vm.tracks.length - 1) return; const t = [...this.vm.tracks]; [t[idx], t[idx + 1]] = [t[idx + 1], t[idx]]; this.vm.tracks = t; this.closeContextMenus(); },
         startTrackResize(e, track) { this.isResizingTrack = true; this.resizingTrackId = track.id; this.resizeStartY = e.clientY; this.resizeStartHeight = this.getTrackHeight(track.id); },
-        resetTrackHeight(track) { this.trackHeights[track.id] = this.defaultTrackHeight; this.trackHeights = { ...this.trackHeights }; this.closeContextMenus(); },
         addTrack() { const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899']; const t = { id: `t_${Date.now()}`, name: 'NONE', color: colors[this.vm.tracks.length % colors.length], isHidden: false, isLocked: false, isMain: false }; this.vm.tracks.push(t); this.trackHeights[t.id] = this.defaultTrackHeight; this.trackHeights = { ...this.trackHeights }; },
         deleteTrack(track, idx) { if (this.vm.tracks.length <= 1) return; this.vm.clips = this.vm.clips.filter(c => c.trackId !== track.id); delete this.trackHeights[track.id]; this.trackHeights = { ...this.trackHeights }; this.vm.tracks.splice(idx, 1); this.closeContextMenus(); },
         duplicateTrack(track) { const idx = this.vm.tracks.findIndex(t => t.id === track.id); const nt = { ...track, id: `t_${Date.now()}`, name: track.name === 'NONE' ? 'NONE' : track.name + ' (복사)', isMain: false }; this.vm.tracks.splice(idx + 1, 0, nt); this.trackHeights[nt.id] = this.getTrackHeight(track.id); this.trackHeights = { ...this.trackHeights }; this.closeContextMenus(); },
         setMainTrack(track) { this.vm.tracks.forEach(t => t.isMain = false); track.isMain = true; },
         async changeTrackColor(track) { const { value } = await Swal.fire({ title: '트랙 색상', input: 'text', inputValue: track.color, showCancelButton: true, background: '#1e1e1e', color: '#fff' }); if (value) track.color = value; this.closeContextMenus(); },
-        openTrackContextMenu(e, track, idx) { this.clipContextMenu = null; this.trackContextMenu = { x: e.clientX, y: e.clientY, track, index: idx }; },
-        openClipContextMenu(e, track, clip = null) { this.trackContextMenu = null; if (clip) { if (!this.selectedClipIds.includes(clip.id)) { this.selectedClipIds = [clip.id]; this.syncVmSelectedClip(); } } this.clipContextMenu = { x: e.clientX, y: e.clientY, track, clip, time: this.getTimeFromMouseEvent(e) }; },
+        openTrackContextMenu(e, track, idx) { this.clipContextMenu = null; this.heightSubmenu.visible = false; this.trackContextMenu = { x: e.clientX, y: e.clientY, track, index: idx }; },
+        openClipContextMenu(e, track, clip = null) { this.trackContextMenu = null; this.heightSubmenu.visible = false; if (clip) { if (!this.selectedClipIds.includes(clip.id)) { this.selectedClipIds = [clip.id]; this.syncVmSelectedClip(); } } this.clipContextMenu = { x: e.clientX, y: e.clientY, track, clip, time: this.getTimeFromMouseEvent(e) }; },
         getTimeFromMouseEvent(e) { const lane = document.getElementById('timeline-lane-container'); if (!lane) return 0; return Math.max(0, (e.clientX - lane.getBoundingClientRect().left) / this.pixelsPerSecond); },
-        closeContextMenus() { this.trackContextMenu = null; this.clipContextMenu = null; },
+        closeContextMenus() { this.trackContextMenu = null; this.clipContextMenu = null; this.heightSubmenu.visible = false; },
         duplicateClip(clip) { const nc = { ...clip, id: `c_${Date.now()}`, start: clip.start + clip.duration + 0.5 }; this.vm.clips.push(nc); },
         deleteClip(clip) { this.vm.clips = this.vm.clips.filter(c => c.id !== clip.id); this.selectedClipIds = this.selectedClipIds.filter(id => id !== clip.id); this.syncVmSelectedClip(); },
         addClipAtPosition() { if (!this.clipContextMenu) return; const t = this.clipContextMenu.track, time = this.clipContextMenu.time || 0; this.vm.clips.push({ id: `c_${Date.now()}`, trackId: t.id, name: 'New Clip', start: time, duration: 5, type: 'video', volume: 100 }); },
@@ -795,7 +967,7 @@ const TimelinePanel = {
         seekToEnd() { let max = 0; this.vm.clips.forEach(c => { if (c.start + c.duration > max) max = c.start + c.duration; }); this.vm.currentTime = max; },
         adjustLayout() { const p = document.getElementById('preview-main-container'); if (p) p.style.height = this.vm.isTimelineCollapsed ? 'calc(100% - 32px)' : '50%'; this.calculateDynamicZoomRange(); },
         toggleCollapse() { this.vm.isTimelineCollapsed = !this.vm.isTimelineCollapsed; this.$nextTick(() => this.adjustLayout()); },
-        startHeaderResize(e) { if (this.isTrackNamesCollapsed) return; this.isResizingHeader = true; this.resizeStartX = e.clientX; this.resizeStartWidth = this.trackHeaderWidth; },
+        startHeaderResize(e) { if (this.isTrackHeaderCollapsed) return; this.isResizingHeader = true; this.resizeStartX = e.clientX; this.resizeStartWidth = this.trackHeaderWidth; },
         formatRulerTime(s) { if (s >= 3600) { const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = Math.floor(s%60); return `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`; } else if (s >= 60) { const m = Math.floor(s/60), sec = Math.floor(s%60); return `${m}:${String(sec).padStart(2,'0')}`; } return s + 's'; },
         onExternalDragOver(e) { if (e.dataTransfer.types.includes('text/wai-asset')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; this.isExternalDragOver = true; this.updateDropIndicator(e); } },
         onExternalDragLeave(e) { const rect = e.currentTarget.getBoundingClientRect(); if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) { this.isExternalDragOver = false; this.dropIndicator.visible = false; } },
