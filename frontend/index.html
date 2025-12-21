@@ -31,6 +31,8 @@
 
     <!-- 3. Custom CSS -->
     <link rel="stylesheet" href="css/main.css">
+    <!-- 4. ClipBox CSS -->
+    <link rel="stylesheet" href="css/clipbox.css">
 </head>
 
 <body id="app-root-container" class="flex flex-col text-xs">
@@ -103,14 +105,9 @@
 
         <!-- Main Layout -->
         <main id="main-layout-root" class="flex-1 flex overflow-hidden relative">
-            <!-- Left Panel -->
+            <!-- Left Panel - ClipBox Manager 삽입 -->
             <aside id="main-left-panel" class="bg-bg-panel flex flex-col relative border-r border-ui-border" :style="{ width: leftPanelWidth + 'px', minWidth: '180px' }">
-                <div class="flex-1 flex items-center justify-center text-text-sub opacity-30">
-                    <div class="text-center">
-                        <i class="fa-solid fa-layer-group text-2xl mb-2"></i>
-                        <div class="text-[10px]">좌측 패널</div>
-                    </div>
-                </div>
+                <clip-box-manager></clip-box-manager>
                 <div id="main-left-resizer-v" class="panel-resizer-v right-0" title="좌측 패널 너비 조절" data-action="js:resizePanelLeft"></div>
             </aside>
 
@@ -137,7 +134,10 @@
                 <timeline-panel :vm="$data" :style="{ height: timelineContainerHeight }"></timeline-panel>
             </section>
 
-                        <!-- Right Panel -->
+<!-- 코드연결지점 -->
+<!-- 코드연결지점 -->
+
+            <!-- Right Panel -->
             <aside id="main-right-panel" class="bg-bg-panel flex flex-col relative border-l border-ui-border" :style="{ width: rightPanelWidth + 'px', minWidth: '250px' }">
                 <div id="main-right-resizer-v" class="panel-resizer-v left-0" title="우측 패널 너비 조절" data-action="js:resizePanelRight"></div>
                 <div class="flex-1 overflow-y-auto flex flex-col" id="main-right-vue-root">
@@ -285,8 +285,10 @@
     <script src="js/components/LayerPanel.js"></script>
     <script src="js/components/PreviewCanvas.js"></script>
     <script src="js/components/TimelinePanel.js"></script>
+    <!-- 3. ClipBox Manager Component -->
+    <script src="js/components/ClipBoxManager.js"></script>
     
-    <!-- 3. Core (Last) -->
+    <!-- 4. Core (Last) -->
     <script src="js/core/preview-renderer.js"></script>
     <script src="js/core/app-root.js"></script>
     <script src="js/core/bootstrap.js"></script>
