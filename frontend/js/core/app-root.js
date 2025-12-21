@@ -1,6 +1,6 @@
 const { createApp, reactive, ref, onMounted, computed, nextTick } = Vue;
 
-const Z_INDEX_OFFSETS = { 'BG': 20, 'TXT': 40, 'VID': 60, 'EFF': 80 };
+// Z_INDEX_OFFSETS는 js/utils/constants.js에서 이미 선언됨
 const COLORS = [
     '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e',
     '#10b981', '#06b6d4', '#0ea5e9', '#3b82f6', '#6366f1',
