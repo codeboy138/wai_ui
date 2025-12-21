@@ -621,7 +621,17 @@ html, body {
     box-shadow: 0 0 0 2px #22c55e;
 }
 
-/* 클립 드래그 아웃 스타일 */
+/* ================================
+   클립 드래그 스타일 (캡컷 스타일)
+   ================================ */
+.clip.dragging-free {
+    opacity: 0.85;
+    z-index: 1000 !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 2px var(--color-ui-accent);
+    transform: scale(1.02);
+    pointer-events: none;
+}
+
 .clip.dragging {
     opacity: 0.8;
     z-index: 100;
@@ -631,6 +641,61 @@ html, body {
     opacity: 0.5;
     border: 2px dashed #3b82f6 !important;
     box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+}
+
+/* 드래그 고스트 */
+.clip-drag-ghost {
+    position: absolute;
+    background: rgba(59, 130, 246, 0.8);
+    border: 2px solid #3b82f6;
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 1001;
+    display: flex;
+    align-items: center;
+    min-height: 30px;
+    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.4);
+}
+
+/* ================================
+   클립 삽입 인디케이터
+   ================================ */
+.clip-insert-indicator {
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    width: 4px;
+    background: #22c55e;
+    border-radius: 2px;
+    pointer-events: none;
+    z-index: 50;
+    box-shadow: 0 0 12px #22c55e, 0 0 4px #22c55e;
+    animation: insertPulse 0.8s ease-in-out infinite;
+}
+
+.clip-insert-indicator::before,
+.clip-insert-indicator::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+}
+
+.clip-insert-indicator::before {
+    top: -8px;
+    border-bottom: 8px solid #22c55e;
+}
+
+.clip-insert-indicator::after {
+    bottom: -8px;
+    border-top: 8px solid #22c55e;
+}
+
+@keyframes insertPulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 12px #22c55e, 0 0 4px #22c55e; }
+    50% { opacity: 0.7; box-shadow: 0 0 20px #22c55e, 0 0 8px #22c55e; }
 }
 
 @keyframes clipSnapFlash {
@@ -724,7 +789,7 @@ html, body {
 }
 
 /* ================================
-   클립 파형 영역
+   클립 파형 영역 (오디오 레벨 막대그래프)
    ================================ */
 .clip-waveform-area {
     position: absolute;
@@ -733,6 +798,46 @@ html, body {
     bottom: 0;
     overflow: hidden;
     pointer-events: none;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.clip-waveform-bars {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+}
+
+.clip-waveform-bar {
+    position: absolute;
+    bottom: 0;
+    background: rgba(59, 130, 246, 0.7);
+    border-radius: 1px 1px 0 0;
+    min-height: 2px;
+    transition: background-color 0.15s;
+}
+
+/* 무음 구간 스타일 */
+.clip-waveform-bar.silent {
+    background: rgba(80, 80, 80, 0.4);
+}
+
+/* 사운드 클립 파형 색상 */
+.clip.sound .clip-waveform-bar {
+    background: rgba(34, 197, 94, 0.8);
+}
+
+.clip.sound .clip-waveform-bar.silent {
+    background: rgba(80, 80, 80, 0.4);
+}
+
+/* 비디오 클립 파형 색상 */
+.clip.video .clip-waveform-bar {
+    background: rgba(59, 130, 246, 0.7);
+}
+
+.clip.video .clip-waveform-bar.silent {
+    background: rgba(80, 80, 80, 0.4);
 }
 
 .clip-waveform-svg {
@@ -741,7 +846,7 @@ html, body {
     display: block;
 }
 
-.clip-waveform-bar {
+.clip-waveform-bar-legacy {
     fill: currentColor;
     opacity: 0.7;
 }
@@ -1309,9 +1414,6 @@ body:not(.dev-mode-active):not(.dev-mode-full) .dev-highlight { display: none; }
     border-top: 2px solid var(--color-ui-accent);
 }
 
-/* 코드연결지점 */
-/* 코드연결지점 */
-
 /* ================================
    미디어 자산 패널 스타일
    ================================ */
@@ -1561,6 +1663,50 @@ body:not(.dev-mode-active):not(.dev-mode-full) .dev-highlight { display: none; }
     position: relative;
     background: #000;
     box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+/* ================================
+   타임라인 스크롤바 개선
+   ================================ */
+.timeline-scroll-enhanced::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.timeline-scroll-enhanced::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.timeline-scroll-enhanced::-webkit-scrollbar-thumb {
+    background: rgba(100, 100, 100, 0.5);
+    border-radius: 4px;
+}
+
+.timeline-scroll-enhanced:hover::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+.timeline-scroll-enhanced:hover::-webkit-scrollbar-thumb {
+    background: rgba(100, 100, 100, 0.7);
+}
+
+/* ================================
+   헤더 리사이즈 핸들
+   ================================ */
+.header-resize-handle {
+    position: absolute;
+    right: 0;
+    width: 4px;
+    cursor: col-resize;
+    background: transparent;
+    z-index: 60;
+    transition: background-color 0.15s;
+}
+
+.header-resize-handle:hover,
+.header-resize-handle.resizing {
+    background: var(--color-ui-accent);
 }
 
 /* === END OF FILE === */
