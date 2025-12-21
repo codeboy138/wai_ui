@@ -1,4 +1,9 @@
-const Z_INDEX_OFFSETS = { 'BG': 20, 'TXT': 40, 'VID': 60, 'AUD': 80 };
+// ============================================
+// WAI-UI App Root (Vue 3)
+// 파일 위치: frontend/js/core/app-root.js
+// ============================================
+
+const Z_INDEX_OFFSETS = { 'BG': 20, 'TXT': 40, 'VID': 60, 'EFF': 80, 'AUD': 80 };
 
 const COLORS = [
     '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e',
@@ -8,6 +13,7 @@ const COLORS = [
     '#365314', '#14532d', '#064e3b', '#164e63', '#0c4a6e',
     '#1e3a8a', '#312e81', '#4c1d95', '#701a75', '#881337'
 ];
+
 const { createApp, reactive, ref, onMounted, computed, nextTick } = Vue;
 
 const App = {
