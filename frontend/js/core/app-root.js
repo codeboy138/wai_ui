@@ -1,14 +1,6 @@
 const { createApp, reactive, ref, onMounted, computed, nextTick } = Vue;
 
-// Z_INDEX_OFFSETS는 js/utils/constants.js에서 이미 선언됨
-const COLORS = [
-    '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e',
-    '#10b981', '#06b6d4', '#0ea5e9', '#3b82f6', '#6366f1',
-    '#8b5cf6', '#d946ef', '#f43f5e', '#ffffff', '#9ca3af',
-    '#4b5563', '#000000', '#7f1d1d', '#7c2d12', '#78350f',
-    '#365314', '#14532d', '#064e3b', '#164e63', '#0c4a6e',
-    '#1e3a8a', '#312e81', '#4c1d95', '#701a75', '#881337'
-];
+// Z_INDEX_OFFSETS, COLORS는 js/utils/constants.js에서 이미 선언됨
 
 const App = {
     components: { 
@@ -114,7 +106,8 @@ const App = {
                 default: 80
             },
             
-            COLORS
+            // COLORS는 constants.js에서 가져옴
+            COLORS: COLORS
         };
     },
     computed: {
