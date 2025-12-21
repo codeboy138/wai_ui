@@ -15,17 +15,32 @@ window.WAICB = window.WAICB || {};
 
 WAICB.CONST = {
     STORAGE_KEY: 'waicb_clips_v1',
+    AUTOSAVE_DELAY: 2000,
     TOAST_DURATION: 3000,
+    LONG_PRESS_DELAY: 500,
     SILENCE: {
         MIN: 0.1,
         MAX: 5.0,
         DEFAULT: 0.3,
-        STEP: 0.1
+        STEP: 0.1,
+        LINE_BREAK: 0.5
     },
     SPEED: {
         MIN: 0.25,
         MAX: 4.0,
-        PADDING: { top: 12, right: 8, bottom: 8, left: 28 }
+        PADDING: { top: 12, right: 8, bottom: 8, left: 28 },
+        DIAMOND_SIZE: 5,
+        DIAMOND_GAP: 3
+    },
+    EVENTS: {
+        CLIP_ADDED: 'clip:added',
+        CLIP_UPDATED: 'clip:updated',
+        CLIP_REMOVED: 'clip:removed',
+        BULK_APPLIED: 'bulk:applied',
+        SETTINGS_CHANGED: 'settings:changed',
+        LAYER_ADDED: 'layer:added',
+        LAYER_REMOVED: 'layer:removed',
+        LAYER_UPDATED: 'layer:updated'
     }
 };
 
@@ -39,6 +54,9 @@ WAICB.DEFAULTS = {
     audio: {
         bgm: 'none',
         volume: 50
+    },
+    layout: {
+        template: 'default-intro'
     }
 };
 
@@ -75,12 +93,38 @@ WAICB.PRESETS = {
                 { t: 0.7, vL: 1.5, vR: 1.5 },
                 { t: 1, vL: 1, vR: 1 }
             ]
+        },
+        dramatic: {
+            name: '드라마틱',
+            points: [
+                { t: 0, vL: 0.5, vR: 0.5 },
+                { t: 0.2, vL: 1.2, vR: 1.2 },
+                { t: 0.5, vL: 0.7, vR: 0.7 },
+                { t: 0.8, vL: 1.5, vR: 1.5 },
+                { t: 1, vL: 0.8, vR: 0.8 }
+            ]
         }
     },
     envelope: {
         flat: [
             { t: 0, v: 1 },
             { t: 1, v: 1 }
+        ],
+        fadeIn: [
+            { t: 0, v: 0 },
+            { t: 0.3, v: 1 },
+            { t: 1, v: 1 }
+        ],
+        fadeOut: [
+            { t: 0, v: 1 },
+            { t: 0.7, v: 1 },
+            { t: 1, v: 0 }
+        ],
+        fadeInOut: [
+            { t: 0, v: 0 },
+            { t: 0.2, v: 1 },
+            { t: 0.8, v: 1 },
+            { t: 1, v: 0 }
         ]
     }
 };
@@ -101,6 +145,13 @@ WAICB.Utils = {
     },
 
     uuid() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            var r = Math.random() * 16 | 0;
+            return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+        });
+    },
+
+    shortId() {
         return 'xxxxxxxx'.replace(/[x]/g, function() {
             return (Math.random() * 16 | 0).toString(16);
         });
@@ -114,6 +165,14 @@ WAICB.Utils = {
         return JSON.parse(JSON.stringify(obj));
     },
 
+    isTouch() {
+        return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    },
+
+    isMobile() {
+        return window.innerWidth < 768;
+    },
+
     debounce(fn, delay) {
         var timer;
         return function() {
@@ -124,11 +183,70 @@ WAICB.Utils = {
                 fn.apply(self, args);
             }, delay);
         };
+    },
+
+    throttle(fn, limit) {
+        var inThrottle;
+        return function() {
+            var args = arguments;
+            var self = this;
+            if (!inThrottle) {
+                fn.apply(self, args);
+                inThrottle = true;
+                setTimeout(function() { inThrottle = false; }, limit);
+            }
+        };
     }
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 3: 토스트 알림
+   SECTION 3: 아이콘 SVG
+   ───────────────────────────────────────────────────────────────────────────── */
+WAICB.Icons = {
+    eye: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>',
+    eyeOff: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>'
+};
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SECTION 4: 이벤트 버스
+   ───────────────────────────────────────────────────────────────────────────── */
+WAICB.Events = (function() {
+    var listeners = {};
+
+    return {
+        on: function(event, callback) {
+            if (!listeners[event]) listeners[event] = [];
+            listeners[event].push(callback);
+            var self = this;
+            return function() { self.off(event, callback); };
+        },
+
+        off: function(event, callback) {
+            if (!listeners[event]) return;
+            var idx = listeners[event].indexOf(callback);
+            if (idx > -1) listeners[event].splice(idx, 1);
+        },
+
+        emit: function(event, data) {
+            if (!listeners[event]) return;
+            listeners[event].forEach(function(cb) {
+                try { cb(data); } catch (e) { console.error('[WAICB.Events] Error in ' + event + ':', e); }
+            });
+        },
+
+        once: function(event, callback) {
+            var self = this;
+            var wrapper = function(data) {
+                self.off(event, wrapper);
+                callback(data);
+            };
+            this.on(event, wrapper);
+        }
+    };
+})();
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SECTION 5: 토스트 알림
    ───────────────────────────────────────────────────────────────────────────── */
 WAICB.Toast = {
     container: null,
@@ -171,13 +289,291 @@ WAICB.Toast = {
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 4: 세그먼트 시스템
+   SECTION 6: 모달 관리
+   ───────────────────────────────────────────────────────────────────────────── */
+WAICB.Modal = {
+    open: function(id) {
+        var modal = WAICB.Utils.$('#' + id);
+        if (!modal) return;
+        modal.classList.add('wai-cb-modal-overlay--visible');
+        document.body.style.overflow = 'hidden';
+        var firstInput = WAICB.Utils.$('input, textarea, button', modal);
+        if (firstInput) setTimeout(function() { firstInput.focus(); }, 100);
+    },
+
+    close: function(id) {
+        var modal = WAICB.Utils.$('#' + id);
+        if (!modal) return;
+        modal.classList.remove('wai-cb-modal-overlay--visible');
+        document.body.style.overflow = '';
+    },
+
+    bindEvents: function() {
+        WAICB.Utils.$$('.wai-cb-modal-overlay').forEach(function(overlay) {
+            overlay.addEventListener('click', function(e) {
+                if (e.target === overlay) {
+                    overlay.classList.remove('wai-cb-modal-overlay--visible');
+                    document.body.style.overflow = '';
+                }
+            });
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                WAICB.Utils.$$('.wai-cb-modal-overlay--visible').forEach(function(modal) {
+                    modal.classList.remove('wai-cb-modal-overlay--visible');
+                });
+                document.body.style.overflow = '';
+            }
+        });
+    }
+};
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SECTION 7: 클립 스토어
+   ───────────────────────────────────────────────────────────────────────────── */
+WAICB.Store = (function() {
+    var clips = {};
+    var clipOrder = [];
+    var globalSettings = WAICB.Utils.clone(WAICB.DEFAULTS);
+    var isDirty = false;
+    var autoSaveTimer = null;
+
+    function createClipDefaults(id, order) {
+        return {
+            id: id,
+            order: order,
+            label: '클립 ' + (order + 1),
+            type: 'narration',
+            text: '',
+            isSelected: false,
+            isCollapsed: false,
+            activeTab: 'basic',
+            ttsStatus: 'idle',
+            imageStatus: 'idle',
+            ttsOverride: null,
+            audioOverride: null,
+            layoutOverride: null,
+            playbackSpeedOverride: null,
+            playbackSpeed: 1.0
+        };
+    }
+
+    function scheduleAutoSave() {
+        clearTimeout(autoSaveTimer);
+        autoSaveTimer = setTimeout(save, WAICB.CONST.AUTOSAVE_DELAY);
+    }
+
+    function save() {
+        var data = {
+            version: 1,
+            global: globalSettings,
+            clips: clipOrder.map(function(id) { return clips[id]; }),
+            savedAt: Date.now()
+        };
+        try {
+            localStorage.setItem(WAICB.CONST.STORAGE_KEY, JSON.stringify(data));
+            isDirty = false;
+        } catch (e) {
+            console.error('[WAICB.Store] Save failed:', e);
+        }
+    }
+
+    function load() {
+        try {
+            var raw = localStorage.getItem(WAICB.CONST.STORAGE_KEY);
+            if (!raw) return false;
+            var data = JSON.parse(raw);
+            if (data.global) globalSettings = Object.assign({}, WAICB.DEFAULTS, data.global);
+            if (Array.isArray(data.clips)) {
+                clips = {};
+                clipOrder = [];
+                data.clips.forEach(function(c) {
+                    clips[c.id] = c;
+                    clipOrder.push(c.id);
+                });
+            }
+            return true;
+        } catch (e) {
+            console.error('[WAICB.Store] Load failed:', e);
+            return false;
+        }
+    }
+
+    return {
+        init: function() { load(); },
+
+        getGlobal: function() { return WAICB.Utils.clone(globalSettings); },
+
+        setGlobal: function(updates) {
+            Object.assign(globalSettings, updates);
+            isDirty = true;
+            WAICB.Events.emit(WAICB.CONST.EVENTS.SETTINGS_CHANGED, globalSettings);
+            scheduleAutoSave();
+        },
+
+        setGlobalTts: function(updates) {
+            Object.assign(globalSettings.tts, updates);
+            isDirty = true;
+            scheduleAutoSave();
+        },
+
+        setGlobalSpeed: function(speed) {
+            this.setGlobal({ playbackSpeed: speed });
+        },
+
+        getClip: function(id) {
+            return clips[id] ? WAICB.Utils.clone(clips[id]) : null;
+        },
+
+        getAllClips: function() {
+            return clipOrder.map(function(id) {
+                return WAICB.Utils.clone(clips[id]);
+            });
+        },
+
+        getClipIds: function() {
+            return clipOrder.slice();
+        },
+
+        getClipCount: function() {
+            return clipOrder.length;
+        },
+
+        addClip: function(initial) {
+            initial = initial || {};
+            var id = initial.id || ('clip-' + WAICB.Utils.shortId());
+            var order = clipOrder.length;
+            var clip = Object.assign({}, createClipDefaults(id, order), initial, { id: id, order: order });
+
+            clips[id] = clip;
+            clipOrder.push(id);
+            isDirty = true;
+
+            WAICB.Events.emit(WAICB.CONST.EVENTS.CLIP_ADDED, { clipId: id, clip: WAICB.Utils.clone(clip) });
+            scheduleAutoSave();
+
+            return WAICB.Utils.clone(clip);
+        },
+
+        updateClip: function(id, updates) {
+            if (!clips[id]) return false;
+
+            var prev = WAICB.Utils.clone(clips[id]);
+            var safeUpdates = {};
+            for (var key in updates) {
+                if (key !== 'id' && key !== 'order') {
+                    safeUpdates[key] = updates[key];
+                }
+            }
+            Object.assign(clips[id], safeUpdates);
+            isDirty = true;
+
+            WAICB.Events.emit(WAICB.CONST.EVENTS.CLIP_UPDATED, { clipId: id, prev: prev, current: WAICB.Utils.clone(clips[id]) });
+            scheduleAutoSave();
+            return true;
+        },
+
+        removeClip: function(id) {
+            if (!clips[id]) return false;
+
+            var removed = clips[id];
+            delete clips[id];
+            var idx = clipOrder.indexOf(id);
+            if (idx > -1) clipOrder.splice(idx, 1);
+
+            clipOrder.forEach(function(cid, i) {
+                if (clips[cid]) clips[cid].order = i;
+            });
+
+            isDirty = true;
+            WAICB.Events.emit(WAICB.CONST.EVENTS.CLIP_REMOVED, { clipId: id, clip: removed });
+            scheduleAutoSave();
+            return true;
+        },
+
+        setClipOverride: function(id, type, value) {
+            if (!clips[id]) return false;
+            clips[id][type + 'Override'] = value;
+            isDirty = true;
+            scheduleAutoSave();
+            return true;
+        },
+
+        clearClipOverrides: function(id) {
+            return this.updateClip(id, {
+                ttsOverride: null,
+                audioOverride: null,
+                layoutOverride: null,
+                playbackSpeedOverride: null
+            });
+        },
+
+        getSelectedIds: function() {
+            return clipOrder.filter(function(id) {
+                return clips[id] && clips[id].isSelected;
+            });
+        },
+
+        selectAll: function() {
+            clipOrder.forEach(function(id) {
+                if (clips[id]) clips[id].isSelected = true;
+            });
+            isDirty = true;
+        },
+
+        deselectAll: function() {
+            clipOrder.forEach(function(id) {
+                if (clips[id]) clips[id].isSelected = false;
+            });
+            isDirty = true;
+        },
+
+        bulkApply: function(ids, options) {
+            var count = 0;
+            ids.forEach(function(id) {
+                var clip = clips[id];
+                if (!clip) return;
+                if (options.tts) clip.ttsOverride = null;
+                if (options.audio) clip.audioOverride = null;
+                if (options.layout) clip.layoutOverride = null;
+                if (options.speed) clip.playbackSpeedOverride = null;
+                count++;
+            });
+
+            if (count > 0) {
+                isDirty = true;
+                WAICB.Events.emit(WAICB.CONST.EVENTS.BULK_APPLIED, { ids: ids, options: options, count: count });
+                scheduleAutoSave();
+            }
+            return count;
+        },
+
+        bulkApplyAll: function(options) {
+            return this.bulkApply(clipOrder, options);
+        },
+
+        save: save,
+        load: load,
+        isDirty: function() { return isDirty; },
+
+        reset: function() {
+            globalSettings = WAICB.Utils.clone(WAICB.DEFAULTS);
+            clips = {};
+            clipOrder = [];
+            isDirty = true;
+            localStorage.removeItem(WAICB.CONST.STORAGE_KEY);
+        }
+    };
+})();
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SECTION 8: 세그먼트 시스템
    ───────────────────────────────────────────────────────────────────────────── */
 WAICB.Segment = (function() {
     var states = {};
     var SILENCE = WAICB.CONST.SILENCE;
 
-    // 한국어 조사 패턴
     var PARTICLE_PATTERNS = [
         /^(이|가|을|를|은|는|의|와|과|로|으로|에|에서|에게|한테|께|부터|까지|만|도|야|요|죠|네|군|데|지|걸|뿐)$/,
         /^(고|며|면|서|니|라|자|게|어|아|여|해|거|건|걸|군|네|죠|요)$/
@@ -188,7 +584,8 @@ WAICB.Segment = (function() {
             states[layerId] = {
                 layerId: layerId,
                 segments: [],
-                selectedId: null
+                selectedId: null,
+                isDirty: false
             };
         }
         return states[layerId];
@@ -234,7 +631,6 @@ WAICB.Segment = (function() {
                 result.push({ type: 'text', text: merged[j] });
             }
 
-            // 줄바꿈 무음 추가
             var hasMoreLines = false;
             for (var k = lineIdx + 1; k < lines.length; k++) {
                 if (lines[k].trim()) {
@@ -254,14 +650,14 @@ WAICB.Segment = (function() {
         return tokens.map(function(token) {
             if (token.type === 'linebreak') {
                 return {
-                    id: WAICB.Utils.uuid(),
+                    id: WAICB.Utils.shortId(),
                     type: 'silence',
-                    duration: SILENCE.DEFAULT * 1.5,
+                    duration: SILENCE.LINE_BREAK,
                     isLineBreak: true
                 };
             }
             return {
-                id: WAICB.Utils.uuid(),
+                id: WAICB.Utils.shortId(),
                 type: 'text',
                 text: token.text
             };
@@ -273,6 +669,7 @@ WAICB.Segment = (function() {
         var tokens = tokenize(text);
         state.segments = tokensToSegments(tokens);
         state.selectedId = null;
+        state.isDirty = true;
 
         var textCount = state.segments.filter(function(s) { return s.type === 'text'; }).length;
         var silenceCount = state.segments.filter(function(s) { return s.type === 'silence'; }).length;
@@ -297,13 +694,14 @@ WAICB.Segment = (function() {
         if (idx === -1) return null;
 
         var silence = {
-            id: WAICB.Utils.uuid(),
+            id: WAICB.Utils.shortId(),
             type: 'silence',
             duration: WAICB.Utils.clamp(duration, SILENCE.MIN, SILENCE.MAX)
         };
 
         var insertIdx = position === 'after' ? idx + 1 : idx;
         state.segments.splice(insertIdx, 0, silence);
+        state.isDirty = true;
         return silence;
     }
 
@@ -319,6 +717,7 @@ WAICB.Segment = (function() {
         if (!segment || segment.type !== 'silence') return false;
 
         segment.duration = Math.round(WAICB.Utils.clamp(duration, SILENCE.MIN, SILENCE.MAX) * 10) / 10;
+        state.isDirty = true;
         return true;
     }
 
@@ -335,6 +734,7 @@ WAICB.Segment = (function() {
 
         state.segments.splice(idx, 1);
         if (state.selectedId === segmentId) state.selectedId = null;
+        state.isDirty = true;
         return true;
     }
 
@@ -342,6 +742,7 @@ WAICB.Segment = (function() {
         var state = getState(layerId);
         state.segments = [];
         state.selectedId = null;
+        state.isDirty = true;
     }
 
     return {
@@ -355,11 +756,8 @@ WAICB.Segment = (function() {
     };
 })();
 
-/* 코드연결지점 */
-/* 코드연결지점 */
-
 /* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 5: 속도 에디터
+   SECTION 9: 속도 에디터
    ───────────────────────────────────────────────────────────────────────────── */
 WAICB.SpeedEditor = (function() {
     var states = {};
@@ -373,7 +771,8 @@ WAICB.SpeedEditor = (function() {
                 selectedIdx: null,
                 dragging: null,
                 originalDuration: 5,
-                activePreset: 'flat'
+                activePreset: 'flat',
+                splitMode: {}
             };
         }
         return states[clipId];
@@ -403,8 +802,12 @@ WAICB.SpeedEditor = (function() {
         return WAICB.Utils.clamp(Math.pow(2, logV), SPEED.MIN, SPEED.MAX);
     }
 
+    function isUnified(p) {
+        return Math.abs(p.vL - p.vR) < 0.01;
+    }
+
     function createPresetIcon(points) {
-        var w = 36, h = 18, pad = 2;
+        var w = 32, h = 16, pad = 2;
         var pathD = '';
         var startY = h - pad - ((Math.log2(Math.max(0.25, points[0].vR)) + 2) / 4) * (h - pad * 2);
         pathD = 'M ' + pad + ' ' + startY;
@@ -426,6 +829,32 @@ WAICB.SpeedEditor = (function() {
             '</svg>';
     }
 
+    function drawDiamond(ctx, x, y, size, isSelected, type) {
+        type = type || 'full';
+        ctx.beginPath();
+        if (type === 'full') {
+            ctx.moveTo(x, y - size);
+            ctx.lineTo(x + size, y);
+            ctx.lineTo(x, y + size);
+            ctx.lineTo(x - size, y);
+        } else if (type === 'left') {
+            ctx.moveTo(x, y - size);
+            ctx.lineTo(x - size, y);
+            ctx.lineTo(x, y + size);
+        } else {
+            ctx.moveTo(x, y - size);
+            ctx.lineTo(x + size, y);
+            ctx.lineTo(x, y + size);
+        }
+        ctx.closePath();
+
+        ctx.fillStyle = isSelected ? '#fff' : '#ef4444';
+        ctx.fill();
+        ctx.strokeStyle = isSelected ? '#eab308' : '#fff';
+        ctx.lineWidth = isSelected ? 2 : 1;
+        ctx.stroke();
+    }
+
     function draw(clipId, canvas) {
         if (!canvas) return;
 
@@ -435,7 +864,6 @@ WAICB.SpeedEditor = (function() {
         var w = rect.width;
         var h = rect.height;
 
-        // 캔버스 크기 설정
         var dpr = window.devicePixelRatio || 1;
         if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
             canvas.width = w * dpr;
@@ -445,7 +873,6 @@ WAICB.SpeedEditor = (function() {
 
         ctx.clearRect(0, 0, w, h);
 
-        // 배경 영역
         var baseline1x = valueToY(1, h);
         ctx.fillStyle = 'rgba(34, 197, 94, 0.03)';
         ctx.fillRect(SPEED.PADDING.left, SPEED.PADDING.top,
@@ -456,7 +883,6 @@ WAICB.SpeedEditor = (function() {
             w - SPEED.PADDING.left - SPEED.PADDING.right,
             h - SPEED.PADDING.bottom - baseline1x);
 
-        // 그리드
         ctx.strokeStyle = '#1a1a1a';
         ctx.lineWidth = 1;
         var gridValues = [0.25, 0.5, 1, 2, 4];
@@ -468,14 +894,12 @@ WAICB.SpeedEditor = (function() {
             ctx.stroke();
         }
 
-        // 기준선 (1x)
         ctx.strokeStyle = 'rgba(239, 68, 68, 0.3)';
         ctx.beginPath();
         ctx.moveTo(SPEED.PADDING.left, baseline1x);
         ctx.lineTo(w - SPEED.PADDING.right, baseline1x);
         ctx.stroke();
 
-        // 속도 곡선
         var points = state.points;
         if (points.length >= 2) {
             ctx.strokeStyle = '#ef4444';
@@ -490,22 +914,24 @@ WAICB.SpeedEditor = (function() {
                 var y1 = valueToY(p1.vR, h);
                 var x2 = tToX(p2.t, w);
                 var y2L = valueToY(p2.vL, h);
+                var y2R = valueToY(p2.vR, h);
                 var dx = x2 - x1;
                 ctx.bezierCurveTo(x1 + dx * 0.6, y1, x2 - dx * 0.6, y2L, x2, y2L);
+                if (!isUnified(p2) && j < points.length - 1) {
+                    ctx.lineTo(x2, y2R);
+                }
             }
             ctx.stroke();
         }
 
-        // 플레이헤드
         var phX = tToX(state.playheadT, w);
         ctx.strokeStyle = '#eab308';
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = state.selectedIdx !== null ? 2 : 1.5;
         ctx.beginPath();
         ctx.moveTo(phX, SPEED.PADDING.top);
         ctx.lineTo(phX, h - SPEED.PADDING.bottom);
         ctx.stroke();
 
-        // 플레이헤드 화살표
         ctx.fillStyle = '#eab308';
         ctx.beginPath();
         ctx.moveTo(phX - 4, SPEED.PADDING.top - 2);
@@ -514,25 +940,28 @@ WAICB.SpeedEditor = (function() {
         ctx.closePath();
         ctx.fill();
 
-        // 포인트들
         for (var k = 0; k < points.length; k++) {
             var p = points[k];
             var px = tToX(p.t, w);
-            var py = valueToY(p.vL, h);
+            var pyL = valueToY(p.vL, h);
+            var pyR = valueToY(p.vR, h);
             var isSelected = state.selectedIdx === k;
+            var isFirst = k === 0;
+            var isLast = k === points.length - 1;
+            var isSplit = state.splitMode[k];
 
-            ctx.beginPath();
-            ctx.moveTo(px, py - 5);
-            ctx.lineTo(px + 5, py);
-            ctx.lineTo(px, py + 5);
-            ctx.lineTo(px - 5, py);
-            ctx.closePath();
-
-            ctx.fillStyle = isSelected ? '#fff' : '#ef4444';
-            ctx.fill();
-            ctx.strokeStyle = isSelected ? '#eab308' : '#fff';
-            ctx.lineWidth = isSelected ? 2 : 1;
-            ctx.stroke();
+            if (isFirst) {
+                drawDiamond(ctx, px, pyR, SPEED.DIAMOND_SIZE, isSelected, 'right');
+            } else if (isLast) {
+                drawDiamond(ctx, px, pyL, SPEED.DIAMOND_SIZE, isSelected, 'left');
+            } else if (!isSplit) {
+                drawDiamond(ctx, px, pyL, SPEED.DIAMOND_SIZE, isSelected, 'full');
+            } else {
+                drawDiamond(ctx, px - SPEED.DIAMOND_GAP, pyL, SPEED.DIAMOND_SIZE,
+                    isSelected && state.dragging === 'L', 'left');
+                drawDiamond(ctx, px + SPEED.DIAMOND_GAP, pyR, SPEED.DIAMOND_SIZE,
+                    isSelected && state.dragging === 'R', 'right');
+            }
         }
     }
 
@@ -544,6 +973,7 @@ WAICB.SpeedEditor = (function() {
         state.points = WAICB.Utils.clone(preset.points);
         state.selectedIdx = null;
         state.activePreset = presetKey;
+        state.splitMode = {};
     }
 
     function addPoint(clipId) {
@@ -551,12 +981,10 @@ WAICB.SpeedEditor = (function() {
         var t = state.playheadT;
         var points = state.points;
 
-        // 이미 가까운 포인트가 있는지 확인
         for (var i = 0; i < points.length; i++) {
             if (Math.abs(points[i].t - t) < 0.03) return;
         }
 
-        // 현재 위치의 속도 계산
         var v = 1;
         for (var j = 0; j < points.length - 1; j++) {
             if (t >= points[j].t && t <= points[j + 1].t) {
@@ -569,7 +997,6 @@ WAICB.SpeedEditor = (function() {
         points.push({ t: t, vL: v, vR: v });
         points.sort(function(a, b) { return a.t - b.t; });
 
-        // 새 포인트 선택
         for (var k = 0; k < points.length; k++) {
             if (Math.abs(points[k].t - t) < 0.001) {
                 state.selectedIdx = k;
@@ -584,6 +1011,7 @@ WAICB.SpeedEditor = (function() {
         state.selectedIdx = null;
         state.playheadT = 0.5;
         state.activePreset = 'flat';
+        state.splitMode = {};
     }
 
     function getSpeedInfo(clipId) {
@@ -591,7 +1019,6 @@ WAICB.SpeedEditor = (function() {
         var points = state.points;
         var t = state.playheadT;
 
-        // 현재 위치의 속도 계산
         var v = 1;
         for (var i = 0; i < points.length - 1; i++) {
             if (t >= points[i].t && t <= points[i + 1].t) {
@@ -601,7 +1028,6 @@ WAICB.SpeedEditor = (function() {
             }
         }
 
-        // 결과 듀레이션 계산
         var resultDuration = 0;
         var steps = 50;
         for (var s = 0; s < steps; s++) {
@@ -622,8 +1048,34 @@ WAICB.SpeedEditor = (function() {
             speed: v.toFixed(2),
             originalDuration: state.originalDuration.toFixed(2),
             resultDuration: resultDuration.toFixed(2),
-            selectedPoint: state.selectedIdx !== null ? ('P' + (state.selectedIdx + 1)) : '-'
+            selectedPoint: state.selectedIdx !== null ? ('P' + (state.selectedIdx + 1) + (state.splitMode[state.selectedIdx] ? ' 분리' : '')) : '-'
         };
+    }
+
+    function getHitTarget(x, y, w, h, state) {
+        var hitRadius = WAICB.Utils.isTouch() ? 15 : 8;
+
+        for (var i = 0; i < state.points.length; i++) {
+            var p = state.points[i];
+            var px = tToX(p.t, w);
+            var yL = valueToY(p.vL, h);
+            var yR = valueToY(p.vR, h);
+            var isFirst = i === 0;
+            var isLast = i === state.points.length - 1;
+            var isSplit = state.splitMode[i];
+
+            if (isFirst) {
+                if (Math.hypot(x - px, y - yR) < hitRadius) return { type: 'R', index: i };
+            } else if (isLast) {
+                if (Math.hypot(x - px, y - yL) < hitRadius) return { type: 'L', index: i };
+            } else if (!isSplit) {
+                if (Math.hypot(x - px, y - yL) < hitRadius) return { type: 'both', index: i };
+            } else {
+                if (Math.hypot(x - (px - SPEED.DIAMOND_GAP), y - yL) < hitRadius) return { type: 'L', index: i };
+                if (Math.hypot(x - (px + SPEED.DIAMOND_GAP), y - yR) < hitRadius) return { type: 'R', index: i };
+            }
+        }
+        return null;
     }
 
     function handleCanvasEvent(clipId, canvas, eventType, clientX, clientY) {
@@ -635,33 +1087,35 @@ WAICB.SpeedEditor = (function() {
         var h = rect.height;
 
         if (eventType === 'mousedown') {
-            // 포인트 히트 테스트
-            var hitRadius = 10;
-            for (var i = 0; i < state.points.length; i++) {
-                var p = state.points[i];
-                var px = tToX(p.t, w);
-                var py = valueToY(p.vL, h);
-                if (Math.hypot(x - px, y - py) < hitRadius) {
-                    state.selectedIdx = i;
-                    state.dragging = 'point';
-                    return true;
+            var hit = getHitTarget(x, y, w, h, state);
+            if (hit) {
+                if (state.selectedIdx === hit.index) {
+                    state.dragging = hit.type;
+                } else {
+                    state.selectedIdx = hit.index;
+                    state.playheadT = state.points[hit.index].t;
+                    state.dragging = null;
                 }
+            } else {
+                state.selectedIdx = null;
+                state.playheadT = xToT(x, w);
+                state.dragging = 'playhead';
             }
-            // 플레이헤드 이동
-            state.selectedIdx = null;
-            state.playheadT = xToT(x, w);
-            state.dragging = 'playhead';
             return true;
         }
 
         if (eventType === 'mousemove' && state.dragging) {
             if (state.dragging === 'playhead') {
                 state.playheadT = xToT(x, w);
-            } else if (state.dragging === 'point' && state.selectedIdx !== null) {
+            } else if (state.selectedIdx !== null) {
                 var point = state.points[state.selectedIdx];
                 var newV = yToValue(y, h);
-                point.vL = newV;
-                point.vR = newV;
+                if (state.dragging === 'L') point.vL = newV;
+                else if (state.dragging === 'R') point.vR = newV;
+                else if (state.dragging === 'both') {
+                    point.vL = newV;
+                    point.vR = newV;
+                }
             }
             return true;
         }
@@ -669,6 +1123,41 @@ WAICB.SpeedEditor = (function() {
         if (eventType === 'mouseup') {
             state.dragging = null;
             return true;
+        }
+
+        if (eventType === 'dblclick') {
+            var dblHit = getHitTarget(x, y, w, h, state);
+            if (dblHit && dblHit.index > 0 && dblHit.index < state.points.length - 1) {
+                var p = state.points[dblHit.index];
+                if (!state.splitMode[dblHit.index]) {
+                    state.splitMode[dblHit.index] = true;
+                } else {
+                    var avg = (p.vL + p.vR) / 2;
+                    p.vL = avg;
+                    p.vR = avg;
+                    delete state.splitMode[dblHit.index];
+                }
+                state.selectedIdx = dblHit.index;
+                state.playheadT = p.t;
+                return true;
+            }
+        }
+
+        if (eventType === 'contextmenu') {
+            var ctxHit = getHitTarget(x, y, w, h, state);
+            if (ctxHit && ctxHit.index > 0 && ctxHit.index < state.points.length - 1) {
+                state.points.splice(ctxHit.index, 1);
+                delete state.splitMode[ctxHit.index];
+                var newSplitMode = {};
+                for (var key in state.splitMode) {
+                    var idx = parseInt(key);
+                    if (idx > ctxHit.index) newSplitMode[idx - 1] = true;
+                    else if (idx < ctxHit.index) newSplitMode[idx] = true;
+                }
+                state.splitMode = newSplitMode;
+                state.selectedIdx = null;
+                return true;
+            }
         }
 
         return false;
@@ -686,11 +1175,8 @@ WAICB.SpeedEditor = (function() {
     };
 })();
 
-/* 코드연결지점 */
-/* 코드연결지점 */
-
 /* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 6: 엔벨로프 에디터
+   SECTION 10: 엔벨로프 에디터
    ───────────────────────────────────────────────────────────────────────────── */
 WAICB.EnvelopeEditor = (function() {
     var states = {};
@@ -714,7 +1200,7 @@ WAICB.EnvelopeEditor = (function() {
         var rect = canvas.getBoundingClientRect();
         var w = rect.width;
         var h = rect.height;
-        var pad = 6;
+        var pad = 4;
 
         var dpr = window.devicePixelRatio || 1;
         if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
@@ -725,7 +1211,6 @@ WAICB.EnvelopeEditor = (function() {
 
         ctx.clearRect(0, 0, w, h);
 
-        // 그리드
         ctx.strokeStyle = '#222';
         ctx.lineWidth = 1;
         for (var i = 0; i <= 4; i++) {
@@ -736,7 +1221,6 @@ WAICB.EnvelopeEditor = (function() {
             ctx.stroke();
         }
 
-        // 엔벨로프 곡선
         var points = state.points.slice().sort(function(a, b) { return a.t - b.t; });
         if (points.length >= 2) {
             ctx.strokeStyle = '#3b82f6';
@@ -754,7 +1238,6 @@ WAICB.EnvelopeEditor = (function() {
             }
             ctx.stroke();
 
-            // 채우기
             ctx.lineTo(pad + (w - pad * 2), h - pad);
             ctx.lineTo(pad, h - pad);
             ctx.closePath();
@@ -762,8 +1245,7 @@ WAICB.EnvelopeEditor = (function() {
             ctx.fill();
         }
 
-        // 포인트들
-        var pointRadius = 4;
+        var pointRadius = WAICB.Utils.isTouch() ? 6 : 4;
         for (var k = 0; k < points.length; k++) {
             var pt = points[k];
             var px = pad + pt.t * (w - pad * 2);
@@ -795,10 +1277,10 @@ WAICB.EnvelopeEditor = (function() {
         var y = clientY - rect.top;
         var w = rect.width;
         var h = rect.height;
-        var pad = 6;
+        var pad = 4;
 
         if (eventType === 'mousedown') {
-            var hitRadius = 10;
+            var hitRadius = WAICB.Utils.isTouch() ? 15 : 10;
             for (var i = 0; i < state.points.length; i++) {
                 var p = state.points[i];
                 var px = pad + p.t * (w - pad * 2);
@@ -818,7 +1300,6 @@ WAICB.EnvelopeEditor = (function() {
             var newT = (x - pad) / (w - pad * 2);
             var newV = 1 - (y - pad) / (h - pad * 2);
 
-            // 첫/마지막 포인트는 t 고정
             if (state.selectedIdx === 0) newT = 0;
             if (state.selectedIdx === state.points.length - 1) newT = 1;
 
@@ -840,6 +1321,20 @@ WAICB.EnvelopeEditor = (function() {
             return true;
         }
 
+        if (eventType === 'contextmenu') {
+            var hitRadius2 = WAICB.Utils.isTouch() ? 15 : 10;
+            for (var j = 1; j < state.points.length - 1; j++) {
+                var pt = state.points[j];
+                var ptx = pad + pt.t * (w - pad * 2);
+                var pty = h - pad - pt.v * (h - pad * 2);
+                if (Math.hypot(x - ptx, y - pty) < hitRadius2) {
+                    state.points.splice(j, 1);
+                    state.selectedIdx = null;
+                    return true;
+                }
+            }
+        }
+
         return false;
     }
 
@@ -852,7 +1347,7 @@ WAICB.EnvelopeEditor = (function() {
 })();
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 7: 레이어 시스템
+   SECTION 11: 레이어 시스템
    ───────────────────────────────────────────────────────────────────────────── */
 WAICB.Layer = (function() {
     var states = {};
@@ -877,14 +1372,23 @@ WAICB.Layer = (function() {
 
     function createLayerData(type, name, order) {
         return {
-            id: 'layer-' + WAICB.Utils.uuid(),
+            id: 'layer-' + WAICB.Utils.shortId(),
             type: type,
             name: name,
             order: order,
             visible: true,
             collapsed: false,
             text: '',
-            segments: []
+            segments: [],
+            layout: {
+                template: 'inherit',
+                x: 120,
+                y: 80 + (order * 50),
+                w: 640,
+                h: 100,
+                align: 'center',
+                valign: 'middle'
+            }
         };
     }
 
@@ -897,6 +1401,8 @@ WAICB.Layer = (function() {
 
         state.layers.push(layer);
         state.selectedId = layer.id;
+
+        WAICB.Events.emit(WAICB.CONST.EVENTS.LAYER_ADDED, { clipId: clipId, layer: layer });
 
         return layer;
     }
@@ -917,7 +1423,7 @@ WAICB.Layer = (function() {
             return false;
         }
 
-        state.layers.splice(idx, 1);
+        var removed = state.layers.splice(idx, 1)[0];
         for (var j = 0; j < state.layers.length; j++) {
             state.layers[j].order = j;
         }
@@ -925,6 +1431,8 @@ WAICB.Layer = (function() {
         if (state.selectedId === layerId) {
             state.selectedId = state.layers[Math.min(idx, state.layers.length - 1)].id;
         }
+
+        WAICB.Events.emit(WAICB.CONST.EVENTS.LAYER_REMOVED, { clipId: clipId, layerId: layerId });
 
         return true;
     }
@@ -942,9 +1450,10 @@ WAICB.Layer = (function() {
 
         state.counter++;
         var newLayer = WAICB.Utils.clone(original);
-        newLayer.id = 'layer-' + WAICB.Utils.uuid();
+        newLayer.id = 'layer-' + WAICB.Utils.shortId();
         newLayer.name = original.name + ' 복사';
         newLayer.order = state.layers.length;
+        newLayer.layout.y += 30;
 
         state.layers.push(newLayer);
         state.selectedId = newLayer.id;
@@ -1010,6 +1519,19 @@ WAICB.Layer = (function() {
         return false;
     }
 
+    function setLayerLayoutField(clipId, layerId, field, value) {
+        var state = getState(clipId);
+        for (var i = 0; i < state.layers.length; i++) {
+            if (state.layers[i].id === layerId) {
+                if (state.layers[i].layout) {
+                    state.layers[i].layout[field] = value;
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     function getLayer(clipId, layerId) {
         var state = getState(clipId);
         for (var i = 0; i < state.layers.length; i++) {
@@ -1018,6 +1540,10 @@ WAICB.Layer = (function() {
             }
         }
         return null;
+    }
+
+    function getLayers(clipId) {
+        return getState(clipId).layers;
     }
 
     function init(clipId) {
@@ -1031,6 +1557,13 @@ WAICB.Layer = (function() {
         }
     }
 
+    function collapseAll(clipId, collapse) {
+        var state = getState(clipId);
+        for (var i = 0; i < state.layers.length; i++) {
+            state.layers[i].collapsed = collapse;
+        }
+    }
+
     return {
         TYPES: LAYER_TYPES,
         getState: getState,
@@ -1041,354 +1574,283 @@ WAICB.Layer = (function() {
         toggleVisibility: toggleVisibility,
         toggleCollapse: toggleCollapse,
         setLayerText: setLayerText,
+        setLayerLayoutField: setLayerLayoutField,
         getLayer: getLayer,
-        init: init
+        getLayers: getLayers,
+        init: init,
+        collapseAll: collapseAll
     };
 })();
 
-/* 코드연결지점 */
-/* 코드연결지점 */
-
 /* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 8: 클립 스토어
+   SECTION 12: 컨텍스트 메뉴
    ───────────────────────────────────────────────────────────────────────────── */
-WAICB.Store = (function() {
-    var clips = {};
-    var clipOrder = [];
-    var globalSettings = WAICB.Utils.clone(WAICB.DEFAULTS);
+WAICB.ContextMenu = (function() {
+    var isOpen = false;
+    var targetLayerId = null;
+    var targetSegmentId = null;
+    var targetSegmentType = null;
 
-    function createClipDefaults(id, order) {
-        return {
-            id: id,
-            order: order,
-            label: '클립 ' + (order + 1),
-            type: 'narration',
-            text: '',
-            isSelected: false,
-            isCollapsed: false,
-            activeTab: 'basic',
-            ttsStatus: 'idle',
-            imageStatus: 'idle',
-            playbackSpeed: 1.0
-        };
+    function getMenu() {
+        return WAICB.Utils.$('#clipbox-ctx-menu');
     }
 
-    function getClip(id) {
-        return clips[id] ? WAICB.Utils.clone(clips[id]) : null;
+    function getOverlay() {
+        return WAICB.Utils.$('#clipbox-ctx-overlay');
     }
 
-    function getAllClips() {
-        return clipOrder.map(function(id) {
-            return WAICB.Utils.clone(clips[id]);
-        });
-    }
+    function open(e, layerId, segmentId, segmentType) {
+        e.preventDefault();
+        e.stopPropagation();
 
-    function getClipCount() {
-        return clipOrder.length;
-    }
+        var menuEl = getMenu();
+        var overlayEl = getOverlay();
+        if (!menuEl || !overlayEl) return;
 
-    function addClip(initial) {
-        initial = initial || {};
-        var id = initial.id || ('clip-' + WAICB.Utils.uuid());
-        var order = clipOrder.length;
-        var clip = Object.assign({}, createClipDefaults(id, order), initial, { id: id, order: order });
+        isOpen = true;
+        targetLayerId = layerId;
+        targetSegmentId = segmentId;
+        targetSegmentType = segmentType;
 
-        clips[id] = clip;
-        clipOrder.push(id);
-
-        // 레이어 초기화
-        WAICB.Layer.init(id);
-
-        return WAICB.Utils.clone(clip);
-    }
-
-    function updateClip(id, updates) {
-        if (!clips[id]) return false;
-
-        var safeUpdates = {};
-        for (var key in updates) {
-            if (key !== 'id' && key !== 'order') {
-                safeUpdates[key] = updates[key];
+        var header = WAICB.Utils.$('#clipbox-ctx-header', menuEl);
+        if (header) {
+            if (segmentType === 'text') {
+                var state = WAICB.Segment.getState(layerId);
+                var seg = null;
+                for (var i = 0; i < state.segments.length; i++) {
+                    if (state.segments[i].id === segmentId) {
+                        seg = state.segments[i];
+                        break;
+                    }
+                }
+                var text = seg ? seg.text : '토큰';
+                header.textContent = '"' + (text.length > 15 ? text.slice(0, 15) + '...' : text) + '"';
+            } else {
+                var state2 = WAICB.Segment.getState(layerId);
+                var seg2 = null;
+                for (var j = 0; j < state2.segments.length; j++) {
+                    if (state2.segments[j].id === segmentId) {
+                        seg2 = state2.segments[j];
+                        break;
+                    }
+                }
+                var prefix = seg2 && seg2.isLineBreak ? '↵ ' : '';
+                header.textContent = prefix + '무음 [' + ((seg2 ? seg2.duration : 0.3).toFixed(1)) + 's]';
             }
         }
-        Object.assign(clips[id], safeUpdates);
-        return true;
-    }
 
-    function removeClip(id) {
-        if (!clips[id]) return false;
-
-        delete clips[id];
-        var idx = clipOrder.indexOf(id);
-        if (idx > -1) {
-            clipOrder.splice(idx, 1);
+        var deleteItem = WAICB.Utils.$('#clipbox-ctx-delete', menuEl);
+        if (deleteItem) {
+            deleteItem.style.display = segmentType === 'silence' ? 'flex' : 'none';
         }
 
-        // 순서 재정렬
-        for (var i = 0; i < clipOrder.length; i++) {
-            clips[clipOrder[i]].order = i;
+        WAICB.Utils.$$('[data-ctx-action="insertSilenceAfter"], [data-ctx-action="insertSilenceBefore"]', menuEl)
+            .forEach(function(item) {
+                item.style.display = segmentType === 'text' ? 'flex' : 'none';
+            });
+
+        if (WAICB.Utils.isMobile()) {
+            menuEl.style.cssText = 'left: 8px; right: 8px; bottom: 8px; top: auto;';
+        } else {
+            var x = e.clientX;
+            var y = e.clientY;
+            if (x + 160 > window.innerWidth) x = window.innerWidth - 170;
+            if (y + 240 > window.innerHeight) y = window.innerHeight - 250;
+            menuEl.style.cssText = 'left: ' + x + 'px; top: ' + y + 'px;';
         }
 
-        return true;
+        overlayEl.classList.add('wai-cb-ctx-overlay--visible');
+        menuEl.classList.add('wai-cb-ctx-menu--visible');
     }
 
-    function getSelectedIds() {
-        return clipOrder.filter(function(id) {
-            return clips[id] && clips[id].isSelected;
+    function close() {
+        var menuEl = getMenu();
+        var overlayEl = getOverlay();
+
+        if (menuEl) {
+            menuEl.classList.remove('wai-cb-ctx-menu--visible');
+            menuEl.style.cssText = '';
+        }
+        if (overlayEl) {
+            overlayEl.classList.remove('wai-cb-ctx-overlay--visible');
+        }
+
+        isOpen = false;
+        targetLayerId = null;
+        targetSegmentId = null;
+        targetSegmentType = null;
+    }
+
+    function executeAction(action, params) {
+        params = params || {};
+
+        if (!targetLayerId || !targetSegmentId) {
+            close();
+            return;
+        }
+
+        switch (action) {
+            case 'insertSilenceAfter':
+                if (targetSegmentType === 'text') {
+                    WAICB.Segment.insertSilence(targetLayerId, targetSegmentId, params.duration || 0.3, 'after');
+                }
+                break;
+
+            case 'insertSilenceBefore':
+                if (targetSegmentType === 'text') {
+                    WAICB.Segment.insertSilence(targetLayerId, targetSegmentId, params.duration || 0.3, 'before');
+                }
+                break;
+
+            case 'setSilence':
+                var duration = parseFloat(params.duration);
+                if (!isNaN(duration)) {
+                    if (targetSegmentType === 'silence') {
+                        WAICB.Segment.updateSilenceDuration(targetLayerId, targetSegmentId, duration);
+                    } else {
+                        WAICB.Segment.insertSilence(targetLayerId, targetSegmentId, duration, 'after');
+                    }
+                }
+                break;
+
+            case 'deleteToken':
+                if (targetSegmentType === 'silence') {
+                    WAICB.Segment.deleteSegment(targetLayerId, targetSegmentId);
+                }
+                break;
+        }
+
+        close();
+    }
+
+    function bindEvents() {
+        var overlayEl = getOverlay();
+        if (overlayEl) {
+            overlayEl.addEventListener('click', close);
+        }
+
+        var menuEl = getMenu();
+        if (menuEl) {
+            menuEl.addEventListener('click', function(e) {
+                var item = e.target.closest('.wai-cb-ctx-menu__item');
+                if (!item || item.classList.contains('wai-cb-ctx-menu__item--disabled')) return;
+
+                var action = item.dataset.ctxAction;
+                var duration = item.dataset.duration;
+                if (action) executeAction(action, { duration: duration });
+            });
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && isOpen) close();
         });
-    }
-
-    function selectAll() {
-        for (var i = 0; i < clipOrder.length; i++) {
-            clips[clipOrder[i]].isSelected = true;
-        }
-    }
-
-    function deselectAll() {
-        for (var i = 0; i < clipOrder.length; i++) {
-            clips[clipOrder[i]].isSelected = false;
-        }
-    }
-
-    function getGlobal() {
-        return WAICB.Utils.clone(globalSettings);
-    }
-
-    function setGlobal(updates) {
-        Object.assign(globalSettings, updates);
-    }
-
-    function setGlobalTts(updates) {
-        Object.assign(globalSettings.tts, updates);
-    }
-
-    function reset() {
-        clips = {};
-        clipOrder = [];
-        globalSettings = WAICB.Utils.clone(WAICB.DEFAULTS);
     }
 
     return {
-        getClip: getClip,
-        getAllClips: getAllClips,
-        getClipCount: getClipCount,
-        addClip: addClip,
-        updateClip: updateClip,
-        removeClip: removeClip,
-        getSelectedIds: getSelectedIds,
-        selectAll: selectAll,
-        deselectAll: deselectAll,
-        getGlobal: getGlobal,
-        setGlobal: setGlobal,
-        setGlobalTts: setGlobalTts,
-        reset: reset
+        open: open,
+        close: close,
+        executeAction: executeAction,
+        bindEvents: bindEvents,
+        isOpen: function() { return isOpen; }
     };
 })();
 
+/* 코드연결지점 - Part 2/2로 계속 */
+/* 코드연결지점 - Part 1/2에서 계속 */
+
 /* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 9: Vue 컴포넌트 - 클립 아이템
+   SECTION 13: Vue 컴포넌트 - 세그먼트 트랙
    ───────────────────────────────────────────────────────────────────────────── */
-var ClipBoxClipItem = {
-    props: ['clip', 'index'],
-    emits: ['update', 'delete', 'select'],
+var ClipBoxSegmentTrack = {
+    props: ['clipId', 'layerId'],
     template: `
-        <div 
-            :id="'clipbox-clip-' + clip.id"
-            class="wai-cb-panel wai-cb-clip"
-            :class="{ 'wai-cb-clip--collapsed': clip.isCollapsed }"
-        >
-            <!-- 클립 헤더 -->
-            <div class="wai-cb-clip__header">
-                <div class="wai-cb-clip__title">
-                    <input 
-                        type="checkbox" 
-                        class="wai-cb-checkbox"
-                        :checked="clip.isSelected"
-                        @change="toggleSelect"
-                    />
-                    <span class="wai-cb-clip__order">#{{ index + 1 }}</span>
-                    <span class="wai-cb-clip__handle">⋮⋮</span>
-                    <input 
-                        type="text" 
-                        class="wai-cb-input wai-cb-clip__name"
-                        :value="clip.label"
-                        @input="updateLabel($event.target.value)"
-                    />
-                    <select 
-                        class="wai-cb-select"
-                        :value="clip.type"
-                        @change="updateType($event.target.value)"
-                    >
-                        <option value="narration">나레이션</option>
-                        <option value="music">음악</option>
-                        <option value="other">기타</option>
-                    </select>
-                </div>
-                <div class="wai-cb-clip__controls">
-                    <div class="wai-cb-clip__speed">
-                        <span class="wai-cb-label">속도</span>
-                        <input 
-                            type="number" 
-                            step="0.1" 
-                            min="0.1" 
-                            max="3.0" 
-                            class="wai-cb-input wai-cb-input--number"
-                            :value="clip.playbackSpeed"
-                            @input="updateSpeed($event.target.value)"
-                        />
-                        <span class="wai-cb-label">x</span>
-                    </div>
-                    <div class="wai-cb-clip__actions">
-                        <button class="wai-cb-btn" @click="playClip" title="재생">▶</button>
-                        <button class="wai-cb-btn wai-cb-btn--ghost" @click="toggleCollapse" title="접기/펼치기">
-                            {{ clip.isCollapsed ? '▼' : '▲' }}
-                        </button>
-                        <button class="wai-cb-btn wai-cb-btn--danger" @click="deleteClip" title="삭제">✕</button>
-                    </div>
+        <div class="wai-cb-segment" :data-layer-id="layerId">
+            <div class="wai-cb-segment__header">
+                <span class="wai-cb-label--section">세그먼트</span>
+                <div class="wai-cb-row wai-cb-shrink">
+                    <button class="wai-cb-btn wai-cb-btn--ghost wai-cb-btn--xs" @click="syncSegments">동기화</button>
+                    <button class="wai-cb-btn wai-cb-btn--ghost wai-cb-btn--xs" @click="resetSegments">초기화</button>
                 </div>
             </div>
-
-            <!-- 클립 바디 -->
-            <div class="wai-cb-clip__body" v-show="!clip.isCollapsed">
-                <!-- 탭 네비게이션 -->
-                <div class="wai-cb-tabs">
-                    <button 
-                        v-for="tab in tabs" 
-                        :key="tab.id"
-                        class="wai-cb-tab"
-                        :class="{ 'wai-cb-tab--active': clip.activeTab === tab.id }"
-                        @click="setActiveTab(tab.id)"
-                    >
-                        {{ tab.label }}
-                    </button>
-                </div>
-
-                <!-- BASIC 탭 -->
-                <div 
-                    class="wai-cb-tab-content"
-                    :class="{ 'wai-cb-tab-content--active': clip.activeTab === 'basic' }"
+            <div class="wai-cb-segment__track" @contextmenu="onContextMenu">
+                <template v-if="segments.length === 0">
+                    <span class="wai-cb-segment__empty">동기화 버튼을 클릭하여 텍스트를 토큰화하세요</span>
+                </template>
+                <span 
+                    v-for="(seg, idx) in segments"
+                    :key="seg.id"
+                    class="wai-cb-seg-token"
+                    :class="getTokenClass(seg)"
+                    :data-segment-id="seg.id"
+                    :data-segment-type="seg.type"
+                    :data-layer-id="layerId"
+                    @click="selectToken(seg)"
+                    @contextmenu.stop="onTokenContextMenu($event, seg)"
+                    @wheel="onTokenWheel($event, seg)"
                 >
-                    <clip-box-layers :clip-id="clip.id"></clip-box-layers>
-                </div>
-
-                <!-- TTS 탭 -->
-                <div 
-                    class="wai-cb-tab-content"
-                    :class="{ 'wai-cb-tab-content--active': clip.activeTab === 'tts' }"
-                >
-                    <div class="wai-cb-row">
-                        <span class="wai-cb-label">음성</span>
-                        <select class="wai-cb-select wai-cb-grow">
-                            <option value="ko-KR-InJoonNeural">한국어 남성 (InJoon)</option>
-                            <option value="ko-KR-SunHiNeural">한국어 여성 (SunHi)</option>
-                        </select>
-                    </div>
-                    <div class="wai-cb-row">
-                        <button class="wai-cb-btn wai-cb-btn--primary" @click="generateTts">
-                            🎙️ TTS 생성
-                        </button>
-                        <span class="wai-cb-badge wai-cb-badge--warning">미생성</span>
-                    </div>
-                </div>
-
-                <!-- SPEED 탭 -->
-                <div 
-                    class="wai-cb-tab-content"
-                    :class="{ 'wai-cb-tab-content--active': clip.activeTab === 'speed' }"
-                >
-                    <clip-box-speed-editor :clip-id="clip.id"></clip-box-speed-editor>
-                </div>
-
-                <!-- IMAGE 탭 -->
-                <div 
-                    class="wai-cb-tab-content"
-                    :class="{ 'wai-cb-tab-content--active': clip.activeTab === 'image' }"
-                >
-                    <span class="wai-cb-label--section">이미지 프롬프트</span>
-                    <textarea 
-                        class="wai-cb-textarea" 
-                        placeholder="이미지 생성을 위한 프롬프트..."
-                    ></textarea>
-                    <div class="wai-cb-row">
-                        <button class="wai-cb-btn wai-cb-btn--primary">🖼️ 이미지 생성</button>
-                        <span class="wai-cb-badge wai-cb-badge--warning">미생성</span>
-                    </div>
-                </div>
-
-                <!-- AUDIO 탭 -->
-                <div 
-                    class="wai-cb-tab-content"
-                    :class="{ 'wai-cb-tab-content--active': clip.activeTab === 'audio' }"
-                >
-                    <clip-box-audio-editor :clip-id="clip.id"></clip-box-audio-editor>
-                </div>
-
-                <!-- NOTES 탭 -->
-                <div 
-                    class="wai-cb-tab-content"
-                    :class="{ 'wai-cb-tab-content--active': clip.activeTab === 'notes' }"
-                >
-                    <textarea 
-                        class="wai-cb-textarea" 
-                        placeholder="메모를 입력하세요."
-                    ></textarea>
-                </div>
+                    <template v-if="seg.type === 'text'">{{ seg.text }}</template>
+                    <template v-else>{{ seg.isLineBreak ? '↵ ' : '' }}[{{ seg.duration.toFixed(1) }}s]</template>
+                </span>
             </div>
         </div>
     `,
-    data: function() {
-        return {
-            tabs: [
-                { id: 'basic', label: 'BASIC' },
-                { id: 'tts', label: 'TTS' },
-                { id: 'speed', label: 'SPEED' },
-                { id: 'image', label: 'IMAGE' },
-                { id: 'audio', label: 'AUDIO' },
-                { id: 'notes', label: 'NOTES' }
-            ]
-        };
+    computed: {
+        segments: function() {
+            return WAICB.Segment.getState(this.layerId).segments;
+        }
     },
     methods: {
-        toggleSelect: function() {
-            this.$emit('update', this.clip.id, { isSelected: !this.clip.isSelected });
+        getTokenClass: function(seg) {
+            var classes = {};
+            classes['wai-cb-seg-token--' + seg.type] = true;
+            if (seg.isLineBreak) classes['wai-cb-seg-token--linebreak'] = true;
+            return classes;
         },
-        updateLabel: function(value) {
-            this.$emit('update', this.clip.id, { label: value });
-        },
-        updateType: function(value) {
-            this.$emit('update', this.clip.id, { type: value });
-        },
-        updateSpeed: function(value) {
-            this.$emit('update', this.clip.id, { playbackSpeed: parseFloat(value) || 1.0 });
-        },
-        toggleCollapse: function() {
-            this.$emit('update', this.clip.id, { isCollapsed: !this.clip.isCollapsed });
-        },
-        setActiveTab: function(tabId) {
-            this.$emit('update', this.clip.id, { activeTab: tabId });
-        },
-        deleteClip: function() {
-            if (confirm('클립을 삭제하시겠습니까?')) {
-                this.$emit('delete', this.clip.id);
+        syncSegments: function() {
+            var layer = WAICB.Layer.getLayer(this.clipId, this.layerId);
+            if (layer && layer.text) {
+                WAICB.Segment.syncFromText(this.layerId, layer.text);
+                this.$forceUpdate();
+            } else {
+                WAICB.Toast.warning('텍스트를 먼저 입력하세요');
             }
         },
-        playClip: function() {
-            WAICB.Toast.info('클립 재생 (구현 예정)');
+        resetSegments: function() {
+            WAICB.Segment.reset(this.layerId);
+            this.$forceUpdate();
+            WAICB.Toast.info('세그먼트가 초기화되었습니다');
         },
-        generateTts: function() {
-            WAICB.Toast.info('TTS 생성 (API 연동 필요)');
+        selectToken: function(seg) {
+            var state = WAICB.Segment.getState(this.layerId);
+            state.selectedId = seg.id;
+        },
+        onContextMenu: function(e) {
+            e.preventDefault();
+        },
+        onTokenContextMenu: function(e, seg) {
+            WAICB.ContextMenu.open(e, this.layerId, seg.id, seg.type);
+        },
+        onTokenWheel: function(e, seg) {
+            if (seg.type !== 'silence') return;
+            e.preventDefault();
+            var delta = e.deltaY > 0 ? -WAICB.CONST.SILENCE.STEP : WAICB.CONST.SILENCE.STEP;
+            var newDuration = seg.duration + delta;
+            if (newDuration >= WAICB.CONST.SILENCE.MIN && newDuration <= WAICB.CONST.SILENCE.MAX) {
+                WAICB.Segment.updateSilenceDuration(this.layerId, seg.id, newDuration);
+                this.$forceUpdate();
+            }
         }
     }
 };
 
-/* 코드연결지점 */
-/* 코드연결지점 */
-
 /* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 10: Vue 컴포넌트 - 레이어 패널
+   SECTION 14: Vue 컴포넌트 - 레이어 패널
    ───────────────────────────────────────────────────────────────────────────── */
 var ClipBoxLayers = {
     props: ['clipId'],
+    components: {
+        'clip-box-segment-track': ClipBoxSegmentTrack
+    },
     template: `
         <div class="wai-cb-layers" :id="'clipbox-layers-' + clipId">
             <div class="wai-cb-layers__header">
@@ -1397,30 +1859,11 @@ var ClipBoxLayers = {
                     <span class="wai-cb-layers__count">{{ layers.length }}</span>
                 </div>
                 <div class="wai-cb-layers__actions">
-                    <button 
-                        class="wai-cb-btn wai-cb-btn--ghost" 
-                        @click="collapseAll(true)" 
-                        title="모두 접기"
-                    >⊟</button>
-                    <button 
-                        class="wai-cb-btn wai-cb-btn--ghost" 
-                        @click="collapseAll(false)" 
-                        title="모두 펼치기"
-                    >⊞</button>
-                    <button 
-                        class="wai-cb-btn wai-cb-btn--primary" 
-                        @click="toggleAddMenu"
-                    >+ 추가</button>
-                    <div 
-                        class="wai-cb-layer-add-menu"
-                        :class="{ 'wai-cb-layer-add-menu--visible': showAddMenu }"
-                    >
-                        <div 
-                            v-for="(info, type) in layerTypes" 
-                            :key="type"
-                            class="wai-cb-layer-add-menu__item"
-                            @click="addLayer(type)"
-                        >
+                    <button class="wai-cb-btn wai-cb-btn--ghost wai-cb-btn--xs" @click="collapseAll(true)" title="모두 접기">⊟</button>
+                    <button class="wai-cb-btn wai-cb-btn--ghost wai-cb-btn--xs" @click="collapseAll(false)" title="모두 펼치기">⊞</button>
+                    <button class="wai-cb-btn wai-cb-btn--primary wai-cb-btn--xs" @click="toggleAddMenu">+ 추가</button>
+                    <div class="wai-cb-layer-add-menu" :class="{ 'wai-cb-layer-add-menu--visible': showAddMenu }">
+                        <div v-for="(info, type) in layerTypes" :key="type" class="wai-cb-layer-add-menu__item" @click="addLayer(type)">
                             <span :class="'wai-cb-layer__icon ' + info.iconClass">{{ info.icon }}</span>
                             <span>{{ info.label }} 레이어</span>
                         </div>
@@ -1428,147 +1871,45 @@ var ClipBoxLayers = {
                 </div>
             </div>
             <div class="wai-cb-layers__list">
-                <div 
-                    v-if="layers.length === 0" 
-                    class="wai-cb-layers__empty"
-                >
-                    레이어가 없습니다. + 추가 버튼을 클릭하세요.
-                </div>
+                <div v-if="layers.length === 0" class="wai-cb-layers__empty">레이어가 없습니다. + 추가 버튼을 클릭하세요.</div>
                 <div
                     v-for="layer in layers"
                     :key="layer.id"
                     class="wai-cb-layer"
-                    :class="{
-                        'wai-cb-layer--selected': layerState.selectedId === layer.id,
-                        'wai-cb-layer--collapsed': layer.collapsed,
-                        'wai-cb-layer--hidden': !layer.visible
-                    }"
+                    :class="{ 'wai-cb-layer--selected': layerState.selectedId === layer.id, 'wai-cb-layer--collapsed': layer.collapsed, 'wai-cb-layer--hidden': !layer.visible }"
                 >
                     <div class="wai-cb-layer__header" @click="selectLayer(layer.id)">
                         <span class="wai-cb-layer__drag">⋮⋮</span>
-                        <span 
-                            class="wai-cb-layer__visibility" 
-                            @click.stop="toggleVisibility(layer.id)"
-                            :title="layer.visible ? '숨김' : '표시'"
-                        >
-                            <span v-if="layer.visible">👁</span>
-                            <span v-else style="opacity:0.5">👁</span>
-                        </span>
-                        <span :class="'wai-cb-layer__icon ' + getLayerIconClass(layer.type)">
-                            {{ getLayerIcon(layer.type) }}
-                        </span>
+                        <span class="wai-cb-layer__visibility" @click.stop="toggleVisibility(layer.id)" :title="layer.visible ? '숨김' : '표시'" v-html="layer.visible ? eyeIcon : eyeOffIcon"></span>
+                        <span :class="'wai-cb-layer__icon ' + getLayerIconClass(layer.type)">{{ getLayerIcon(layer.type) }}</span>
                         <div class="wai-cb-layer__name">
-                            <input 
-                                type="text" 
-                                class="wai-cb-layer__name-input"
-                                :value="layer.name"
-                                @input="renameLayer(layer.id, $event.target.value)"
-                                @click.stop
-                            />
+                            <input type="text" class="wai-cb-layer__name-input" :value="layer.name" @input="renameLayer(layer.id, $event.target.value)" @click.stop />
                         </div>
                         <span class="wai-cb-layer__type">{{ getLayerLabel(layer.type) }}</span>
                         <div class="wai-cb-layer__actions">
-                            <button 
-                                class="wai-cb-layer__action" 
-                                @click.stop="duplicateLayer(layer.id)"
-                                title="복제"
-                            >📋</button>
-                            <button 
-                                class="wai-cb-layer__action" 
-                                @click.stop="moveLayer(layer.id, 'up')"
-                                title="위로"
-                            >↑</button>
-                            <button 
-                                class="wai-cb-layer__action" 
-                                @click.stop="moveLayer(layer.id, 'down')"
-                                title="아래로"
-                            >↓</button>
-                            <button 
-                                class="wai-cb-layer__action wai-cb-layer__action--delete" 
-                                @click.stop="deleteLayer(layer.id)"
-                                title="삭제"
-                            >✕</button>
+                            <button class="wai-cb-layer__action" @click.stop="duplicateLayer(layer.id)" title="복제">📋</button>
+                            <button class="wai-cb-layer__action" @click.stop="moveLayer(layer.id, 'up')" title="위로">↑</button>
+                            <button class="wai-cb-layer__action" @click.stop="moveLayer(layer.id, 'down')" title="아래로">↓</button>
+                            <button class="wai-cb-layer__action wai-cb-layer__action--delete" @click.stop="deleteLayer(layer.id)" title="삭제">✕</button>
                         </div>
-                        <span 
-                            class="wai-cb-layer__toggle"
-                            @click.stop="toggleCollapse(layer.id)"
-                        >▼</span>
+                        <span class="wai-cb-layer__toggle" @click.stop="toggleCollapse(layer.id)">▼</span>
                     </div>
                     <div class="wai-cb-layer__body" v-show="!layer.collapsed">
-                        <!-- 텍스트 레이어 -->
                         <template v-if="layer.type === 'text'">
-                            <div class="wai-cb-segment">
-                                <div class="wai-cb-segment__header">
-                                    <span class="wai-cb-label--section">세그먼트</span>
-                                    <div class="wai-cb-row wai-cb-shrink">
-                                        <button 
-                                            class="wai-cb-btn wai-cb-btn--ghost"
-                                            @click="syncSegments(layer.id)"
-                                        >동기화</button>
-                                        <button 
-                                            class="wai-cb-btn wai-cb-btn--ghost"
-                                            @click="resetSegments(layer.id)"
-                                        >초기화</button>
-                                    </div>
-                                </div>
-                                <div class="wai-cb-segment__track">
-                                    <span 
-                                        v-for="seg in getSegments(layer.id)"
-                                        :key="seg.id"
-                                        class="wai-cb-seg-token"
-                                        :class="{
-                                            'wai-cb-seg-token--text': seg.type === 'text',
-                                            'wai-cb-seg-token--silence': seg.type === 'silence',
-                                            'wai-cb-seg-token--linebreak': seg.isLineBreak
-                                        }"
-                                    >
-                                        <template v-if="seg.type === 'text'">{{ seg.text }}</template>
-                                        <template v-else>{{ seg.isLineBreak ? '↵ ' : '' }}[{{ seg.duration.toFixed(1) }}s]</template>
-                                    </span>
-                                </div>
-                            </div>
+                            <clip-box-segment-track :clip-id="clipId" :layer-id="layer.id"></clip-box-segment-track>
                             <span class="wai-cb-label--section">스크립트 / 텍스트</span>
-                            <textarea 
-                                class="wai-cb-textarea"
-                                :value="layer.text"
-                                @input="setLayerText(layer.id, $event.target.value)"
-                                placeholder="텍스트를 입력하세요."
-                            ></textarea>
+                            <textarea class="wai-cb-textarea" :value="layer.text" @input="setLayerText(layer.id, $event.target.value)" placeholder="텍스트를 입력하세요."></textarea>
                         </template>
-                        <!-- 이미지 레이어 -->
                         <template v-else-if="layer.type === 'image'">
                             <span class="wai-cb-label--section">이미지 소스</span>
-                            <div class="wai-cb-row">
-                                <input 
-                                    type="text" 
-                                    class="wai-cb-input wai-cb-grow" 
-                                    placeholder="이미지 URL 또는 파일 선택"
-                                />
-                                <button class="wai-cb-btn">찾아보기</button>
-                            </div>
+                            <div class="wai-cb-row"><input type="text" class="wai-cb-input wai-cb-grow" placeholder="이미지 URL 또는 파일 선택" /><button class="wai-cb-btn wai-cb-btn--xs">찾아보기</button></div>
                         </template>
-                        <!-- 도형 레이어 -->
                         <template v-else-if="layer.type === 'shape'">
-                            <div class="wai-cb-row">
-                                <span class="wai-cb-label">도형</span>
-                                <select class="wai-cb-select wai-cb-grow">
-                                    <option value="rectangle">사각형</option>
-                                    <option value="ellipse">타원</option>
-                                    <option value="triangle">삼각형</option>
-                                </select>
-                            </div>
+                            <div class="wai-cb-row"><span class="wai-cb-label">도형</span><select class="wai-cb-select wai-cb-grow"><option value="rectangle">사각형</option><option value="ellipse">타원</option><option value="triangle">삼각형</option></select></div>
                         </template>
-                        <!-- 오디오 레이어 -->
                         <template v-else-if="layer.type === 'audio'">
                             <span class="wai-cb-label--section">오디오 소스</span>
-                            <div class="wai-cb-row">
-                                <input 
-                                    type="text" 
-                                    class="wai-cb-input wai-cb-grow" 
-                                    placeholder="오디오 URL 또는 파일 선택"
-                                />
-                                <button class="wai-cb-btn">찾아보기</button>
-                            </div>
+                            <div class="wai-cb-row"><input type="text" class="wai-cb-input wai-cb-grow" placeholder="오디오 URL 또는 파일 선택" /><button class="wai-cb-btn wai-cb-btn--xs">찾아보기</button></div>
                         </template>
                     </div>
                 </div>
@@ -1578,130 +1919,52 @@ var ClipBoxLayers = {
     data: function() {
         return {
             showAddMenu: false,
-            layerTypes: WAICB.Layer.TYPES
+            layerTypes: WAICB.Layer.TYPES,
+            eyeIcon: WAICB.Icons.eye,
+            eyeOffIcon: WAICB.Icons.eyeOff
         };
     },
     computed: {
-        layerState: function() {
-            return WAICB.Layer.getState(this.clipId);
-        },
-        layers: function() {
-            return this.layerState.layers;
-        }
+        layerState: function() { return WAICB.Layer.getState(this.clipId); },
+        layers: function() { return this.layerState.layers; }
     },
     mounted: function() {
         var self = this;
         document.addEventListener('click', function(e) {
-            if (!e.target.closest('.wai-cb-layers__actions')) {
-                self.showAddMenu = false;
-            }
+            if (!e.target.closest('.wai-cb-layers__actions')) self.showAddMenu = false;
         });
     },
     methods: {
-        toggleAddMenu: function() {
-            this.showAddMenu = !this.showAddMenu;
-        },
-        addLayer: function(type) {
-            WAICB.Layer.addLayer(this.clipId, type);
-            this.showAddMenu = false;
-            this.$forceUpdate();
-            WAICB.Toast.success('레이어가 추가되었습니다');
-        },
-        deleteLayer: function(layerId) {
-            if (WAICB.Layer.deleteLayer(this.clipId, layerId)) {
-                this.$forceUpdate();
-                WAICB.Toast.info('레이어가 삭제되었습니다');
-            }
-        },
-        duplicateLayer: function(layerId) {
-            if (WAICB.Layer.duplicateLayer(this.clipId, layerId)) {
-                this.$forceUpdate();
-                WAICB.Toast.success('레이어가 복제되었습니다');
-            }
-        },
-        moveLayer: function(layerId, direction) {
-            if (WAICB.Layer.moveLayer(this.clipId, layerId, direction)) {
-                this.$forceUpdate();
-            }
-        },
-        selectLayer: function(layerId) {
-            this.layerState.selectedId = layerId;
-            this.$forceUpdate();
-        },
-        toggleVisibility: function(layerId) {
-            WAICB.Layer.toggleVisibility(this.clipId, layerId);
-            this.$forceUpdate();
-        },
-        toggleCollapse: function(layerId) {
-            WAICB.Layer.toggleCollapse(this.clipId, layerId);
-            this.$forceUpdate();
-        },
-        renameLayer: function(layerId, name) {
-            var layer = WAICB.Layer.getLayer(this.clipId, layerId);
-            if (layer) {
-                layer.name = name;
-            }
-        },
-        setLayerText: function(layerId, text) {
-            WAICB.Layer.setLayerText(this.clipId, layerId, text);
-        },
-        collapseAll: function(collapse) {
-            var layers = this.layers;
-            for (var i = 0; i < layers.length; i++) {
-                layers[i].collapsed = collapse;
-            }
-            this.$forceUpdate();
-        },
-        getLayerIcon: function(type) {
-            return this.layerTypes[type] ? this.layerTypes[type].icon : '?';
-        },
-        getLayerIconClass: function(type) {
-            return this.layerTypes[type] ? this.layerTypes[type].iconClass : '';
-        },
-        getLayerLabel: function(type) {
-            return this.layerTypes[type] ? this.layerTypes[type].label : type;
-        },
-        getSegments: function(layerId) {
-            return WAICB.Segment.getState(layerId).segments;
-        },
-        syncSegments: function(layerId) {
-            var layer = WAICB.Layer.getLayer(this.clipId, layerId);
-            if (layer && layer.text) {
-                WAICB.Segment.syncFromText(layerId, layer.text);
-                this.$forceUpdate();
-            } else {
-                WAICB.Toast.warning('텍스트를 먼저 입력하세요');
-            }
-        },
-        resetSegments: function(layerId) {
-            WAICB.Segment.reset(layerId);
-            this.$forceUpdate();
-            WAICB.Toast.info('세그먼트가 초기화되었습니다');
-        }
+        toggleAddMenu: function() { this.showAddMenu = !this.showAddMenu; },
+        addLayer: function(type) { WAICB.Layer.addLayer(this.clipId, type); this.showAddMenu = false; this.$forceUpdate(); WAICB.Toast.success('레이어가 추가되었습니다'); },
+        deleteLayer: function(layerId) { if (WAICB.Layer.deleteLayer(this.clipId, layerId)) { this.$forceUpdate(); WAICB.Toast.info('레이어가 삭제되었습니다'); } },
+        duplicateLayer: function(layerId) { if (WAICB.Layer.duplicateLayer(this.clipId, layerId)) { this.$forceUpdate(); WAICB.Toast.success('레이어가 복제되었습니다'); } },
+        moveLayer: function(layerId, direction) { if (WAICB.Layer.moveLayer(this.clipId, layerId, direction)) this.$forceUpdate(); },
+        selectLayer: function(layerId) { this.layerState.selectedId = layerId; this.$forceUpdate(); },
+        toggleVisibility: function(layerId) { WAICB.Layer.toggleVisibility(this.clipId, layerId); this.$forceUpdate(); },
+        toggleCollapse: function(layerId) { WAICB.Layer.toggleCollapse(this.clipId, layerId); this.$forceUpdate(); },
+        renameLayer: function(layerId, name) { var layer = WAICB.Layer.getLayer(this.clipId, layerId); if (layer) layer.name = name; },
+        setLayerText: function(layerId, text) { WAICB.Layer.setLayerText(this.clipId, layerId, text); },
+        collapseAll: function(collapse) { WAICB.Layer.collapseAll(this.clipId, collapse); this.$forceUpdate(); },
+        getLayerIcon: function(type) { return this.layerTypes[type] ? this.layerTypes[type].icon : '?'; },
+        getLayerIconClass: function(type) { return this.layerTypes[type] ? this.layerTypes[type].iconClass : ''; },
+        getLayerLabel: function(type) { return this.layerTypes[type] ? this.layerTypes[type].label : type; }
     }
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 11: Vue 컴포넌트 - 속도 에디터
+   SECTION 15: Vue 컴포넌트 - 속도 에디터
    ───────────────────────────────────────────────────────────────────────────── */
 var ClipBoxSpeedEditor = {
     props: ['clipId'],
     template: `
         <div class="wai-cb-speed-editor" :id="'clipbox-speed-' + clipId">
-            <!-- 프리셋 -->
             <div class="wai-cb-speed-presets">
-                <div 
-                    v-for="(preset, key) in presets"
-                    :key="key"
-                    class="wai-cb-speed-preset"
-                    :class="{ 'wai-cb-speed-preset--active': state.activePreset === key }"
-                    @click="selectPreset(key)"
-                    v-html="getPresetIcon(key) + '<span class=\\'wai-cb-speed-preset__name\\'>' + preset.name + '</span>'"
-                >
+                <div v-for="(preset, key) in presets" :key="key" class="wai-cb-speed-preset" :class="{ 'wai-cb-speed-preset--active': state.activePreset === key }" @click="selectPreset(key)">
+                    <span v-html="getPresetIcon(key)"></span>
+                    <span class="wai-cb-speed-preset__name">{{ preset.name }}</span>
                 </div>
             </div>
-            
-            <!-- 에디터 본체 -->
             <div class="wai-cb-speed-editor__header">
                 <span class="wai-cb-label--section">속도 곡선</span>
                 <div class="wai-cb-speed-duration">
@@ -1710,119 +1973,44 @@ var ClipBoxSpeedEditor = {
                     <span class="wai-cb-speed-duration__value">{{ speedInfo.resultDuration }}s</span>
                 </div>
             </div>
-            
             <div class="wai-cb-speed-canvas-wrap">
-                <div class="wai-cb-speed-y-labels">
-                    <span>4x</span>
-                    <span>2x</span>
-                    <span class="wai-cb-speed-y-labels__baseline">1x</span>
-                    <span>0.5x</span>
-                    <span>0.25x</span>
-                </div>
-                <canvas 
-                    ref="speedCanvas"
-                    class="wai-cb-speed-canvas"
-                    @mousedown="onCanvasMouseDown"
-                    @mousemove="onCanvasMouseMove"
-                    @mouseup="onCanvasMouseUp"
-                    @mouseleave="onCanvasMouseUp"
-                ></canvas>
+                <div class="wai-cb-speed-y-labels"><span>4x</span><span>2x</span><span class="wai-cb-speed-y-labels__baseline">1x</span><span>0.5x</span><span>0.25x</span></div>
+                <canvas ref="speedCanvas" class="wai-cb-speed-canvas" @mousedown="onCanvasMouseDown" @mousemove="onCanvasMouseMove" @mouseup="onCanvasMouseUp" @mouseleave="onCanvasMouseUp" @dblclick="onCanvasDblClick" @contextmenu.prevent="onCanvasRightClick"></canvas>
             </div>
-            
             <div class="wai-cb-speed-info">
-                <div class="wai-cb-speed-info__item">
-                    <div class="wai-cb-speed-info__label">위치</div>
-                    <div class="wai-cb-speed-info__value">{{ speedInfo.time }}s</div>
-                </div>
-                <div class="wai-cb-speed-info__item">
-                    <div class="wai-cb-speed-info__label">속도</div>
-                    <div 
-                        class="wai-cb-speed-info__value"
-                        :class="getSpeedClass()"
-                    >{{ speedInfo.speed }}x</div>
-                </div>
-                <div class="wai-cb-speed-info__item">
-                    <div class="wai-cb-speed-info__label">포인트</div>
-                    <div class="wai-cb-speed-info__value">{{ speedInfo.selectedPoint }}</div>
-                </div>
+                <div class="wai-cb-speed-info__item"><div class="wai-cb-speed-info__label">위치</div><div class="wai-cb-speed-info__value">{{ speedInfo.time }}s</div></div>
+                <div class="wai-cb-speed-info__item"><div class="wai-cb-speed-info__label">속도</div><div class="wai-cb-speed-info__value" :class="getSpeedClass()">{{ speedInfo.speed }}x</div></div>
+                <div class="wai-cb-speed-info__item"><div class="wai-cb-speed-info__label">포인트</div><div class="wai-cb-speed-info__value">{{ speedInfo.selectedPoint }}</div></div>
             </div>
-            
             <div class="wai-cb-speed-controls">
-                <button class="wai-cb-btn wai-cb-btn--ghost" @click="resetSpeed">초기화</button>
-                <button class="wai-cb-btn" @click="addPoint">+ 포인트</button>
+                <button class="wai-cb-btn wai-cb-btn--ghost wai-cb-btn--xs" @click="resetSpeed">초기화</button>
+                <button class="wai-cb-btn wai-cb-btn--xs" @click="addPoint">+ 포인트</button>
             </div>
         </div>
     `,
-    data: function() {
-        return {
-            presets: WAICB.PRESETS.speed
-        };
-    },
+    data: function() { return { presets: WAICB.PRESETS.speed }; },
     computed: {
-        state: function() {
-            return WAICB.SpeedEditor.getState(this.clipId);
-        },
-        speedInfo: function() {
-            return WAICB.SpeedEditor.getSpeedInfo(this.clipId);
-        }
+        state: function() { return WAICB.SpeedEditor.getState(this.clipId); },
+        speedInfo: function() { return WAICB.SpeedEditor.getSpeedInfo(this.clipId); }
     },
-    mounted: function() {
-        this.drawCanvas();
-    },
+    mounted: function() { this.drawCanvas(); },
     methods: {
-        getPresetIcon: function(key) {
-            var preset = this.presets[key];
-            return WAICB.SpeedEditor.createPresetIcon(preset.points);
-        },
-        selectPreset: function(key) {
-            WAICB.SpeedEditor.selectPreset(this.clipId, key);
-            this.drawCanvas();
-            this.$forceUpdate();
-        },
-        addPoint: function() {
-            WAICB.SpeedEditor.addPoint(this.clipId);
-            this.drawCanvas();
-            this.$forceUpdate();
-        },
-        resetSpeed: function() {
-            WAICB.SpeedEditor.reset(this.clipId);
-            this.drawCanvas();
-            this.$forceUpdate();
-        },
-        drawCanvas: function() {
-            var canvas = this.$refs.speedCanvas;
-            if (canvas) {
-                WAICB.SpeedEditor.draw(this.clipId, canvas);
-            }
-        },
-        onCanvasMouseDown: function(e) {
-            WAICB.SpeedEditor.handleCanvasEvent(this.clipId, this.$refs.speedCanvas, 'mousedown', e.clientX, e.clientY);
-            this.drawCanvas();
-            this.$forceUpdate();
-        },
-        onCanvasMouseMove: function(e) {
-            if (WAICB.SpeedEditor.handleCanvasEvent(this.clipId, this.$refs.speedCanvas, 'mousemove', e.clientX, e.clientY)) {
-                this.drawCanvas();
-                this.$forceUpdate();
-            }
-        },
-        onCanvasMouseUp: function(e) {
-            WAICB.SpeedEditor.handleCanvasEvent(this.clipId, this.$refs.speedCanvas, 'mouseup', e.clientX, e.clientY);
-        },
-        getSpeedClass: function() {
-            var speed = parseFloat(this.speedInfo.speed);
-            if (speed > 1.1) return 'wai-cb-speed-info__value--fast';
-            if (speed < 0.9) return 'wai-cb-speed-info__value--slow';
-            return 'wai-cb-speed-info__value--normal';
-        }
+        getPresetIcon: function(key) { return WAICB.SpeedEditor.createPresetIcon(this.presets[key].points); },
+        selectPreset: function(key) { WAICB.SpeedEditor.selectPreset(this.clipId, key); this.drawCanvas(); this.$forceUpdate(); },
+        addPoint: function() { WAICB.SpeedEditor.addPoint(this.clipId); this.drawCanvas(); this.$forceUpdate(); },
+        resetSpeed: function() { WAICB.SpeedEditor.reset(this.clipId); this.drawCanvas(); this.$forceUpdate(); },
+        drawCanvas: function() { if (this.$refs.speedCanvas) WAICB.SpeedEditor.draw(this.clipId, this.$refs.speedCanvas); },
+        onCanvasMouseDown: function(e) { WAICB.SpeedEditor.handleCanvasEvent(this.clipId, this.$refs.speedCanvas, 'mousedown', e.clientX, e.clientY); this.drawCanvas(); this.$forceUpdate(); },
+        onCanvasMouseMove: function(e) { if (WAICB.SpeedEditor.handleCanvasEvent(this.clipId, this.$refs.speedCanvas, 'mousemove', e.clientX, e.clientY)) { this.drawCanvas(); this.$forceUpdate(); } },
+        onCanvasMouseUp: function(e) { WAICB.SpeedEditor.handleCanvasEvent(this.clipId, this.$refs.speedCanvas, 'mouseup', e.clientX, e.clientY); },
+        onCanvasDblClick: function(e) { if (WAICB.SpeedEditor.handleCanvasEvent(this.clipId, this.$refs.speedCanvas, 'dblclick', e.clientX, e.clientY)) { this.drawCanvas(); this.$forceUpdate(); } },
+        onCanvasRightClick: function(e) { if (WAICB.SpeedEditor.handleCanvasEvent(this.clipId, this.$refs.speedCanvas, 'contextmenu', e.clientX, e.clientY)) { this.drawCanvas(); this.$forceUpdate(); } },
+        getSpeedClass: function() { var speed = parseFloat(this.speedInfo.speed); if (speed > 1.1) return 'wai-cb-speed-info__value--fast'; if (speed < 0.9) return 'wai-cb-speed-info__value--slow'; return 'wai-cb-speed-info__value--normal'; }
     }
 };
 
-/* 코드연결지점 */
-/* 코드연결지점 */
-
 /* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 12: Vue 컴포넌트 - 오디오 에디터
+   SECTION 16: Vue 컴포넌트 - 오디오 에디터
    ───────────────────────────────────────────────────────────────────────────── */
 var ClipBoxAudioEditor = {
     props: ['clipId'],
@@ -1831,106 +2019,201 @@ var ClipBoxAudioEditor = {
             <div class="wai-cb-audio-section">
                 <div class="wai-cb-audio-section__title">배경음악</div>
                 <div class="wai-cb-bgm-selector">
-                    <div 
-                        v-for="option in bgmOptions"
-                        :key="option.value"
-                        class="wai-cb-bgm-option"
-                        :class="{ 'wai-cb-bgm-option--active': selectedBgm === option.value }"
-                        @click="selectBgm(option.value)"
-                    >{{ option.label }}</div>
+                    <div v-for="option in bgmOptions" :key="option.value" class="wai-cb-bgm-option" :class="{ 'wai-cb-bgm-option--active': selectedBgm === option.value }" @click="selectBgm(option.value)">{{ option.label }}</div>
                 </div>
             </div>
             <div class="wai-cb-audio-section">
                 <div class="wai-cb-audio-section__title">볼륨</div>
-                <div class="wai-cb-slider">
-                    <span class="wai-cb-label">0%</span>
-                    <input 
-                        type="range" 
-                        min="0" 
-                        max="100" 
-                        :value="volume"
-                        @input="setVolume($event.target.value)"
-                    />
-                    <span class="wai-cb-slider__value">{{ volume }}%</span>
-                </div>
+                <div class="wai-cb-slider"><span class="wai-cb-label">0%</span><input type="range" min="0" max="100" :value="volume" @input="setVolume($event.target.value)" /><span class="wai-cb-slider__value">{{ volume }}%</span></div>
             </div>
             <div class="wai-cb-audio-section">
                 <div class="wai-cb-audio-section__title">볼륨 엔벨로프</div>
-                <div class="wai-cb-envelope-wrap">
-                    <canvas 
-                        ref="envelopeCanvas"
-                        class="wai-cb-envelope-canvas"
-                        @mousedown="onEnvelopeMouseDown"
-                        @mousemove="onEnvelopeMouseMove"
-                        @mouseup="onEnvelopeMouseUp"
-                        @mouseleave="onEnvelopeMouseUp"
-                        @dblclick="onEnvelopeDblClick"
-                    ></canvas>
-                </div>
-                <div class="wai-cb-row wai-cb-row--between" style="margin-top: 8px;">
-                    <span class="wai-cb-text--small">더블클릭: 추가</span>
-                    <button class="wai-cb-btn wai-cb-btn--ghost" @click="resetEnvelope">초기화</button>
-                </div>
+                <div class="wai-cb-envelope-wrap"><canvas ref="envelopeCanvas" class="wai-cb-envelope-canvas" @mousedown="onEnvelopeMouseDown" @mousemove="onEnvelopeMouseMove" @mouseup="onEnvelopeMouseUp" @mouseleave="onEnvelopeMouseUp" @dblclick="onEnvelopeDblClick" @contextmenu.prevent="onEnvelopeRightClick"></canvas></div>
+                <div class="wai-cb-row wai-cb-row--between" style="margin-top: 4px;"><span class="wai-cb-text--small">더블클릭: 추가 | 우클릭: 삭제</span><button class="wai-cb-btn wai-cb-btn--ghost wai-cb-btn--xs" @click="resetEnvelope">초기화</button></div>
             </div>
         </div>
     `,
-    data: function() {
-        return {
-            bgmOptions: [
-                { value: 'none', label: '없음' },
-                { value: 'ambient', label: 'Ambient' },
-                { value: 'upbeat', label: 'Upbeat' },
-                { value: 'cinematic', label: 'Cinematic' }
-            ],
-            selectedBgm: 'none',
-            volume: 50
-        };
-    },
-    mounted: function() {
-        this.drawEnvelope();
-    },
+    data: function() { return { bgmOptions: [{ value: 'none', label: '없음' }, { value: 'ambient', label: 'Ambient' }, { value: 'upbeat', label: 'Upbeat' }, { value: 'cinematic', label: 'Cinematic' }], selectedBgm: 'none', volume: 50 }; },
+    mounted: function() { this.drawEnvelope(); },
     methods: {
-        selectBgm: function(value) {
-            this.selectedBgm = value;
-        },
-        setVolume: function(value) {
-            this.volume = parseInt(value);
-        },
-        drawEnvelope: function() {
-            var canvas = this.$refs.envelopeCanvas;
-            if (canvas) {
-                WAICB.EnvelopeEditor.draw(this.clipId, canvas);
-            }
-        },
-        onEnvelopeMouseDown: function(e) {
-            WAICB.EnvelopeEditor.handleCanvasEvent(this.clipId, this.$refs.envelopeCanvas, 'mousedown', e.clientX, e.clientY);
-            this.drawEnvelope();
-        },
-        onEnvelopeMouseMove: function(e) {
-            if (WAICB.EnvelopeEditor.handleCanvasEvent(this.clipId, this.$refs.envelopeCanvas, 'mousemove', e.clientX, e.clientY)) {
-                this.drawEnvelope();
-            }
-        },
-        onEnvelopeMouseUp: function(e) {
-            WAICB.EnvelopeEditor.handleCanvasEvent(this.clipId, this.$refs.envelopeCanvas, 'mouseup', e.clientX, e.clientY);
-        },
-        onEnvelopeDblClick: function(e) {
-            WAICB.EnvelopeEditor.handleCanvasEvent(this.clipId, this.$refs.envelopeCanvas, 'dblclick', e.clientX, e.clientY);
-            this.drawEnvelope();
-        },
-        resetEnvelope: function() {
-            WAICB.EnvelopeEditor.reset(this.clipId);
-            this.drawEnvelope();
-        }
+        selectBgm: function(value) { this.selectedBgm = value; },
+        setVolume: function(value) { this.volume = parseInt(value); },
+        drawEnvelope: function() { if (this.$refs.envelopeCanvas) WAICB.EnvelopeEditor.draw(this.clipId, this.$refs.envelopeCanvas); },
+        onEnvelopeMouseDown: function(e) { WAICB.EnvelopeEditor.handleCanvasEvent(this.clipId, this.$refs.envelopeCanvas, 'mousedown', e.clientX, e.clientY); this.drawEnvelope(); },
+        onEnvelopeMouseMove: function(e) { if (WAICB.EnvelopeEditor.handleCanvasEvent(this.clipId, this.$refs.envelopeCanvas, 'mousemove', e.clientX, e.clientY)) this.drawEnvelope(); },
+        onEnvelopeMouseUp: function(e) { WAICB.EnvelopeEditor.handleCanvasEvent(this.clipId, this.$refs.envelopeCanvas, 'mouseup', e.clientX, e.clientY); },
+        onEnvelopeDblClick: function(e) { if (WAICB.EnvelopeEditor.handleCanvasEvent(this.clipId, this.$refs.envelopeCanvas, 'dblclick', e.clientX, e.clientY)) this.drawEnvelope(); },
+        onEnvelopeRightClick: function(e) { if (WAICB.EnvelopeEditor.handleCanvasEvent(this.clipId, this.$refs.envelopeCanvas, 'contextmenu', e.clientX, e.clientY)) this.drawEnvelope(); },
+        resetEnvelope: function() { WAICB.EnvelopeEditor.reset(this.clipId); this.drawEnvelope(); }
     }
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 13: Vue 컴포넌트 - 일괄 설정 패널
+   SECTION 17: Vue 컴포넌트 - 레이아웃 에디터
+   ───────────────────────────────────────────────────────────────────────────── */
+var ClipBoxLayoutEditor = {
+    props: ['clipId'],
+    template: `
+        <div :id="'clipbox-layout-' + clipId">
+            <div class="wai-cb-row wai-cb-row--between" style="margin-bottom: 6px;">
+                <div class="wai-cb-row wai-cb-grow">
+                    <span class="wai-cb-label">전역 템플릿</span>
+                    <select class="wai-cb-select wai-cb-grow" v-model="globalTemplate">
+                        <option value="default-intro">기본 인트로</option>
+                        <option value="center-title">중앙 제목</option>
+                        <option value="bottom-caption">하단 자막</option>
+                        <option value="custom">사용자 정의</option>
+                    </select>
+                </div>
+                <button class="wai-cb-btn wai-cb-btn--xs" @click="resetAllLayouts">전체 초기화</button>
+            </div>
+            <div class="wai-cb-layout-layers">
+                <div v-if="layers.length === 0" class="wai-cb-layout-empty">BASIC 탭에서 레이어를 추가하세요.</div>
+                <div v-for="layer in layers" :key="layer.id" class="wai-cb-layout-layer" :class="{ 'wai-cb-layout-layer--collapsed': layerCollapsed[layer.id] }">
+                    <div class="wai-cb-layout-layer__header" @click="toggleLayoutLayer(layer.id)">
+                        <div class="wai-cb-layout-layer__title">
+                            <span :class="'wai-cb-layer__icon ' + getLayerIconClass(layer.type)">{{ getLayerIcon(layer.type) }}</span>
+                            <span>{{ layer.name }}</span>
+                        </div>
+                        <span class="wai-cb-layout-layer__toggle">▼</span>
+                    </div>
+                    <div class="wai-cb-layout-layer__body" v-show="!layerCollapsed[layer.id]">
+                        <div class="wai-cb-row" style="margin-bottom: 4px;">
+                            <span class="wai-cb-label">템플릿</span>
+                            <select class="wai-cb-select wai-cb-grow" :value="layer.layout.template" @change="setLayerTemplate(layer.id, $event.target.value)">
+                                <option value="inherit">전역 설정 따름</option>
+                                <option value="top-left">좌상단</option>
+                                <option value="top-center">상단 중앙</option>
+                                <option value="center">정중앙</option>
+                                <option value="bottom-center">하단 중앙</option>
+                                <option value="custom">사용자 정의</option>
+                            </select>
+                            <button class="wai-cb-btn wai-cb-btn--ghost wai-cb-btn--xs" @click="resetLayerLayout(layer.id)">초기화</button>
+                        </div>
+                        <span class="wai-cb-label--section">위치 / 크기 (px)</span>
+                        <div class="wai-cb-layout-grid">
+                            <div class="wai-cb-layout-grid__header">
+                                <span></span><span class="wai-cb-layout-grid__label">X</span><span class="wai-cb-layout-grid__label">Y</span><span class="wai-cb-layout-grid__label">W</span><span class="wai-cb-layout-grid__label">H</span>
+                            </div>
+                            <div class="wai-cb-layout-grid__row">
+                                <span class="wai-cb-label">위치</span>
+                                <div class="wai-cb-spinbox">
+                                    <button class="wai-cb-spinbox__btn" @click="adjustField(layer.id, 'x', -10)">−</button>
+                                    <input type="number" class="wai-cb-input wai-cb-input--number" :value="layer.layout.x" @change="setField(layer.id, 'x', $event.target.value)" />
+                                    <button class="wai-cb-spinbox__btn" @click="adjustField(layer.id, 'x', 10)">+</button>
+                                </div>
+                                <div class="wai-cb-spinbox">
+                                    <button class="wai-cb-spinbox__btn" @click="adjustField(layer.id, 'y', -10)">−</button>
+                                    <input type="number" class="wai-cb-input wai-cb-input--number" :value="layer.layout.y" @change="setField(layer.id, 'y', $event.target.value)" />
+                                    <button class="wai-cb-spinbox__btn" @click="adjustField(layer.id, 'y', 10)">+</button>
+                                </div>
+                                <input type="number" class="wai-cb-input wai-cb-input--number" :value="layer.layout.w" @change="setField(layer.id, 'w', $event.target.value)" />
+                                <input type="number" class="wai-cb-input wai-cb-input--number" :value="layer.layout.h" @change="setField(layer.id, 'h', $event.target.value)" />
+                            </div>
+                        </div>
+                        <div class="wai-cb-row" style="margin-top: 6px;">
+                            <span class="wai-cb-label">정렬</span>
+                            <select class="wai-cb-select" :value="layer.layout.align" @change="setField(layer.id, 'align', $event.target.value)"><option value="left">좌측</option><option value="center">중앙</option><option value="right">우측</option></select>
+                            <span class="wai-cb-label">세로</span>
+                            <select class="wai-cb-select" :value="layer.layout.valign" @change="setField(layer.id, 'valign', $event.target.value)"><option value="top">상단</option><option value="middle">중앙</option><option value="bottom">하단</option></select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `,
+    data: function() { return { globalTemplate: 'default-intro', layerCollapsed: {} }; },
+    computed: {
+        layers: function() { return WAICB.Layer.getLayers(this.clipId); }
+    },
+    methods: {
+        getLayerIcon: function(type) { return WAICB.Layer.TYPES[type] ? WAICB.Layer.TYPES[type].icon : '?'; },
+        getLayerIconClass: function(type) { return WAICB.Layer.TYPES[type] ? WAICB.Layer.TYPES[type].iconClass : ''; },
+        toggleLayoutLayer: function(layerId) { this.$set(this.layerCollapsed, layerId, !this.layerCollapsed[layerId]); },
+        setLayerTemplate: function(layerId, value) { WAICB.Layer.setLayerLayoutField(this.clipId, layerId, 'template', value); this.$forceUpdate(); },
+        setField: function(layerId, field, value) { WAICB.Layer.setLayerLayoutField(this.clipId, layerId, field, parseInt(value) || value); this.$forceUpdate(); },
+        adjustField: function(layerId, field, delta) { var layer = WAICB.Layer.getLayer(this.clipId, layerId); if (layer && layer.layout) { layer.layout[field] = (layer.layout[field] || 0) + delta; this.$forceUpdate(); } },
+        resetLayerLayout: function(layerId) { var layer = WAICB.Layer.getLayer(this.clipId, layerId); if (layer) { layer.layout = { template: 'inherit', x: 120, y: 80, w: 640, h: 100, align: 'center', valign: 'middle' }; this.$forceUpdate(); WAICB.Toast.info('레이아웃이 초기화되었습니다'); } },
+        resetAllLayouts: function() { var self = this; if (confirm('모든 레이어의 레이아웃을 초기화하시겠습니까?')) { this.layers.forEach(function(layer, idx) { layer.layout = { template: 'inherit', x: 120, y: 80 + idx * 50, w: 640, h: 100, align: 'center', valign: 'middle' }; }); this.$forceUpdate(); WAICB.Toast.info('모든 레이아웃이 초기화되었습니다'); } }
+    }
+};
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SECTION 18: Vue 컴포넌트 - 클립 아이템
+   ───────────────────────────────────────────────────────────────────────────── */
+var ClipBoxClipItem = {
+    props: ['clip', 'index'],
+    emits: ['update', 'delete', 'select'],
+    components: {
+        'clip-box-layers': ClipBoxLayers,
+        'clip-box-speed-editor': ClipBoxSpeedEditor,
+        'clip-box-audio-editor': ClipBoxAudioEditor,
+        'clip-box-layout-editor': ClipBoxLayoutEditor
+    },
+    template: `
+        <div :id="'clipbox-clip-' + clip.id" class="wai-cb-panel wai-cb-clip" :class="{ 'wai-cb-clip--collapsed': clip.isCollapsed }">
+            <div class="wai-cb-clip__header">
+                <div class="wai-cb-clip__title">
+                    <input type="checkbox" class="wai-cb-checkbox" :checked="clip.isSelected" @change="toggleSelect" />
+                    <span class="wai-cb-clip__order">#{{ index + 1 }}</span>
+                    <span class="wai-cb-clip__handle">⋮⋮</span>
+                    <input type="text" class="wai-cb-input wai-cb-clip__name" :value="clip.label" @input="updateLabel($event.target.value)" />
+                    <select class="wai-cb-select" :value="clip.type" @change="updateType($event.target.value)">
+                        <option value="narration">나레이션</option>
+                        <option value="music">음악</option>
+                        <option value="other">기타</option>
+                    </select>
+                </div>
+                <div class="wai-cb-clip__controls">
+                    <div class="wai-cb-clip__speed"><span class="wai-cb-label">속도</span><input type="number" step="0.1" min="0.1" max="3.0" class="wai-cb-input wai-cb-input--number" :value="clip.playbackSpeed" @input="updateSpeed($event.target.value)" /><span class="wai-cb-label">x</span></div>
+                    <div class="wai-cb-clip__actions">
+                        <button class="wai-cb-btn wai-cb-btn--xs" @click="playClip" title="재생">▶</button>
+                        <button class="wai-cb-btn wai-cb-btn--ghost wai-cb-btn--xs" @click="toggleCollapse" title="접기/펼치기">{{ clip.isCollapsed ? '▼' : '▲' }}</button>
+                        <button class="wai-cb-btn wai-cb-btn--danger wai-cb-btn--xs" @click="deleteClip" title="삭제">✕</button>
+                    </div>
+                </div>
+            </div>
+            <div class="wai-cb-clip__body" v-show="!clip.isCollapsed">
+                <div class="wai-cb-tabs">
+                    <button v-for="tab in tabs" :key="tab.id" class="wai-cb-tab" :class="{ 'wai-cb-tab--active': clip.activeTab === tab.id }" @click="setActiveTab(tab.id)">{{ tab.label }}</button>
+                </div>
+                <div class="wai-cb-tab-content" :class="{ 'wai-cb-tab-content--active': clip.activeTab === 'basic' }"><clip-box-layers :clip-id="clip.id"></clip-box-layers></div>
+                <div class="wai-cb-tab-content" :class="{ 'wai-cb-tab-content--active': clip.activeTab === 'tts' }">
+                    <div class="wai-cb-row"><span class="wai-cb-label">음성</span><select class="wai-cb-select wai-cb-grow"><option value="ko-KR-InJoonNeural">한국어 남성 (InJoon)</option><option value="ko-KR-SunHiNeural">한국어 여성 (SunHi)</option></select></div>
+                    <div class="wai-cb-row"><button class="wai-cb-btn wai-cb-btn--primary wai-cb-btn--xs" @click="generateTts">🎙️ TTS 생성</button><span class="wai-cb-badge wai-cb-badge--warning">미생성</span></div>
+                </div>
+                <div class="wai-cb-tab-content" :class="{ 'wai-cb-tab-content--active': clip.activeTab === 'speed' }"><clip-box-speed-editor :clip-id="clip.id"></clip-box-speed-editor></div>
+                <div class="wai-cb-tab-content" :class="{ 'wai-cb-tab-content--active': clip.activeTab === 'image' }">
+                    <span class="wai-cb-label--section">이미지 프롬프트</span>
+                    <textarea class="wai-cb-textarea" placeholder="이미지 생성을 위한 프롬프트..."></textarea>
+                    <div class="wai-cb-row"><button class="wai-cb-btn wai-cb-btn--primary wai-cb-btn--xs">🖼️ 이미지 생성</button><span class="wai-cb-badge wai-cb-badge--warning">미생성</span></div>
+                </div>
+                <div class="wai-cb-tab-content" :class="{ 'wai-cb-tab-content--active': clip.activeTab === 'audio' }"><clip-box-audio-editor :clip-id="clip.id"></clip-box-audio-editor></div>
+                <div class="wai-cb-tab-content" :class="{ 'wai-cb-tab-content--active': clip.activeTab === 'layout' }"><clip-box-layout-editor :clip-id="clip.id"></clip-box-layout-editor></div>
+                <div class="wai-cb-tab-content" :class="{ 'wai-cb-tab-content--active': clip.activeTab === 'notes' }"><textarea class="wai-cb-textarea" placeholder="메모를 입력하세요."></textarea></div>
+            </div>
+        </div>
+    `,
+    data: function() { return { tabs: [{ id: 'basic', label: 'BASIC' }, { id: 'tts', label: 'TTS' }, { id: 'speed', label: 'SPEED' }, { id: 'image', label: 'IMAGE' }, { id: 'audio', label: 'AUDIO' }, { id: 'layout', label: 'LAYOUT' }, { id: 'notes', label: 'NOTES' }] }; },
+    methods: {
+        toggleSelect: function() { this.$emit('update', this.clip.id, { isSelected: !this.clip.isSelected }); },
+        updateLabel: function(value) { this.$emit('update', this.clip.id, { label: value }); },
+        updateType: function(value) { this.$emit('update', this.clip.id, { type: value }); },
+        updateSpeed: function(value) { this.$emit('update', this.clip.id, { playbackSpeed: parseFloat(value) || 1.0 }); },
+        toggleCollapse: function() { this.$emit('update', this.clip.id, { isCollapsed: !this.clip.isCollapsed }); },
+        setActiveTab: function(tabId) { this.$emit('update', this.clip.id, { activeTab: tabId }); },
+        deleteClip: function() { if (confirm('클립을 삭제하시겠습니까?')) this.$emit('delete', this.clip.id); },
+        playClip: function() { WAICB.Toast.info('클립 재생 (구현 예정)'); },
+        generateTts: function() { WAICB.Toast.info('TTS 생성 (API 연동 필요)'); }
+    }
+};
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SECTION 19: Vue 컴포넌트 - 일괄 설정 패널
    ───────────────────────────────────────────────────────────────────────────── */
 var ClipBoxBulkPanel = {
-    props: ['clipCount', 'selectedCount'],
-    emits: ['selectAll', 'deselectAll', 'applyAll'],
+    props: ['clipCount', 'selectedCount', 'ttsMissingCount', 'imgMissingCount'],
+    emits: ['selectAll', 'deselectAll', 'applyAll', 'applySelected'],
     template: `
         <div class="wai-cb-bulk" :class="{ 'wai-cb-bulk--expanded': isExpanded }">
             <div class="wai-cb-bulk__header" @click="toggleExpand">
@@ -1942,105 +2225,44 @@ var ClipBoxBulkPanel = {
             </div>
             <div class="wai-cb-bulk__body">
                 <div class="wai-cb-bulk__content">
-                    <!-- 탭 -->
+                    <div class="wai-cb-stats">
+                        <div class="wai-cb-stats__card"><div class="wai-cb-stats__value">{{ clipCount }}</div><div class="wai-cb-stats__label">전체 클립</div></div>
+                        <div class="wai-cb-stats__card wai-cb-stats__card--warning"><div class="wai-cb-stats__value">{{ ttsMissingCount }}</div><div class="wai-cb-stats__label">TTS 미생성</div></div>
+                        <div class="wai-cb-stats__card wai-cb-stats__card--warning"><div class="wai-cb-stats__value">{{ imgMissingCount }}</div><div class="wai-cb-stats__label">IMG 미생성</div></div>
+                        <div class="wai-cb-stats__card"><div class="wai-cb-stats__value">{{ selectedCount }}</div><div class="wai-cb-stats__label">선택됨</div></div>
+                    </div>
                     <div class="wai-cb-bulk-tabs">
-                        <button 
-                            v-for="tab in tabs"
-                            :key="tab.id"
-                            class="wai-cb-bulk-tab"
-                            :class="{ 'wai-cb-bulk-tab--active': activeTab === tab.id }"
-                            @click="activeTab = tab.id"
-                        >
-                            <span>{{ tab.icon }}</span>
-                            <span>{{ tab.label }}</span>
-                        </button>
+                        <button v-for="tab in tabs" :key="tab.id" class="wai-cb-bulk-tab" :class="{ 'wai-cb-bulk-tab--active': activeTab === tab.id }" @click="activeTab = tab.id"><span>{{ tab.icon }}</span><span>{{ tab.label }}</span></button>
                     </div>
-
-                    <!-- TTS 탭 -->
-                    <div 
-                        class="wai-cb-bulk-tab-content"
-                        :class="{ 'wai-cb-bulk-tab-content--active': activeTab === 'tts' }"
-                    >
-                        <div class="wai-cb-bulk-group">
-                            <div class="wai-cb-bulk-group__title">음성 설정</div>
-                            <div class="wai-cb-bulk-row">
-                                <span class="wai-cb-bulk-row__label">음성</span>
-                                <div class="wai-cb-bulk-row__control">
-                                    <select class="wai-cb-select" v-model="ttsSettings.voice">
-                                        <option value="ko-KR-InJoonNeural">한국어 남성 (InJoon)</option>
-                                        <option value="ko-KR-SunHiNeural">한국어 여성 (SunHi)</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="wai-cb-bulk-row">
-                                <span class="wai-cb-bulk-row__label">속도</span>
-                                <div class="wai-cb-bulk-row__control">
-                                    <div class="wai-cb-slider">
-                                        <input type="range" min="0.5" max="2.0" step="0.1" v-model="ttsSettings.speed"/>
-                                        <span class="wai-cb-slider__value">{{ ttsSettings.speed }}x</span>
-                                    </div>
-                                </div>
-                            </div>
+                    <div class="wai-cb-bulk-tab-content" :class="{ 'wai-cb-bulk-tab-content--active': activeTab === 'tts' }">
+                        <div class="wai-cb-bulk-group"><div class="wai-cb-bulk-group__title">음성 설정</div>
+                            <div class="wai-cb-bulk-row"><span class="wai-cb-bulk-row__label">음성</span><div class="wai-cb-bulk-row__control"><select class="wai-cb-select" v-model="ttsSettings.voice"><option value="ko-KR-InJoonNeural">한국어 남성 (InJoon)</option><option value="ko-KR-SunHiNeural">한국어 여성 (SunHi)</option></select></div></div>
+                            <div class="wai-cb-bulk-row"><span class="wai-cb-bulk-row__label">속도</span><div class="wai-cb-bulk-row__control"><div class="wai-cb-slider"><input type="range" min="0.5" max="2.0" step="0.1" v-model="ttsSettings.speed"/><span class="wai-cb-slider__value">{{ ttsSettings.speed }}x</span></div></div></div>
                         </div>
                     </div>
-
-                    <!-- 오디오 탭 -->
-                    <div 
-                        class="wai-cb-bulk-tab-content"
-                        :class="{ 'wai-cb-bulk-tab-content--active': activeTab === 'audio' }"
-                    >
-                        <div class="wai-cb-bulk-group">
-                            <div class="wai-cb-bulk-group__title">BGM 설정</div>
-                            <div class="wai-cb-bulk-row">
-                                <span class="wai-cb-bulk-row__label">BGM</span>
-                                <div class="wai-cb-bulk-row__control">
-                                    <select class="wai-cb-select" v-model="audioSettings.bgm">
-                                        <option value="none">없음</option>
-                                        <option value="ambient">Ambient</option>
-                                        <option value="upbeat">Upbeat</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="wai-cb-bulk-row">
-                                <span class="wai-cb-bulk-row__label">볼륨</span>
-                                <div class="wai-cb-bulk-row__control">
-                                    <div class="wai-cb-slider">
-                                        <input type="range" min="0" max="100" step="1" v-model="audioSettings.volume"/>
-                                        <span class="wai-cb-slider__value">{{ audioSettings.volume }}%</span>
-                                    </div>
-                                </div>
-                            </div>
+                    <div class="wai-cb-bulk-tab-content" :class="{ 'wai-cb-bulk-tab-content--active': activeTab === 'audio' }">
+                        <div class="wai-cb-bulk-group"><div class="wai-cb-bulk-group__title">BGM 설정</div>
+                            <div class="wai-cb-bulk-row"><span class="wai-cb-bulk-row__label">BGM</span><div class="wai-cb-bulk-row__control"><select class="wai-cb-select" v-model="audioSettings.bgm"><option value="none">없음</option><option value="ambient">Ambient</option><option value="upbeat">Upbeat</option></select></div></div>
+                            <div class="wai-cb-bulk-row"><span class="wai-cb-bulk-row__label">볼륨</span><div class="wai-cb-bulk-row__control"><div class="wai-cb-slider"><input type="range" min="0" max="100" step="1" v-model="audioSettings.volume"/><span class="wai-cb-slider__value">{{ audioSettings.volume }}%</span></div></div></div>
                         </div>
                     </div>
-
-                    <!-- 속도 탭 -->
-                    <div 
-                        class="wai-cb-bulk-tab-content"
-                        :class="{ 'wai-cb-bulk-tab-content--active': activeTab === 'speed' }"
-                    >
-                        <div class="wai-cb-bulk-group">
-                            <div class="wai-cb-bulk-group__title">전역 재생속도</div>
-                            <div class="wai-cb-bulk-row">
-                                <span class="wai-cb-bulk-row__label">속도</span>
-                                <div class="wai-cb-bulk-row__control">
-                                    <div class="wai-cb-slider">
-                                        <input type="range" min="0.25" max="3.0" step="0.05" v-model="speedSettings.speed"/>
-                                        <span class="wai-cb-slider__value">{{ speedSettings.speed }}x</span>
-                                    </div>
-                                </div>
-                            </div>
+                    <div class="wai-cb-bulk-tab-content" :class="{ 'wai-cb-bulk-tab-content--active': activeTab === 'speed' }">
+                        <div class="wai-cb-bulk-group"><div class="wai-cb-bulk-group__title">전역 재생속도</div>
+                            <div class="wai-cb-bulk-row"><span class="wai-cb-bulk-row__label">속도</span><div class="wai-cb-bulk-row__control"><div class="wai-cb-slider"><input type="range" min="0.25" max="3.0" step="0.05" v-model="speedSettings.speed"/><span class="wai-cb-slider__value">{{ speedSettings.speed }}x</span></div></div></div>
                         </div>
                     </div>
-
-                    <!-- 액션 버튼 -->
                     <div class="wai-cb-bulk-actions">
-                        <button class="wai-cb-btn wai-cb-btn--ghost" @click="$emit('selectAll')">전체 선택</button>
-                        <button class="wai-cb-btn wai-cb-btn--ghost" @click="$emit('deselectAll')">선택 해제</button>
-                        <button 
-                            class="wai-cb-btn wai-cb-btn--primary"
-                            :disabled="selectedCount === 0"
-                            @click="applyToSelected"
-                        >적용 ({{ selectedCount }})</button>
+                        <div class="wai-cb-checkbox-group">
+                            <label class="wai-cb-checkbox-item"><input type="checkbox" v-model="applyOptions.tts" /><span>TTS</span></label>
+                            <label class="wai-cb-checkbox-item"><input type="checkbox" v-model="applyOptions.audio" /><span>AUDIO</span></label>
+                            <label class="wai-cb-checkbox-item"><input type="checkbox" v-model="applyOptions.speed" /><span>속도</span></label>
+                        </div>
+                        <div class="wai-cb-bulk-actions__right">
+                            <button class="wai-cb-btn wai-cb-btn--ghost wai-cb-btn--xs" @click="$emit('selectAll')">전체 선택</button>
+                            <button class="wai-cb-btn wai-cb-btn--ghost wai-cb-btn--xs" @click="$emit('deselectAll')">선택 해제</button>
+                            <button class="wai-cb-btn wai-cb-btn--xs" :disabled="selectedCount === 0" @click="applyToSelected">적용 ({{ selectedCount }})</button>
+                            <button class="wai-cb-btn wai-cb-btn--primary wai-cb-btn--xs" @click="applyToAll">전체 적용</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2050,52 +2272,30 @@ var ClipBoxBulkPanel = {
         return {
             isExpanded: false,
             activeTab: 'tts',
-            tabs: [
-                { id: 'tts', icon: '🎙️', label: 'TTS' },
-                { id: 'audio', icon: '🎵', label: 'AUDIO' },
-                { id: 'speed', icon: '⚡', label: '속도' }
-            ],
-            ttsSettings: {
-                voice: 'ko-KR-InJoonNeural',
-                speed: 1.0
-            },
-            audioSettings: {
-                bgm: 'none',
-                volume: 50
-            },
-            speedSettings: {
-                speed: 1.0
-            }
+            tabs: [{ id: 'tts', icon: '🎙️', label: 'TTS' }, { id: 'audio', icon: '🎵', label: 'AUDIO' }, { id: 'speed', icon: '⚡', label: '속도' }],
+            ttsSettings: { voice: 'ko-KR-InJoonNeural', speed: 1.0 },
+            audioSettings: { bgm: 'none', volume: 50 },
+            speedSettings: { speed: 1.0 },
+            applyOptions: { tts: true, audio: true, speed: false }
         };
     },
     methods: {
-        toggleExpand: function() {
-            this.isExpanded = !this.isExpanded;
-        },
-        applyToSelected: function() {
-            this.$emit('applyAll', {
-                tts: this.ttsSettings,
-                audio: this.audioSettings,
-                speed: this.speedSettings
-            });
-        }
+        toggleExpand: function() { this.isExpanded = !this.isExpanded; },
+        applyToSelected: function() { this.$emit('applySelected', { tts: this.ttsSettings, audio: this.audioSettings, speed: this.speedSettings, options: this.applyOptions }); },
+        applyToAll: function() { this.$emit('applyAll', { tts: this.ttsSettings, audio: this.audioSettings, speed: this.speedSettings, options: this.applyOptions }); }
     }
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 14: 메인 ClipBoxManager Vue 컴포넌트
+   SECTION 20: 메인 ClipBoxManager Vue 컴포넌트
    ───────────────────────────────────────────────────────────────────────────── */
 var ClipBoxManager = {
     components: {
         'clip-box-clip-item': ClipBoxClipItem,
-        'clip-box-layers': ClipBoxLayers,
-        'clip-box-speed-editor': ClipBoxSpeedEditor,
-        'clip-box-audio-editor': ClipBoxAudioEditor,
         'clip-box-bulk-panel': ClipBoxBulkPanel
     },
     template: `
         <div id="clipbox-manager-root" class="wai-cb-root">
-            <!-- 매니저 헤더 -->
             <div class="wai-cb-panel" id="clipbox-manager-header">
                 <div class="wai-cb-manager__header">
                     <div>
@@ -2103,36 +2303,52 @@ var ClipBoxManager = {
                         <p class="wai-cb-manager__meta">클립을 관리하고 일괄 설정을 적용하세요.</p>
                     </div>
                     <div class="wai-cb-manager__actions">
-                        <button class="wai-cb-btn wai-cb-btn--primary" @click="addClip">
-                            <span>+</span>
-                            <span>클립 추가</span>
-                        </button>
+                        <button class="wai-cb-btn wai-cb-btn--xs" @click="openPromptModal" title="프롬프트 설정">📝</button>
+                        <button class="wai-cb-btn wai-cb-btn--xs" @click="openApiModal" title="API 설정">🔑</button>
+                        <button class="wai-cb-btn wai-cb-btn--primary wai-cb-btn--xs" @click="addClip"><span>+</span><span>클립 추가</span></button>
                     </div>
                 </div>
-                <div class="wai-cb-manager__badges" style="margin-top: 8px;">
-                    <span class="wai-cb-badge">클립 {{ clips.length }}</span>
-                    <span class="wai-cb-badge wai-cb-badge--warning">TTS 미생성 {{ ttsMissingCount }}</span>
+                <div class="wai-cb-manager__filters">
+                    <div class="wai-cb-manager__search">
+                        <span class="wai-cb-label">검색</span>
+                        <input type="text" class="wai-cb-input wai-cb-grow" placeholder="제목, 키워드..." v-model="searchQuery" />
+                    </div>
+                    <div class="wai-cb-row">
+                        <span class="wai-cb-label">타입</span>
+                        <select class="wai-cb-select" v-model="filterType">
+                            <option value="all">전체</option>
+                            <option value="narration">나레이션</option>
+                            <option value="music">음악</option>
+                            <option value="other">기타</option>
+                        </select>
+                    </div>
                 </div>
-
-                <!-- 일괄 설정 패널 -->
+                <div class="wai-cb-manager__stats">
+                    <div class="wai-cb-row">
+                        <span class="wai-cb-label">전역 속도</span>
+                        <input type="number" step="0.1" min="0.1" max="3.0" class="wai-cb-input wai-cb-input--number" v-model.number="globalSpeed" />
+                        <span class="wai-cb-label">x</span>
+                    </div>
+                    <div class="wai-cb-manager__badges">
+                        <span class="wai-cb-badge">클립 {{ clips.length }}</span>
+                        <span class="wai-cb-badge wai-cb-badge--warning">TTS 미생성 {{ ttsMissingCount }}</span>
+                    </div>
+                </div>
                 <clip-box-bulk-panel
                     :clip-count="clips.length"
                     :selected-count="selectedCount"
+                    :tts-missing-count="ttsMissingCount"
+                    :img-missing-count="imgMissingCount"
                     @select-all="selectAll"
                     @deselect-all="deselectAll"
-                    @apply-all="applyToSelected"
+                    @apply-selected="applyToSelected"
+                    @apply-all="applyToAll"
                 ></clip-box-bulk-panel>
             </div>
-
-            <!-- 클립 목록 -->
             <div id="clipbox-clip-list">
-                <div v-if="clips.length === 0" class="wai-cb-panel">
-                    <div class="wai-cb-text--hint" style="padding: 20px;">
-                        클립이 없습니다. + 클립 추가 버튼을 클릭하세요.
-                    </div>
-                </div>
+                <div v-if="filteredClips.length === 0" class="wai-cb-panel"><div class="wai-cb-text--hint" style="padding: 16px;">클립이 없습니다. + 클립 추가 버튼을 클릭하세요.</div></div>
                 <clip-box-clip-item
-                    v-for="(clip, index) in clips"
+                    v-for="(clip, index) in filteredClips"
                     :key="clip.id"
                     :clip="clip"
                     :index="index"
@@ -2140,28 +2356,54 @@ var ClipBoxManager = {
                     @delete="deleteClip"
                 ></clip-box-clip-item>
             </div>
+            <div class="wai-cb-ctx-overlay" id="clipbox-ctx-overlay"></div>
+            <div class="wai-cb-ctx-menu" id="clipbox-ctx-menu">
+                <div class="wai-cb-ctx-menu__header" id="clipbox-ctx-header">토큰 선택됨</div>
+                <div class="wai-cb-ctx-menu__item" data-ctx-action="insertSilenceAfter"><span class="wai-cb-ctx-menu__icon">⏸</span><span>뒤에 무음 추가</span><span class="wai-cb-ctx-menu__shortcut">0.3s</span></div>
+                <div class="wai-cb-ctx-menu__item" data-ctx-action="insertSilenceBefore"><span class="wai-cb-ctx-menu__icon">⏸</span><span>앞에 무음 추가</span><span class="wai-cb-ctx-menu__shortcut">0.3s</span></div>
+                <div class="wai-cb-ctx-menu__divider"></div>
+                <div class="wai-cb-ctx-menu__item" data-ctx-action="setSilence" data-duration="0.1"><span class="wai-cb-ctx-menu__icon">⚡</span><span>짧은 무음</span><span class="wai-cb-ctx-menu__shortcut">0.1s</span></div>
+                <div class="wai-cb-ctx-menu__item" data-ctx-action="setSilence" data-duration="0.5"><span class="wai-cb-ctx-menu__icon">⏳</span><span>중간 무음</span><span class="wai-cb-ctx-menu__shortcut">0.5s</span></div>
+                <div class="wai-cb-ctx-menu__item" data-ctx-action="setSilence" data-duration="1.0"><span class="wai-cb-ctx-menu__icon">⏰</span><span>긴 무음</span><span class="wai-cb-ctx-menu__shortcut">1.0s</span></div>
+                <div class="wai-cb-ctx-menu__divider"></div>
+                <div class="wai-cb-ctx-menu__item wai-cb-ctx-menu__item--danger" data-ctx-action="deleteToken" id="clipbox-ctx-delete"><span class="wai-cb-ctx-menu__icon">✕</span><span>무음 삭제</span></div>
+            </div>
         </div>
     `,
     data: function() {
         return {
-            clips: []
+            clips: [],
+            searchQuery: '',
+            filterType: 'all',
+            globalSpeed: 1.0
         };
     },
     computed: {
-        selectedCount: function() {
-            return this.clips.filter(function(c) { return c.isSelected; }).length;
+        filteredClips: function() {
+            var self = this;
+            return this.clips.filter(function(clip) {
+                if (self.filterType !== 'all' && clip.type !== self.filterType) return false;
+                if (self.searchQuery) {
+                    var query = self.searchQuery.toLowerCase();
+                    if (!clip.label.toLowerCase().includes(query)) return false;
+                }
+                return true;
+            });
         },
-        ttsMissingCount: function() {
-            return this.clips.filter(function(c) { return c.ttsStatus === 'idle'; }).length;
-        }
+        selectedCount: function() { return this.clips.filter(function(c) { return c.isSelected; }).length; },
+        ttsMissingCount: function() { return this.clips.filter(function(c) { return c.ttsStatus === 'idle'; }).length; },
+        imgMissingCount: function() { return this.clips.filter(function(c) { return c.imageStatus === 'idle'; }).length; }
     },
     mounted: function() {
-        // 초기 클립 추가
+        WAICB.Store.init();
+        WAICB.ContextMenu.bindEvents();
+        WAICB.Modal.bindEvents();
         this.addClip();
     },
     methods: {
         addClip: function() {
             var clip = WAICB.Store.addClip();
+            WAICB.Layer.init(clip.id);
             this.clips = WAICB.Store.getAllClips();
             WAICB.Toast.success('클립 #' + (clip.order + 1) + '이(가) 추가되었습니다');
         },
@@ -2174,27 +2416,25 @@ var ClipBoxManager = {
             this.clips = WAICB.Store.getAllClips();
             WAICB.Toast.info('클립이 삭제되었습니다');
         },
-        selectAll: function() {
-            WAICB.Store.selectAll();
-            this.clips = WAICB.Store.getAllClips();
-        },
-        deselectAll: function() {
-            WAICB.Store.deselectAll();
-            this.clips = WAICB.Store.getAllClips();
-        },
+        selectAll: function() { WAICB.Store.selectAll(); this.clips = WAICB.Store.getAllClips(); },
+        deselectAll: function() { WAICB.Store.deselectAll(); this.clips = WAICB.Store.getAllClips(); },
         applyToSelected: function(settings) {
             var selectedIds = WAICB.Store.getSelectedIds();
-            if (selectedIds.length === 0) {
-                WAICB.Toast.warning('선택된 클립이 없습니다');
-                return;
-            }
+            if (selectedIds.length === 0) { WAICB.Toast.warning('선택된 클립이 없습니다'); return; }
+            WAICB.Store.bulkApply(selectedIds, settings.options);
             WAICB.Toast.success(selectedIds.length + '개 클립에 설정이 적용되었습니다');
-        }
+        },
+        applyToAll: function(settings) {
+            var count = WAICB.Store.bulkApplyAll(settings.options);
+            WAICB.Toast.success(count + '개 클립에 설정이 적용되었습니다');
+        },
+        openPromptModal: function() { WAICB.Toast.info('프롬프트 설정 (구현 예정)'); },
+        openApiModal: function() { WAICB.Toast.info('API 설정 (구현 예정)'); }
     }
 };
 
-// 전역 등록
 window.ClipBoxManager = ClipBoxManager;
+
 /* ═══════════════════════════════════════════════════════════════════════════
    END OF CLIPBOX MANAGER COMPONENT
    ═══════════════════════════════════════════════════════════════════════════ */
