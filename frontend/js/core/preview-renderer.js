@@ -31,7 +31,9 @@ const PreviewRenderer = {
       masterVolume: 1,
       isMuted: false,
       isMagnet: true,
-      resizeObserver: null
+      resizeObserver: null,
+      _canvasSize: { w: 1920, h: 1080 },
+      _currentTime: 0
     };
   },
 
@@ -299,6 +301,40 @@ const PreviewRenderer = {
       if (this.$parent && typeof this.$parent.openLayerConfig === 'function') {
         this.$parent.openLayerConfig(boxId);
       }
+    },
+
+    // ========== 추가된 메서드들 (TimelinePanel에서 호출) ==========
+    
+    // 클립 볼륨 업데이트
+    updateClipVolume(clipId, volume) {
+      // 해당 클립의 비디오/오디오 요소 찾기
+      const videos = document.querySelectorAll('#preview-canvas-scaler video, #preview-canvas-scaler audio');
+      videos.forEach(function(el) {
+        // 클립 ID와 매칭되는 요소의 볼륨 설정
+        var parentBox = el.closest('.canvas-box');
+        if (parentBox) {
+          var boxId = parentBox.id;
+          if (boxId && boxId.indexOf(clipId) >= 0) {
+            el.volume = Math.max(0, Math.min(1, volume));
+          }
+        }
+      });
+    },
+
+    // 캔버스 크기 설정
+    setCanvasSize(size) {
+      if (size && typeof size.w === 'number' && typeof size.h === 'number') {
+        this._canvasSize = { w: size.w, h: size.h };
+        this.$nextTick(function() {
+          this.calculateCanvasDisplay();
+        });
+      }
+    },
+
+    // 현재 시간 설정
+    setCurrentTime(time) {
+      this._currentTime = time;
+      // 비디오 동기화는 PreviewCanvas 컴포넌트에서 처리
     }
   },
 
