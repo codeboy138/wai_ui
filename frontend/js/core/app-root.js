@@ -3,16 +3,7 @@
 // 파일 위치: frontend/js/core/app-root.js
 // ============================================
 
-const Z_INDEX_OFFSETS = { 'BG': 20, 'TXT': 40, 'VID': 60, 'EFF': 80, 'AUD': 80 };
-
-const COLORS = [
-    '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e',
-    '#10b981', '#06b6d4', '#0ea5e9', '#3b82f6', '#6366f1',
-    '#8b5cf6', '#d946ef', '#f43f5e', '#ffffff', '#9ca3af',
-    '#4b5563', '#000000', '#7f1d1d', '#7c2d12', '#78350f',
-    '#365314', '#14532d', '#064e3b', '#164e63', '#0c4a6e',
-    '#1e3a8a', '#312e81', '#4c1d95', '#701a75', '#881337'
-];
+// Z_INDEX_OFFSETS와 COLORS는 js/utils/constants.js에서 전역으로 정의됨
 
 const { createApp, reactive, ref, onMounted, computed, nextTick } = Vue;
 
@@ -99,7 +90,7 @@ const App = {
             mediaAssetCollapsed: false,
             mediaAssetDragOver: false,
             trackHeightPresets: { low: 40, medium: 80, high: 120, default: 80 },
-            COLORS: COLORS
+            COLORS: typeof COLORS !== 'undefined' ? COLORS : []
         };
     },
     computed: {
@@ -651,7 +642,11 @@ const App = {
             var scaleY = wrapperHeight / canvasH;
             this.canvasScale = Math.min(scaleX, scaleY, 1);
         },
-        getZIndex: function(colIdx, type) { var base = (colIdx * 100) + 100; var offset = Z_INDEX_OFFSETS[type] || 60; return base + offset; },
+        getZIndex: function(colIdx, type) { 
+            var base = (colIdx * 100) + 100; 
+            var offset = (typeof Z_INDEX_OFFSETS !== 'undefined' && Z_INDEX_OFFSETS[type]) ? Z_INDEX_OFFSETS[type] : 60; 
+            return base + offset; 
+        },
         addLayerBox: function(colIdx, type, color) {
             var zIndex = this.getZIndex(colIdx, type);
             var newBox = { id: 'box_' + Date.now(), colIdx: colIdx, type: type, zIndex: zIndex, color: color, x: 1920 - 200 + (colIdx*50), y: 1080 - 150 + (colIdx*50), w: 400, h: 300, rowType: type, isHidden: false };
