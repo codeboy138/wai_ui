@@ -1,6 +1,14 @@
-const { createApp, reactive, ref, onMounted, computed, nextTick } = Vue;
+const Z_INDEX_OFFSETS = { 'BG': 20, 'TXT': 40, 'VID': 60, 'AUD': 80 };
 
-// Z_INDEX_OFFSETS, COLORS는 js/utils/constants.js에서 이미 선언됨
+const COLORS = [
+    '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e',
+    '#10b981', '#06b6d4', '#0ea5e9', '#3b82f6', '#6366f1',
+    '#8b5cf6', '#d946ef', '#f43f5e', '#ffffff', '#9ca3af',
+    '#4b5563', '#000000', '#7f1d1d', '#7c2d12', '#78350f',
+    '#365314', '#14532d', '#064e3b', '#164e63', '#0c4a6e',
+    '#1e3a8a', '#312e81', '#4c1d95', '#701a75', '#881337'
+];
+const { createApp, reactive, ref, onMounted, computed, nextTick } = Vue;
 
 const App = {
     components: { 
@@ -73,6 +81,10 @@ const App = {
             isMouseOverCanvas: false,
             canvasScale: 1.0, 
             
+            // 비디오 메타데이터 캐시 (원본 비율용)
+            videoMetaCache: {},
+            lastActiveClipId: null,
+            
             // 화면 비율 옵션
             aspectRatioOptions: ['원본', '16:9', '9:16', '4:3', '1:1', '21:9'],
             
@@ -106,7 +118,6 @@ const App = {
                 default: 80
             },
             
-            // COLORS는 constants.js에서 가져옴
             COLORS: COLORS
         };
     },
@@ -116,7 +127,7 @@ const App = {
                 width: this.canvasSize.w + 'px', 
                 height: this.canvasSize.h + 'px', 
                 backgroundColor: '#000', 
-                transform: `translate(-50%, -50%) scale(${this.canvasScale})`,
+                transform: 'translate(-50%, -50%) scale(' + this.canvasScale + ')',
                 position: 'absolute', 
                 top: '50%', 
                 left: '50%'
@@ -139,8 +150,6 @@ const App = {
                 });
                 
                 trackClips.forEach(function(clip) {
-                    // z-index: 위쪽 트랙(인덱스 작음) = 높은 z-index
-                    // 트랙 인덱스 0이 가장 위 = 가장 높은 z-index
                     var baseZIndex = (totalTracks - trackIndex) * 100;
                     
                     var box = {
@@ -185,13 +194,11 @@ const App = {
             var layerBoxes = this.canvasBoxes.filter(function(box) { return !box.isHidden; });
             var clipBoxes = this.activeClipBoxes;
             
-            // 클립 박스가 먼저, 레이어 박스가 위에 (레이어 박스는 더 높은 z-index)
             var maxClipZIndex = 0;
             clipBoxes.forEach(function(box) {
                 if (box.zIndex > maxClipZIndex) maxClipZIndex = box.zIndex;
             });
             
-            // 레이어 박스 z-index 조정 (클립 위에 표시)
             var adjustedLayerBoxes = layerBoxes.map(function(box) {
                 return Object.assign({}, box, {
                     zIndex: (box.zIndex || 100) + maxClipZIndex + 100
@@ -200,6 +207,26 @@ const App = {
             
             var allBoxes = clipBoxes.concat(adjustedLayerBoxes);
             return allBoxes.sort(function(a, b) { return (a.zIndex || 0) - (b.zIndex || 0); });
+        },
+        // 현재 플레이헤드 위치의 활성 비디오 클립
+        activeVideoClip() {
+            var self = this;
+            var currentTime = this.currentTime;
+            
+            // 트랙 순서대로 (위쪽 트랙 우선) 비디오 클립 찾기
+            for (var i = 0; i < this.tracks.length; i++) {
+                var track = this.tracks[i];
+                if (track.isHidden) continue;
+                
+                var clip = this.clips.find(function(c) {
+                    if (c.trackId !== track.id) return false;
+                    if (c.type !== 'video') return false;
+                    return currentTime >= c.start && currentTime < c.start + c.duration;
+                });
+                
+                if (clip) return clip;
+            }
+            return null;
         },
         layerConfigBox() {
             if (!this.layerConfig.isOpen || !this.layerConfig.boxId) return null;
@@ -211,18 +238,35 @@ const App = {
     },
     watch: {
         aspectRatio: function(newRatio) {
-            this.updateCanvasSizeFromAspectRatio(newRatio);
+            this.applyAspectRatioImmediate(newRatio);
+        },
+        currentTime: function(newTime) {
+            // 원본 모드일 때 활성 클립 변경 감지
+            if (this.aspectRatio === '원본') {
+                this.checkAndUpdateOriginalAspect();
+            }
+        },
+        activeVideoClip: function(newClip, oldClip) {
+            // 원본 모드에서 활성 비디오 클립이 변경되면 비율 업데이트
+            if (this.aspectRatio === '원본' && newClip) {
+                var newClipId = newClip ? newClip.id : null;
+                var oldClipId = oldClip ? oldClip.id : null;
+                if (newClipId !== oldClipId) {
+                    this.applyOriginalAspectFromClip(newClip);
+                }
+            }
         }
     },
     mounted() {
+        var self = this;
         this.$nextTick(function() { 
-            this.setupPanelResizers(); 
-            this.setupCanvasScaler(); 
-            this.setupInspectorMode(); 
-            this.setupAssetEventListeners();
-            this.setupHeaderMenuClose();
-            this.setupKeyboardShortcuts();
-            this.initPreviewRenderer();
+            self.setupPanelResizers(); 
+            self.setupCanvasScaler(); 
+            self.setupInspectorMode(); 
+            self.setupAssetEventListeners();
+            self.setupHeaderMenuClose();
+            self.setupKeyboardShortcuts();
+            self.initPreviewRenderer();
         });
         window.vm = this; 
     },
@@ -237,7 +281,164 @@ const App = {
         }
     },
     methods: {
-        // --- 키보드 단축키 설정 ---
+        // ========== 화면비율 즉시 연동 ==========
+        applyAspectRatioImmediate: function(ratio) {
+            var self = this;
+            
+            if (ratio === '원본') {
+                // 현재 활성 비디오 클립의 원본 비율 적용
+                var activeClip = this.activeVideoClip;
+                if (activeClip) {
+                    this.applyOriginalAspectFromClip(activeClip);
+                } else {
+                    // 활성 클립 없으면 기본 16:9
+                    this.setCanvasSizeAndUpdate(1920, 1080);
+                }
+            } else {
+                // 고정 비율 적용
+                this.applyFixedAspectRatio(ratio);
+            }
+        },
+        
+        applyFixedAspectRatio: function(ratio) {
+            var baseSize = this.getBaseResolution();
+            var newW, newH;
+            
+            switch(ratio) {
+                case '16:9': 
+                    newW = baseSize; 
+                    newH = Math.round(baseSize * 9 / 16); 
+                    break;
+                case '9:16': 
+                    newH = baseSize; 
+                    newW = Math.round(baseSize * 9 / 16); 
+                    break;
+                case '4:3': 
+                    newW = baseSize; 
+                    newH = Math.round(baseSize * 3 / 4); 
+                    break;
+                case '1:1': 
+                    newW = baseSize; 
+                    newH = baseSize; 
+                    break;
+                case '21:9': 
+                    newW = baseSize; 
+                    newH = Math.round(baseSize * 9 / 21); 
+                    break;
+                default: 
+                    newW = 1920; 
+                    newH = 1080;
+            }
+            
+            this.setCanvasSizeAndUpdate(newW, newH);
+        },
+        
+        applyOriginalAspectFromClip: function(clip) {
+            if (!clip || !clip.src) {
+                this.setCanvasSizeAndUpdate(1920, 1080);
+                return;
+            }
+            
+            var self = this;
+            var cached = this.videoMetaCache[clip.id];
+            
+            if (cached && cached.width && cached.height) {
+                // 캐시된 메타데이터 사용
+                this.setCanvasSizeFromVideoMeta(cached.width, cached.height);
+            } else {
+                // 메타데이터 로드
+                this.loadVideoMetadata(clip, function(meta) {
+                    if (meta && self.aspectRatio === '원본' && self.activeVideoClip && self.activeVideoClip.id === clip.id) {
+                        self.setCanvasSizeFromVideoMeta(meta.width, meta.height);
+                    }
+                });
+            }
+        },
+        
+        setCanvasSizeFromVideoMeta: function(videoWidth, videoHeight) {
+            var baseSize = this.getBaseResolution();
+            var aspectRatio = videoWidth / videoHeight;
+            var newW, newH;
+            
+            if (aspectRatio >= 1) {
+                // 가로가 더 넓음
+                newW = baseSize;
+                newH = Math.round(baseSize / aspectRatio);
+            } else {
+                // 세로가 더 높음
+                newH = baseSize;
+                newW = Math.round(baseSize * aspectRatio);
+            }
+            
+            this.setCanvasSizeAndUpdate(newW, newH);
+        },
+        
+        setCanvasSizeAndUpdate: function(w, h) {
+            var self = this;
+            this.canvasSize = { w: w, h: h };
+            
+            // requestAnimationFrame으로 즉시 스케일 재계산
+            requestAnimationFrame(function() {
+                self.recalculateCanvasScale();
+                
+                if (window.PreviewRenderer && typeof window.PreviewRenderer.setCanvasSize === 'function') {
+                    window.PreviewRenderer.setCanvasSize(self.canvasSize);
+                }
+            });
+        },
+        
+        getBaseResolution: function() {
+            switch(this.resolution) { 
+                case '4K': return 3840; 
+                case 'FHD': return 1920; 
+                case 'HD': return 1280; 
+                default: return 1920; 
+            }
+        },
+        
+        checkAndUpdateOriginalAspect: function() {
+            var activeClip = this.activeVideoClip;
+            var activeClipId = activeClip ? activeClip.id : null;
+            
+            if (activeClipId !== this.lastActiveClipId) {
+                this.lastActiveClipId = activeClipId;
+                if (activeClip) {
+                    this.applyOriginalAspectFromClip(activeClip);
+                }
+            }
+        },
+        
+        loadVideoMetadata: function(clip, callback) {
+            if (!clip.src) {
+                callback(null);
+                return;
+            }
+            
+            var self = this;
+            var video = document.createElement('video');
+            video.preload = 'metadata';
+            video.muted = true;
+            
+            video.onloadedmetadata = function() {
+                var meta = {
+                    width: video.videoWidth,
+                    height: video.videoHeight,
+                    duration: video.duration
+                };
+                self.videoMetaCache[clip.id] = meta;
+                video.remove();
+                callback(meta);
+            };
+            
+            video.onerror = function() {
+                video.remove();
+                callback(null);
+            };
+            
+            video.src = clip.src;
+        },
+        
+        // ========== 키보드 단축키 설정 ==========
         setupKeyboardShortcuts: function() {
             var self = this;
             this._keyboardHandler = function(e) {
@@ -275,30 +476,7 @@ const App = {
             }
         },
         
-        // --- 화면 비율에 따른 캔버스 크기 업데이트 ---
-        updateCanvasSizeFromAspectRatio: function(ratio) {
-            var baseHeight = 1080;
-            var w, h;
-            
-            switch(ratio) {
-                case '원본': w = 1920; h = 1080; break;
-                case '16:9': w = Math.round(baseHeight * 16 / 9); h = baseHeight; break;
-                case '9:16': w = Math.round(baseHeight * 9 / 16); h = baseHeight; break;
-                case '4:3': w = Math.round(baseHeight * 4 / 3); h = baseHeight; break;
-                case '1:1': w = baseHeight; h = baseHeight; break;
-                case '21:9': w = Math.round(baseHeight * 21 / 9); h = baseHeight; break;
-                default: w = 1920; h = 1080;
-            }
-            
-            this.canvasSize = { w: w, h: h };
-            this.recalculateCanvasScale();
-            
-            if (window.PreviewRenderer) {
-                window.PreviewRenderer.setCanvasSize(this.canvasSize);
-            }
-        },
-        
-        // --- Preview Renderer 초기화 ---
+        // ========== Preview Renderer 초기화 ==========
         initPreviewRenderer: function() {
             var canvas = document.getElementById('preview-render-canvas');
             if (canvas && window.PreviewRenderer) {
@@ -306,7 +484,7 @@ const App = {
             }
         },
         
-        // --- Header Menu Methods ---
+        // ========== Header Menu Methods ==========
         setupHeaderMenuClose: function() {
             var self = this;
             this._headerMenuCloseHandler = function(e) {
@@ -330,7 +508,7 @@ const App = {
             this.headerSubmenus[submenu] = !this.headerSubmenus[submenu]; 
         },
         
-        // --- Modal Methods ---
+        // ========== Modal Methods ==========
         openProjectManager: function() { this.closeAllHeaderMenus(); this.projectManagerModal.isOpen = true; },
         closeProjectManager: function() { this.projectManagerModal.isOpen = false; },
         openAssetManager: function(assetType) { this.closeAllHeaderMenus(); this.assetManagerModal.assetType = assetType || 'video'; this.assetManagerModal.isOpen = true; },
@@ -355,7 +533,7 @@ const App = {
             });
         },
         
-        // --- Layer Config/Template Modal Methods ---
+        // ========== Layer Config/Template Modal Methods ==========
         openLayerConfig: function(boxId) { this.layerConfig.isOpen = true; this.layerConfig.boxId = boxId; this.setSelectedBoxId(boxId); },
         closeLayerConfig: function() { this.layerConfig.isOpen = false; this.layerConfig.boxId = null; },
         deleteLayerFromConfig: function() { var box = this.layerConfigBox; if (box) this.removeBox(box.id); this.closeLayerConfig(); },
@@ -380,7 +558,7 @@ const App = {
         updateLayerTemplates: function(templates) { this.layerTemplates = templates; },
         updateLayerTemplateFolders: function(folders) { this.layerTemplateFolders = folders; },
         
-        // --- 미디어 자산 관리 ---
+        // ========== 미디어 자산 관리 ==========
         toggleMediaAssetPanel: function() {
             this.mediaAssetCollapsed = !this.mediaAssetCollapsed;
         },
@@ -528,7 +706,7 @@ const App = {
             return mins + ':' + secs.toString().padStart(2, '0');
         },
         
-        // --- Asset Event Listeners ---
+        // ========== Asset Event Listeners ==========
         setupAssetEventListeners: function() {
             this._handleAssetAddToTimeline = this.handleAssetAddToTimeline.bind(this);
             this._handleTimelineDrop = this.handleTimelineDrop.bind(this);
@@ -634,7 +812,7 @@ const App = {
             return parseFloat(durationStr) || null;
         },
         
-        // --- Playback Controls ---
+        // ========== Playback Controls ==========
         togglePlayback: function() {
             this.isPlaying = !this.isPlaying;
             if (this.isPlaying) {
@@ -656,7 +834,7 @@ const App = {
                 
                 self.currentTime += delta;
                 
-                if (window.PreviewRenderer) {
+                if (window.PreviewRenderer && typeof window.PreviewRenderer.setCurrentTime === 'function') {
                     window.PreviewRenderer.setCurrentTime(self.currentTime);
                 }
                 
@@ -701,21 +879,21 @@ const App = {
         
         seekToStart: function() {
             this.currentTime = 0;
-            if (window.PreviewRenderer) {
+            if (window.PreviewRenderer && typeof window.PreviewRenderer.setCurrentTime === 'function') {
                 window.PreviewRenderer.setCurrentTime(0);
             }
         },
         
         seekToEnd: function() {
             this.currentTime = this.getMaxClipEnd();
-            if (window.PreviewRenderer) {
+            if (window.PreviewRenderer && typeof window.PreviewRenderer.setCurrentTime === 'function') {
                 window.PreviewRenderer.setCurrentTime(this.currentTime);
             }
         },
         
         seekBackward: function() {
             this.currentTime = Math.max(0, this.currentTime - 5);
-            if (window.PreviewRenderer) {
+            if (window.PreviewRenderer && typeof window.PreviewRenderer.setCurrentTime === 'function') {
                 window.PreviewRenderer.setCurrentTime(this.currentTime);
             }
         },
@@ -723,7 +901,7 @@ const App = {
         seekForward: function() {
             var maxTime = this.getMaxClipEnd();
             this.currentTime = Math.min(maxTime, this.currentTime + 5);
-            if (window.PreviewRenderer) {
+            if (window.PreviewRenderer && typeof window.PreviewRenderer.setCurrentTime === 'function') {
                 window.PreviewRenderer.setCurrentTime(this.currentTime);
             }
         },
@@ -737,7 +915,7 @@ const App = {
             return max || 60;
         },
 
-        // --- System & Dev Mode ---
+        // ========== System & Dev Mode ==========
         firePython: function(f) {
             console.log('Py:', f);
             if (window.backend && window.backend[f]) {
@@ -834,12 +1012,14 @@ const App = {
             return lines.join('\n') || 'No dev info';
         },
 
-        // --- Preview/Canvas Logic ---
+        // ========== Preview/Canvas Logic ==========
         setAspect: function(r) { 
             this.aspectRatio = r; 
         },
         setResolution: function(r) { 
-            this.resolution = r; 
+            this.resolution = r;
+            // 해상도 변경 시 현재 비율에 맞게 캔버스 크기 재계산
+            this.applyAspectRatioImmediate(this.aspectRatio);
         },
         updateCanvasMouseCoord: function(e) {
             var wrapper = document.getElementById('preview-canvas-wrapper');
@@ -871,7 +1051,7 @@ const App = {
             };
         },
         
-        // --- Layout Resizer Handlers ---
+        // ========== Layout Resizer Handlers ==========
         setupPanelResizers: function() {
             var self = this;
             var setup = function(rid, stateKey, minSize, dir, isReverse) {
@@ -898,7 +1078,10 @@ const App = {
                         self.previewContainerHeight = effectiveHeight + 'px';
                         self.timelineContainerHeight = 'calc(100% - ' + effectiveHeight + 'px)';
                     }
-                    self.recalculateCanvasScale();
+                    // 즉시 캔버스 스케일 재계산
+                    requestAnimationFrame(function() {
+                        self.recalculateCanvasScale();
+                    });
                 };
                 
                 var onUp = function() {
@@ -928,9 +1111,7 @@ const App = {
             if (!wrapper) return;
             
             var updateScale = function() {
-                var padding = 20; 
-                var scale = Math.min((wrapper.clientWidth - padding)/self.canvasSize.w, (wrapper.clientHeight - padding)/self.canvasSize.h); 
-                self.canvasScale = scale;
+                self.recalculateCanvasScale();
             };
 
             updateScale();
@@ -944,11 +1125,24 @@ const App = {
         recalculateCanvasScale: function() {
             var wrapper = document.getElementById('preview-canvas-wrapper');
             if (!wrapper) return;
-            var padding = 20;
-            this.canvasScale = Math.min((wrapper.clientWidth - padding)/this.canvasSize.w, (wrapper.clientHeight - padding)/this.canvasSize.h);
+            
+            var padding = 40; // 여유 공간
+            var wrapperWidth = wrapper.clientWidth - padding;
+            var wrapperHeight = wrapper.clientHeight - padding;
+            
+            if (wrapperWidth <= 0 || wrapperHeight <= 0) return;
+            
+            var canvasW = this.canvasSize.w;
+            var canvasH = this.canvasSize.h;
+            
+            // 캔버스가 패널 안에 완전히 들어가도록 스케일 계산
+            var scaleX = wrapperWidth / canvasW;
+            var scaleY = wrapperHeight / canvasH;
+            
+            this.canvasScale = Math.min(scaleX, scaleY, 1); // 최대 1배
         },
 
-        // --- Core Model Methods (Clips/Boxes) ---
+        // ========== Core Model Methods (Clips/Boxes) ==========
         getZIndex: function(colIdx, type) {
             var base = (colIdx * 100) + 100;
             var offset = Z_INDEX_OFFSETS[type] || 60;
