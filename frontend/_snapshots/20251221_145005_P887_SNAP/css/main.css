@@ -622,89 +622,46 @@ html, body {
 }
 
 /* ================================
-   클립 드래그 스타일 (캡컷 스타일)
+   클립 드래그 스타일
    ================================ */
-.clip.dragging-free {
-    opacity: 0.85;
-    z-index: 1000 !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 2px var(--color-ui-accent);
-    transform: scale(1.02);
-    pointer-events: none;
-}
-
 .clip.dragging {
-    opacity: 0.8;
-    z-index: 100;
-}
-
-.clip.dragging-out {
-    opacity: 0.5;
-    border: 2px dashed #3b82f6 !important;
-    box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+    opacity: 0.4;
+    pointer-events: none;
 }
 
 /* 드래그 고스트 */
 .clip-drag-ghost {
     position: absolute;
-    background: rgba(59, 130, 246, 0.8);
-    border: 2px solid #3b82f6;
-    border-radius: 4px;
     pointer-events: none;
-    z-index: 1001;
-    display: flex;
-    align-items: center;
-    min-height: 30px;
-    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.4);
+    z-index: 1000;
+    border-radius: 4px;
+    opacity: 0.8;
+    border: 2px solid #fff;
 }
 
 /* ================================
-   클립 삽입 인디케이터
+   클립 삽입 인디케이터 (][ 모양)
    ================================ */
 .clip-insert-indicator {
     position: absolute;
-    top: 2px;
-    bottom: 2px;
-    width: 4px;
-    background: #22c55e;
-    border-radius: 2px;
+    top: 4px;
+    bottom: 4px;
+    width: 8px;
     pointer-events: none;
     z-index: 50;
-    box-shadow: 0 0 12px #22c55e, 0 0 4px #22c55e;
-    animation: insertPulse 0.8s ease-in-out infinite;
-}
-
-.clip-insert-indicator::before,
-.clip-insert-indicator::after {
-    content: "";
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    border-left: 8px solid transparent;
-    border-right: 8px solid transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform: translateX(-4px);
 }
 
 .clip-insert-indicator::before {
-    top: -8px;
-    border-bottom: 8px solid #22c55e;
-}
-
-.clip-insert-indicator::after {
-    bottom: -8px;
-    border-top: 8px solid #22c55e;
-}
-
-@keyframes insertPulse {
-    0%, 100% { opacity: 1; box-shadow: 0 0 12px #22c55e, 0 0 4px #22c55e; }
-    50% { opacity: 0.7; box-shadow: 0 0 20px #22c55e, 0 0 8px #22c55e; }
-}
-
-@keyframes clipSnapFlash {
-    0% { box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.8); }
-    100% { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2); }
-}
-
-.clip.snap-flash {
-    animation: clipSnapFlash 0.5s ease-out;
+    content: "][";
+    font-size: 12px;
+    font-weight: bold;
+    font-family: monospace;
+    color: #22c55e;
+    letter-spacing: -2px;
 }
 
 /* ================================
@@ -772,7 +729,7 @@ html, body {
     background: linear-gradient(180deg, rgba(0,0,0,0.05) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.1) 100%);
     pointer-events: none;
 }
-
+Copy// 코드연결지점
 .clip-filmstrip-placeholder {
     flex-shrink: 0;
     height: 100%;
@@ -1707,6 +1664,52 @@ body:not(.dev-mode-active):not(.dev-mode-full) .dev-highlight { display: none; }
 .header-resize-handle:hover,
 .header-resize-handle.resizing {
     background: var(--color-ui-accent);
+}
+
+/* ================================
+   플레이헤드 라인 (타임라인 패널 내)
+   ================================ */
+.playhead-line-body {
+    position: absolute;
+    top: 24px;
+    width: 2px;
+    background: #ef4444;
+    pointer-events: none;
+    z-index: 35;
+    transform: translateX(-1px);
+}
+
+.playhead-head {
+    position: absolute;
+    top: 2px;
+    width: 12px;
+    height: 20px;
+    background: transparent;
+    border: 2px solid #ef4444;
+    border-radius: 0 0 4px 4px;
+    transform: translateX(-6px);
+    cursor: ew-resize;
+    z-index: 50;
+}
+
+.playhead-head::after {
+    content: "";
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid #ef4444;
+}
+
+/* ================================
+   타임라인 셀렉트 스타일
+   ================================ */
+.timeline-select-no-arrow {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
 }
 
 /* === END OF FILE === */
