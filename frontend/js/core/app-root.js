@@ -21,11 +21,12 @@ const App = {
         'layer-template-modal': LayerTemplateModal,
         'preview-canvas': PreviewCanvas,
         'timeline-panel': TimelinePanel,
-        'ruler-line': RulerLine
+        'ruler-line': RulerLine,
+        'clip-box-manager': ClipBoxManager
     },
     data() {
         return {
-            leftPanelWidth: 240, 
+            leftPanelWidth: 320, 
             rightPanelWidth: 320,
             previewContainerHeight: '50%', 
             timelineContainerHeight: '50%',
@@ -273,6 +274,10 @@ const App = {
             video.onerror = function() { video.remove(); callback(null); };
             video.src = clip.src;
         },
+
+/* 코드연결지점 */
+/* 코드연결지점 */
+
         setupKeyboardShortcuts: function() {
             var self = this;
             this._keyboardHandler = function(e) {
@@ -544,6 +549,10 @@ const App = {
         addCol: function() { this.layerCols.push({ id: 'lc_' + Date.now(), name: 'New', color: '#333' }); },
         openCtx: function(e, id) { this.ctxMenu = { x: e.clientX, y: e.clientY, id: id }; },
         setColColor: function(c) { var self = this; var col = this.layerCols.find(function(x) { return x.id === self.ctxMenu.id; }); if(col) col.color = c; this.ctxMenu = null; },
+
+/* 코드연결지점 */
+/* 코드연결지점 */
+
         setupInspectorMode: function() {
             var self = this;
             document.addEventListener('mousemove', function(e) {
