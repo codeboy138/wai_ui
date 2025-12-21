@@ -40,12 +40,9 @@ const App = {
             imageEffectModal: { isOpen: false },
             visualizationModal: { isOpen: false },
             apiManagerModal: { isOpen: false },
+            // 초기 트랙: 메인 트랙 1개만
             tracks: [
-                { id: 't1', name: 'NONE', type: 'video', color: '#64748b', isMain: false, isHidden: false, isLocked: false, height: 80 },
-                { id: 't2', name: 'NONE', type: 'text', color: '#eab308', isMain: false, isHidden: false, isLocked: false, height: 80 },
-                { id: 't3', name: 'NONE', type: 'video', color: '#22c55e', isMain: true, isHidden: false, isLocked: false, height: 80 },
-                { id: 't4', name: 'NONE', type: 'text', color: '#3b82f6', isMain: false, isHidden: false, isLocked: false, height: 80 },
-                { id: 't5', name: 'NONE', type: 'audio', color: '#a855f7', isMain: false, isHidden: false, isLocked: false, height: 60 }
+                { id: 't1', name: 'Main', type: 'video', color: '#3b82f6', isMain: true, isHidden: false, isLocked: false, height: 80 }
             ],
             clips: [],
             canvasBoxes: [],
