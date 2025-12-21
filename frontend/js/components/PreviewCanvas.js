@@ -1,6 +1,7 @@
 // Preview Canvas Component - Enhanced
 // 자산 드롭 수신, 캔버스-타임라인 연동, 비디오 시간 동기화
 // 레이어 박스 + 활성 클립 박스 병합 표시
+// 비디오 동기화 정확도 향상 (seek 임계값 0.05초)
 
 const PreviewCanvas = {
   name: 'PreviewCanvas',
@@ -27,7 +28,10 @@ const PreviewCanvas = {
       isDropTarget: false,
       videoElements: {},
       lastSyncTime: -1,
-      videoReadyState: {}
+      videoReadyState: {},
+      // 동기화 정확도 향상
+      SYNC_THRESHOLD: 0.05,  // 50ms
+      SEEK_COOLDOWN: 50      // seek 후 대기 시간 (ms)
     };
   },
 
@@ -35,7 +39,6 @@ const PreviewCanvas = {
     overlayStyle() {
       return { position: 'absolute', inset: '0', pointerEvents: 'auto', overflow: 'visible' };
     },
-    // 표시할 박스: canvasBoxes는 이미 부모에서 병합된 상태로 전달됨
     visibleBoxes() {
       return this.canvasBoxes
         .filter(box => !box.isHidden)
@@ -71,16 +74,13 @@ const PreviewCanvas = {
   },
 
   methods: {
-    // 비디오 요소 관리 - 새로운 클립 박스에 대해 비디오 요소 초기화
     updateVideoElements() {
       const currentBoxIds = new Set();
       
-      // 현재 보이는 비디오 박스들 처리
       this.visibleBoxes.forEach(box => {
         if (box.mediaType !== 'video' || !box.mediaSrc) return;
         currentBoxIds.add(box.id);
         
-        // 이미 등록된 비디오가 아니면 초기화
         if (!this.videoElements[box.id]) {
           this.$nextTick(() => {
             const videoEl = this.$refs[`video_${box.id}`];
@@ -102,7 +102,13 @@ const PreviewCanvas = {
                 this.videoReadyState[box.id] = true;
               });
               
-              // 이미 로드된 경우
+              video.addEventListener('seeked', () => {
+                // seek 완료 후 재생 상태 복원
+                if (this.isPlaying && video.paused) {
+                  video.play().catch(() => {});
+                }
+              });
+              
               if (video.readyState >= 1) {
                 this.videoReadyState[box.id] = true;
                 this.syncVideoToTime(box, this.currentTime);
@@ -112,7 +118,6 @@ const PreviewCanvas = {
         }
       });
       
-      // 더 이상 보이지 않는 비디오 정리
       Object.keys(this.videoElements).forEach(boxId => {
         if (!currentBoxIds.has(boxId)) {
           const video = this.videoElements[boxId];
@@ -135,16 +140,19 @@ const PreviewCanvas = {
         if (!video) return;
         
         if (isPlaying) {
-          // 클립 박스인 경우 시간 범위 확인
           if (box.clipId) {
             const localTime = this.currentTime - box.clipStart;
             if (localTime >= 0 && localTime < box.clipDuration) {
+              // 먼저 정확한 시간으로 seek 후 재생
+              const targetTime = Math.max(0, Math.min(localTime, video.duration || localTime));
+              if (Math.abs(video.currentTime - targetTime) > this.SYNC_THRESHOLD) {
+                video.currentTime = targetTime;
+              }
               video.play().catch(err => {
                 console.warn('[PreviewCanvas] Video play failed:', err.message);
               });
             }
           } else {
-            // 레이어 박스는 항상 재생
             video.play().catch(err => {
               console.warn('[PreviewCanvas] Video play failed:', err.message);
             });
@@ -156,8 +164,9 @@ const PreviewCanvas = {
     },
 
     syncAllVideos(currentTime) {
-      // 너무 빈번한 동기화 방지
-      if (Math.abs(currentTime - this.lastSyncTime) < 0.016) return; // ~60fps
+      // 더 정밀한 동기화 (프레임 단위)
+      const timeDiff = Math.abs(currentTime - this.lastSyncTime);
+      if (timeDiff < 0.016) return; // ~60fps
       this.lastSyncTime = currentTime;
       
       this.visibleBoxes.forEach(box => {
@@ -170,7 +179,6 @@ const PreviewCanvas = {
     syncVideoToTime(box, globalTime) {
       let video = this.videoElements[box.id];
       
-      // 비디오 요소가 없으면 refs에서 가져오기 시도
       if (!video) {
         const videoEl = this.$refs[`video_${box.id}`];
         if (videoEl && videoEl[0]) { 
@@ -183,37 +191,36 @@ const PreviewCanvas = {
         }
       }
       
-      // 비디오가 준비되지 않았으면 스킵
       if (!this.videoReadyState[box.id] && video.readyState < 1) {
         return;
       }
       
-      // 클립 연동 박스의 경우 로컬 시간 계산
       if (box.clipId && typeof box.clipStart === 'number') {
         const localTime = globalTime - box.clipStart;
         const clipDuration = box.clipDuration || video.duration || 1000;
         
-        // 클립 시간 범위 내인지 확인
         if (localTime >= 0 && localTime < clipDuration) {
-          const targetTime = Math.max(0, Math.min(localTime, video.duration || localTime));
+          const videoDuration = video.duration || clipDuration;
+          const targetTime = Math.max(0, Math.min(localTime, videoDuration));
           
-          // 시간 차이가 0.1초 이상이면 seek
-          if (Math.abs(video.currentTime - targetTime) > 0.1) {
-            video.currentTime = targetTime;
+          // 더 정밀한 seek 임계값 (0.05초)
+          const timeDiff = Math.abs(video.currentTime - targetTime);
+          if (timeDiff > this.SYNC_THRESHOLD) {
+            // seeking 중이 아닐 때만 seek
+            if (!video.seeking) {
+              video.currentTime = targetTime;
+            }
           }
           
-          // 재생 중이고 비디오가 멈춰있으면 재생
-          if (this.isPlaying && video.paused) {
+          if (this.isPlaying && video.paused && !video.seeking) {
             video.play().catch(() => {});
           }
         } else {
-          // 클립 범위 밖이면 일시정지 및 숨김 처리
           if (!video.paused) {
             video.pause();
           }
         }
       } else {
-        // 레이어관리 박스 (항상 처음부터 재생)
         if (this.isPlaying && video.paused) {
           video.play().catch(() => {});
         } else if (!this.isPlaying && !video.paused) {
@@ -238,7 +245,6 @@ const PreviewCanvas = {
       const isSelected = (this.selectedBoxId === box.id);
       const isClipBox = !!box.clipId;
       
-      // 클립 박스가 현재 시간 범위 밖이면 숨김
       if (isClipBox) {
         const localTime = this.currentTime - box.clipStart;
         if (localTime < 0 || localTime >= box.clipDuration) {
@@ -277,12 +283,9 @@ const PreviewCanvas = {
     hasMedia(box) { return box.mediaType && box.mediaType !== 'none' && box.mediaSrc; },
     isImage(box) { return box.mediaType === 'image'; },
     isVideo(box) { return box.mediaType === 'video'; },
-
-    // 클립 박스인지 확인
     isClipBox(box) { return !!box.clipId; },
 
     labelStyle(box) {
-      // 클립 박스는 레이블 숨김
       if (box.clipId) return { display: 'none' };
       
       const fontSize = 40;
@@ -415,7 +418,6 @@ const PreviewCanvas = {
       this.videoReadyState[box.id] = true;
       this.syncVideoToTime(box, this.currentTime);
       if (this.isPlaying) {
-        // 클립 박스인 경우 시간 범위 확인
         if (box.clipId) {
           const localTime = this.currentTime - box.clipStart;
           if (localTime >= 0 && localTime < box.clipDuration) {
@@ -430,7 +432,6 @@ const PreviewCanvas = {
     onBoxContextMenu(e, box) {
       e.preventDefault();
       e.stopPropagation();
-      // 클립 박스는 컨텍스트 메뉴 비활성화
       if (box.clipId) return;
       
       this.$emit('select-box', box.id);
@@ -440,7 +441,6 @@ const PreviewCanvas = {
     },
 
     onBoxMouseDown(e, box) {
-      // 클립 박스는 드래그 비활성화
       if (box.clipId) return;
       
       if (e.target.classList.contains('box-handle')) return;
@@ -451,7 +451,6 @@ const PreviewCanvas = {
     },
 
     onHandleMouseDown(e, box, handle) {
-      // 클립 박스는 리사이즈 비활성화
       if (box.clipId) return;
       
       e.stopPropagation();
@@ -622,9 +621,8 @@ const PreviewCanvas = {
       window.removeEventListener('mouseup', this.onWindowMouseUp);
     },
     
-    // 박스가 현재 시간에 보여야 하는지 확인
     shouldShowBox(box) {
-      if (!box.clipId) return true; // 레이어 박스는 항상 표시
+      if (!box.clipId) return true;
       
       const localTime = this.currentTime - box.clipStart;
       return localTime >= 0 && localTime < box.clipDuration;
