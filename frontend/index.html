@@ -134,9 +134,6 @@
                 <timeline-panel :vm="$data" :style="{ height: timelineContainerHeight }"></timeline-panel>
             </section>
 
-<!-- 코드연결지점 -->
-<!-- 코드연결지점 -->
-
             <!-- Right Panel -->
             <aside id="main-right-panel" class="bg-bg-panel flex flex-col relative border-l border-ui-border" :style="{ width: rightPanelWidth + 'px', minWidth: '250px' }">
                 <div id="main-right-resizer-v" class="panel-resizer-v left-0" title="우측 패널 너비 조절" data-action="js:resizePanelRight"></div>
@@ -284,11 +281,19 @@
     <script src="js/components/LayerTemplateModal.js"></script>
     <script src="js/components/LayerPanel.js"></script>
     <script src="js/components/PreviewCanvas.js"></script>
+    
+    <!-- 3. Timeline Mixins (Before TimelinePanel) -->
+    <script src="js/components/timeline/mixins/timelineHistoryMixin.js"></script>
+    <script src="js/components/timeline/mixins/timelineZoomMixin.js"></script>
+    <script src="js/components/timeline/mixins/timelineAudioMixin.js"></script>
+    
+    <!-- 4. Timeline Panel -->
     <script src="js/components/TimelinePanel.js"></script>
-    <!-- 3. ClipBox Manager Component -->
+    
+    <!-- 5. ClipBox Manager Component -->
     <script src="js/components/ClipBoxManager.js"></script>
     
-    <!-- 4. Core (Last) -->
+    <!-- 6. Core (Last) -->
     <script src="js/core/preview-renderer.js"></script>
     <script src="js/core/app-root.js"></script>
     <script src="js/core/bootstrap.js"></script>
