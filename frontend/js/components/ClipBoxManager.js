@@ -1,11 +1,12 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   WAI-UI ClipBox Manager v4
+   WAI-UI ClipBox Manager v5
    파일: js/components/ClipBoxManager.js
    
-   v4 변경사항:
-   - 헤더: 텍스트 가져오기/설정 아이콘 삭제, 접기 화살표 추가
-   - 전역설정: 기본 프롬프트 접두사 제거, 프롬프트 관리/편집 버튼 추가
-   - 색상 선택: 표시창 클릭 시 모달로 색상 옵션 표시 (LayerPanel 팔레트 사용)
+   v5 변경사항:
+   - 레이어 관리 UI 스타일 완전 통일
+   - 전역설정 바 제거, 헤더에 통합
+   - 클립 접기/펼치기 개선
+   - 토큰/텍스트 필드 스타일 통일
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -14,15 +15,15 @@
 window.WAICB = window.WAICB || {};
 
 WAICB.CONST = {
-    STORAGE_KEY: 'waicb_v4_data',
+    STORAGE_KEY: 'waicb_v5_data',
     AUTOSAVE_DELAY: 2000,
     TOAST_DURATION: 3000,
     
     ASPECT_RATIOS: {
-        '9:16': { w: 1080, h: 1920, label: '쇼츠 (9:16)' },
-        '16:9': { w: 1920, h: 1080, label: '가로 (16:9)' },
-        '1:1': { w: 1080, h: 1080, label: '정사각 (1:1)' },
-        '4:5': { w: 1080, h: 1350, label: '인스타 (4:5)' }
+        '9:16': { w: 1080, h: 1920, label: '9:16' },
+        '16:9': { w: 1920, h: 1080, label: '16:9' },
+        '1:1': { w: 1080, h: 1080, label: '1:1' },
+        '4:5': { w: 1080, h: 1350, label: '4:5' }
     },
     
     SLOT_ROLES: ['full', 'high', 'mid', 'low'],
@@ -68,7 +69,6 @@ WAICB.CONST = {
         { id: 'cinematic', label: '시네마틱' }
     ],
     
-    // 색상 팔레트 (LayerPanel과 동일)
     COLOR_PALETTE: {
         rainbow: [
             '#ff0000', '#ff4400', '#ff8800', '#ffcc00', '#ffff00', '#ccff00',
@@ -300,6 +300,7 @@ WAICB.createDefaultClip = function(order) {
         voiceStatus: 'idle',
         voiceSrc: null,
         isExpanded: false,
+        useGlobalVoice: true,
         expandedSections: {
             image: false,
             voice: false,
@@ -324,7 +325,7 @@ WAICB.Store = (function() {
     
     function save() {
         var data = {
-            version: 4,
+            version: 5,
             globalSettings: _globalSettings,
             clips: _clips,
             savedAt: Date.now()
@@ -710,9 +711,6 @@ WAICB.Resolver = (function() {
     };
 })();
 
-/* 코드연결지점 */
-/* 코드연결지점 */
-
 /* ─────────────────────────────────────────────────────────────────────────────
    블록 6: Vue 컴포넌트 - ClipBoxColorPicker (색상 선택 모달)
    ───────────────────────────────────────────────────────────────────────────── */
@@ -773,7 +771,7 @@ var ClipBoxColorPicker = {
     <div v-if="isOpen" class="wai-cb-color-modal" @click.stop>\
         <div class="wai-cb-color-modal__header">\
             <span class="wai-cb-color-modal__title">색상 선택</span>\
-            <button class="wai-cb-btn wai-cb-btn--icon wai-cb-btn--xs" @click="closePicker"><i class="fas fa-times"></i></button>\
+            <button class="wai-cb-btn wai-cb-btn--icon" @click="closePicker"><i class="fas fa-times"></i></button>\
         </div>\
         \
         <div class="wai-cb-color-modal__body">\
@@ -805,20 +803,6 @@ var ClipBoxColorPicker = {
                     <div \
                         v-for="color in palette.frequent" \
                         :key="\'f-\' + color" \
-                        class="wai-cb-color-swatch" \
-                        :class="{ \'wai-cb-color-swatch--selected\': currentColor === color }"\
-                        :style="{ backgroundColor: color }" \
-                        @click="selectColor(color)"\
-                    ></div>\
-                </div>\
-            </div>\
-            \
-            <div class="wai-cb-color-section">\
-                <div class="wai-cb-color-section__label">보색</div>\
-                <div class="wai-cb-color-grid">\
-                    <div \
-                        v-for="color in palette.complementary" \
-                        :key="\'c-\' + color" \
                         class="wai-cb-color-swatch" \
                         :class="{ \'wai-cb-color-swatch--selected\': currentColor === color }"\
                         :style="{ backgroundColor: color }" \
@@ -947,25 +931,25 @@ var ClipBoxSlotSettings = {
     template: '\
 <div class="wai-cb-slot-settings">\
     <div v-if="!hasSlots" class="wai-cb-slots-empty">\
-        <span class="wai-cb-text--hint">활성화된 슬롯이 없습니다.</span>\
+        <span class="wai-cb-text--hint">활성화된 슬롯이 없습니다</span>\
     </div>\
     \
     <div v-if="hasTextSlots" class="wai-cb-slot-group">\
-        <div class="wai-cb-slot-group__header"><i class="fas fa-font"></i><span class="wai-cb-label">텍스트 슬롯</span></div>\
+        <div class="wai-cb-slot-group__header"><i class="fas fa-font"></i><span>텍스트 슬롯</span></div>\
         <div v-for="slot in textSlots" :key="slot.slotKey" class="wai-cb-slot-item">\
             <div class="wai-cb-slot-item__header">\
                 <span class="wai-cb-slot-item__label">{{ getSlotLabel(slot.slotKey) }}</span>\
                 <div class="wai-cb-slot-item__actions">\
-                    <button class="wai-cb-btn wai-cb-btn--icon wai-cb-btn--xs" @click="copyRawTextToSlot(slot.slotKey)" title="클립 텍스트 복사"><i class="fas fa-copy"></i></button>\
-                    <button class="wai-cb-btn wai-cb-btn--icon wai-cb-btn--xs" @click="clearSlotText(slot.slotKey)" title="지우기"><i class="fas fa-times"></i></button>\
+                    <button class="wai-cb-btn wai-cb-btn--icon" @click="copyRawTextToSlot(slot.slotKey)" title="클립 텍스트 복사"><i class="fas fa-copy"></i></button>\
+                    <button class="wai-cb-btn wai-cb-btn--icon" @click="clearSlotText(slot.slotKey)" title="지우기"><i class="fas fa-times"></i></button>\
                 </div>\
             </div>\
-            <textarea class="wai-cb-textarea wai-cb-textarea--auto" :value="getBindingText(slot.slotKey)" @input="onTextChange(slot.slotKey, $event)" placeholder="슬롯에 표시할 텍스트..." rows="1"></textarea>\
+            <textarea class="wai-cb-textarea" :value="getBindingText(slot.slotKey)" @input="onTextChange(slot.slotKey, $event)" placeholder="슬롯에 표시할 텍스트" rows="1"></textarea>\
         </div>\
     </div>\
     \
     <div v-if="hasBgSlots" class="wai-cb-slot-group">\
-        <div class="wai-cb-slot-group__header"><i class="fas fa-image"></i><span class="wai-cb-label">배경 슬롯</span></div>\
+        <div class="wai-cb-slot-group__header"><i class="fas fa-image"></i><span>배경 슬롯</span></div>\
         <div v-for="slot in bgSlots" :key="slot.slotKey" class="wai-cb-slot-item">\
             <div class="wai-cb-slot-item__header"><span class="wai-cb-slot-item__label">{{ getSlotLabel(slot.slotKey) }}</span></div>\
             <div class="wai-cb-slot-item__body">\
@@ -1013,24 +997,10 @@ var ClipBoxItem = {
     
     computed: {
         clipNumber: function() { return '#' + (this.index + 1); },
-        voiceStatusIcon: function() {
-            var s = this.clip.voiceStatus;
-            if (s === 'done') return 'fa-circle text-green-500';
-            if (s === 'generating') return 'fa-circle-notch fa-spin text-yellow-500';
-            if (s === 'error') return 'fa-circle-xmark text-red-500';
-            return 'fa-circle text-zinc-600';
-        },
-        imageStatusIcon: function() {
-            var s = this.clip.imageStatus;
-            if (s === 'done') return 'fa-circle text-green-500';
-            if (s === 'generating') return 'fa-circle-notch fa-spin text-yellow-500';
-            if (s === 'error') return 'fa-circle-xmark text-red-500';
-            return 'fa-circle text-zinc-600';
-        },
         voiceStatusClass: function() { return 'wai-cb-status--' + (this.clip.voiceStatus || 'idle'); },
         imageStatusClass: function() { return 'wai-cb-status--' + (this.clip.imageStatus || 'idle'); },
         resolvedVoice: function() { return WAICB.Resolver.resolveVoice(this.globalSettings.voice, this.clip.voiceOverride); },
-        useGlobalVoice: function() { return !this.clip.voiceOverride; },
+        useGlobalVoice: function() { return this.clip.useGlobalVoice !== false; },
         activeSlotsCount: function() { return this.activeSlots.length; },
         boundSlotsCount: function() {
             var bindings = this.clip.slotBindings || {};
@@ -1083,11 +1053,7 @@ var ClipBoxItem = {
             this.autoResizeTextarea(e.target);
         },
         toggleGlobalVoice: function() {
-            if (this.useGlobalVoice) {
-                this.$emit('update', this.clip.id, { voiceOverride: WAICB.Utils.clone(this.globalSettings.voice) });
-            } else {
-                this.$emit('update', this.clip.id, { voiceOverride: null });
-            }
+            this.$emit('update', this.clip.id, { useGlobalVoice: !this.useGlobalVoice });
         },
         onVoiceFieldChange: function(field, value) {
             var override = WAICB.Utils.clone(this.clip.voiceOverride || {});
@@ -1114,271 +1080,96 @@ var ClipBoxItem = {
     },
     
     template: '\
-<div class="wai-cb-panel wai-cb-clip" :class="{ \'wai-cb-clip--expanded\': clip.isExpanded }">\
+<div class="wai-cb-clip" :class="{ \'wai-cb-clip--expanded\': clip.isExpanded }">\
+    <!-- 클립 헤더 -->\
     <div class="wai-cb-clip__header">\
-        <div class="wai-cb-clip__title">\
+        <div class="wai-cb-clip__header-left">\
+            <button class="wai-cb-btn wai-cb-btn--icon" @click="toggleExpand" :title="clip.isExpanded ? \'접기\' : \'펼치기\'">\
+                <i :class="clip.isExpanded ? \'fas fa-chevron-down\' : \'fas fa-chevron-right\'"></i>\
+            </button>\
             <span class="wai-cb-clip__number">{{ clipNumber }}</span>\
-            <i class="fas fa-microphone" :class="voiceStatusIcon" style="font-size:8px"></i>\
-            <i class="fas fa-image" :class="imageStatusIcon" style="font-size:8px"></i>\
         </div>\
-        <div class="wai-cb-clip__actions">\
-            <button class="wai-cb-btn wai-cb-btn--icon wai-cb-btn--xs" @click="toggleExpand" :title="clip.isExpanded ? \'접기\' : \'펼치기\'"><i :class="clip.isExpanded ? \'fas fa-chevron-up\' : \'fas fa-chevron-down\'"></i></button>\
+        <div class="wai-cb-clip__header-right">\
+            <button class="wai-cb-btn wai-cb-btn--text wai-cb-btn--danger" @click="onDelete">삭제</button>\
         </div>\
     </div>\
     \
-    <div class="wai-cb-clip__text">\
-        <textarea class="wai-cb-textarea wai-cb-textarea--auto" :value="localText" @input="onTextInput" placeholder="텍스트를 입력하세요..." rows="1"></textarea>\
-    </div>\
-    \
+    <!-- 토큰 필드 (항상 표시) -->\
     <div class="wai-cb-clip__tokens">\
         <clip-box-tokens :tokens="clip.tokens" :clip-id="clip.id"></clip-box-tokens>\
     </div>\
     \
-    <div class="wai-cb-clip__sections">\
-        <div class="wai-cb-section">\
-            <div class="wai-cb-section__header" @click="toggleSection(\'image\')">\
-                <i :class="isSectionExpanded(\'image\') ? \'fas fa-chevron-down\' : \'fas fa-chevron-right\'" class="wai-cb-section__toggle"></i>\
-                <span class="wai-cb-section__title">이미지 생성</span>\
-                <span class="wai-cb-section__status" :class="imageStatusClass">{{ clip.imageStatus === "done" ? "완료" : clip.imageStatus === "generating" ? "생성중..." : "" }}</span>\
-            </div>\
-            <div class="wai-cb-section__body" v-show="isSectionExpanded(\'image\')">\
-                <textarea class="wai-cb-textarea wai-cb-textarea--auto" :value="clip.imagePrompt" @input="onImagePromptChange" placeholder="이미지 생성 프롬프트..." rows="1"></textarea>\
-                <div class="wai-cb-section__actions">\
-                    <button class="wai-cb-btn wai-cb-btn--primary wai-cb-btn--xs" @click="generateImage" :disabled="clip.imageStatus === \'generating\'"><i class="fas fa-wand-magic-sparkles"></i> 생성</button>\
-                </div>\
-                <div v-if="clip.imageSrc" class="wai-cb-section__preview"><img :src="clip.imageSrc" class="wai-cb-img-preview" /></div>\
-            </div>\
-        </div>\
-        \
-        <div class="wai-cb-section">\
-            <div class="wai-cb-section__header" @click="toggleSection(\'voice\')">\
-                <i :class="isSectionExpanded(\'voice\') ? \'fas fa-chevron-down\' : \'fas fa-chevron-right\'" class="wai-cb-section__toggle"></i>\
-                <span class="wai-cb-section__title">보이스 생성</span>\
-                <span class="wai-cb-section__status" :class="voiceStatusClass">{{ clip.voiceStatus === "done" ? "완료" : clip.voiceStatus === "generating" ? "생성중..." : "" }}</span>\
-            </div>\
-            <div class="wai-cb-section__body" v-show="isSectionExpanded(\'voice\')">\
-                <div class="wai-cb-row"><label class="wai-cb-checkbox-label"><input type="checkbox" class="wai-cb-checkbox" :checked="useGlobalVoice" @change="toggleGlobalVoice" /><span>전역 설정 사용</span></label></div>\
-                <div v-if="!useGlobalVoice" class="wai-cb-voice-override">\
-                    <div class="wai-cb-row"><span class="wai-cb-label">음성</span><select class="wai-cb-select wai-cb-grow" :value="resolvedVoice.voiceId" @change="onVoiceFieldChange(\'voiceId\', $event.target.value)"><option v-for="preset in voicePresets" :key="preset.id" :value="preset.id">{{ preset.label }}</option></select></div>\
-                    <div class="wai-cb-row"><span class="wai-cb-label">속도</span><input type="number" class="wai-cb-input wai-cb-input--number" :value="resolvedVoice.speed" @change="onVoiceFieldChange(\'speed\', parseFloat($event.target.value))" min="0.5" max="2.0" step="0.1" /></div>\
-                </div>\
-                <div class="wai-cb-field"><span class="wai-cb-label">디렉팅</span><textarea class="wai-cb-textarea wai-cb-textarea--auto" :value="clip.voiceDirecting" @input="onVoiceDirectingChange" :placeholder="globalSettings.voice.defaultDirecting || \'음성 디렉팅...\'"></textarea></div>\
-                <div class="wai-cb-section__actions"><button class="wai-cb-btn wai-cb-btn--primary wai-cb-btn--xs" @click="generateTTS" :disabled="clip.voiceStatus === \'generating\'"><i class="fas fa-microphone"></i> 생성</button></div>\
-            </div>\
-        </div>\
-        \
-        <div class="wai-cb-section">\
-            <div class="wai-cb-section__header" @click="toggleSection(\'slots\')">\
-                <i :class="isSectionExpanded(\'slots\') ? \'fas fa-chevron-down\' : \'fas fa-chevron-right\'" class="wai-cb-section__toggle"></i>\
-                <span class="wai-cb-section__title">슬롯 설정</span>\
-                <span class="wai-cb-section__status">{{ boundSlotsCount }}/{{ activeSlotsCount }}</span>\
-            </div>\
-            <div class="wai-cb-section__body" v-show="isSectionExpanded(\'slots\')">\
-                <clip-box-slot-settings :clip="clip" :global-settings="globalSettings" :active-slots="activeSlots" @update-binding="onSlotBindingUpdate"></clip-box-slot-settings>\
-            </div>\
-        </div>\
+    <!-- 텍스트 입력 필드 (항상 표시) -->\
+    <div class="wai-cb-clip__text">\
+        <textarea class="wai-cb-textarea" :value="localText" @input="onTextInput" placeholder="텍스트를 입력하세요" rows="1"></textarea>\
     </div>\
     \
-    <div v-if="clip.isExpanded" class="wai-cb-clip__footer">\
-        <button class="wai-cb-btn wai-cb-btn--danger wai-cb-btn--xs" @click="onDelete"><i class="fas fa-trash"></i> 삭제</button>\
-    </div>\
+    <!-- 펼침 시 표시되는 섹션들 -->\
+    <template v-if="clip.isExpanded">\
+        <div class="wai-cb-clip__sections">\
+            <!-- 이미지 생성 섹션 -->\
+            <div class="wai-cb-section">\
+                <div class="wai-cb-section__header" @click="toggleSection(\'image\')">\
+                    <i :class="isSectionExpanded(\'image\') ? \'fas fa-chevron-down\' : \'fas fa-chevron-right\'" class="wai-cb-section__toggle"></i>\
+                    <span class="wai-cb-section__title">이미지 생성</span>\
+                    <span class="wai-cb-section__status" :class="imageStatusClass">{{ clip.imageStatus === "done" ? "완료" : clip.imageStatus === "generating" ? "생성중" : "" }}</span>\
+                </div>\
+                <div class="wai-cb-section__body" v-show="isSectionExpanded(\'image\')">\
+                    <textarea class="wai-cb-textarea" :value="clip.imagePrompt" @input="onImagePromptChange" placeholder="이미지 생성 프롬프트" rows="1"></textarea>\
+                    <div class="wai-cb-section__actions">\
+                        <button class="wai-cb-btn wai-cb-btn--primary" @click="generateImage" :disabled="clip.imageStatus === \'generating\'">생성</button>\
+                    </div>\
+                    <div v-if="clip.imageSrc" class="wai-cb-section__preview"><img :src="clip.imageSrc" class="wai-cb-img-preview" /></div>\
+                </div>\
+            </div>\
+            \
+            <!-- 보이스 생성 섹션 -->\
+            <div class="wai-cb-section">\
+                <div class="wai-cb-section__header" @click="toggleSection(\'voice\')">\
+                    <i :class="isSectionExpanded(\'voice\') ? \'fas fa-chevron-down\' : \'fas fa-chevron-right\'" class="wai-cb-section__toggle"></i>\
+                    <span class="wai-cb-section__title">보이스 생성</span>\
+                    <label class="wai-cb-checkbox-label wai-cb-checkbox-label--inline" @click.stop>\
+                        <input type="checkbox" class="wai-cb-checkbox" :checked="useGlobalVoice" @change="toggleGlobalVoice" />\
+                        <span>전역 설정 사용</span>\
+                    </label>\
+                    <span class="wai-cb-section__status" :class="voiceStatusClass">{{ clip.voiceStatus === "done" ? "완료" : clip.voiceStatus === "generating" ? "생성중" : "" }}</span>\
+                </div>\
+                <div class="wai-cb-section__body" v-show="isSectionExpanded(\'voice\')">\
+                    <div v-if="!useGlobalVoice" class="wai-cb-voice-override">\
+                        <div class="wai-cb-row"><span class="wai-cb-label">음성</span><select class="wai-cb-select" :value="resolvedVoice.voiceId" @change="onVoiceFieldChange(\'voiceId\', $event.target.value)"><option v-for="preset in voicePresets" :key="preset.id" :value="preset.id">{{ preset.label }}</option></select></div>\
+                        <div class="wai-cb-row"><span class="wai-cb-label">속도</span><input type="number" class="wai-cb-input wai-cb-input--number" :value="resolvedVoice.speed" @change="onVoiceFieldChange(\'speed\', parseFloat($event.target.value))" min="0.5" max="2.0" step="0.1" /></div>\
+                    </div>\
+                    <div class="wai-cb-field"><span class="wai-cb-label">디렉팅</span><textarea class="wai-cb-textarea" :value="clip.voiceDirecting" @input="onVoiceDirectingChange" :placeholder="globalSettings.voice.defaultDirecting || \'음성 디렉팅\'"></textarea></div>\
+                    <div class="wai-cb-section__actions"><button class="wai-cb-btn wai-cb-btn--primary" @click="generateTTS" :disabled="clip.voiceStatus === \'generating\'">생성</button></div>\
+                </div>\
+            </div>\
+            \
+            <!-- 슬롯 설정 섹션 -->\
+            <div class="wai-cb-section">\
+                <div class="wai-cb-section__header" @click="toggleSection(\'slots\')">\
+                    <i :class="isSectionExpanded(\'slots\') ? \'fas fa-chevron-down\' : \'fas fa-chevron-right\'" class="wai-cb-section__toggle"></i>\
+                    <span class="wai-cb-section__title">슬롯 설정</span>\
+                    <span class="wai-cb-section__status">{{ boundSlotsCount }}/{{ activeSlotsCount }}</span>\
+                </div>\
+                <div class="wai-cb-section__body" v-show="isSectionExpanded(\'slots\')">\
+                    <clip-box-slot-settings :clip="clip" :global-settings="globalSettings" :active-slots="activeSlots" @update-binding="onSlotBindingUpdate"></clip-box-slot-settings>\
+                </div>\
+            </div>\
+        </div>\
+    </template>\
 </div>\
     '
 };
 
-/* 코드연결지점 */
-/* 코드연결지점 */
-
 /* ─────────────────────────────────────────────────────────────────────────────
-   블록 7-A: Vue 컴포넌트 - ClipBoxGlobalSettings
-   ───────────────────────────────────────────────────────────────────────────── */
-
-var ClipBoxGlobalSettings = {
-    name: 'ClipBoxGlobalSettings',
-    
-    components: {
-        'clip-box-color-picker': ClipBoxColorPicker
-    },
-    
-    props: {
-        settings: { type: Object, required: true },
-        selectedPrompt: { type: Object, default: null }
-    },
-    
-    emits: ['update', 'generate-all-tts', 'generate-all-images', 'open-prompt-manager', 'edit-prompt'],
-    
-    data: function() {
-        return {
-            expandedSections: {
-                project: true,
-                textStyle: false,
-                voice: false,
-                image: false
-            }
-        };
-    },
-    
-    computed: {
-        aspectRatioOptions: function() {
-            var options = [];
-            var ratios = WAICB.CONST.ASPECT_RATIOS;
-            for (var key in ratios) {
-                if (ratios.hasOwnProperty(key)) {
-                    options.push({ value: key, label: ratios[key].label });
-                }
-            }
-            return options;
-        },
-        voiceEngines: function() { return WAICB.CONST.VOICE_ENGINES; },
-        voicePresets: function() { return WAICB.CONST.VOICE_PRESETS; },
-        imageEngines: function() { return WAICB.CONST.IMAGE_ENGINES; },
-        imageStyles: function() { return WAICB.CONST.IMAGE_STYLES; },
-        hasSelectedPrompt: function() { return this.selectedPrompt && this.selectedPrompt.name; }
-    },
-    
-    methods: {
-        toggleSection: function(section) { this.expandedSections[section] = !this.expandedSections[section]; },
-        updateField: function(path, value) { this.$emit('update', path, value); },
-        onAspectRatioChange: function(e) { this.updateField('project.aspectRatio', e.target.value); },
-        onTextStyleChange: function(field, value) { this.updateField('textStyle.' + field, value); },
-        onVoiceChange: function(field, value) { this.updateField('voice.' + field, value); },
-        onImageChange: function(field, value) { this.updateField('image.' + field, value); },
-        onColorSelect: function(field, color) { this.onTextStyleChange(field, color); },
-        openPromptManager: function() { this.$emit('open-prompt-manager'); },
-        editPrompt: function() { this.$emit('edit-prompt'); }
-    },
-    
-    template: '\
-<div class="wai-cb-global-settings">\
-    \
-    <!-- 프로젝트 설정 -->\
-    <div class="wai-cb-settings-section">\
-        <div class="wai-cb-settings-section__header" @click="toggleSection(\'project\')">\
-            <i :class="expandedSections.project ? \'fas fa-chevron-down\' : \'fas fa-chevron-right\'" class="wai-cb-settings-section__toggle"></i>\
-            <span class="wai-cb-settings-section__title">프로젝트 설정</span>\
-        </div>\
-        <div class="wai-cb-settings-section__body" v-show="expandedSections.project">\
-            <div class="wai-cb-row">\
-                <span class="wai-cb-label">화면 비율</span>\
-                <select class="wai-cb-select wai-cb-grow" :value="settings.project.aspectRatio" @change="onAspectRatioChange">\
-                    <option v-for="opt in aspectRatioOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>\
-                </select>\
-            </div>\
-            <div class="wai-cb-row wai-cb-row--between">\
-                <span class="wai-cb-label">프롬프트</span>\
-                <div class="wai-cb-prompt-actions">\
-                    <button class="wai-cb-btn wai-cb-btn--xs" @click="openPromptManager"><i class="fas fa-folder-open"></i> 관리</button>\
-                    <button class="wai-cb-btn wai-cb-btn--xs" @click="editPrompt" :disabled="!hasSelectedPrompt"><i class="fas fa-pen"></i> 편집</button>\
-                </div>\
-            </div>\
-            <div v-if="hasSelectedPrompt" class="wai-cb-prompt-preview">\
-                <div class="wai-cb-prompt-preview__name">{{ selectedPrompt.name }}</div>\
-                <div class="wai-cb-prompt-preview__content">{{ selectedPrompt.content.substring(0, 100) }}...</div>\
-            </div>\
-            <div v-else class="wai-cb-prompt-preview wai-cb-prompt-preview--empty">\
-                <span class="wai-cb-text--hint">프롬프트 관리에서 선택하세요</span>\
-            </div>\
-        </div>\
-    </div>\
-    \
-    <!-- 텍스트 스타일 -->\
-    <div class="wai-cb-settings-section">\
-        <div class="wai-cb-settings-section__header" @click="toggleSection(\'textStyle\')">\
-            <i :class="expandedSections.textStyle ? \'fas fa-chevron-down\' : \'fas fa-chevron-right\'" class="wai-cb-settings-section__toggle"></i>\
-            <span class="wai-cb-settings-section__title">텍스트 스타일</span>\
-        </div>\
-        <div class="wai-cb-settings-section__body" v-show="expandedSections.textStyle">\
-            <div class="wai-cb-row">\
-                <span class="wai-cb-label">폰트</span>\
-                <select class="wai-cb-select wai-cb-grow" :value="settings.textStyle.fontFamily" @change="onTextStyleChange(\'fontFamily\', $event.target.value)">\
-                    <option value="Pretendard">Pretendard</option>\
-                    <option value="Noto Sans KR">Noto Sans KR</option>\
-                    <option value="Nanum Gothic">나눔고딕</option>\
-                </select>\
-            </div>\
-            <div class="wai-cb-row">\
-                <span class="wai-cb-label">크기</span>\
-                <input type="number" class="wai-cb-input wai-cb-input--number" :value="settings.textStyle.fontSize" @change="onTextStyleChange(\'fontSize\', parseInt($event.target.value))" min="12" max="200" />\
-                <span class="wai-cb-label--unit">px</span>\
-            </div>\
-            <div class="wai-cb-row">\
-                <span class="wai-cb-label">글자 색상</span>\
-                <clip-box-color-picker :current-color="settings.textStyle.fillColor" @select="onColorSelect(\'fillColor\', $event)"></clip-box-color-picker>\
-            </div>\
-            <div class="wai-cb-row">\
-                <span class="wai-cb-label">테두리</span>\
-                <input type="number" class="wai-cb-input wai-cb-input--number" :value="settings.textStyle.strokeWidth" @change="onTextStyleChange(\'strokeWidth\', parseInt($event.target.value))" min="0" max="20" />\
-                <clip-box-color-picker :current-color="settings.textStyle.strokeColor" @select="onColorSelect(\'strokeColor\', $event)"></clip-box-color-picker>\
-            </div>\
-            <div class="wai-cb-row">\
-                <span class="wai-cb-label">정렬</span>\
-                <select class="wai-cb-select" :value="settings.textStyle.textAlign" @change="onTextStyleChange(\'textAlign\', $event.target.value)">\
-                    <option value="left">좌측</option>\
-                    <option value="center">중앙</option>\
-                    <option value="right">우측</option>\
-                </select>\
-                <select class="wai-cb-select" :value="settings.textStyle.vAlign" @change="onTextStyleChange(\'vAlign\', $event.target.value)">\
-                    <option value="top">상단</option>\
-                    <option value="middle">중앙</option>\
-                    <option value="bottom">하단</option>\
-                </select>\
-            </div>\
-            <div class="wai-cb-row">\
-                <span class="wai-cb-label">행간</span>\
-                <input type="number" class="wai-cb-input wai-cb-input--number" :value="settings.textStyle.lineHeight" @change="onTextStyleChange(\'lineHeight\', parseFloat($event.target.value))" min="0.8" max="3" step="0.1" />\
-                <span class="wai-cb-label">자간</span>\
-                <input type="number" class="wai-cb-input wai-cb-input--number" :value="settings.textStyle.letterSpacing" @change="onTextStyleChange(\'letterSpacing\', parseInt($event.target.value))" min="-10" max="50" />\
-            </div>\
-        </div>\
-    </div>\
-    \
-    <!-- 보이스 설정 -->\
-    <div class="wai-cb-settings-section">\
-        <div class="wai-cb-settings-section__header" @click="toggleSection(\'voice\')">\
-            <i :class="expandedSections.voice ? \'fas fa-chevron-down\' : \'fas fa-chevron-right\'" class="wai-cb-settings-section__toggle"></i>\
-            <span class="wai-cb-settings-section__title">보이스 설정</span>\
-        </div>\
-        <div class="wai-cb-settings-section__body" v-show="expandedSections.voice">\
-            <div class="wai-cb-row"><span class="wai-cb-label">엔진</span><select class="wai-cb-select wai-cb-grow" :value="settings.voice.engine" @change="onVoiceChange(\'engine\', $event.target.value)"><option v-for="eng in voiceEngines" :key="eng.id" :value="eng.id">{{ eng.label }}</option></select></div>\
-            <div class="wai-cb-row"><span class="wai-cb-label">음성</span><select class="wai-cb-select wai-cb-grow" :value="settings.voice.voiceId" @change="onVoiceChange(\'voiceId\', $event.target.value)"><option v-for="preset in voicePresets" :key="preset.id" :value="preset.id">{{ preset.label }}</option></select></div>\
-            <div class="wai-cb-row"><span class="wai-cb-label">속도</span><input type="number" class="wai-cb-input wai-cb-input--number" :value="settings.voice.speed" @change="onVoiceChange(\'speed\', parseFloat($event.target.value))" min="0.5" max="2.0" step="0.1" /><span class="wai-cb-label">피치</span><input type="number" class="wai-cb-input wai-cb-input--number" :value="settings.voice.pitch" @change="onVoiceChange(\'pitch\', parseInt($event.target.value))" min="-20" max="20" /></div>\
-        </div>\
-    </div>\
-    \
-    <!-- 이미지 생성 설정 -->\
-    <div class="wai-cb-settings-section">\
-        <div class="wai-cb-settings-section__header" @click="toggleSection(\'image\')">\
-            <i :class="expandedSections.image ? \'fas fa-chevron-down\' : \'fas fa-chevron-right\'" class="wai-cb-settings-section__toggle"></i>\
-            <span class="wai-cb-settings-section__title">이미지 생성 설정</span>\
-        </div>\
-        <div class="wai-cb-settings-section__body" v-show="expandedSections.image">\
-            <div class="wai-cb-row"><span class="wai-cb-label">엔진</span><select class="wai-cb-select wai-cb-grow" :value="settings.image.engine" @change="onImageChange(\'engine\', $event.target.value)"><option v-for="eng in imageEngines" :key="eng.id" :value="eng.id">{{ eng.label }}</option></select></div>\
-            <div class="wai-cb-row"><span class="wai-cb-label">스타일</span><select class="wai-cb-select wai-cb-grow" :value="settings.image.style" @change="onImageChange(\'style\', $event.target.value)"><option v-for="sty in imageStyles" :key="sty.id" :value="sty.id">{{ sty.label }}</option></select></div>\
-            <div class="wai-cb-row"><span class="wai-cb-label">품질</span><select class="wai-cb-select" :value="settings.image.quality" @change="onImageChange(\'quality\', $event.target.value)"><option value="standard">Standard</option><option value="hd">HD</option></select></div>\
-        </div>\
-    </div>\
-    \
-    <div class="wai-cb-global-actions">\
-        <button class="wai-cb-btn wai-cb-btn--xs" @click="$emit(\'generate-all-tts\')"><i class="fas fa-microphone"></i> 전체 TTS</button>\
-        <button class="wai-cb-btn wai-cb-btn--xs" @click="$emit(\'generate-all-images\')"><i class="fas fa-image"></i> 전체 IMG</button>\
-    </div>\
-</div>\
-    '
-};
-
-/* 코드연결지점 */
-/* 코드연결지점 */
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   블록 7-B: Vue 컴포넌트 - ClipBoxManager (메인)
+   블록 7: Vue 컴포넌트 - ClipBoxManager (메인)
    ───────────────────────────────────────────────────────────────────────────── */
 
 var ClipBoxManager = {
     name: 'ClipBoxManager',
     
     components: {
-        'clip-box-item': ClipBoxItem,
-        'clip-box-global-settings': ClipBoxGlobalSettings
+        'clip-box-item': ClipBoxItem
     },
     
     props: {
@@ -1389,11 +1180,9 @@ var ClipBoxManager = {
         return {
             globalSettings: WAICB.createDefaultGlobalSettings(),
             clips: [],
-            showGlobalSettings: false,
             isCollapsed: false,
             selectedClipId: null,
             selectedPrompt: null,
-            showAssetModal: false,
             showPromptEditModal: false,
             promptEditData: { name: '', content: '', category: '일반' }
         };
@@ -1401,13 +1190,23 @@ var ClipBoxManager = {
     
     computed: {
         clipCount: function() { return this.clips.length; },
+        aspectRatioOptions: function() {
+            var options = [];
+            var ratios = WAICB.CONST.ASPECT_RATIOS;
+            for (var key in ratios) {
+                if (ratios.hasOwnProperty(key)) {
+                    options.push({ value: key, label: ratios[key].label });
+                }
+            }
+            return options;
+        },
         activeSlots: function() {
             if (!this.canvasBoxes || this.canvasBoxes.length === 0) return [];
             return this.canvasBoxes.filter(function(box) { return box.slotKey && !box.isHidden; }).map(function(box) {
                 return { slotKey: box.slotKey, colRole: box.colRole, rowType: box.rowType, layerName: box.layerName, color: box.color };
             });
         },
-        activeSlotsCount: function() { return this.activeSlots.length; }
+        hasSelectedPrompt: function() { return this.selectedPrompt && this.selectedPrompt.name; }
     },
     
     created: function() {
@@ -1431,12 +1230,12 @@ var ClipBoxManager = {
         },
         
         toggleCollapse: function() { this.isCollapsed = !this.isCollapsed; },
-        toggleGlobalSettings: function() { this.showGlobalSettings = !this.showGlobalSettings; },
         
-        onGlobalSettingUpdate: function(path, value) {
-            WAICB.Store.setGlobalField(path, value);
+        onAspectRatioChange: function(e) {
+            var value = e.target.value;
+            WAICB.Store.setGlobalField('project.aspectRatio', value);
             this.globalSettings = WAICB.Store.getGlobalSettings();
-            if (path === 'project.aspectRatio') this.notifyAspectRatioChange(value);
+            this.notifyAspectRatioChange(value);
         },
         
         notifyAspectRatioChange: function(aspectRatio) {
@@ -1482,37 +1281,8 @@ var ClipBoxManager = {
             }, 2000);
         },
         
-        onGenerateAllTTS: function() {
-            var self = this;
-            var targets = this.clips.filter(function(c) { return c.rawText && c.voiceStatus !== 'done'; });
-            if (targets.length === 0) { WAICB.Toast.warning('생성할 클립이 없습니다'); return; }
-            WAICB.Toast.info(targets.length + '개 클립 TTS 생성 시작');
-            targets.forEach(function(clip) { self.onGenerateTTS(clip.id); });
-        },
-        
-        onGenerateAllImages: function() {
-            var self = this;
-            var targets = this.clips.filter(function(c) { return c.imagePrompt && c.imageStatus !== 'done'; });
-            if (targets.length === 0) { WAICB.Toast.warning('생성할 클립이 없습니다'); return; }
-            WAICB.Toast.info(targets.length + '개 클립 이미지 생성 시작');
-            targets.forEach(function(clip) { self.onGenerateImage(clip.id); });
-        },
-        
-        // 프롬프트 관리
         openPromptManager: function() {
-            // AssetManagerModal을 프롬프트 탭으로 열기
-            if (this.$root && this.$root.assetManagerModal) {
-                this.$root.assetManagerModal.isOpen = true;
-                this.$root.assetManagerModal.assetType = 'prompt';
-            }
-            // 또는 커스텀 이벤트 발생
             document.dispatchEvent(new CustomEvent('wai-open-asset-modal', { detail: { tab: 'prompt' } }));
-        },
-        
-        onPromptSelected: function(prompt) {
-            this.selectedPrompt = prompt;
-            WAICB.Store.setGlobalField('selectedPrompt', prompt);
-            WAICB.Toast.success('프롬프트가 적용되었습니다');
         },
         
         editPrompt: function() {
@@ -1555,47 +1325,32 @@ var ClipBoxManager = {
 <div id="clipbox-manager-root" class="wai-cb-root">\
     \
     <!-- 헤더 -->\
-    <div class="wai-cb-manager__header">\
-        <div class="wai-cb-manager__title-row">\
-            <button class="wai-cb-btn wai-cb-btn--icon wai-cb-btn--xs" @click="toggleCollapse" :title="isCollapsed ? \'펼치기\' : \'접기\'">\
-                <i :class="isCollapsed ? \'fas fa-chevron-right\' : \'fas fa-chevron-down\'"></i>\
-            </button>\
-            <i class="fas fa-layer-group wai-cb-manager__icon"></i>\
-            <span class="wai-cb-manager__title">클립박스 매니저</span>\
-            <span class="wai-cb-manager__count">({{ clipCount }})</span>\
-        </div>\
-        <div class="wai-cb-manager__actions">\
-            <button class="wai-cb-btn wai-cb-btn--primary wai-cb-btn--icon wai-cb-btn--xs" @click="addClip" title="클립 추가">\
-                <i class="fas fa-plus"></i>\
-            </button>\
+    <div class="wai-cb-header" @click="toggleCollapse">\
+        <div class="wai-cb-header__left">\
+            <i :class="isCollapsed ? \'fas fa-chevron-right\' : \'fas fa-chevron-down\'" class="wai-cb-header__toggle"></i>\
+            <i class="fas fa-layer-group wai-cb-header__icon"></i>\
+            <span class="wai-cb-header__title">클립박스 매니저</span>\
         </div>\
     </div>\
     \
     <template v-if="!isCollapsed">\
-        <!-- 전역 설정 토글 버튼 -->\
-        <div class="wai-cb-settings-toggle" @click="toggleGlobalSettings">\
-            <i :class="showGlobalSettings ? \'fas fa-chevron-down\' : \'fas fa-chevron-right\'"></i>\
-            <span>전역 설정</span>\
-        </div>\
-        \
-        <!-- 전역 설정 패널 -->\
-        <div v-if="showGlobalSettings" class="wai-cb-panel wai-cb-global-panel">\
-            <clip-box-global-settings\
-                :settings="globalSettings"\
-                :selected-prompt="selectedPrompt"\
-                @update="onGlobalSettingUpdate"\
-                @generate-all-tts="onGenerateAllTTS"\
-                @generate-all-images="onGenerateAllImages"\
-                @open-prompt-manager="openPromptManager"\
-                @edit-prompt="editPrompt"\
-            ></clip-box-global-settings>\
+        <!-- 옵션 바 -->\
+        <div class="wai-cb-options">\
+            <select class="wai-cb-select wai-cb-select--ratio" :value="globalSettings.project.aspectRatio" @change="onAspectRatioChange" @click.stop>\
+                <option v-for="opt in aspectRatioOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>\
+            </select>\
+            <button class="wai-cb-btn" @click.stop="openPromptManager">프롬프트</button>\
+            <button class="wai-cb-btn" @click.stop="editPrompt" :disabled="!hasSelectedPrompt">편집</button>\
+            <button class="wai-cb-btn wai-cb-btn--primary wai-cb-btn--icon" @click.stop="addClip" title="클립 추가">\
+                <i class="fas fa-plus"></i>\
+            </button>\
         </div>\
         \
         <!-- 클립 리스트 -->\
         <div class="wai-cb-clip-list">\
             <div v-if="clips.length === 0" class="wai-cb-empty">\
-                <p>클립이 없습니다.</p>\
-                <p class="wai-cb-text--hint"><i class="fas fa-plus"></i> 버튼으로 추가하세요.</p>\
+                <p>클립이 없습니다</p>\
+                <p class="wai-cb-text--hint">+ 버튼으로 추가하세요</p>\
             </div>\
             <clip-box-item\
                 v-for="(clip, index) in clips"\
@@ -1619,16 +1374,16 @@ var ClipBoxManager = {
         <div class="wai-cb-modal">\
             <div class="wai-cb-modal__header">\
                 <span class="wai-cb-modal__title">프롬프트 편집</span>\
-                <button class="wai-cb-btn wai-cb-btn--icon wai-cb-btn--xs" @click="closePromptEditModal"><i class="fas fa-times"></i></button>\
+                <button class="wai-cb-btn wai-cb-btn--icon" @click="closePromptEditModal"><i class="fas fa-times"></i></button>\
             </div>\
             <div class="wai-cb-modal__body">\
                 <div class="wai-cb-field">\
                     <span class="wai-cb-label">이름</span>\
-                    <input type="text" class="wai-cb-input wai-cb-grow" v-model="promptEditData.name" placeholder="프롬프트 이름..." />\
+                    <input type="text" class="wai-cb-input" v-model="promptEditData.name" placeholder="프롬프트 이름" />\
                 </div>\
                 <div class="wai-cb-field">\
                     <span class="wai-cb-label">카테고리</span>\
-                    <select class="wai-cb-select wai-cb-grow" v-model="promptEditData.category">\
+                    <select class="wai-cb-select" v-model="promptEditData.category">\
                         <option value="일반">일반</option>\
                         <option value="이미지">이미지</option>\
                         <option value="텍스트">텍스트</option>\
@@ -1637,12 +1392,12 @@ var ClipBoxManager = {
                 </div>\
                 <div class="wai-cb-field">\
                     <span class="wai-cb-label">내용</span>\
-                    <textarea class="wai-cb-textarea" v-model="promptEditData.content" placeholder="프롬프트 내용..." rows="6"></textarea>\
+                    <textarea class="wai-cb-textarea" v-model="promptEditData.content" placeholder="프롬프트 내용" rows="6"></textarea>\
                 </div>\
             </div>\
             <div class="wai-cb-modal__footer">\
-                <button class="wai-cb-btn wai-cb-btn--xs" @click="closePromptEditModal">취소</button>\
-                <button class="wai-cb-btn wai-cb-btn--primary wai-cb-btn--xs" @click="savePromptEdit">저장</button>\
+                <button class="wai-cb-btn" @click="closePromptEditModal">취소</button>\
+                <button class="wai-cb-btn wai-cb-btn--primary" @click="savePromptEdit">저장</button>\
             </div>\
         </div>\
     </div>\
@@ -1653,5 +1408,5 @@ var ClipBoxManager = {
 window.ClipBoxManager = ClipBoxManager;
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   END OF ClipBoxManager v4
+   END OF ClipBoxManager v5
    ═══════════════════════════════════════════════════════════════════════════ */
