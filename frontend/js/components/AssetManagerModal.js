@@ -81,6 +81,7 @@ var AssetManagerModal = {
                         <div class="flex items-center gap-2">\
                             <span class="text-[11px] text-text-sub">{{ currentTabLabel }} 목록</span>\
                             <span v-if="currentTab !== \'prompt\'" class="text-[10px] text-ui-accent">(Ctrl+클릭: 복수선택 / Shift+클릭: 범위선택)</span>\
+                            <span v-else class="text-[10px] text-purple-400">(더블클릭: 편집 / 우클릭: 메뉴)</span>\
                         </div>\
                         \
                         <div class="flex items-center gap-2">\
@@ -164,7 +165,7 @@ var AssetManagerModal = {
                                         <i class="fa-solid fa-xmark"></i> 선택해제\
                                     </button>\
                                 </div>\
-                                <span class="text-text-sub">{{ selectedAssetIds.length > 0 ? selectedAssetIds.length + \'개 선택됨\' : filteredAssets.length + \'개 항목\' }}</span>\
+                                <span class="text-text-sub">{{ selectedAssetIds.length > 0 ? selectedAssetIds.length + \'개 선택됨\' : filteredCurrentItems.length + \'개 항목\' }}</span>\
                             </div>\
 \
                             <div class="flex-1 overflow-auto p-3" :class="{ \'drag-over\': isContentPanelDragOver }" @click="onGridAreaClick">\
@@ -180,7 +181,7 @@ var AssetManagerModal = {
                                         <div\
                                             v-for="(prompt, index) in filteredPrompts"\
                                             :key="prompt.id"\
-                                            class="asset-card relative"\
+                                            class="asset-card prompt-card relative"\
                                             :class="{ \'selected\': isAssetSelected(prompt.id) }"\
                                             @click.stop="handleAssetClick($event, prompt, index)"\
                                             @dblclick.stop="editPrompt(prompt)"\
@@ -189,16 +190,25 @@ var AssetManagerModal = {
                                             @dragstart="onPromptDragStart($event, prompt)"\
                                             @dragend="onDragEnd"\
                                         >\
-                                            <div class="asset-thumbnail bg-gradient-to-br from-purple-600/20 to-blue-600/20">\
-                                                <div class="absolute inset-0 p-2 flex flex-col justify-center">\
-                                                    <i class="fa-solid fa-file-lines text-2xl text-purple-400 mx-auto mb-1"></i>\
-                                                    <p class="text-[9px] text-text-sub text-center line-clamp-2 leading-tight">{{ prompt.content.substring(0, 50) }}...</p>\
+                                            <div class="asset-thumbnail prompt-thumbnail">\
+                                                <div class="prompt-icon-wrapper">\
+                                                    <i class="fa-solid fa-file-lines text-2xl text-purple-400"></i>\
                                                 </div>\
+                                                <div class="prompt-preview-text">{{ prompt.content.substring(0, 60) }}...</div>\
                                             </div>\
                                             <div class="asset-info">\
                                                 <div class="asset-name">{{ prompt.name }}</div>\
-                                                <div class="asset-meta">{{ prompt.category || \'일반\' }}</div>\
+                                                <div class="asset-meta flex items-center gap-1">\
+                                                    <span class="prompt-category-badge" :class="\'category-\' + (prompt.category || \'일반\')">{{ prompt.category || \'일반\' }}</span>\
+                                                </div>\
                                             </div>\
+                                            <button \
+                                                class="asset-quick-add-btn prompt-apply-btn"\
+                                                @click.stop="applyPrompt(prompt)"\
+                                                title="프롬프트 적용"\
+                                            >\
+                                                <i class="fa-solid fa-check"></i>\
+                                            </button>\
                                         </div>\
                                     </div>\
 \
@@ -206,7 +216,7 @@ var AssetManagerModal = {
                                         <div\
                                             v-for="(prompt, index) in filteredPrompts"\
                                             :key="prompt.id"\
-                                            class="asset-card relative"\
+                                            class="asset-card prompt-card relative"\
                                             :class="{ \'selected\': isAssetSelected(prompt.id) }"\
                                             @click.stop="handleAssetClick($event, prompt, index)"\
                                             @dblclick.stop="editPrompt(prompt)"\
@@ -218,13 +228,20 @@ var AssetManagerModal = {
                                             <div class="asset-thumbnail">\
                                                 <i class="fa-solid fa-file-lines asset-thumbnail-icon-center text-purple-400"></i>\
                                             </div>\
-                                            <div class="asset-info">\
-                                                <div class="flex-1">\
-                                                    <div class="asset-name">{{ prompt.name }}</div>\
-                                                    <div class="asset-meta text-[9px] line-clamp-1">{{ prompt.content.substring(0, 80) }}...</div>\
+                                            <div class="asset-info flex-1">\
+                                                <div class="flex items-center gap-2">\
+                                                    <div class="asset-name flex-1">{{ prompt.name }}</div>\
+                                                    <span class="prompt-category-badge text-[9px]" :class="\'category-\' + (prompt.category || \'일반\')">{{ prompt.category || \'일반\' }}</span>\
                                                 </div>\
-                                                <div class="text-[10px] text-text-sub">{{ prompt.category || \'일반\' }}</div>\
+                                                <div class="asset-meta text-[9px] line-clamp-1 mt-0.5">{{ prompt.content.substring(0, 100) }}...</div>\
                                             </div>\
+                                            <button \
+                                                class="asset-quick-add-btn prompt-apply-btn"\
+                                                @click.stop="applyPrompt(prompt)"\
+                                                title="프롬프트 적용"\
+                                            >\
+                                                <i class="fa-solid fa-check"></i>\
+                                            </button>\
                                         </div>\
                                     </div>\
                                 </template>\
@@ -329,7 +346,12 @@ var AssetManagerModal = {
                             <span v-else>{{ currentFolderName }}</span>\
                         </div>\
                         <div class="flex items-center gap-2">\
-                            <button v-if="selectedAssetIds.length > 0 && currentTab === \'prompt\'" class="px-3 py-1 bg-ui-accent text-white rounded hover:bg-blue-600 transition-colors" @click.stop="applySelectedPrompt">적용</button>\
+                            <button v-if="selectedAssetIds.length > 0 && currentTab === \'prompt\'" class="px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors" @click.stop="applySelectedPrompts">\
+                                <i class="fa-solid fa-check mr-1"></i>적용\
+                            </button>\
+                            <button v-if="selectedAssetIds.length > 1 && currentTab === \'prompt\'" class="px-3 py-1 bg-bg-input border border-ui-border text-text-sub rounded hover:bg-bg-hover transition-colors" @click.stop="deleteSelectedPrompts">\
+                                <i class="fa-solid fa-trash mr-1"></i>삭제\
+                            </button>\
                             <button v-if="selectedAssetIds.length > 0 && currentTab !== \'prompt\'" class="px-3 py-1 bg-ui-accent text-white rounded hover:bg-blue-600 transition-colors" @click.stop="useSelectedAssets">타임라인에 추가</button>\
                             <button class="px-3 py-1 bg-bg-input border border-ui-border text-text-sub rounded hover:bg-bg-hover transition-colors" @click.stop="$emit(\'close\')">닫기</button>\
                         </div>\
@@ -345,7 +367,7 @@ var AssetManagerModal = {
                 @click.stop\
             >\
                 <div class="ctx-item" @click="applyPromptFromContext">\
-                    <i class="fa-solid fa-check"></i>\
+                    <i class="fa-solid fa-check text-purple-400"></i>\
                     <span>적용</span>\
                 </div>\
                 <div class="ctx-item" @click="editPromptFromContext">\
@@ -360,9 +382,39 @@ var AssetManagerModal = {
                     <i class="fa-solid fa-clone"></i>\
                     <span>복제</span>\
                 </div>\
+                <div class="ctx-separator"></div>\
+                <div class="ctx-item" @click="movePromptToFolderFromContext">\
+                    <i class="fa-solid fa-folder-open"></i>\
+                    <span>폴더로 이동</span>\
+                </div>\
+                <div class="ctx-item" @click="exportPromptFromContext">\
+                    <i class="fa-solid fa-file-export"></i>\
+                    <span>내보내기</span>\
+                </div>\
+                <div class="ctx-separator"></div>\
                 <div class="ctx-item text-red-400 hover:!bg-ui-danger" @click="deletePromptFromContext">\
                     <i class="fa-solid fa-trash"></i>\
                     <span>삭제</span>\
+                </div>\
+            </div>\
+\
+            <!-- 프롬프트 폴더 이동 서브메뉴 -->\
+            <div \
+                v-if="folderMoveMenu" \
+                class="context-menu context-menu--compact"\
+                :style="{ top: folderMoveMenu.y + \'px\', left: folderMoveMenu.x + \'px\' }"\
+                @click.stop\
+            >\
+                <div class="ctx-header">폴더 선택</div>\
+                <div \
+                    v-for="folder in promptFolders" \
+                    :key="folder.id" \
+                    class="ctx-item"\
+                    :class="{ \'ctx-item-disabled\': folder.id === folderMoveMenu.currentFolderId }"\
+                    @click="movePromptToFolder(folder.id)"\
+                >\
+                    <i class="fa-solid fa-folder text-yellow-500"></i>\
+                    <span>{{ folder.name }}</span>\
                 </div>\
             </div>\
 \
@@ -370,52 +422,143 @@ var AssetManagerModal = {
             <div v-if="promptEditModal.isOpen" class="fixed inset-0 bg-black/50 flex items-center justify-center z-[200]" @click.self="closePromptEditModal">\
                 <div class="bg-bg-panel border border-ui-border rounded-lg w-[500px] max-h-[80vh] flex flex-col shadow-2xl">\
                     <div class="flex items-center justify-between px-4 py-3 border-b border-ui-border">\
-                        <span class="text-[13px] font-bold">{{ promptEditModal.isNew ? \'새 프롬프트\' : \'프롬프트 편집\' }}</span>\
+                        <span class="text-[13px] font-bold">\
+                            <i class="fa-solid fa-file-lines text-purple-400 mr-2"></i>\
+                            {{ promptEditModal.isNew ? \'새 프롬프트\' : \'프롬프트 편집\' }}\
+                        </span>\
                         <button class="text-text-sub hover:text-white" @click="closePromptEditModal">\
                             <i class="fa-solid fa-xmark"></i>\
                         </button>\
                     </div>\
                     <div class="flex-1 overflow-auto p-4 space-y-3">\
                         <div>\
-                            <label class="text-[10px] text-text-sub block mb-1">이름</label>\
+                            <label class="text-[10px] text-text-sub block mb-1">이름 <span class="text-red-400">*</span></label>\
                             <input \
                                 type="text" \
                                 v-model="promptEditModal.name" \
                                 class="w-full h-8 bg-bg-input border border-ui-border rounded px-3 text-[11px] focus:border-ui-accent focus:outline-none"\
-                                placeholder="프롬프트 이름..."\
+                                placeholder="프롬프트 이름을 입력하세요..."\
+                                @keyup.enter="savePromptEdit"\
                             />\
                         </div>\
-                        <div>\
-                            <label class="text-[10px] text-text-sub block mb-1">카테고리</label>\
-                            <select \
-                                v-model="promptEditModal.category" \
-                                class="w-full h-8 bg-bg-input border border-ui-border rounded px-2 text-[11px] focus:border-ui-accent focus:outline-none"\
-                            >\
-                                <option value="일반">일반</option>\
-                                <option value="이미지">이미지</option>\
-                                <option value="텍스트">텍스트</option>\
-                                <option value="보이스">보이스</option>\
-                                <option value="스타일">스타일</option>\
-                            </select>\
+                        <div class="flex gap-3">\
+                            <div class="flex-1">\
+                                <label class="text-[10px] text-text-sub block mb-1">카테고리</label>\
+                                <select \
+                                    v-model="promptEditModal.category" \
+                                    class="w-full h-8 bg-bg-input border border-ui-border rounded px-2 text-[11px] focus:border-ui-accent focus:outline-none"\
+                                >\
+                                    <option value="일반">일반</option>\
+                                    <option value="이미지">이미지</option>\
+                                    <option value="텍스트">텍스트</option>\
+                                    <option value="보이스">보이스</option>\
+                                    <option value="스타일">스타일</option>\
+                                    <option value="캐릭터">캐릭터</option>\
+                                    <option value="배경">배경</option>\
+                                </select>\
+                            </div>\
+                            <div class="flex-1">\
+                                <label class="text-[10px] text-text-sub block mb-1">폴더</label>\
+                                <select \
+                                    v-model="promptEditModal.folderId" \
+                                    class="w-full h-8 bg-bg-input border border-ui-border rounded px-2 text-[11px] focus:border-ui-accent focus:outline-none"\
+                                >\
+                                    <option v-for="folder in promptFolders" :key="folder.id" :value="folder.id">{{ folder.name }}</option>\
+                                </select>\
+                            </div>\
                         </div>\
                         <div>\
-                            <label class="text-[10px] text-text-sub block mb-1">내용</label>\
+                            <label class="text-[10px] text-text-sub block mb-1">내용 <span class="text-red-400">*</span></label>\
                             <textarea \
                                 v-model="promptEditModal.content" \
                                 class="w-full h-40 bg-bg-input border border-ui-border rounded p-3 text-[11px] focus:border-ui-accent focus:outline-none resize-none"\
                                 placeholder="프롬프트 내용을 입력하세요..."\
                             ></textarea>\
+                            <div class="flex justify-between mt-1">\
+                                <span class="text-[9px] text-text-sub">{{ promptEditModal.content.length }} 자</span>\
+                                <button \
+                                    v-if="promptEditModal.content" \
+                                    class="text-[9px] text-ui-accent hover:underline"\
+                                    @click="promptEditModal.content = \'\'"\
+                                >내용 지우기</button>\
+                            </div>\
+                        </div>\
+                        <div>\
+                            <label class="text-[10px] text-text-sub block mb-1">태그 (쉼표로 구분)</label>\
+                            <input \
+                                type="text" \
+                                v-model="promptEditModal.tags" \
+                                class="w-full h-8 bg-bg-input border border-ui-border rounded px-3 text-[11px] focus:border-ui-accent focus:outline-none"\
+                                placeholder="예: 지브리, 애니메이션, 따뜻한"\
+                            />\
                         </div>\
                     </div>\
-                    <div class="flex justify-end gap-2 px-4 py-3 border-t border-ui-border">\
+                    <div class="flex justify-between gap-2 px-4 py-3 border-t border-ui-border">\
+                        <button \
+                            v-if="!promptEditModal.isNew"\
+                            class="px-4 py-1.5 text-[11px] bg-ui-danger text-white rounded hover:bg-red-700"\
+                            @click="deletePromptFromEdit"\
+                        >\
+                            <i class="fa-solid fa-trash mr-1"></i>삭제\
+                        </button>\
+                        <div class="flex-1"></div>\
                         <button \
                             class="px-4 py-1.5 text-[11px] bg-bg-input border border-ui-border rounded hover:bg-bg-hover"\
                             @click="closePromptEditModal"\
                         >취소</button>\
                         <button \
-                            class="px-4 py-1.5 text-[11px] bg-ui-accent text-white rounded hover:bg-blue-600"\
+                            class="px-4 py-1.5 text-[11px] bg-purple-600 text-white rounded hover:bg-purple-700"\
                             @click="savePromptEdit"\
-                        >저장</button>\
+                        >\
+                            <i class="fa-solid fa-check mr-1"></i>저장\
+                        </button>\
+                    </div>\
+                </div>\
+            </div>\
+\
+            <!-- 프롬프트 내보내기 모달 -->\
+            <div v-if="exportModal.isOpen" class="fixed inset-0 bg-black/50 flex items-center justify-center z-[200]" @click.self="closeExportModal">\
+                <div class="bg-bg-panel border border-ui-border rounded-lg w-[400px] flex flex-col shadow-2xl">\
+                    <div class="flex items-center justify-between px-4 py-3 border-b border-ui-border">\
+                        <span class="text-[13px] font-bold">\
+                            <i class="fa-solid fa-file-export text-ui-accent mr-2"></i>\
+                            프롬프트 내보내기\
+                        </span>\
+                        <button class="text-text-sub hover:text-white" @click="closeExportModal">\
+                            <i class="fa-solid fa-xmark"></i>\
+                        </button>\
+                    </div>\
+                    <div class="p-4">\
+                        <div class="mb-3">\
+                            <label class="text-[10px] text-text-sub block mb-1">내보내기 형식</label>\
+                            <div class="flex gap-2">\
+                                <button \
+                                    class="flex-1 py-2 text-[11px] rounded border transition-colors"\
+                                    :class="exportModal.format === \'json\' ? \'bg-ui-accent text-white border-ui-accent\' : \'bg-bg-input border-ui-border text-text-sub hover:bg-bg-hover\'"\
+                                    @click="exportModal.format = \'json\'"\
+                                >JSON</button>\
+                                <button \
+                                    class="flex-1 py-2 text-[11px] rounded border transition-colors"\
+                                    :class="exportModal.format === \'txt\' ? \'bg-ui-accent text-white border-ui-accent\' : \'bg-bg-input border-ui-border text-text-sub hover:bg-bg-hover\'"\
+                                    @click="exportModal.format = \'txt\'"\
+                                >TXT</button>\
+                            </div>\
+                        </div>\
+                        <div class="bg-bg-dark rounded p-3 text-[10px] text-text-sub max-h-32 overflow-auto">\
+                            <pre>{{ exportModal.preview }}</pre>\
+                        </div>\
+                    </div>\
+                    <div class="flex justify-end gap-2 px-4 py-3 border-t border-ui-border">\
+                        <button \
+                            class="px-4 py-1.5 text-[11px] bg-bg-input border border-ui-border rounded hover:bg-bg-hover"\
+                            @click="closeExportModal"\
+                        >취소</button>\
+                        <button \
+                            class="px-4 py-1.5 text-[11px] bg-ui-accent text-white rounded hover:bg-blue-600"\
+                            @click="downloadExport"\
+                        >\
+                            <i class="fa-solid fa-download mr-1"></i>다운로드\
+                        </button>\
                     </div>\
                 </div>\
             </div>\
@@ -465,13 +608,22 @@ var AssetManagerModal = {
             dragOverFolderId: null,
             isContentPanelDragOver: false,
             promptContextMenu: null,
+            folderMoveMenu: null,
             promptEditModal: {
                 isOpen: false,
                 isNew: true,
                 id: null,
                 name: '',
                 content: '',
-                category: '일반'
+                category: '일반',
+                folderId: 'all',
+                tags: ''
+            },
+            exportModal: {
+                isOpen: false,
+                prompt: null,
+                format: 'json',
+                preview: ''
             },
             assetFolders: [
                 { id: 'all', name: '전체' },
@@ -483,6 +635,7 @@ var AssetManagerModal = {
                 { id: 'image', name: '이미지용' },
                 { id: 'text', name: '텍스트용' },
                 { id: 'voice', name: '보이스용' },
+                { id: 'style', name: '스타일' },
                 { id: 'favorites', name: '즐겨찾기' }
             ],
             dummyAssets: {
@@ -499,16 +652,16 @@ var AssetManagerModal = {
                 ]
             },
             prompts: [
-                { id: 'p1', name: '지브리 스타일', content: 'Studio Ghibli style, soft lighting, warm colors, hand-drawn animation aesthetic, peaceful atmosphere, detailed backgrounds', category: '이미지', folderId: 'image', dateAdded: Date.now() - 100000 },
-                { id: 'p2', name: '시네마틱 장면', content: 'Cinematic composition, dramatic lighting, film grain, anamorphic lens flare, movie poster quality, professional cinematography', category: '이미지', folderId: 'image', dateAdded: Date.now() - 200000 },
-                { id: 'p3', name: '차분한 나레이션', content: '차분하고 신뢰감 있는 톤으로, 약간 낮은 목소리로 천천히 또박또박 읽어주세요. 문장 끝에서 짧은 휴지를 넣어주세요.', category: '보이스', folderId: 'voice', dateAdded: Date.now() - 300000 },
-                { id: 'p4', name: '뉴스 앵커 스타일', content: '전문적이고 명확한 발음으로, 뉴스 앵커처럼 중립적인 톤을 유지하면서 중요한 단어에 약간의 강세를 넣어주세요.', category: '보이스', folderId: 'voice', dateAdded: Date.now() - 400000 },
-                { id: 'p5', name: '제목 스타일', content: '굵은 글씨체, 그림자 효과, 중앙 정렬, 애니메이션 페이드인', category: '텍스트', folderId: 'text', dateAdded: Date.now() - 500000 }
+                { id: 'p1', name: '지브리 스타일', content: 'Studio Ghibli style, soft lighting, warm colors, hand-drawn animation aesthetic, peaceful atmosphere, detailed backgrounds, nostalgic feeling', category: '이미지', folderId: 'image', tags: '지브리,애니메이션,따뜻한', dateAdded: Date.now() - 100000 },
+                { id: 'p2', name: '시네마틱 장면', content: 'Cinematic composition, dramatic lighting, film grain, anamorphic lens flare, movie poster quality, professional cinematography, epic scale', category: '이미지', folderId: 'image', tags: '영화,시네마틱,드라마틱', dateAdded: Date.now() - 200000 },
+                { id: 'p3', name: '차분한 나레이션', content: '차분하고 신뢰감 있는 톤으로, 약간 낮은 목소리로 천천히 또박또박 읽어주세요. 문장 끝에서 짧은 휴지를 넣어주세요.', category: '보이스', folderId: 'voice', tags: '나레이션,차분한,신뢰감', dateAdded: Date.now() - 300000 },
+                { id: 'p4', name: '뉴스 앵커 스타일', content: '전문적이고 명확한 발음으로, 뉴스 앵커처럼 중립적인 톤을 유지하면서 중요한 단어에 약간의 강세를 넣어주세요.', category: '보이스', folderId: 'voice', tags: '뉴스,전문적,앵커', dateAdded: Date.now() - 400000 },
+                { id: 'p5', name: '제목 스타일', content: '굵은 글씨체, 그림자 효과, 중앙 정렬, 애니메이션 페이드인, 강조 효과', category: '텍스트', folderId: 'text', tags: '제목,타이틀,강조', dateAdded: Date.now() - 500000 },
+                { id: 'p6', name: '판타지 배경', content: 'Fantasy landscape, magical atmosphere, floating islands, ethereal glow, mystical forests, ancient ruins, dramatic sky', category: '배경', folderId: 'style', tags: '판타지,마법,배경', dateAdded: Date.now() - 600000 },
+                { id: 'p7', name: '사이버펑크 도시', content: 'Cyberpunk city, neon lights, rain-soaked streets, holographic advertisements, futuristic architecture, dark atmosphere', category: '배경', folderId: 'style', tags: '사이버펑크,미래,도시', dateAdded: Date.now() - 700000 }
             ]
         };
     },
-/* 코드연결지점 */
-/* 코드연결지점 */
     computed: {
         windowStyle: function() {
             return {
@@ -523,10 +676,10 @@ var AssetManagerModal = {
             var sidebarWidth = 176;
             var padding = 24;
             var contentWidth = this.width - sidebarWidth - padding;
-            var minCardWidth = 80;
+            var minCardWidth = 140;
             var gap = 12;
             var cols = Math.max(1, Math.floor((contentWidth + gap) / (minCardWidth + gap)));
-            cols = Math.min(cols, 8);
+            cols = Math.min(cols, 6);
             return {
                 display: 'grid',
                 gridTemplateColumns: 'repeat(' + cols + ', 1fr)',
@@ -546,10 +699,13 @@ var AssetManagerModal = {
             return labels[this.currentTab] || '자산';
         },
         currentAssetCount: function() {
+            return this.filteredCurrentItems.length;
+        },
+        filteredCurrentItems: function() {
             if (this.currentTab === 'prompt') {
-                return this.filteredPrompts.length;
+                return this.filteredPrompts;
             }
-            return this.filteredAssets.length;
+            return this.filteredAssets;
         },
         previewToggleLabel: function() {
             return this.currentTab === 'sound' ? '미리듣기' : '미리보기';
@@ -606,7 +762,11 @@ var AssetManagerModal = {
             if (this.searchQuery) {
                 var q = this.searchQuery.toLowerCase();
                 prompts = prompts.filter(function(p) { 
-                    return p.name.toLowerCase().indexOf(q) >= 0 || p.content.toLowerCase().indexOf(q) >= 0; 
+                    var nameMatch = p.name.toLowerCase().indexOf(q) >= 0;
+                    var contentMatch = p.content.toLowerCase().indexOf(q) >= 0;
+                    var tagMatch = (p.tags || '').toLowerCase().indexOf(q) >= 0;
+                    var categoryMatch = (p.category || '').toLowerCase().indexOf(q) >= 0;
+                    return nameMatch || contentMatch || tagMatch || categoryMatch;
                 });
             }
             prompts = prompts.sort(function(a, b) {
@@ -649,6 +809,7 @@ var AssetManagerModal = {
         },
         closeContextMenus: function() {
             this.promptContextMenu = null;
+            this.folderMoveMenu = null;
         },
         centerWindow: function() {
             var vw = window.innerWidth || 1280;
@@ -743,12 +904,22 @@ var AssetManagerModal = {
         },
         onKeyDown: function(e) {
             if (e.key === 'Escape') {
-                this.clearSelection();
-                this.closeContextMenus();
+                if (this.promptEditModal.isOpen) {
+                    this.closePromptEditModal();
+                } else if (this.exportModal.isOpen) {
+                    this.closeExportModal();
+                } else {
+                    this.clearSelection();
+                    this.closeContextMenus();
+                }
             }
             if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
                 e.preventDefault();
                 this.selectAll();
+            }
+            if (e.key === 'Delete' && this.selectedAssetIds.length > 0 && this.currentTab === 'prompt') {
+                e.preventDefault();
+                this.deleteSelectedPrompts();
             }
         },
         toggleSort: function(field) {
@@ -767,13 +938,9 @@ var AssetManagerModal = {
             this.lastSelectedIndex = -1;
         },
         selectAll: function() {
-            if (this.currentTab === 'prompt') {
-                this.selectedAssetIds = this.filteredPrompts.map(function(p) { return p.id; });
-                this.lastSelectedIndex = this.filteredPrompts.length - 1;
-            } else {
-                this.selectedAssetIds = this.filteredAssets.map(function(a) { return a.id; });
-                this.lastSelectedIndex = this.filteredAssets.length - 1;
-            }
+            var items = this.filteredCurrentItems;
+            this.selectedAssetIds = items.map(function(item) { return item.id; });
+            this.lastSelectedIndex = items.length - 1;
         },
         onContentAreaClick: function(e) {
             if (e.target.closest('.asset-card')) return;
@@ -793,7 +960,7 @@ var AssetManagerModal = {
                 }
                 this.lastSelectedIndex = index;
             } else if (e.shiftKey && this.lastSelectedIndex >= 0) {
-                var items = this.currentTab === 'prompt' ? this.filteredPrompts : this.filteredAssets;
+                var items = this.filteredCurrentItems;
                 var start = Math.min(this.lastSelectedIndex, index);
                 var end = Math.max(this.lastSelectedIndex, index);
                 var newSelection = [];
@@ -818,18 +985,44 @@ var AssetManagerModal = {
         // 프롬프트 관련 메서드
         openPromptContextMenu: function(e, prompt) {
             e.preventDefault();
+            this.folderMoveMenu = null;
             this.promptContextMenu = {
                 x: e.clientX,
                 y: e.clientY,
                 prompt: prompt
             };
         },
+        applyPrompt: function(prompt) {
+            this.$emit('prompt-selected', prompt);
+            this.showToast('프롬프트가 적용되었습니다: ' + prompt.name, 'success');
+        },
         applyPromptFromContext: function() {
             if (this.promptContextMenu && this.promptContextMenu.prompt) {
-                this.$emit('prompt-selected', this.promptContextMenu.prompt);
-                this.showToast('프롬프트가 적용되었습니다', 'success');
+                this.applyPrompt(this.promptContextMenu.prompt);
             }
             this.promptContextMenu = null;
+        },
+        applySelectedPrompts: function() {
+            var self = this;
+            if (this.selectedAssetIds.length === 0) return;
+            
+            var selectedPrompts = this.prompts.filter(function(p) { 
+                return self.selectedAssetIds.indexOf(p.id) >= 0; 
+            });
+            
+            if (selectedPrompts.length === 1) {
+                this.applyPrompt(selectedPrompts[0]);
+            } else if (selectedPrompts.length > 1) {
+                var combinedContent = selectedPrompts.map(function(p) { return p.content; }).join('\n\n');
+                var combinedPrompt = {
+                    id: 'combined_' + Date.now(),
+                    name: '결합된 프롬프트 (' + selectedPrompts.length + '개)',
+                    content: combinedContent,
+                    category: '일반'
+                };
+                this.$emit('prompt-selected', combinedPrompt);
+                this.showToast(selectedPrompts.length + '개 프롬프트가 결합되어 적용되었습니다', 'success');
+            }
         },
         editPromptFromContext: function() {
             if (this.promptContextMenu && this.promptContextMenu.prompt) {
@@ -856,6 +1049,7 @@ var AssetManagerModal = {
                     content: original.content,
                     category: original.category,
                     folderId: original.folderId,
+                    tags: original.tags || '',
                     dateAdded: Date.now()
                 };
                 this.prompts.push(newPrompt);
@@ -863,15 +1057,129 @@ var AssetManagerModal = {
             }
             this.promptContextMenu = null;
         },
+        movePromptToFolderFromContext: function() {
+            if (this.promptContextMenu && this.promptContextMenu.prompt) {
+                this.folderMoveMenu = {
+                    x: this.promptContextMenu.x + 150,
+                    y: this.promptContextMenu.y,
+                    promptId: this.promptContextMenu.prompt.id,
+                    currentFolderId: this.promptContextMenu.prompt.folderId
+                };
+            }
+            this.promptContextMenu = null;
+        },
+        movePromptToFolder: function(folderId) {
+            var self = this;
+            if (this.folderMoveMenu && this.folderMoveMenu.promptId) {
+                var promptIndex = this.prompts.findIndex(function(p) { return p.id === self.folderMoveMenu.promptId; });
+                if (promptIndex >= 0) {
+                    this.prompts[promptIndex].folderId = folderId;
+                    var folder = this.promptFolders.find(function(f) { return f.id === folderId; });
+                    this.showToast('\'' + folder.name + '\' 폴더로 이동되었습니다', 'success');
+                }
+            }
+            this.folderMoveMenu = null;
+        },
+        exportPromptFromContext: function() {
+            if (this.promptContextMenu && this.promptContextMenu.prompt) {
+                this.openExportModal(this.promptContextMenu.prompt);
+            }
+            this.promptContextMenu = null;
+        },
+        openExportModal: function(prompt) {
+            this.exportModal.isOpen = true;
+            this.exportModal.prompt = prompt;
+            this.exportModal.format = 'json';
+            this.updateExportPreview();
+        },
+        closeExportModal: function() {
+            this.exportModal.isOpen = false;
+            this.exportModal.prompt = null;
+        },
+        updateExportPreview: function() {
+            if (!this.exportModal.prompt) return;
+            var prompt = this.exportModal.prompt;
+            if (this.exportModal.format === 'json') {
+                this.exportModal.preview = JSON.stringify({
+                    name: prompt.name,
+                    content: prompt.content,
+                    category: prompt.category,
+                    tags: prompt.tags
+                }, null, 2);
+            } else {
+                this.exportModal.preview = '# ' + prompt.name + '\n\n' + prompt.content + '\n\n---\n카테고리: ' + (prompt.category || '일반') + '\n태그: ' + (prompt.tags || '');
+            }
+        },
+        downloadExport: function() {
+            if (!this.exportModal.prompt) return;
+            var content = this.exportModal.preview;
+            var filename = this.exportModal.prompt.name.replace(/[^a-zA-Z0-9가-힣]/g, '_');
+            var ext = this.exportModal.format;
+            var mimeType = ext === 'json' ? 'application/json' : 'text/plain';
+            
+            var blob = new Blob([content], { type: mimeType });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = filename + '.' + ext;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            this.showToast('프롬프트가 내보내졌습니다', 'success');
+            this.closeExportModal();
+        },
         deletePromptFromContext: function() {
             var self = this;
             if (this.promptContextMenu && this.promptContextMenu.prompt) {
                 var promptId = this.promptContextMenu.prompt.id;
-                this.prompts = this.prompts.filter(function(p) { return p.id !== promptId; });
-                this.selectedAssetIds = this.selectedAssetIds.filter(function(id) { return id !== promptId; });
-                this.showToast('프롬프트가 삭제되었습니다', 'info');
+                var promptName = this.promptContextMenu.prompt.name;
+                
+                Swal.fire({
+                    title: '프롬프트 삭제',
+                    text: '\'' + promptName + '\' 프롬프트를 삭제하시겠습니까?',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: '삭제',
+                    cancelButtonText: '취소',
+                    background: '#1e1e1e',
+                    color: '#fff',
+                    confirmButtonColor: '#ef4444'
+                }).then(function(result) {
+                    if (result.isConfirmed) {
+                        self.prompts = self.prompts.filter(function(p) { return p.id !== promptId; });
+                        self.selectedAssetIds = self.selectedAssetIds.filter(function(id) { return id !== promptId; });
+                        self.showToast('프롬프트가 삭제되었습니다', 'info');
+                    }
+                });
             }
             this.promptContextMenu = null;
+        },
+        deleteSelectedPrompts: function() {
+            var self = this;
+            if (this.selectedAssetIds.length === 0) return;
+            
+            var count = this.selectedAssetIds.length;
+            Swal.fire({
+                title: '프롬프트 삭제',
+                text: count + '개의 프롬프트를 삭제하시겠습니까?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: '삭제',
+                cancelButtonText: '취소',
+                background: '#1e1e1e',
+                color: '#fff',
+                confirmButtonColor: '#ef4444'
+            }).then(function(result) {
+                if (result.isConfirmed) {
+                    self.prompts = self.prompts.filter(function(p) { 
+                        return self.selectedAssetIds.indexOf(p.id) < 0; 
+                    });
+                    self.selectedAssetIds = [];
+                    self.showToast(count + '개 프롬프트가 삭제되었습니다', 'info');
+                }
+            });
         },
         editPrompt: function(prompt) {
             this.promptEditModal = {
@@ -880,8 +1188,33 @@ var AssetManagerModal = {
                 id: prompt.id,
                 name: prompt.name,
                 content: prompt.content,
-                category: prompt.category || '일반'
+                category: prompt.category || '일반',
+                folderId: prompt.folderId || 'all',
+                tags: prompt.tags || ''
             };
+        },
+        deletePromptFromEdit: function() {
+            var self = this;
+            var promptId = this.promptEditModal.id;
+            
+            Swal.fire({
+                title: '프롬프트 삭제',
+                text: '이 프롬프트를 삭제하시겠습니까?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: '삭제',
+                cancelButtonText: '취소',
+                background: '#1e1e1e',
+                color: '#fff',
+                confirmButtonColor: '#ef4444'
+            }).then(function(result) {
+                if (result.isConfirmed) {
+                    self.prompts = self.prompts.filter(function(p) { return p.id !== promptId; });
+                    self.selectedAssetIds = self.selectedAssetIds.filter(function(id) { return id !== promptId; });
+                    self.closePromptEditModal();
+                    self.showToast('프롬프트가 삭제되었습니다', 'info');
+                }
+            });
         },
         addAsset: function() {
             if (this.currentTab === 'prompt') {
@@ -891,7 +1224,9 @@ var AssetManagerModal = {
                     id: null,
                     name: '',
                     content: '',
-                    category: '일반'
+                    category: '일반',
+                    folderId: this.currentFolderId !== 'all' ? this.currentFolderId : 'all',
+                    tags: ''
                 };
             } else if (this.$refs.fileInput) {
                 this.$refs.fileInput.click();
@@ -914,10 +1249,11 @@ var AssetManagerModal = {
             if (this.promptEditModal.isNew) {
                 var newPrompt = {
                     id: 'p_' + Date.now(),
-                    name: this.promptEditModal.name,
-                    content: this.promptEditModal.content,
+                    name: this.promptEditModal.name.trim(),
+                    content: this.promptEditModal.content.trim(),
                     category: this.promptEditModal.category,
-                    folderId: this.getFolderIdByCategory(this.promptEditModal.category),
+                    folderId: this.promptEditModal.folderId,
+                    tags: this.promptEditModal.tags.trim(),
                     dateAdded: Date.now()
                 };
                 this.prompts.push(newPrompt);
@@ -932,10 +1268,11 @@ var AssetManagerModal = {
                 }
                 if (idx >= 0) {
                     this.prompts[idx] = Object.assign({}, this.prompts[idx], {
-                        name: this.promptEditModal.name,
-                        content: this.promptEditModal.content,
+                        name: this.promptEditModal.name.trim(),
+                        content: this.promptEditModal.content.trim(),
                         category: this.promptEditModal.category,
-                        folderId: this.getFolderIdByCategory(this.promptEditModal.category)
+                        folderId: this.promptEditModal.folderId,
+                        tags: this.promptEditModal.tags.trim()
                     });
                 }
                 this.showToast('프롬프트가 저장되었습니다', 'success');
@@ -943,45 +1280,8 @@ var AssetManagerModal = {
             
             this.closePromptEditModal();
         },
-        getFolderIdByCategory: function(category) {
-            var map = {
-                '이미지': 'image',
-                '텍스트': 'text',
-                '보이스': 'voice',
-                '스타일': 'all',
-                '일반': 'all'
-            };
-            return map[category] || 'all';
-        },
-        applySelectedPrompt: function() {
-            var self = this;
-            if (this.selectedAssetIds.length === 0) return;
-            
-            var prompt = this.prompts.find(function(p) { 
-                return p.id === self.selectedAssetIds[0]; 
-            });
-            if (prompt) {
-                this.$emit('prompt-selected', prompt);
-                this.showToast('프롬프트가 적용되었습니다', 'success');
-            }
-        },
-        onPromptDragStart: function(e, prompt) {
-            e.dataTransfer.effectAllowed = 'copy';
-            e.dataTransfer.setData('text/wai-prompt', JSON.stringify(prompt));
-            
-            var dragImage = document.createElement('div');
-            dragImage.textContent = '📝 ' + prompt.name;
-            dragImage.style.cssText = 'position:absolute;top:-1000px;padding:8px 16px;background:#8b5cf6;color:#fff;border-radius:6px;font-size:12px;font-weight:bold;white-space:nowrap;';
-            document.body.appendChild(dragImage);
-            e.dataTransfer.setDragImage(dragImage, 0, 0);
-            setTimeout(function() {
-                document.body.removeChild(dragImage);
-            }, 0);
-        },
         showToast: function(message, type) {
-            if (typeof WAICB !== 'undefined' && WAICB.Toast) {
-                WAICB.Toast[type || 'info'](message);
-            } else if (typeof Swal !== 'undefined') {
+            if (typeof Swal !== 'undefined') {
                 Swal.fire({
                     toast: true,
                     position: 'bottom-end',
@@ -993,6 +1293,35 @@ var AssetManagerModal = {
                     color: '#fff'
                 });
             }
+        },
+        onPromptDragStart: function(e, prompt) {
+            var self = this;
+            
+            // 선택 안된 프롬프트를 드래그 시작하면 해당 프롬프트만 선택
+            if (this.selectedAssetIds.indexOf(prompt.id) < 0) {
+                this.selectedAssetIds = [prompt.id];
+            }
+            
+            var selectedPrompts = this.prompts.filter(function(p) {
+                return self.selectedAssetIds.indexOf(p.id) >= 0;
+            });
+            
+            this.dragData = { type: 'prompt', prompts: selectedPrompts };
+            e.dataTransfer.effectAllowed = 'copyMove';
+            e.dataTransfer.setData('text/wai-prompt', JSON.stringify(selectedPrompts));
+            
+            var dragImage = document.createElement('div');
+            if (selectedPrompts.length > 1) {
+                dragImage.textContent = '📝 ' + selectedPrompts.length + '개 프롬프트';
+            } else {
+                dragImage.textContent = '📝 ' + prompt.name;
+            }
+            dragImage.style.cssText = 'position:absolute;top:-1000px;padding:8px 16px;background:#8b5cf6;color:#fff;border-radius:6px;font-size:12px;font-weight:bold;white-space:nowrap;';
+            document.body.appendChild(dragImage);
+            e.dataTransfer.setDragImage(dragImage, 0, 0);
+            setTimeout(function() {
+                document.body.removeChild(dragImage);
+            }, 0);
         },
         
         // 기존 자산 관련 메서드
@@ -1039,6 +1368,7 @@ var AssetManagerModal = {
                 bubbles: true
             });
             document.dispatchEvent(event);
+            this.showToast(assetDataArray.length + '개 자산이 타임라인에 추가되었습니다', 'success');
         },
         onFileSelected: function(e) {
             this.handleFileUpload(e.target.files);
@@ -1113,6 +1443,7 @@ var AssetManagerModal = {
             
             if (addedCount > 0) {
                 this.currentFolderId = folderId;
+                this.showToast(addedCount + '개 파일이 업로드되었습니다', 'success');
             }
         },
         createFolder: function() {
@@ -1122,16 +1453,20 @@ var AssetManagerModal = {
                 input: 'text',
                 inputPlaceholder: '폴더 이름',
                 showCancelButton: true,
+                confirmButtonText: '생성',
+                cancelButtonText: '취소',
                 background: '#1e1e1e',
                 color: '#fff',
                 confirmButtonColor: '#3b82f6'
             }).then(function(result) {
                 if (result.value) {
+                    var newFolder = { id: 'folder_' + Date.now(), name: result.value };
                     if (self.currentTab === 'prompt') {
-                        self.promptFolders.push({ id: 'folder_' + Date.now(), name: result.value });
+                        self.promptFolders.push(newFolder);
                     } else {
-                        self.assetFolders.push({ id: 'folder_' + Date.now(), name: result.value });
+                        self.assetFolders.push(newFolder);
                     }
+                    self.showToast('폴더가 생성되었습니다', 'success');
                 }
             });
         },
@@ -1203,11 +1538,24 @@ var AssetManagerModal = {
         onFolderDrop: function(e, folder) {
             var self = this;
             e.preventDefault();
-            if (this.dragData && this.dragData.type === 'asset' && this.dragData.assets) {
-                this.dragData.assets.forEach(function(asset) {
-                    self.moveAssetToFolder(asset, folder.id);
-                });
+            
+            if (this.dragData) {
+                if (this.dragData.type === 'prompt' && this.dragData.prompts) {
+                    this.dragData.prompts.forEach(function(prompt) {
+                        var idx = self.prompts.findIndex(function(p) { return p.id === prompt.id; });
+                        if (idx >= 0) {
+                            self.prompts[idx].folderId = folder.id;
+                        }
+                    });
+                    this.showToast(this.dragData.prompts.length + '개 프롬프트가 이동되었습니다', 'success');
+                } else if (this.dragData.type === 'asset' && this.dragData.assets) {
+                    this.dragData.assets.forEach(function(asset) {
+                        self.moveAssetToFolder(asset, folder.id);
+                    });
+                    this.showToast(this.dragData.assets.length + '개 자산이 이동되었습니다', 'success');
+                }
             }
+            
             this.dragOverFolderId = null;
             this.dragData = null;
         },
@@ -1218,11 +1566,22 @@ var AssetManagerModal = {
         onContentPanelDrop: function(e) {
             var self = this;
             e.preventDefault();
-            if (this.dragData && this.dragData.type === 'asset' && this.dragData.assets) {
-                this.dragData.assets.forEach(function(asset) {
-                    self.moveAssetToFolder(asset, self.currentFolderId);
-                });
+            
+            if (this.dragData) {
+                if (this.dragData.type === 'prompt' && this.dragData.prompts) {
+                    this.dragData.prompts.forEach(function(prompt) {
+                        var idx = self.prompts.findIndex(function(p) { return p.id === prompt.id; });
+                        if (idx >= 0) {
+                            self.prompts[idx].folderId = self.currentFolderId;
+                        }
+                    });
+                } else if (this.dragData.type === 'asset' && this.dragData.assets) {
+                    this.dragData.assets.forEach(function(asset) {
+                        self.moveAssetToFolder(asset, self.currentFolderId);
+                    });
+                }
             }
+            
             this.isContentPanelDragOver = false;
             this.dragData = null;
         },
@@ -1234,6 +1593,11 @@ var AssetManagerModal = {
                     break;
                 }
             }
+        }
+    },
+    watch: {
+        'exportModal.format': function() {
+            this.updateExportPreview();
         }
     }
 };
