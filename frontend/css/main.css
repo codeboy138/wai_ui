@@ -507,6 +507,202 @@ html, body {
 }
 
 /* ================================
+   프롬프트 카드 스타일
+   ================================ */
+.prompt-card {
+    position: relative;
+}
+
+.prompt-card .asset-thumbnail {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(59, 130, 246, 0.2) 100%);
+}
+
+.prompt-thumbnail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+}
+
+.prompt-thumbnail .prompt-icon-wrapper {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+}
+
+.prompt-thumbnail .prompt-preview-text {
+    position: absolute;
+    bottom: 4px;
+    left: 4px;
+    right: 4px;
+    font-size: 8px;
+    color: rgba(255, 255, 255, 0.5);
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    z-index: 1;
+}
+
+.prompt-apply-btn {
+    background: #8b5cf6 !important;
+}
+
+.prompt-apply-btn:hover {
+    background: #7c3aed !important;
+}
+
+/* 프롬프트 카테고리 뱃지 */
+.prompt-category-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 500;
+    background: rgba(139, 92, 246, 0.2);
+    color: #a78bfa;
+}
+
+.prompt-category-badge.category-이미지 {
+    background: rgba(59, 130, 246, 0.2);
+    color: #60a5fa;
+}
+
+.prompt-category-badge.category-텍스트 {
+    background: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+}
+
+.prompt-category-badge.category-보이스 {
+    background: rgba(249, 115, 22, 0.2);
+    color: #fb923c;
+}
+
+.prompt-category-badge.category-스타일 {
+    background: rgba(236, 72, 153, 0.2);
+    color: #f472b6;
+}
+
+.prompt-category-badge.category-캐릭터 {
+    background: rgba(234, 179, 8, 0.2);
+    color: #facc15;
+}
+
+.prompt-category-badge.category-배경 {
+    background: rgba(20, 184, 166, 0.2);
+    color: #2dd4bf;
+}
+
+/* ================================
+   컨텍스트 메뉴 - 기본
+   ================================ */
+.context-menu {
+    position: fixed;
+    background: var(--color-bg-panel);
+    border: 1px solid var(--color-ui-border);
+    border-radius: 6px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    z-index: 9999;
+    padding: 3px 0;
+    min-width: 140px;
+}
+
+/* 컨텍스트 메뉴 - 컴팩트 버전 (축소된 글자 크기) */
+.context-menu.context-menu--compact {
+    min-width: 130px;
+}
+
+.context-menu.context-menu--compact .ctx-item {
+    padding: 5px 10px;
+    font-size: 10px;
+    gap: 6px;
+}
+
+.context-menu.context-menu--compact .ctx-item i {
+    font-size: 9px;
+    width: 12px;
+}
+
+.ctx-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--color-text-main);
+    transition: background-color 0.1s;
+}
+
+.ctx-item:hover {
+    background: var(--color-bg-hover);
+}
+
+.ctx-item.disabled,
+.ctx-item.ctx-item-disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.ctx-item.disabled:hover,
+.ctx-item.ctx-item-disabled:hover {
+    background: transparent;
+}
+
+.ctx-item i {
+    width: 14px;
+    text-align: center;
+    font-size: 11px;
+}
+
+.ctx-separator {
+    height: 1px;
+    background: var(--color-ui-border);
+    margin: 4px 0;
+}
+
+.ctx-header {
+    padding: 6px 10px;
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--color-text-sub);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--color-ui-border);
+    margin-bottom: 2px;
+}
+
+.context-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 12px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-main);
+    font-size: 11px;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.1s;
+}
+
+.context-menu-item:hover {
+    background: var(--color-bg-hover);
+}
+
+.context-menu-item i {
+    width: 16px;
+    text-align: center;
+    color: var(--color-text-sub);
+}
+
+/* ================================
    타임라인 스타일
    ================================ */
 .timeline-grid {
@@ -1053,91 +1249,6 @@ html, body {
     color: var(--color-text-sub);
     text-align: center;
     min-width: 40px;
-}
-
-/* ================================
-   컨텍스트 메뉴 - 기본
-   ================================ */
-.context-menu {
-    position: fixed;
-    background: var(--color-bg-panel);
-    border: 1px solid var(--color-ui-border);
-    border-radius: 6px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-    z-index: 9999;
-    padding: 3px 0;
-    min-width: 140px;
-}
-
-/* 컨텍스트 메뉴 - 컴팩트 버전 (축소된 글자 크기) */
-.context-menu.context-menu--compact {
-    min-width: 130px;
-}
-
-.context-menu.context-menu--compact .ctx-item {
-    padding: 5px 10px;
-    font-size: 10px;
-    gap: 6px;
-}
-
-.context-menu.context-menu--compact .ctx-item i {
-    font-size: 9px;
-    width: 12px;
-}
-
-.ctx-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    cursor: pointer;
-    font-size: 12px;
-    color: var(--color-text-main);
-    transition: background-color 0.1s;
-}
-
-.ctx-item:hover {
-    background: var(--color-bg-hover);
-}
-
-.ctx-item.disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
-
-.ctx-item.disabled:hover {
-    background: transparent;
-}
-
-.ctx-item i {
-    width: 14px;
-    text-align: center;
-    font-size: 11px;
-}
-
-.context-menu-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    padding: 6px 12px;
-    border: none;
-    background: transparent;
-    color: var(--color-text-main);
-    font-size: 11px;
-    text-align: left;
-    cursor: pointer;
-    transition: background-color 0.1s;
-}
-
-.context-menu-item:hover {
-    background: var(--color-bg-hover);
-}
-
-.context-menu-item i {
-    width: 16px;
-    text-align: center;
-    color: var(--color-text-sub);
 }
 
 /* ================================
@@ -1925,6 +2036,23 @@ body:not(.dev-mode-active):not(.dev-mode-full) .dev-highlight { display: none; }
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
+}
+
+/* ================================
+   line-clamp 유틸리티
+   ================================ */
+.line-clamp-1 {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 /* === END OF FILE === */
