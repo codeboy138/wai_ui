@@ -139,6 +139,7 @@ WAICB.Utils = {
     },
 
 
+
     $$(sel, ctx) {
         ctx = ctx || document;
         return Array.from(ctx.querySelectorAll(sel));
@@ -757,7 +758,7 @@ WAICB.Segment = (function() {
 })();
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 9: 속도 에디터
+   SECTION 9: 속도 에디터 (TimelinePanel에서 사용하기 위해 유지)
    ───────────────────────────────────────────────────────────────────────────── */
 WAICB.SpeedEditor = (function() {
     var states = {};
@@ -1755,9 +1756,6 @@ WAICB.ContextMenu = (function() {
     };
 })();
 
-/* 코드연결지점 - Part 2/2로 계속 */
-/* 코드연결지점 - Part 1/2에서 계속 */
-
 /* ─────────────────────────────────────────────────────────────────────────────
    SECTION 13: Vue 컴포넌트 - 세그먼트 트랙
    ───────────────────────────────────────────────────────────────────────────── */
@@ -1953,64 +1951,7 @@ var ClipBoxLayers = {
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 15: Vue 컴포넌트 - 속도 에디터
-   ───────────────────────────────────────────────────────────────────────────── */
-var ClipBoxSpeedEditor = {
-    props: ['clipId'],
-    template: `
-        <div class="wai-cb-speed-editor" :id="'clipbox-speed-' + clipId">
-            <div class="wai-cb-speed-presets">
-                <div v-for="(preset, key) in presets" :key="key" class="wai-cb-speed-preset" :class="{ 'wai-cb-speed-preset--active': state.activePreset === key }" @click="selectPreset(key)">
-                    <span v-html="getPresetIcon(key)"></span>
-                    <span class="wai-cb-speed-preset__name">{{ preset.name }}</span>
-                </div>
-            </div>
-            <div class="wai-cb-speed-editor__header">
-                <span class="wai-cb-label--section">속도 곡선</span>
-                <div class="wai-cb-speed-duration">
-                    <span class="wai-cb-speed-duration__value">{{ speedInfo.originalDuration }}s</span>
-                    <span class="wai-cb-speed-duration__arrow">→</span>
-                    <span class="wai-cb-speed-duration__value">{{ speedInfo.resultDuration }}s</span>
-                </div>
-            </div>
-            <div class="wai-cb-speed-canvas-wrap">
-                <div class="wai-cb-speed-y-labels"><span>4x</span><span>2x</span><span class="wai-cb-speed-y-labels__baseline">1x</span><span>0.5x</span><span>0.25x</span></div>
-                <canvas ref="speedCanvas" class="wai-cb-speed-canvas" @mousedown="onCanvasMouseDown" @mousemove="onCanvasMouseMove" @mouseup="onCanvasMouseUp" @mouseleave="onCanvasMouseUp" @dblclick="onCanvasDblClick" @contextmenu.prevent="onCanvasRightClick"></canvas>
-            </div>
-            <div class="wai-cb-speed-info">
-                <div class="wai-cb-speed-info__item"><div class="wai-cb-speed-info__label">위치</div><div class="wai-cb-speed-info__value">{{ speedInfo.time }}s</div></div>
-                <div class="wai-cb-speed-info__item"><div class="wai-cb-speed-info__label">속도</div><div class="wai-cb-speed-info__value" :class="getSpeedClass()">{{ speedInfo.speed }}x</div></div>
-                <div class="wai-cb-speed-info__item"><div class="wai-cb-speed-info__label">포인트</div><div class="wai-cb-speed-info__value">{{ speedInfo.selectedPoint }}</div></div>
-            </div>
-            <div class="wai-cb-speed-controls">
-                <button class="wai-cb-btn wai-cb-btn--ghost wai-cb-btn--xs" @click="resetSpeed">초기화</button>
-                <button class="wai-cb-btn wai-cb-btn--xs" @click="addPoint">+ 포인트</button>
-            </div>
-        </div>
-    `,
-    data: function() { return { presets: WAICB.PRESETS.speed }; },
-    computed: {
-        state: function() { return WAICB.SpeedEditor.getState(this.clipId); },
-        speedInfo: function() { return WAICB.SpeedEditor.getSpeedInfo(this.clipId); }
-    },
-    mounted: function() { this.drawCanvas(); },
-    methods: {
-        getPresetIcon: function(key) { return WAICB.SpeedEditor.createPresetIcon(this.presets[key].points); },
-        selectPreset: function(key) { WAICB.SpeedEditor.selectPreset(this.clipId, key); this.drawCanvas(); this.$forceUpdate(); },
-        addPoint: function() { WAICB.SpeedEditor.addPoint(this.clipId); this.drawCanvas(); this.$forceUpdate(); },
-        resetSpeed: function() { WAICB.SpeedEditor.reset(this.clipId); this.drawCanvas(); this.$forceUpdate(); },
-        drawCanvas: function() { if (this.$refs.speedCanvas) WAICB.SpeedEditor.draw(this.clipId, this.$refs.speedCanvas); },
-        onCanvasMouseDown: function(e) { WAICB.SpeedEditor.handleCanvasEvent(this.clipId, this.$refs.speedCanvas, 'mousedown', e.clientX, e.clientY); this.drawCanvas(); this.$forceUpdate(); },
-        onCanvasMouseMove: function(e) { if (WAICB.SpeedEditor.handleCanvasEvent(this.clipId, this.$refs.speedCanvas, 'mousemove', e.clientX, e.clientY)) { this.drawCanvas(); this.$forceUpdate(); } },
-        onCanvasMouseUp: function(e) { WAICB.SpeedEditor.handleCanvasEvent(this.clipId, this.$refs.speedCanvas, 'mouseup', e.clientX, e.clientY); },
-        onCanvasDblClick: function(e) { if (WAICB.SpeedEditor.handleCanvasEvent(this.clipId, this.$refs.speedCanvas, 'dblclick', e.clientX, e.clientY)) { this.drawCanvas(); this.$forceUpdate(); } },
-        onCanvasRightClick: function(e) { if (WAICB.SpeedEditor.handleCanvasEvent(this.clipId, this.$refs.speedCanvas, 'contextmenu', e.clientX, e.clientY)) { this.drawCanvas(); this.$forceUpdate(); } },
-        getSpeedClass: function() { var speed = parseFloat(this.speedInfo.speed); if (speed > 1.1) return 'wai-cb-speed-info__value--fast'; if (speed < 0.9) return 'wai-cb-speed-info__value--slow'; return 'wai-cb-speed-info__value--normal'; }
-    }
-};
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 16: Vue 컴포넌트 - 오디오 에디터
+   SECTION 15: Vue 컴포넌트 - 오디오 에디터
    ───────────────────────────────────────────────────────────────────────────── */
 var ClipBoxAudioEditor = {
     props: ['clipId'],
@@ -2049,7 +1990,7 @@ var ClipBoxAudioEditor = {
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 17: Vue 컴포넌트 - 레이아웃 에디터
+   SECTION 16: Vue 컴포넌트 - 레이아웃 에디터
    ───────────────────────────────────────────────────────────────────────────── */
 var ClipBoxLayoutEditor = {
     props: ['clipId'],
@@ -2139,14 +2080,13 @@ var ClipBoxLayoutEditor = {
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 18: Vue 컴포넌트 - 클립 아이템
+   SECTION 17: Vue 컴포넌트 - 클립 아이템 (SPEED 탭 제거됨)
    ───────────────────────────────────────────────────────────────────────────── */
 var ClipBoxClipItem = {
     props: ['clip', 'index'],
     emits: ['update', 'delete', 'select'],
     components: {
         'clip-box-layers': ClipBoxLayers,
-        'clip-box-speed-editor': ClipBoxSpeedEditor,
         'clip-box-audio-editor': ClipBoxAudioEditor,
         'clip-box-layout-editor': ClipBoxLayoutEditor
     },
@@ -2182,7 +2122,6 @@ var ClipBoxClipItem = {
                     <div class="wai-cb-row"><span class="wai-cb-label">음성</span><select class="wai-cb-select wai-cb-grow"><option value="ko-KR-InJoonNeural">한국어 남성 (InJoon)</option><option value="ko-KR-SunHiNeural">한국어 여성 (SunHi)</option></select></div>
                     <div class="wai-cb-row"><button class="wai-cb-btn wai-cb-btn--primary wai-cb-btn--xs" @click="generateTts">🎙️ TTS 생성</button><span class="wai-cb-badge wai-cb-badge--warning">미생성</span></div>
                 </div>
-                <div class="wai-cb-tab-content" :class="{ 'wai-cb-tab-content--active': clip.activeTab === 'speed' }"><clip-box-speed-editor :clip-id="clip.id"></clip-box-speed-editor></div>
                 <div class="wai-cb-tab-content" :class="{ 'wai-cb-tab-content--active': clip.activeTab === 'image' }">
                     <span class="wai-cb-label--section">이미지 프롬프트</span>
                     <textarea class="wai-cb-textarea" placeholder="이미지 생성을 위한 프롬프트..."></textarea>
@@ -2194,7 +2133,18 @@ var ClipBoxClipItem = {
             </div>
         </div>
     `,
-    data: function() { return { tabs: [{ id: 'basic', label: 'BASIC' }, { id: 'tts', label: 'TTS' }, { id: 'speed', label: 'SPEED' }, { id: 'image', label: 'IMAGE' }, { id: 'audio', label: 'AUDIO' }, { id: 'layout', label: 'LAYOUT' }, { id: 'notes', label: 'NOTES' }] }; },
+    data: function() { 
+        return { 
+            tabs: [
+                { id: 'basic', label: 'BASIC' }, 
+                { id: 'tts', label: 'TTS' }, 
+                { id: 'image', label: 'IMAGE' }, 
+                { id: 'audio', label: 'AUDIO' }, 
+                { id: 'layout', label: 'LAYOUT' }, 
+                { id: 'notes', label: 'NOTES' }
+            ] 
+        }; 
+    },
     methods: {
         toggleSelect: function() { this.$emit('update', this.clip.id, { isSelected: !this.clip.isSelected }); },
         updateLabel: function(value) { this.$emit('update', this.clip.id, { label: value }); },
@@ -2209,7 +2159,7 @@ var ClipBoxClipItem = {
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 19: Vue 컴포넌트 - 일괄 설정 패널
+   SECTION 18: Vue 컴포넌트 - 일괄 설정 패널 (속도 탭 제거됨)
    ───────────────────────────────────────────────────────────────────────────── */
 var ClipBoxBulkPanel = {
     props: ['clipCount', 'selectedCount', 'ttsMissingCount', 'imgMissingCount'],
@@ -2246,16 +2196,10 @@ var ClipBoxBulkPanel = {
                             <div class="wai-cb-bulk-row"><span class="wai-cb-bulk-row__label">볼륨</span><div class="wai-cb-bulk-row__control"><div class="wai-cb-slider"><input type="range" min="0" max="100" step="1" v-model="audioSettings.volume"/><span class="wai-cb-slider__value">{{ audioSettings.volume }}%</span></div></div></div>
                         </div>
                     </div>
-                    <div class="wai-cb-bulk-tab-content" :class="{ 'wai-cb-bulk-tab-content--active': activeTab === 'speed' }">
-                        <div class="wai-cb-bulk-group"><div class="wai-cb-bulk-group__title">전역 재생속도</div>
-                            <div class="wai-cb-bulk-row"><span class="wai-cb-bulk-row__label">속도</span><div class="wai-cb-bulk-row__control"><div class="wai-cb-slider"><input type="range" min="0.25" max="3.0" step="0.05" v-model="speedSettings.speed"/><span class="wai-cb-slider__value">{{ speedSettings.speed }}x</span></div></div></div>
-                        </div>
-                    </div>
                     <div class="wai-cb-bulk-actions">
                         <div class="wai-cb-checkbox-group">
                             <label class="wai-cb-checkbox-item"><input type="checkbox" v-model="applyOptions.tts" /><span>TTS</span></label>
                             <label class="wai-cb-checkbox-item"><input type="checkbox" v-model="applyOptions.audio" /><span>AUDIO</span></label>
-                            <label class="wai-cb-checkbox-item"><input type="checkbox" v-model="applyOptions.speed" /><span>속도</span></label>
                         </div>
                         <div class="wai-cb-bulk-actions__right">
                             <button class="wai-cb-btn wai-cb-btn--ghost wai-cb-btn--xs" @click="$emit('selectAll')">전체 선택</button>
@@ -2272,22 +2216,25 @@ var ClipBoxBulkPanel = {
         return {
             isExpanded: false,
             activeTab: 'tts',
-            tabs: [{ id: 'tts', icon: '🎙️', label: 'TTS' }, { id: 'audio', icon: '🎵', label: 'AUDIO' }, { id: 'speed', icon: '⚡', label: '속도' }],
+            tabs: [
+                { id: 'tts', icon: '🎙️', label: 'TTS' }, 
+                { id: 'audio', icon: '🎵', label: 'AUDIO' }
+            ],
             ttsSettings: { voice: 'ko-KR-InJoonNeural', speed: 1.0 },
             audioSettings: { bgm: 'none', volume: 50 },
-            speedSettings: { speed: 1.0 },
-            applyOptions: { tts: true, audio: true, speed: false }
+            applyOptions: { tts: true, audio: true }
         };
     },
     methods: {
         toggleExpand: function() { this.isExpanded = !this.isExpanded; },
-        applyToSelected: function() { this.$emit('applySelected', { tts: this.ttsSettings, audio: this.audioSettings, speed: this.speedSettings, options: this.applyOptions }); },
-        applyToAll: function() { this.$emit('applyAll', { tts: this.ttsSettings, audio: this.audioSettings, speed: this.speedSettings, options: this.applyOptions }); }
+        applyToSelected: function() { this.$emit('applySelected', { tts: this.ttsSettings, audio: this.audioSettings, options: this.applyOptions }); },
+        applyToAll: function() { this.$emit('applyAll', { tts: this.ttsSettings, audio: this.audioSettings, options: this.applyOptions }); }
     }
 };
+/* 코드연결지점 - 이전 코드에서 계속 */
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   SECTION 20: 메인 ClipBoxManager Vue 컴포넌트
+   SECTION 19: 메인 ClipBoxManager Vue 컴포넌트
    ───────────────────────────────────────────────────────────────────────────── */
 var ClipBoxManager = {
     components: {
@@ -2438,3 +2385,5 @@ window.ClipBoxManager = ClipBoxManager;
 /* ═══════════════════════════════════════════════════════════════════════════
    END OF CLIPBOX MANAGER COMPONENT
    ═══════════════════════════════════════════════════════════════════════════ */
+
+
