@@ -1,12 +1,12 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   WAI-UI ClipBox Manager v5
+   WAI-UI ClipBox Manager v6
    파일: js/components/ClipBoxManager.js
    
-   v5 변경사항:
-   - 레이어 관리 UI 스타일 완전 통일
-   - 전역설정 바 제거, 헤더에 통합
-   - 클립 접기/펼치기 개선
-   - 토큰/텍스트 필드 스타일 통일
+   v6 변경사항:
+   - 레이어 관리 패널 텍스트 크기 완전 통일 (12px 기준)
+   - 화면비율 레이블 표시 및 선택 후 비율 표시
+   - 보이스 생성 + 전역설정 한 줄 표시
+   - 기존 기능 완전 복구
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -15,7 +15,7 @@
 window.WAICB = window.WAICB || {};
 
 WAICB.CONST = {
-    STORAGE_KEY: 'waicb_v5_data',
+    STORAGE_KEY: 'waicb_v6_data',
     AUTOSAVE_DELAY: 2000,
     TOAST_DURATION: 3000,
     
@@ -81,12 +81,6 @@ WAICB.CONST = {
             '#3b82f6', '#8b5cf6', '#d946ef', '#ec4899', '#f43f5e', '#ffffff',
             '#a1a1aa', '#71717a', '#52525b', '#3f3f46', '#27272a', '#000000',
             '#7f1d1d', '#9a3412', '#854d0e', '#713f12', '#365314', '#115e59'
-        ],
-        complementary: [
-            '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9', '#3b82f6', '#6366f1',
-            '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#ef4444',
-            '#84cc16', '#22c55e', '#2dd4bf', '#38bdf8', '#818cf8', '#c084fc',
-            '#e879f9', '#f472b6', '#fb7185', '#f87171', '#fbbf24', '#a3e635'
         ],
         basic: [
             '#000000', '#3b82f6', '#1e3a5f', '#374151', '#6b7280', '#9ca3af', '#d1d5db', '#ffffff'
@@ -325,7 +319,7 @@ WAICB.Store = (function() {
     
     function save() {
         var data = {
-            version: 5,
+            version: 6,
             globalSettings: _globalSettings,
             clips: _clips,
             savedAt: Date.now()
@@ -712,7 +706,7 @@ WAICB.Resolver = (function() {
 })();
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   블록 6: Vue 컴포넌트 - ClipBoxColorPicker (색상 선택 모달)
+   블록 6: Vue 컴포넌트 - ClipBoxColorPicker
    ───────────────────────────────────────────────────────────────────────────── */
 
 var ClipBoxColorPicker = {
@@ -767,13 +761,11 @@ var ClipBoxColorPicker = {
         <div class="wai-cb-color-preview" :style="{ backgroundColor: currentColor }"></div>\
         <span v-if="label" class="wai-cb-color-label">{{ label }}</span>\
     </div>\
-    \
     <div v-if="isOpen" class="wai-cb-color-modal" @click.stop>\
         <div class="wai-cb-color-modal__header">\
             <span class="wai-cb-color-modal__title">색상 선택</span>\
             <button class="wai-cb-btn wai-cb-btn--icon" @click="closePicker"><i class="fas fa-times"></i></button>\
         </div>\
-        \
         <div class="wai-cb-color-modal__body">\
             <div class="wai-cb-color-section">\
                 <div class="wai-cb-color-section__label">현재 색상</div>\
@@ -782,46 +774,22 @@ var ClipBoxColorPicker = {
                     <span class="wai-cb-color-current__hex">{{ currentColor.toUpperCase() }}</span>\
                 </div>\
             </div>\
-            \
             <div class="wai-cb-color-section">\
                 <div class="wai-cb-color-section__label">무지개 색상</div>\
                 <div class="wai-cb-color-grid">\
-                    <div \
-                        v-for="color in palette.rainbow" \
-                        :key="\'r-\' + color" \
-                        class="wai-cb-color-swatch" \
-                        :class="{ \'wai-cb-color-swatch--selected\': currentColor === color }"\
-                        :style="{ backgroundColor: color }" \
-                        @click="selectColor(color)"\
-                    ></div>\
+                    <div v-for="color in palette.rainbow" :key="\'r-\' + color" class="wai-cb-color-swatch" :class="{ \'wai-cb-color-swatch--selected\': currentColor === color }" :style="{ backgroundColor: color }" @click="selectColor(color)"></div>\
                 </div>\
             </div>\
-            \
             <div class="wai-cb-color-section">\
                 <div class="wai-cb-color-section__label">자주 쓰는 색상</div>\
                 <div class="wai-cb-color-grid">\
-                    <div \
-                        v-for="color in palette.frequent" \
-                        :key="\'f-\' + color" \
-                        class="wai-cb-color-swatch" \
-                        :class="{ \'wai-cb-color-swatch--selected\': currentColor === color }"\
-                        :style="{ backgroundColor: color }" \
-                        @click="selectColor(color)"\
-                    ></div>\
+                    <div v-for="color in palette.frequent" :key="\'f-\' + color" class="wai-cb-color-swatch" :class="{ \'wai-cb-color-swatch--selected\': currentColor === color }" :style="{ backgroundColor: color }" @click="selectColor(color)"></div>\
                 </div>\
             </div>\
-            \
             <div class="wai-cb-color-section">\
                 <div class="wai-cb-color-section__label">기본 팔레트</div>\
                 <div class="wai-cb-color-grid wai-cb-color-grid--large">\
-                    <div \
-                        v-for="color in palette.basic" \
-                        :key="\'b-\' + color" \
-                        class="wai-cb-color-swatch wai-cb-color-swatch--large" \
-                        :class="{ \'wai-cb-color-swatch--selected\': currentColor === color }"\
-                        :style="{ backgroundColor: color }" \
-                        @click="selectColor(color)"\
-                    ></div>\
+                    <div v-for="color in palette.basic" :key="\'b-\' + color" class="wai-cb-color-swatch wai-cb-color-swatch--large" :class="{ \'wai-cb-color-swatch--selected\': currentColor === color }" :style="{ backgroundColor: color }" @click="selectColor(color)"></div>\
                 </div>\
             </div>\
         </div>\
@@ -847,12 +815,7 @@ var ClipBoxTokens = {
                 텍스트를 입력하면 토큰이 생성됩니다\
             </div>\
             <div v-else class="wai-cb-tokens__list">\
-                <span\
-                    v-for="(token, idx) in tokens"\
-                    :key="token.id"\
-                    class="wai-cb-token"\
-                    :class="tokenClass(token)"\
-                >\
+                <span v-for="(token, idx) in tokens" :key="token.id" class="wai-cb-token" :class="tokenClass(token)">\
                     <template v-if="token.type === \'text\'">{{ token.text }}</template>\
                     <template v-else-if="token.type === \'linebreak\'">↵</template>\
                     <template v-else-if="token.type === \'silence\'">[{{ token.duration.toFixed(1) }}s]</template>\
@@ -890,14 +853,12 @@ var ClipBoxSlotSettings = {
                 return parsed && parsed.type === 'text';
             });
         },
-        
         bgSlots: function() {
             return this.activeSlots.filter(function(slot) {
                 var parsed = WAICB.Resolver.parseSlotKey(slot.slotKey);
                 return parsed && parsed.type === 'bg';
             });
         },
-        
         hasSlots: function() { return this.activeSlots.length > 0; },
         hasTextSlots: function() { return this.textSlots.length > 0; },
         hasBgSlots: function() { return this.bgSlots.length > 0; }
@@ -933,7 +894,6 @@ var ClipBoxSlotSettings = {
     <div v-if="!hasSlots" class="wai-cb-slots-empty">\
         <span class="wai-cb-text--hint">활성화된 슬롯이 없습니다</span>\
     </div>\
-    \
     <div v-if="hasTextSlots" class="wai-cb-slot-group">\
         <div class="wai-cb-slot-group__header"><i class="fas fa-font"></i><span>텍스트 슬롯</span></div>\
         <div v-for="slot in textSlots" :key="slot.slotKey" class="wai-cb-slot-item">\
@@ -947,7 +907,6 @@ var ClipBoxSlotSettings = {
             <textarea class="wai-cb-textarea" :value="getBindingText(slot.slotKey)" @input="onTextChange(slot.slotKey, $event)" placeholder="슬롯에 표시할 텍스트" rows="1"></textarea>\
         </div>\
     </div>\
-    \
     <div v-if="hasBgSlots" class="wai-cb-slot-group">\
         <div class="wai-cb-slot-group__header"><i class="fas fa-image"></i><span>배경 슬롯</span></div>\
         <div v-for="slot in bgSlots" :key="slot.slotKey" class="wai-cb-slot-item">\
@@ -1130,7 +1089,7 @@ var ClipBoxItem = {
                     <span class="wai-cb-section__title">보이스 생성</span>\
                     <label class="wai-cb-checkbox-label wai-cb-checkbox-label--inline" @click.stop>\
                         <input type="checkbox" class="wai-cb-checkbox" :checked="useGlobalVoice" @change="toggleGlobalVoice" />\
-                        <span>전역 설정 사용</span>\
+                        <span>전역설정</span>\
                     </label>\
                     <span class="wai-cb-section__status" :class="voiceStatusClass">{{ clip.voiceStatus === "done" ? "완료" : clip.voiceStatus === "generating" ? "생성중" : "" }}</span>\
                 </div>\
@@ -1183,8 +1142,7 @@ var ClipBoxManager = {
             isCollapsed: false,
             selectedClipId: null,
             selectedPrompt: null,
-            showPromptEditModal: false,
-            promptEditData: { name: '', content: '', category: '일반' }
+            ratioSelected: false
         };
     },
     
@@ -1199,6 +1157,11 @@ var ClipBoxManager = {
                 }
             }
             return options;
+        },
+        currentRatioLabel: function() {
+            var ratio = this.globalSettings.project.aspectRatio;
+            var config = WAICB.CONST.ASPECT_RATIOS[ratio];
+            return config ? config.label : ratio;
         },
         activeSlots: function() {
             if (!this.canvasBoxes || this.canvasBoxes.length === 0) return [];
@@ -1235,6 +1198,7 @@ var ClipBoxManager = {
             var value = e.target.value;
             WAICB.Store.setGlobalField('project.aspectRatio', value);
             this.globalSettings = WAICB.Store.getGlobalSettings();
+            this.ratioSelected = true;
             this.notifyAspectRatioChange(value);
         },
         
@@ -1287,43 +1251,15 @@ var ClipBoxManager = {
         
         editPrompt: function() {
             if (!this.selectedPrompt) {
-                WAICB.Toast.warning('선택된 프롬프트가 없습니다');
+                this.openPromptManager();
                 return;
             }
-            this.promptEditData = {
-                name: this.selectedPrompt.name,
-                content: this.selectedPrompt.content,
-                category: this.selectedPrompt.category || '일반'
-            };
-            this.showPromptEditModal = true;
-        },
-        
-        closePromptEditModal: function() {
-            this.showPromptEditModal = false;
-        },
-        
-        savePromptEdit: function() {
-            if (!this.promptEditData.name.trim() || !this.promptEditData.content.trim()) {
-                WAICB.Toast.warning('이름과 내용을 입력하세요');
-                return;
-            }
-            
-            this.selectedPrompt = {
-                id: this.selectedPrompt ? this.selectedPrompt.id : 'p_' + Date.now(),
-                name: this.promptEditData.name,
-                content: this.promptEditData.content,
-                category: this.promptEditData.category
-            };
-            
-            WAICB.Store.setGlobalField('selectedPrompt', this.selectedPrompt);
-            WAICB.Toast.success('프롬프트가 저장되었습니다');
-            this.showPromptEditModal = false;
+            document.dispatchEvent(new CustomEvent('wai-open-asset-modal', { detail: { tab: 'prompt', editId: this.selectedPrompt.id } }));
         }
     },
     
     template: '\
 <div id="clipbox-manager-root" class="wai-cb-root">\
-    \
     <!-- 헤더 -->\
     <div class="wai-cb-header" @click="toggleCollapse">\
         <div class="wai-cb-header__left">\
@@ -1336,11 +1272,12 @@ var ClipBoxManager = {
     <template v-if="!isCollapsed">\
         <!-- 옵션 바 -->\
         <div class="wai-cb-options">\
+            <span class="wai-cb-options__label">{{ ratioSelected ? currentRatioLabel : \'화면비율\' }}</span>\
             <select class="wai-cb-select wai-cb-select--ratio" :value="globalSettings.project.aspectRatio" @change="onAspectRatioChange" @click.stop>\
                 <option v-for="opt in aspectRatioOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>\
             </select>\
             <button class="wai-cb-btn" @click.stop="openPromptManager">프롬프트</button>\
-            <button class="wai-cb-btn" @click.stop="editPrompt" :disabled="!hasSelectedPrompt">편집</button>\
+            <button class="wai-cb-btn" @click.stop="editPrompt">편집</button>\
             <button class="wai-cb-btn wai-cb-btn--primary wai-cb-btn--icon" @click.stop="addClip" title="클립 추가">\
                 <i class="fas fa-plus"></i>\
             </button>\
@@ -1368,39 +1305,6 @@ var ClipBoxManager = {
             ></clip-box-item>\
         </div>\
     </template>\
-    \
-    <!-- 프롬프트 편집 모달 -->\
-    <div v-if="showPromptEditModal" class="wai-cb-modal-overlay" @click.self="closePromptEditModal">\
-        <div class="wai-cb-modal">\
-            <div class="wai-cb-modal__header">\
-                <span class="wai-cb-modal__title">프롬프트 편집</span>\
-                <button class="wai-cb-btn wai-cb-btn--icon" @click="closePromptEditModal"><i class="fas fa-times"></i></button>\
-            </div>\
-            <div class="wai-cb-modal__body">\
-                <div class="wai-cb-field">\
-                    <span class="wai-cb-label">이름</span>\
-                    <input type="text" class="wai-cb-input" v-model="promptEditData.name" placeholder="프롬프트 이름" />\
-                </div>\
-                <div class="wai-cb-field">\
-                    <span class="wai-cb-label">카테고리</span>\
-                    <select class="wai-cb-select" v-model="promptEditData.category">\
-                        <option value="일반">일반</option>\
-                        <option value="이미지">이미지</option>\
-                        <option value="텍스트">텍스트</option>\
-                        <option value="보이스">보이스</option>\
-                    </select>\
-                </div>\
-                <div class="wai-cb-field">\
-                    <span class="wai-cb-label">내용</span>\
-                    <textarea class="wai-cb-textarea" v-model="promptEditData.content" placeholder="프롬프트 내용" rows="6"></textarea>\
-                </div>\
-            </div>\
-            <div class="wai-cb-modal__footer">\
-                <button class="wai-cb-btn" @click="closePromptEditModal">취소</button>\
-                <button class="wai-cb-btn wai-cb-btn--primary" @click="savePromptEdit">저장</button>\
-            </div>\
-        </div>\
-    </div>\
 </div>\
     '
 };
@@ -1408,5 +1312,5 @@ var ClipBoxManager = {
 window.ClipBoxManager = ClipBoxManager;
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   END OF ClipBoxManager v5
+   END OF ClipBoxManager v6
    ═══════════════════════════════════════════════════════════════════════════ */
