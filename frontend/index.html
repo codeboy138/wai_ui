@@ -71,6 +71,7 @@
                                     <div id="header-submenu-asset-image" class="header-submenu-item" @click="openImageAssetModal" data-action="js:openImageAssetModal">이미지</div>
                                     <div id="header-submenu-asset-sound" class="header-submenu-item" @click="openAssetManager('sound')" data-action="js:openAssetManagerSound">사운드</div>
                                     <div id="header-submenu-asset-effect" class="header-submenu-item" @click="openImageEffectModal" data-action="js:openImageEffectModal">이미지효과</div>
+                                    <div id="header-submenu-asset-prompt" class="header-submenu-item" @click="openAssetManager('prompt')" data-action="js:openAssetManagerPrompt">프롬프트</div>
                                 </div>
                             </div>
                             <div id="header-menu-assets-visualization" class="header-menu-item" @click="openVisualizationModal" data-action="js:openVisualizationModal"><span>시각화</span></div>
@@ -107,7 +108,7 @@
         <main id="main-layout-root" class="flex-1 flex overflow-hidden relative">
             <!-- Left Panel - ClipBox Manager 삽입 -->
             <aside id="main-left-panel" class="bg-bg-panel flex flex-col relative border-r border-ui-border" :style="{ width: leftPanelWidth + 'px', minWidth: '180px' }">
-                <clip-box-manager></clip-box-manager>
+                <clip-box-manager :canvas-boxes="canvasBoxes"></clip-box-manager>
                 <div id="main-left-resizer-v" class="panel-resizer-v right-0" title="좌측 패널 너비 조절" data-action="js:resizePanelLeft"></div>
             </aside>
 
@@ -236,7 +237,7 @@
         <project-modal v-if="projectManagerModal.isOpen" @close="closeProjectManager"></project-modal>
         <layer-config-modal v-if="layerConfig.isOpen && layerConfigBox" :box="layerConfigBox" @close="closeLayerConfig" @delete="deleteLayerFromConfig"></layer-config-modal>
         <layer-template-modal v-if="layerTemplateModal.isOpen" :templates="layerTemplates" :folders="layerTemplateFolders" @close="closeLayerTemplateModal" @delete-template="deleteLayerTemplate" @load-template="loadLayerTemplate" @update-templates="updateLayerTemplates" @update-folders="updateLayerTemplateFolders"></layer-template-modal>
-        <asset-manager-modal v-if="assetManagerModal.isOpen" :asset-type="assetManagerModal.assetType" @close="closeAssetManager"></asset-manager-modal>
+        <asset-manager-modal v-if="assetManagerModal.isOpen" :asset-type="assetManagerModal.assetType" :initial-tab="assetManagerModal.assetType" @close="closeAssetManager" @prompt-selected="handlePromptSelected"></asset-manager-modal>
         <image-asset-modal v-if="imageAssetModal.isOpen" @close="closeImageAssetModal"></image-asset-modal>
         <image-effect-modal v-if="imageEffectModal.isOpen" @close="closeImageEffectModal"></image-effect-modal>
         <visualization-modal v-if="visualizationModal.isOpen" @close="closeVisualizationModal"></visualization-modal>
