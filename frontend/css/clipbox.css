@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   WAI-UI ClipBox Manager Stylesheet v5
-   레이어 관리 패널 스타일 기준 통일
+   WAI-UI ClipBox Manager Stylesheet v6
+   레이어 관리 패널 스타일 기준 완전 통일 (12px 기준)
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -91,6 +91,12 @@
     padding: 4px 8px 8px 8px;
 }
 
+.wai-cb-options__label {
+    font-size: 12px;
+    color: var(--wai-cb-text-sub);
+    margin-right: 2px;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    SECTION 5: 버튼 시스템 (레이어 관리와 동일)
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -105,7 +111,7 @@
     border-radius: 4px;
     background: var(--wai-cb-border);
     color: var(--wai-cb-text-sub);
-    font-size: 11px;
+    font-size: 12px;
     line-height: 1;
     cursor: pointer;
     white-space: nowrap;
@@ -164,7 +170,7 @@
     border-radius: 4px;
     background: var(--wai-cb-bg-input);
     color: var(--wai-cb-text);
-    font-size: 11px;
+    font-size: 12px;
     outline: none;
     transition: border-color 0.15s;
 }
@@ -186,7 +192,7 @@
 }
 
 .wai-cb-select--ratio {
-    width: 60px;
+    width: 50px;
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
@@ -218,7 +224,7 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    font-size: 11px;
+    font-size: 12px;
     color: var(--wai-cb-text-sub);
     cursor: pointer;
 }
@@ -232,14 +238,14 @@
    SECTION 7: 레이블 및 텍스트
    ═══════════════════════════════════════════════════════════════════════════ */
 .wai-cb-label {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--wai-cb-text-sub);
     white-space: nowrap;
     flex-shrink: 0;
 }
 
 .wai-cb-text--hint {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--wai-cb-text-disabled);
 }
 
@@ -280,7 +286,7 @@
 
 .wai-cb-empty p {
     margin: 0 0 4px 0;
-    font-size: 11px;
+    font-size: 12px;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -324,7 +330,7 @@
 }
 
 .wai-cb-clip__number {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
     color: var(--wai-cb-text-sub);
 }
@@ -356,7 +362,7 @@
 }
 
 .wai-cb-tokens__empty {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--wai-cb-text-disabled);
     font-style: italic;
     text-align: center;
@@ -374,7 +380,7 @@
     align-items: center;
     padding: 1px 5px;
     border-radius: 3px;
-    font-size: 11px;
+    font-size: 12px;
     cursor: pointer;
     user-select: none;
 }
@@ -430,7 +436,7 @@
 }
 
 .wai-cb-section__title {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 500;
     color: var(--wai-cb-text);
 }
@@ -503,7 +509,7 @@
     padding: 4px 6px;
     background: var(--wai-cb-bg-hover);
     border-bottom: 1px solid var(--wai-cb-border);
-    font-size: 11px;
+    font-size: 12px;
     color: var(--wai-cb-text);
 }
 
@@ -524,7 +530,7 @@
 }
 
 .wai-cb-slot-item__label {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 500;
     color: var(--wai-cb-text);
 }
@@ -587,7 +593,7 @@
 }
 
 .wai-cb-color-label {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--wai-cb-text-sub);
 }
 
@@ -613,7 +619,7 @@
 }
 
 .wai-cb-color-modal__title {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 500;
     color: var(--wai-cb-text);
 }
@@ -655,7 +661,7 @@
 }
 
 .wai-cb-color-current__hex {
-    font-size: 11px;
+    font-size: 12px;
     font-family: monospace;
     color: var(--wai-cb-text);
 }
@@ -695,60 +701,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SECTION 15: 모달 오버레이
-   ═══════════════════════════════════════════════════════════════════════════ */
-.wai-cb-modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.6);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-}
-
-.wai-cb-modal {
-    background: var(--wai-cb-bg-panel);
-    border: 1px solid var(--wai-cb-border);
-    border-radius: 6px;
-    width: 360px;
-    max-width: 90vw;
-    max-height: 80vh;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-}
-
-.wai-cb-modal__header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--wai-cb-border);
-}
-
-.wai-cb-modal__title {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--wai-cb-text);
-}
-
-.wai-cb-modal__body {
-    flex: 1;
-    overflow-y: auto;
-    padding: 12px;
-}
-
-.wai-cb-modal__footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 6px;
-    padding: 10px 12px;
-    border-top: 1px solid var(--wai-cb-border);
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   SECTION 16: 토스트 알림
+   SECTION 15: 토스트 알림
    ═══════════════════════════════════════════════════════════════════════════ */
 .wai-cb-toast-container {
     position: fixed;
@@ -768,7 +721,7 @@
     border: 1px solid var(--wai-cb-border);
     border-radius: 4px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    font-size: 11px;
+    font-size: 12px;
     pointer-events: auto;
     opacity: 0;
     transform: translateX(100%);
@@ -798,7 +751,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SECTION 17: 상태 클래스
+   SECTION 16: 상태 클래스
    ═══════════════════════════════════════════════════════════════════════════ */
 @keyframes wai-cb-pulse {
     0%, 100% { opacity: 1; }
@@ -819,7 +772,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SECTION 18: 스크롤바
+   SECTION 17: 스크롤바
    ═══════════════════════════════════════════════════════════════════════════ */
 .wai-cb-root::-webkit-scrollbar {
     width: 6px;
@@ -852,5 +805,5 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   END OF CLIPBOX v5 STYLESHEET
+   END OF CLIPBOX v6 STYLESHEET
    ═══════════════════════════════════════════════════════════════════════════ */
