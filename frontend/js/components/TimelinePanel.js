@@ -3,10 +3,10 @@
 // 클립 사운드 파형 막대그래프 표시 (무음 구간 구분)
 // 트랙 순서 = 캔버스 레이어 z-index
 // 클립 겹침 방지 (드래그 중 제외, 드롭 시 검증)
+// 드롭 공간 없으면 원래 위치로 복귀
 // 성능 최적화: 드래그 중 Vue 반응성 최소화
 
 const TimelinePanel = {
-    // Mixin 적용
     mixins: [
         window.TimelineHistoryMixin,
         window.TimelineZoomMixin,
@@ -102,48 +102,27 @@ const TimelinePanel = {
                     <div class="w-px h-4 bg-ui-border mx-1"></div>
                     <button class="tool-btn w-6 h-6" @click="zoomToFit" title="전체 보기"><i class="fa-solid fa-expand"></i></button>
                     <button class="tool-btn w-6 h-6" :class="{ 'bg-ui-accent text-white': zoomMode === 'playhead' }" @click="toggleZoomMode" :title="zoomMode === 'cursor' ? '커서 중심 줌' : '플레이헤드 중심 줌'"><i class="fa-solid fa-crosshairs"></i></button>
-                    <button class="tool-btn" :class="{ 'bg-ui-accent text-white': vm.isMagnet }" @click="vm.isMagnet = !vm.isMagnet" title="스냅 토글">
-                        <i class="fa-solid fa-magnet"></i>
-                    </button>
-                    <button class="tool-btn" :class="{ 'bg-ui-accent text-white': vm.isAutoRipple }" @click="vm.isAutoRipple = !vm.isAutoRipple" title="리플 토글">
-                        <i class="fa-solid fa-link"></i>
-                    </button>
+                    <button class="tool-btn" :class="{ 'bg-ui-accent text-white': vm.isMagnet }" @click="vm.isMagnet = !vm.isMagnet" title="스냅 토글"><i class="fa-solid fa-magnet"></i></button>
+                    <button class="tool-btn" :class="{ 'bg-ui-accent text-white': vm.isAutoRipple }" @click="vm.isAutoRipple = !vm.isAutoRipple" title="리플 토글"><i class="fa-solid fa-link"></i></button>
                 </div>
             </div>
 
             <!-- 메인 타임라인 영역 -->
             <div v-if="!vm.isTimelineCollapsed" class="flex-grow flex overflow-hidden min-h-0 relative">
                 <!-- 트랙 헤더 (고정) -->
-                <div 
-                    class="track-header-container bg-bg-panel border-r border-ui-border flex-shrink-0 flex flex-col relative"
-                    :style="{ width: currentHeaderWidth + 'px' }"
-                    @mouseenter="onHeaderAreaEnter"
-                    @mouseleave="onHeaderAreaLeave"
-                >
+                <div class="track-header-container bg-bg-panel border-r border-ui-border flex-shrink-0 flex flex-col relative" :style="{ width: currentHeaderWidth + 'px' }" @mouseenter="onHeaderAreaEnter" @mouseleave="onHeaderAreaLeave">
                     <div class="h-6 border-b border-ui-border flex items-center justify-between px-2 text-[9px] font-bold text-text-sub bg-bg-panel shrink-0">
                         <div class="flex items-center gap-1">
-                            <button v-if="isTrackHeaderCollapsed" class="tool-btn w-5 h-5" title="헤더 펼치기" @click="expandTrackHeader">
-                                <i class="fa-solid fa-chevron-right" style="font-size: 9px;"></i>
-                            </button>
-                            <button v-else class="tool-btn w-5 h-5" title="트랙 추가" @click="addTrack">
-                                <i class="fa-solid fa-plus" style="font-size: 9px;"></i>
-                            </button>
+                            <button v-if="isTrackHeaderCollapsed" class="tool-btn w-5 h-5" title="헤더 펼치기" @click="expandTrackHeader"><i class="fa-solid fa-chevron-right" style="font-size: 9px;"></i></button>
+                            <button v-else class="tool-btn w-5 h-5" title="트랙 추가" @click="addTrack"><i class="fa-solid fa-plus" style="font-size: 9px;"></i></button>
                             <span v-show="!isTrackHeaderCollapsed">TRACKS</span>
                         </div>
-                        <button v-show="!isTrackHeaderCollapsed" class="w-4 h-4 flex items-center justify-center rounded hover:bg-bg-hover text-[8px]" @click="collapseTrackHeader" title="헤더 접기">
-                            <i class="fa-solid fa-chevron-left" style="font-size: 8px;"></i>
-                        </button>
+                        <button v-show="!isTrackHeaderCollapsed" class="w-4 h-4 flex items-center justify-center rounded hover:bg-bg-hover text-[8px]" @click="collapseTrackHeader" title="헤더 접기"><i class="fa-solid fa-chevron-left" style="font-size: 8px;"></i></button>
                     </div>
                     <div ref="trackHeaderList" class="track-header-list flex-grow overflow-hidden relative" @scroll="onHeaderScroll">
                         <div class="track-header-inner" :style="{ height: totalTrackHeight + 'px' }">
-                            <div v-for="(track, index) in vm.tracks" :key="track.id" :data-track-id="track.id"
-                                class="border-b border-ui-border flex items-center px-1 group bg-bg-panel relative"
-                                :class="{ 'opacity-50': track.isLocked, 'bg-ui-accent/20': dragOverTrackId === track.id }"
-                                :style="{ height: getTrackHeight(track.id) + 'px' }"
-                                draggable="true" @dragstart="startTrackDrag($event, track, index)" @dragover.prevent="handleTrackDragOver($event, track)" @dragleave="handleTrackDragLeave" @drop.prevent="handleTrackDrop($event, track, index)" @dragend="endTrackDrag" @contextmenu.prevent="openTrackContextMenu($event, track, index)" @wheel.stop="onTrackHeaderWheel($event, track)">
-                                <button class="w-4 h-4 flex items-center justify-center rounded mr-1 shrink-0 hover:bg-bg-hover" :class="track.isMain ? 'text-yellow-400' : 'text-text-sub opacity-30 hover:opacity-100'" @click.stop="setMainTrack(track)">
-                                    <i :class="track.isMain ? 'fa-solid fa-star' : 'fa-regular fa-star'" style="font-size: 10px;"></i>
-                                </button>
+                            <div v-for="(track, index) in vm.tracks" :key="track.id" :data-track-id="track.id" class="border-b border-ui-border flex items-center px-1 group bg-bg-panel relative" :class="{ 'opacity-50': track.isLocked, 'bg-ui-accent/20': dragOverTrackId === track.id }" :style="{ height: getTrackHeight(track.id) + 'px' }" draggable="true" @dragstart="startTrackDrag($event, track, index)" @dragover.prevent="handleTrackDragOver($event, track)" @dragleave="handleTrackDragLeave" @drop.prevent="handleTrackDrop($event, track, index)" @dragend="endTrackDrag" @contextmenu.prevent="openTrackContextMenu($event, track, index)" @wheel.stop="onTrackHeaderWheel($event, track)">
+                                <button class="w-4 h-4 flex items-center justify-center rounded mr-1 shrink-0 hover:bg-bg-hover" :class="track.isMain ? 'text-yellow-400' : 'text-text-sub opacity-30 hover:opacity-100'" @click.stop="setMainTrack(track)"><i :class="track.isMain ? 'fa-solid fa-star' : 'fa-regular fa-star'" style="font-size: 10px;"></i></button>
                                 <template v-if="!isTrackHeaderCollapsed">
                                     <div class="flex items-center gap-0.5 mr-1 shrink-0" v-show="getTrackHeight(track.id) >= 30">
                                         <button class="track-control-btn" :class="{ 'active': !track.isHidden }" @click.stop="track.isHidden = !track.isHidden"><i :class="track.isHidden ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'" style="font-size: 8px;"></i></button>
@@ -157,9 +136,7 @@ const TimelinePanel = {
                         </div>
                     </div>
                     <div v-show="!isTrackHeaderCollapsed" class="header-resize-handle" :class="{ 'resizing': isResizingHeader }" :style="{ top: '24px', height: totalTrackHeight + 'px' }" @mousedown.prevent="startHeaderResize"></div>
-                    <div v-if="isTrackHeaderCollapsed && isHoveringHeaderArea" class="absolute inset-0 top-6 flex items-center justify-center bg-bg-hover/80 cursor-pointer z-20" @click="expandTrackHeader">
-                        <i class="fa-solid fa-chevron-right text-ui-accent"></i>
-                    </div>
+                    <div v-if="isTrackHeaderCollapsed && isHoveringHeaderArea" class="absolute inset-0 top-6 flex items-center justify-center bg-bg-hover/80 cursor-pointer z-20" @click="expandTrackHeader"><i class="fa-solid fa-chevron-right text-ui-accent"></i></div>
                 </div>
 
                 <!-- 타임라인 레인 (스크롤 가능) -->
@@ -178,74 +155,32 @@ const TimelinePanel = {
                         </div>
                         
                         <!-- 트랙 레인 -->
-                        <div v-for="(track, idx) in vm.tracks" :key="track.id" :data-track-id="track.id" :data-track-index="idx"
-                            class="border-b border-ui-border relative track-lane"
-                            :class="{ 'opacity-30': track.isHidden }"
-                            :style="{ height: getTrackHeight(track.id) + 'px' }"
-                            @mousedown="onTrackLaneMouseDown($event, track)"
-                            @contextmenu.prevent="openClipContextMenu($event, track)">
-                            
-                            <!-- 드롭 인디케이터 -->
-                            <div v-if="dropIndicator.visible && dropIndicator.trackId === track.id"
-                                class="absolute top-1 bottom-1 bg-ui-accent/30 border-2 border-dashed border-ui-accent rounded pointer-events-none z-20"
-                                :style="{ left: dropIndicator.left + 'px', width: dropIndicator.width + 'px' }"></div>
-                            
-                            <!-- 클립 -->
-                            <div v-for="clip in getVisibleClipsForTrack(track.id)" :key="clip.id" :data-clip-id="clip.id"
-                                class="clip absolute cursor-pointer"
-                                :class="getClipClasses(clip)"
-                                :style="getClipStyle(clip, track)"
-                                @mousedown.stop="onClipMouseDown($event, clip, track)"
-                                @contextmenu.stop.prevent="openClipContextMenu($event, track, clip)">
-                                
+                        <div v-for="(track, idx) in vm.tracks" :key="track.id" :data-track-id="track.id" :data-track-index="idx" class="border-b border-ui-border relative track-lane" :class="{ 'opacity-30': track.isHidden }" :style="{ height: getTrackHeight(track.id) + 'px' }" @mousedown="onTrackLaneMouseDown($event, track)" @contextmenu.prevent="openClipContextMenu($event, track)">
+                            <div v-if="dropIndicator.visible && dropIndicator.trackId === track.id" class="absolute top-1 bottom-1 bg-ui-accent/30 border-2 border-dashed border-ui-accent rounded pointer-events-none z-20" :style="{ left: dropIndicator.left + 'px', width: dropIndicator.width + 'px' }"></div>
+                            <div v-for="clip in getVisibleClipsForTrack(track.id)" :key="clip.id" :data-clip-id="clip.id" class="clip absolute cursor-pointer" :class="getClipClasses(clip)" :style="getClipStyle(clip, track)" @mousedown.stop="onClipMouseDown($event, clip, track)" @contextmenu.stop.prevent="openClipContextMenu($event, track, clip)">
                                 <div class="absolute inset-0" :style="getClipBackgroundStyle(clip, track)"></div>
-                                
-                                <!-- 필름스트립 (비디오/이미지) -->
                                 <div v-if="clip.type === 'video' || clip.type === 'image'" class="absolute inset-0 top-[18px]" :style="{ bottom: getWaveformHeight(track) + 'px' }">
                                     <div class="clip-filmstrip h-full flex overflow-hidden">
-                                        <div v-for="(frame, fi) in getFilmstripFrames(clip)" :key="'f'+fi"
-                                            class="clip-filmstrip-frame flex-shrink-0 h-full bg-cover bg-center bg-no-repeat relative"
-                                            :style="{ width: frame.width + 'px', backgroundImage: frame.src ? 'url(' + frame.src + ')' : 'none', backgroundColor: frame.src ? 'transparent' : '#1a1a2e' }">
+                                        <div v-for="(frame, fi) in getFilmstripFrames(clip)" :key="'f'+fi" class="clip-filmstrip-frame flex-shrink-0 h-full bg-cover bg-center bg-no-repeat relative" :style="{ width: frame.width + 'px', backgroundImage: frame.src ? 'url(' + frame.src + ')' : 'none', backgroundColor: frame.src ? 'transparent' : '#1a1a2e' }">
                                             <i v-if="!frame.src" class="fa-solid fa-film absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white/10 text-[10px]"></i>
                                         </div>
                                     </div>
                                 </div>
-                                
-                                <!-- 타이틀 바 -->
-                                <div class="clip-title-bar">
-                                    <span class="clip-name">{{ clip.name }}</span>
-                                    <span class="clip-duration">{{ formatClipDuration(clip.duration) }}</span>
-                                </div>
-                                
-                                <!-- 파형 영역 (오디오 레벨 막대그래프) -->
+                                <div class="clip-title-bar"><span class="clip-name">{{ clip.name }}</span><span class="clip-duration">{{ formatClipDuration(clip.duration) }}</span></div>
                                 <div class="clip-waveform-area" :style="{ height: getWaveformHeight(track) + 'px' }">
                                     <div class="clip-waveform-bars">
-                                        <div v-for="(bar, bi) in getAudioLevelBars(clip)" :key="'bar'+bi"
-                                            class="clip-waveform-bar"
-                                            :class="{ 'silent': bar.isSilent }"
-                                            :style="{ left: bar.x + '%', width: bar.w + '%', height: bar.h + '%' }">
-                                        </div>
+                                        <div v-for="(bar, bi) in getAudioLevelBars(clip)" :key="'bar'+bi" class="clip-waveform-bar" :class="{ 'silent': bar.isSilent }" :style="{ left: bar.x + '%', width: bar.w + '%', height: bar.h + '%' }"></div>
                                     </div>
                                     <div class="clip-volume-line" :style="{ bottom: getVolumeLinePosition(clip) + '%' }" @mousedown.stop="startClipVolumeDrag($event, clip)"></div>
                                 </div>
-                                
-                                <!-- 리사이즈 핸들 -->
                                 <div class="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20" style="z-index:15;" @mousedown.stop="startClipResize($event, clip, 'left')"></div>
                                 <div class="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20" style="z-index:15;" @mousedown.stop="startClipResize($event, clip, 'right')"></div>
                             </div>
                         </div>
-                        
-                        <!-- 플레이헤드 라인 -->
                         <div class="playhead-line-body" :style="{ left: vm.currentTime * pixelsPerSecond + 'px', height: totalTrackHeight + 'px' }"></div>
-                        
-                        <!-- 드래그 고스트 (원본 클립 모양 유지) -->
-                        <div v-if="dragGhost.visible" 
-                            class="clip-drag-ghost"
-                            :style="dragGhost.style">
+                        <div v-if="dragGhost.visible" class="clip-drag-ghost" :style="dragGhost.style">
                             <div class="absolute inset-0" :style="{ background: dragGhost.bgColor, borderRadius: '4px' }"></div>
-                            <div class="clip-title-bar">
-                                <span class="clip-name">{{ dragGhost.name }}</span>
-                            </div>
+                            <div class="clip-title-bar"><span class="clip-name">{{ dragGhost.name }}</span></div>
                         </div>
                     </div>
                 </div>
@@ -269,12 +204,8 @@ const TimelinePanel = {
                 <div class="ctx-item" @click="duplicateTrack(trackContextMenu.track)"><i class="fa-solid fa-copy w-4"></i><span>트랙 복제</span></div>
                 <div class="ctx-item" @click="changeTrackColor(trackContextMenu.track)"><i class="fa-solid fa-palette w-4"></i><span>색상 변경</span></div>
                 <div class="h-px bg-ui-border my-1"></div>
-                <div class="ctx-item has-submenu" @mouseenter="openHeightSubmenu($event, 'this')" @mouseleave="scheduleCloseHeightSubmenu">
-                    <i class="fa-solid fa-arrows-up-down w-4"></i><span>높이: 이 트랙</span><i class="fa-solid fa-chevron-right ml-auto text-[8px]"></i>
-                </div>
-                <div class="ctx-item has-submenu" @mouseenter="openHeightSubmenu($event, 'all')" @mouseleave="scheduleCloseHeightSubmenu">
-                    <i class="fa-solid fa-layer-group w-4"></i><span>높이: 전체</span><i class="fa-solid fa-chevron-right ml-auto text-[8px]"></i>
-                </div>
+                <div class="ctx-item has-submenu" @mouseenter="openHeightSubmenu($event, 'this')" @mouseleave="scheduleCloseHeightSubmenu"><i class="fa-solid fa-arrows-up-down w-4"></i><span>높이: 이 트랙</span><i class="fa-solid fa-chevron-right ml-auto text-[8px]"></i></div>
+                <div class="ctx-item has-submenu" @mouseenter="openHeightSubmenu($event, 'all')" @mouseleave="scheduleCloseHeightSubmenu"><i class="fa-solid fa-layer-group w-4"></i><span>높이: 전체</span><i class="fa-solid fa-chevron-right ml-auto text-[8px]"></i></div>
                 <div class="h-px bg-ui-border my-1"></div>
                 <div class="ctx-item text-red-400" @click="deleteTrack(trackContextMenu.track, trackContextMenu.index)"><i class="fa-solid fa-trash w-4"></i><span>삭제</span></div>
             </div>
@@ -312,175 +243,59 @@ const TimelinePanel = {
     `,
     data: function() {
         return {
-            // 헤더 관련
-            trackHeaderWidth: 180, 
-            initialHeaderWidth: 180,
-            minHeaderWidth: 60,
-            collapsedHeaderWidth: 28, 
-            isResizingHeader: false, 
-            resizeStartX: 0, 
-            resizeStartWidth: 0,
-            isTrackHeaderCollapsed: false,
-            isHoveringHeaderArea: false,
-            
-            // 컨텍스트 메뉴
-            trackContextMenu: null, 
-            clipContextMenu: null,
-            
-            // 트랙 드래그
-            draggingTrackId: null, 
-            draggingTrackIndex: null, 
-            dragOverTrackId: null,
-            
-            // 트랙 높이
-            trackHeights: {}, 
-            isResizingTrack: false, 
-            resizingTrackId: null, 
-            resizeStartY: 0, 
-            resizeStartHeight: 0,
-            minTrackHeight: 20, 
-            defaultTrackHeight: 40,
+            trackHeaderWidth: 180, initialHeaderWidth: 180, minHeaderWidth: 60, collapsedHeaderWidth: 28, 
+            isResizingHeader: false, resizeStartX: 0, resizeStartWidth: 0, isTrackHeaderCollapsed: false, isHoveringHeaderArea: false,
+            trackContextMenu: null, clipContextMenu: null,
+            draggingTrackId: null, draggingTrackIndex: null, dragOverTrackId: null,
+            trackHeights: {}, isResizingTrack: false, resizingTrackId: null, resizeStartY: 0, resizeStartHeight: 0,
+            minTrackHeight: 20, defaultTrackHeight: 40,
             trackHeightPresets: { low: 20, medium: 40, high: 80, default: 40 },
-            heightSubmenu: { visible: false, x: 0, y: 0, target: 'this' },
-            heightSubmenuCloseTimer: null,
+            heightSubmenu: { visible: false, x: 0, y: 0, target: 'this' }, heightSubmenuCloseTimer: null,
             wheelAdjustMode: { active: false, target: 'this' },
-            
-            // 클립 선택
-            selectedClipIds: [], 
-            lastSelectedClipId: null, 
-            lastSelectedTrackId: null,
-            
-            // 클립 드래그 시스템
-            isDraggingClip: false,
-            draggingClipIds: [], 
-            dragStartX: 0, 
-            dragStartY: 0,
-            dragStartScrollLeft: 0,
-            dragOriginalState: {},
-            currentDragTrackIndex: null,
-            originalTrackIndex: null,
-            
-            // 드래그 고스트
+            selectedClipIds: [], lastSelectedClipId: null, lastSelectedTrackId: null,
+            isDraggingClip: false, draggingClipIds: [], dragStartX: 0, dragStartY: 0, dragStartScrollLeft: 0,
+            dragOriginalState: {}, currentDragTrackIndex: null, originalTrackIndex: null,
             dragGhost: { visible: false, style: {}, name: '', bgColor: '' },
-            
-            // 클립 리사이즈
-            isResizingClip: false, 
-            resizingClip: null, 
-            resizeDirection: null, 
-            resizeStartClipStart: 0, 
-            resizeStartClipDuration: 0,
-            resizeOriginalState: null,
-            
-            // 플레이헤드
-            isDraggingPlayhead: false,
-            
-            // 클릭 처리
-            pendingClickClipId: null, 
-            pendingClickModifiers: null,
-            
-            // 드롭다운
-            isResolutionDropdownOpen: false, 
-            isAspectDropdownOpen: false, 
-            
-            // 외부 드래그
-            isExternalDragOver: false,
-            isDraggingClipOut: false,
-            clipDragOutData: null,
-            
-            // 옵션
+            isResizingClip: false, resizingClip: null, resizeDirection: null, 
+            resizeStartClipStart: 0, resizeStartClipDuration: 0, resizeOriginalState: null,
+            isDraggingPlayhead: false, pendingClickClipId: null, pendingClickModifiers: null,
+            isResolutionDropdownOpen: false, isAspectDropdownOpen: false, 
+            isExternalDragOver: false, isDraggingClipOut: false, clipDragOutData: null,
             aspectRatioOptions: [
-                { value: '원본', label: '원본' },
-                { value: '16:9', label: '16:9' },
-                { value: '9:16', label: '9:16' },
-                { value: '4:3', label: '4:3' },
-                { value: '1:1', label: '1:1' }
+                { value: '원본', label: '원본' }, { value: '16:9', label: '16:9' },
+                { value: '9:16', label: '9:16' }, { value: '4:3', label: '4:3' }, { value: '1:1', label: '1:1' }
             ],
             resolutionOptions: [
                 { value: '4K', label: '4K', pixels: '3840×2160' },
                 { value: 'FHD', label: 'FHD', pixels: '1920×1080' },
                 { value: 'HD', label: 'HD', pixels: '1280×720' }
             ],
-            
-            // 드롭 인디케이터
             dropIndicator: { visible: false, trackId: null, left: 0, width: 0 },
-            
-            // 상수
-            FILMSTRIP_FRAME_WIDTH: 40,
-            MIN_FILMSTRIP_FRAME_WIDTH: 20,
-            MAX_FILMSTRIP_FRAME_WIDTH: 80,
-            MAX_RULER_MARKS: 200,
-            MIN_RULER_LABEL_SPACING: 60,
-            CLIP_MIN_GAP: 0.01,
-            
-            // 마스터 볼륨
-            masterVolume: 100, 
-            previousVolume: 100, 
-            isDraggingMasterVolume: false,
-            showMasterVolume: false, 
-            masterVolumeHideTimer: null,
-            
-            // 클립 볼륨
-            isDraggingClipVolume: false, 
-            volumeDragClip: null, 
-            volumeDragStartY: 0, 
-            volumeDragStartVolume: 0,
-            volumePopup: { visible: false, x: 0, y: 0, clip: null, value: 100 }, 
-            isDraggingVolumePopup: false,
-            
-            // 캐시
-            thumbnailCache: {}, 
-            videoMetaCache: {},
-            
-            // 트랙 위치
-            trackYPositions: [],
-            isMouseInLane: false,
-            
-            // 컨텍스트 메뉴 크기
-            contextMenuWidth: 180,
-            contextMenuHeight: 320,
-            submenuWidth: 160,
-            submenuHeight: 140,
-            
-            // RAF
-            dragRAF: null,
-            lastDragEvent: null
+            FILMSTRIP_FRAME_WIDTH: 40, MIN_FILMSTRIP_FRAME_WIDTH: 20, MAX_FILMSTRIP_FRAME_WIDTH: 80,
+            MAX_RULER_MARKS: 200, MIN_RULER_LABEL_SPACING: 60, CLIP_MIN_GAP: 0.01,
+            masterVolume: 100, previousVolume: 100, isDraggingMasterVolume: false,
+            showMasterVolume: false, masterVolumeHideTimer: null,
+            isDraggingClipVolume: false, volumeDragClip: null, volumeDragStartY: 0, volumeDragStartVolume: 0,
+            volumePopup: { visible: false, x: 0, y: 0, clip: null, value: 100 }, isDraggingVolumePopup: false,
+            thumbnailCache: {}, videoMetaCache: {}, trackYPositions: [], isMouseInLane: false,
+            contextMenuWidth: 180, contextMenuHeight: 320, submenuWidth: 160, submenuHeight: 140,
+            dragRAF: null, lastDragEvent: null
         };
     },
     computed: {
         formattedTime: function() { 
-            var t = this.vm.currentTime || 0;
-            var h = Math.floor(t/3600);
-            var m = Math.floor((t%3600)/60);
-            var s = Math.floor(t%60);
-            var f = Math.floor((t-Math.floor(t))*30); 
+            var t = this.vm.currentTime || 0, h = Math.floor(t/3600), m = Math.floor((t%3600)/60), s = Math.floor(t%60), f = Math.floor((t-Math.floor(t))*30);
             var pad = function(n) { return String(n).padStart(2,'0'); };
             return pad(h) + ':' + pad(m) + ':' + pad(s) + ':' + pad(f);
         },
-        maxClipEnd: function() { 
-            var max = 60; 
-            this.vm.clips.forEach(function(c) { 
-                if (c.start + c.duration > max) max = c.start + c.duration; 
-            }); 
-            return max; 
-        },
+        maxClipEnd: function() { var max = 60; this.vm.clips.forEach(function(c) { if (c.start + c.duration > max) max = c.start + c.duration; }); return max; },
         totalDuration: function() { return Math.max(300, this.maxClipEnd + 60); },
         totalTimelineWidth: function() { return this.totalDuration * this.pixelsPerSecond; },
-        totalTrackHeight: function() { 
-            var total = 0;
-            var self = this;
-            this.vm.tracks.forEach(function(t) { total += self.getTrackHeight(t.id); });
-            return total;
-        },
-        currentHeaderWidth: function() { 
-            return this.isTrackHeaderCollapsed ? this.collapsedHeaderWidth : this.trackHeaderWidth; 
-        },
+        totalTrackHeight: function() { var total = 0; var self = this; this.vm.tracks.forEach(function(t) { total += self.getTrackHeight(t.id); }); return total; },
+        currentHeaderWidth: function() { return this.isTrackHeaderCollapsed ? this.collapsedHeaderWidth : this.trackHeaderWidth; },
         visibleRulerMarks: function() {
-            var marks = [];
-            var pps = this.pixelsPerSecond;
-            var startTime = this.visibleTimeRange.startTime;
-            var endTime = this.visibleTimeRange.endTime;
+            var marks = [], pps = this.pixelsPerSecond, startTime = this.visibleTimeRange.startTime, endTime = this.visibleTimeRange.endTime;
             var majorInt, minorInt, microInt;
-            
             if (pps >= 150) { majorInt = 1; minorInt = 0.5; microInt = 0.1; }
             else if (pps >= 100) { majorInt = 1; minorInt = 0.5; microInt = 0.25; }
             else if (pps >= 50) { majorInt = 2; minorInt = 1; microInt = 0.5; }
@@ -489,27 +304,14 @@ const TimelinePanel = {
             else if (pps >= 5) { majorInt = 30; minorInt = 10; microInt = 5; }
             else if (pps >= 2) { majorInt = 60; minorInt = 30; microInt = 10; }
             else { majorInt = 120; minorInt = 60; microInt = 30; }
-            
-            var smallest = microInt || minorInt;
-            var alignedStart = Math.floor(startTime / smallest) * smallest;
-            var self = this;
-            var lastLabelPosition = -this.MIN_RULER_LABEL_SPACING;
-            
+            var smallest = microInt || minorInt, alignedStart = Math.floor(startTime / smallest) * smallest;
+            var self = this, lastLabelPosition = -this.MIN_RULER_LABEL_SPACING;
             for (var t = alignedStart; t <= endTime && marks.length < this.MAX_RULER_MARKS; t += smallest) {
                 if (t < 0) continue;
-                var time = Math.round(t * 1000) / 1000;
-                var pos = time * pps;
-                var isMajor = Math.abs(time % majorInt) < 0.001;
-                var isMid = !isMajor && Math.abs(time % minorInt) < 0.001;
-                
+                var time = Math.round(t * 1000) / 1000, pos = time * pps;
+                var isMajor = Math.abs(time % majorInt) < 0.001, isMid = !isMajor && Math.abs(time % minorInt) < 0.001;
                 var label = '';
-                if (isMajor) {
-                    if ((pos - lastLabelPosition) >= self.MIN_RULER_LABEL_SPACING) {
-                        label = self.formatRulerTime(time);
-                        lastLabelPosition = pos;
-                    }
-                }
-                
+                if (isMajor && (pos - lastLabelPosition) >= self.MIN_RULER_LABEL_SPACING) { label = self.formatRulerTime(time); lastLabelPosition = pos; }
                 marks.push({ time: time, position: pos, isMajor: isMajor, isMid: isMid, label: label });
             }
             return marks;
@@ -517,61 +319,25 @@ const TimelinePanel = {
         hasSelectedClips: function() { return this.selectedClipIds.length > 0; }
     },
     watch: {
-        'vm.clips': { 
-            handler: function(newVal, oldVal) { 
-                if (!this.isUndoRedoAction && !this.isDraggingClip && !this.isResizingClip) {
-                    this.saveToHistory();
-                }
-                this.generateThumbnailsForNewClips();
-                this.analyzeAudioLevelsForClips();
-            }, 
-            deep: true 
-        },
-        'vm.tracks': { 
-            handler: function() { 
-                if (!this.isUndoRedoAction) this.saveToHistory(); 
-                this.updateTrackYPositions(); 
-            }, 
-            deep: true 
-        },
-        'vm.zoom': { 
-            handler: function(v) { 
-                if (v && v !== this.currentDisplayZoom) this.currentDisplayZoom = v; 
-            }, 
-            immediate: true 
-        },
-        masterVolume: function(v) { 
-            if (window.PreviewRenderer) window.PreviewRenderer.setMasterVolume(v / 100);
-            document.querySelectorAll('video, audio').forEach(function(el) { el.volume = v / 100; }); 
-        },
-        trackHeights: { 
-            handler: function() { this.updateTrackYPositions(); }, 
-            deep: true 
-        },
-        'vm.currentTime': function(newTime) {
-            if (window.PreviewRenderer && typeof window.PreviewRenderer.setCurrentTime === 'function') {
-                window.PreviewRenderer.setCurrentTime(newTime);
-            }
-        }
+        'vm.clips': { handler: function() { if (!this.isUndoRedoAction && !this.isDraggingClip && !this.isResizingClip) { this.saveToHistory(); } this.generateThumbnailsForNewClips(); this.analyzeAudioLevelsForClips(); }, deep: true },
+        'vm.tracks': { handler: function() { if (!this.isUndoRedoAction) this.saveToHistory(); this.updateTrackYPositions(); }, deep: true },
+        'vm.zoom': { handler: function(v) { if (v && v !== this.currentDisplayZoom) this.currentDisplayZoom = v; }, immediate: true },
+        masterVolume: function(v) { if (window.PreviewRenderer) window.PreviewRenderer.setMasterVolume(v / 100); document.querySelectorAll('video, audio').forEach(function(el) { el.volume = v / 100; }); },
+        trackHeights: { handler: function() { this.updateTrackYPositions(); }, deep: true },
+        'vm.currentTime': function(newTime) { if (window.PreviewRenderer && typeof window.PreviewRenderer.setCurrentTime === 'function') window.PreviewRenderer.setCurrentTime(newTime); }
     },
     mounted: function() {
         var self = this;
         this.$nextTick(function() {
-            self.adjustLayout(); 
-            self.injectStyles(); 
-            self.initTrackHeights();
-            self.currentDisplayZoom = self.vm.zoom || 20; 
-            self.saveToHistory();
-            self.calculateDynamicZoomRange(); 
-            self.updateViewportSize(); 
-            self.updateTrackYPositions();
+            self.adjustLayout(); self.injectStyles(); self.initTrackHeights();
+            self.currentDisplayZoom = self.vm.zoom || 20; self.saveToHistory();
+            self.calculateDynamicZoomRange(); self.updateViewportSize(); self.updateTrackYPositions();
             window.addEventListener('resize', self.onWindowResize);
             document.addEventListener('click', self.onDocumentClick);
             document.addEventListener('mousemove', self.onDocumentMouseMove);
             document.addEventListener('mouseup', self.onDocumentMouseUp);
             document.addEventListener('keydown', self.onDocumentKeyDown);
-            self.generateThumbnailsForNewClips();
-            self.analyzeAudioLevelsForClips();
+            self.generateThumbnailsForNewClips(); self.analyzeAudioLevelsForClips();
         });
     },
     beforeUnmount: function() {
@@ -584,657 +350,70 @@ const TimelinePanel = {
         if (this.heightSubmenuCloseTimer) clearTimeout(this.heightSubmenuCloseTimer);
         if (this.dragRAF) cancelAnimationFrame(this.dragRAF);
     },
+// 코드연결지점 - 2/2로 이어짐
+// 코드연결지점 - 1/2에서 이어짐
     methods: {
-        // ========== 컨텍스트 메뉴 ==========
-        getContextMenuStyle: function(menu) {
-            if (!menu) return {};
-            var x = menu.x, y = menu.y;
-            var vw = window.innerWidth, vh = window.innerHeight;
-            if (x + this.contextMenuWidth > vw) x = vw - this.contextMenuWidth - 10;
-            if (y + this.contextMenuHeight > vh) y = vh - this.contextMenuHeight - 10;
-            if (x < 10) x = 10;
-            if (y < 10) y = 10;
-            return { top: y + 'px', left: x + 'px' };
-        },
-        getHeightSubmenuStyle: function() {
-            var x = this.heightSubmenu.x, y = this.heightSubmenu.y;
-            var vw = window.innerWidth, vh = window.innerHeight;
-            if (x + this.submenuWidth > vw) x = this.heightSubmenu.x - this.submenuWidth - this.contextMenuWidth;
-            if (y + this.submenuHeight > vh) y = vh - this.submenuHeight - 10;
-            if (x < 10) x = 10;
-            if (y < 10) y = 10;
-            return { top: y + 'px', left: x + 'px' };
-        },
-        
-        // ========== 헤더 영역 ==========
+        getContextMenuStyle: function(menu) { if (!menu) return {}; var x = menu.x, y = menu.y, vw = window.innerWidth, vh = window.innerHeight; if (x + this.contextMenuWidth > vw) x = vw - this.contextMenuWidth - 10; if (y + this.contextMenuHeight > vh) y = vh - this.contextMenuHeight - 10; if (x < 10) x = 10; if (y < 10) y = 10; return { top: y + 'px', left: x + 'px' }; },
+        getHeightSubmenuStyle: function() { var x = this.heightSubmenu.x, y = this.heightSubmenu.y, vw = window.innerWidth, vh = window.innerHeight; if (x + this.submenuWidth > vw) x = this.heightSubmenu.x - this.submenuWidth - this.contextMenuWidth; if (y + this.submenuHeight > vh) y = vh - this.submenuHeight - 10; if (x < 10) x = 10; if (y < 10) y = 10; return { top: y + 'px', left: x + 'px' }; },
         onHeaderAreaEnter: function() { this.isHoveringHeaderArea = true; },
         onHeaderAreaLeave: function() { this.isHoveringHeaderArea = false; },
         collapseTrackHeader: function() { this.isTrackHeaderCollapsed = true; },
         expandTrackHeader: function() { this.isTrackHeaderCollapsed = false; },
-        onHeaderScroll: function(e) {
-            var sc = this.$refs.timelineScrollContainer;
-            if (sc && !this._syncingScroll) {
-                this._syncingScroll = true;
-                sc.scrollTop = e.target.scrollTop;
-                var self = this;
-                this.$nextTick(function() { self._syncingScroll = false; });
-            }
-        },
-        onTrackHeaderWheel: function(e, track) {
-            if (this.wheelAdjustMode.active) {
-                e.preventDefault(); e.stopPropagation();
-                var delta = e.deltaY > 0 ? -5 : 5;
-                var self = this;
-                if (this.wheelAdjustMode.target === 'all') {
-                    this.vm.tracks.forEach(function(t) {
-                        var h = self.getTrackHeight(t.id);
-                        self.trackHeights[t.id] = Math.max(self.minTrackHeight, Math.min(120, h + delta));
-                    });
-                } else {
-                    var h = this.getTrackHeight(track.id);
-                    this.trackHeights[track.id] = Math.max(this.minTrackHeight, Math.min(120, h + delta));
-                }
-                this.trackHeights = Object.assign({}, this.trackHeights);
-            }
-        },
-        openHeightSubmenu: function(e, target) {
-            if (this.heightSubmenuCloseTimer) { clearTimeout(this.heightSubmenuCloseTimer); this.heightSubmenuCloseTimer = null; }
-            var rect = e.currentTarget.getBoundingClientRect();
-            this.heightSubmenu = { visible: true, x: rect.right, y: rect.top, target: target };
-        },
-        scheduleCloseHeightSubmenu: function() {
-            var self = this;
-            this.heightSubmenuCloseTimer = setTimeout(function() { self.heightSubmenu.visible = false; }, 150);
-        },
-        cancelCloseHeightSubmenu: function() {
-            if (this.heightSubmenuCloseTimer) { clearTimeout(this.heightSubmenuCloseTimer); this.heightSubmenuCloseTimer = null; }
-        },
-        applyHeightPreset: function(preset) {
-            var height = this.trackHeightPresets[preset] || this.trackHeightPresets.default;
-            var self = this;
-            if (this.heightSubmenu.target === 'all') {
-                this.vm.tracks.forEach(function(t) { self.trackHeights[t.id] = height; });
-            } else if (this.trackContextMenu && this.trackContextMenu.track) {
-                this.trackHeights[this.trackContextMenu.track.id] = height;
-            }
-            this.trackHeights = Object.assign({}, this.trackHeights);
-            this.closeContextMenus();
-        },
-        enableWheelAdjust: function() {
-            this.wheelAdjustMode = { active: true, target: this.heightSubmenu.target };
-            this.closeContextMenus();
-            var self = this;
-            setTimeout(function() { self.wheelAdjustMode.active = false; }, 5000);
-        },
-        
-        // ========== 드롭다운 ==========
-        toggleAspectDropdown: function() { 
-            this.isAspectDropdownOpen = !this.isAspectDropdownOpen; 
-            if (this.isAspectDropdownOpen) this.isResolutionDropdownOpen = false;
-        },
-        selectAspectRatio: function(value) { 
-            if (this.vm) { this.vm.aspectRatio = value; this.applyAspectRatio(value); }
-            this.isAspectDropdownOpen = false; 
-        },
-        applyAspectRatio: function(ratio) {
-            if (!this.vm) return;
-            var baseWidth = this.getBaseWidth();
-            var newW, newH;
-            switch(ratio) {
-                case '원본': 
-                    var os = this.getOriginalVideoSize(); 
-                    if (os) { newW = os.width; newH = os.height; } 
-                    else { newW = 1920; newH = 1080; } 
-                    break;
-                case '16:9': newW = baseWidth; newH = Math.round(baseWidth * 9 / 16); break;
-                case '9:16': newH = baseWidth; newW = Math.round(baseWidth * 9 / 16); break;
-                case '4:3': newW = baseWidth; newH = Math.round(baseWidth * 3 / 4); break;
-                case '1:1': newW = baseWidth; newH = baseWidth; break;
-                default: newW = 1920; newH = 1080;
-            }
-            this.vm.canvasSize = { w: newW, h: newH };
-            var self = this;
-            this.$nextTick(function() { 
-                if (typeof self.vm.recalculateCanvasScale === 'function') self.vm.recalculateCanvasScale(); 
-            });
-        },
-        getBaseWidth: function() {
-            switch(this.vm.resolution) { case '4K': return 3840; case 'FHD': return 1920; case 'HD': return 1280; default: return 1920; }
-        },
-        getOriginalVideoSize: function() {
-            var currentTime = this.vm.currentTime;
-            var self = this;
-            var activeVideoClip = this.vm.clips.find(function(clip) {
-                if (clip.type !== 'video') return false;
-                return currentTime >= clip.start && currentTime < clip.start + clip.duration;
-            });
-            if (activeVideoClip && activeVideoClip.src) {
-                var meta = this.videoMetaCache[activeVideoClip.id];
-                if (meta) return { width: meta.width, height: meta.height };
-            }
-            return null;
-        },
-        cacheVideoMetadata: function(clip) {
-            if (!clip.src || clip.type !== 'video' || this.videoMetaCache[clip.id]) return;
-            var self = this;
-            var video = document.createElement('video');
-            video.preload = 'metadata';
-            video.onloadedmetadata = function() {
-                self.videoMetaCache[clip.id] = { width: video.videoWidth, height: video.videoHeight, duration: video.duration };
-                video.remove();
-                if (self.vm.aspectRatio === '원본') {
-                    var ct = self.vm.currentTime;
-                    if (ct >= clip.start && ct < clip.start + clip.duration) self.applyAspectRatio('원본');
-                }
-            };
-            video.src = clip.src;
-        },
-        toggleResolutionDropdown: function() { 
-            this.isResolutionDropdownOpen = !this.isResolutionDropdownOpen; 
-            if (this.isResolutionDropdownOpen) this.isAspectDropdownOpen = false; 
-        },
-        selectResolution: function(v) { 
-            if (this.vm) { this.vm.resolution = v; this.applyAspectRatio(this.vm.aspectRatio); } 
-            this.isResolutionDropdownOpen = false; 
-        },
-        
-        // ========== 마스터 볼륨 컨트롤 ==========
-        onMasterVolumeLeave: function() {
-            if (this.isDraggingMasterVolume) return;
-            var self = this;
-            this.masterVolumeHideTimer = setTimeout(function() { if (!self.isDraggingMasterVolume) self.showMasterVolume = false; }, 200);
-        },
-        onMasterVolumeWheel: function(e) { 
-            e.stopPropagation(); 
-            this.masterVolume = Math.max(0, Math.min(100, this.masterVolume + (e.deltaY > 0 ? -5 : 5))); 
-        },
-        toggleMute: function() { 
-            if (this.masterVolume > 0) { this.previousVolume = this.masterVolume; this.masterVolume = 0; } 
-            else { this.masterVolume = this.previousVolume || 100; } 
-        },
-        startMasterVolumeDrag: function(e) { 
-            this.isDraggingMasterVolume = true; 
-            if (this.masterVolumeHideTimer) { clearTimeout(this.masterVolumeHideTimer); this.masterVolumeHideTimer = null; } 
-            this.updateMasterVolumeFromEvent(e); 
-        },
-        updateMasterVolumeFromEvent: function(e) { 
-            var track = e.target.closest('.volume-track'); 
-            if (!track) return; 
-            var rect = track.getBoundingClientRect(); 
-            this.masterVolume = Math.round(Math.max(0, Math.min(100, (1 - (e.clientY - rect.top) / rect.height) * 100))); 
-        },
-        
-        // ========== 스크롤 ==========
-        onTimelineScroll: function(e) { 
-            this.scrollLeft = e.target.scrollLeft; 
-            var headerList = this.$refs.trackHeaderList; 
-            if (headerList && !this._syncingScroll) { 
-                this._syncingScroll = true; 
-                headerList.scrollTop = e.target.scrollTop; 
-                var self = this; 
-                this.$nextTick(function() { self._syncingScroll = false; }); 
-            } 
-        },
-        
-        // ========== 트랙 위치 계산 ==========
-        updateTrackYPositions: function() {
-            var accY = 0; var self = this;
-            this.trackYPositions = this.vm.tracks.map(function(track) {
-                var h = self.getTrackHeight(track.id);
-                var pos = { id: track.id, top: accY, bottom: accY + h, height: h };
-                accY += h; return pos;
-            });
-        },
-        getTrackIndexFromY: function(relativeY) {
-            for (var i = 0; i < this.trackYPositions.length; i++) {
-                var pos = this.trackYPositions[i];
-                if (relativeY >= pos.top && relativeY < pos.bottom) return i;
-            }
-            return relativeY < 0 ? 0 : this.trackYPositions.length - 1;
-        },
+        onHeaderScroll: function(e) { var sc = this.$refs.timelineScrollContainer; if (sc && !this._syncingScroll) { this._syncingScroll = true; sc.scrollTop = e.target.scrollTop; var self = this; this.$nextTick(function() { self._syncingScroll = false; }); } },
+        onTrackHeaderWheel: function(e, track) { if (this.wheelAdjustMode.active) { e.preventDefault(); e.stopPropagation(); var delta = e.deltaY > 0 ? -5 : 5; var self = this; if (this.wheelAdjustMode.target === 'all') { this.vm.tracks.forEach(function(t) { var h = self.getTrackHeight(t.id); self.trackHeights[t.id] = Math.max(self.minTrackHeight, Math.min(120, h + delta)); }); } else { var h = this.getTrackHeight(track.id); this.trackHeights[track.id] = Math.max(this.minTrackHeight, Math.min(120, h + delta)); } this.trackHeights = Object.assign({}, this.trackHeights); } },
+        openHeightSubmenu: function(e, target) { if (this.heightSubmenuCloseTimer) { clearTimeout(this.heightSubmenuCloseTimer); this.heightSubmenuCloseTimer = null; } var rect = e.currentTarget.getBoundingClientRect(); this.heightSubmenu = { visible: true, x: rect.right, y: rect.top, target: target }; },
+        scheduleCloseHeightSubmenu: function() { var self = this; this.heightSubmenuCloseTimer = setTimeout(function() { self.heightSubmenu.visible = false; }, 150); },
+        cancelCloseHeightSubmenu: function() { if (this.heightSubmenuCloseTimer) { clearTimeout(this.heightSubmenuCloseTimer); this.heightSubmenuCloseTimer = null; } },
+        applyHeightPreset: function(preset) { var height = this.trackHeightPresets[preset] || this.trackHeightPresets.default; var self = this; if (this.heightSubmenu.target === 'all') { this.vm.tracks.forEach(function(t) { self.trackHeights[t.id] = height; }); } else if (this.trackContextMenu && this.trackContextMenu.track) { this.trackHeights[this.trackContextMenu.track.id] = height; } this.trackHeights = Object.assign({}, this.trackHeights); this.closeContextMenus(); },
+        enableWheelAdjust: function() { this.wheelAdjustMode = { active: true, target: this.heightSubmenu.target }; this.closeContextMenus(); var self = this; setTimeout(function() { self.wheelAdjustMode.active = false; }, 5000); },
+        toggleAspectDropdown: function() { this.isAspectDropdownOpen = !this.isAspectDropdownOpen; if (this.isAspectDropdownOpen) this.isResolutionDropdownOpen = false; },
+        selectAspectRatio: function(value) { if (this.vm) { this.vm.aspectRatio = value; this.applyAspectRatio(value); } this.isAspectDropdownOpen = false; },
+        applyAspectRatio: function(ratio) { if (!this.vm) return; var baseWidth = this.getBaseWidth(); var newW, newH; switch(ratio) { case '원본': var os = this.getOriginalVideoSize(); if (os) { newW = os.width; newH = os.height; } else { newW = 1920; newH = 1080; } break; case '16:9': newW = baseWidth; newH = Math.round(baseWidth * 9 / 16); break; case '9:16': newH = baseWidth; newW = Math.round(baseWidth * 9 / 16); break; case '4:3': newW = baseWidth; newH = Math.round(baseWidth * 3 / 4); break; case '1:1': newW = baseWidth; newH = baseWidth; break; default: newW = 1920; newH = 1080; } this.vm.canvasSize = { w: newW, h: newH }; var self = this; this.$nextTick(function() { if (typeof self.vm.recalculateCanvasScale === 'function') self.vm.recalculateCanvasScale(); }); },
+        getBaseWidth: function() { switch(this.vm.resolution) { case '4K': return 3840; case 'FHD': return 1920; case 'HD': return 1280; default: return 1920; } },
+        getOriginalVideoSize: function() { var currentTime = this.vm.currentTime; var self = this; var activeVideoClip = this.vm.clips.find(function(clip) { if (clip.type !== 'video') return false; return currentTime >= clip.start && currentTime < clip.start + clip.duration; }); if (activeVideoClip && activeVideoClip.src) { var meta = this.videoMetaCache[activeVideoClip.id]; if (meta) return { width: meta.width, height: meta.height }; } return null; },
+        cacheVideoMetadata: function(clip) { if (!clip.src || clip.type !== 'video' || this.videoMetaCache[clip.id]) return; var self = this; var video = document.createElement('video'); video.preload = 'metadata'; video.onloadedmetadata = function() { self.videoMetaCache[clip.id] = { width: video.videoWidth, height: video.videoHeight, duration: video.duration }; video.remove(); if (self.vm.aspectRatio === '원본') { var ct = self.vm.currentTime; if (ct >= clip.start && ct < clip.start + clip.duration) self.applyAspectRatio('원본'); } }; video.src = clip.src; },
+        toggleResolutionDropdown: function() { this.isResolutionDropdownOpen = !this.isResolutionDropdownOpen; if (this.isResolutionDropdownOpen) this.isAspectDropdownOpen = false; },
+        selectResolution: function(v) { if (this.vm) { this.vm.resolution = v; this.applyAspectRatio(this.vm.aspectRatio); } this.isResolutionDropdownOpen = false; },
+        onMasterVolumeLeave: function() { if (this.isDraggingMasterVolume) return; var self = this; this.masterVolumeHideTimer = setTimeout(function() { if (!self.isDraggingMasterVolume) self.showMasterVolume = false; }, 200); },
+        onMasterVolumeWheel: function(e) { e.stopPropagation(); this.masterVolume = Math.max(0, Math.min(100, this.masterVolume + (e.deltaY > 0 ? -5 : 5))); },
+        toggleMute: function() { if (this.masterVolume > 0) { this.previousVolume = this.masterVolume; this.masterVolume = 0; } else { this.masterVolume = this.previousVolume || 100; } },
+        startMasterVolumeDrag: function(e) { this.isDraggingMasterVolume = true; if (this.masterVolumeHideTimer) { clearTimeout(this.masterVolumeHideTimer); this.masterVolumeHideTimer = null; } this.updateMasterVolumeFromEvent(e); },
+        updateMasterVolumeFromEvent: function(e) { var track = e.target.closest('.volume-track'); if (!track) return; var rect = track.getBoundingClientRect(); this.masterVolume = Math.round(Math.max(0, Math.min(100, (1 - (e.clientY - rect.top) / rect.height) * 100))); },
+        onTimelineScroll: function(e) { this.scrollLeft = e.target.scrollLeft; var headerList = this.$refs.trackHeaderList; if (headerList && !this._syncingScroll) { this._syncingScroll = true; headerList.scrollTop = e.target.scrollTop; var self = this; this.$nextTick(function() { self._syncingScroll = false; }); } },
+        updateTrackYPositions: function() { var accY = 0; var self = this; this.trackYPositions = this.vm.tracks.map(function(track) { var h = self.getTrackHeight(track.id); var pos = { id: track.id, top: accY, bottom: accY + h, height: h }; accY += h; return pos; }); },
+        getTrackIndexFromY: function(relativeY) { for (var i = 0; i < this.trackYPositions.length; i++) { var pos = this.trackYPositions[i]; if (relativeY >= pos.top && relativeY < pos.bottom) return i; } return relativeY < 0 ? 0 : this.trackYPositions.length - 1; },
         getTrackHeight: function(trackId) { return this.trackHeights[trackId] || this.defaultTrackHeight; },
-        
-        // ========== 스타일 주입 ==========
-        injectStyles: function() {
-            if (document.getElementById('timeline-custom-styles')) return;
-            var style = document.createElement('style'); 
-            style.id = 'timeline-custom-styles';
-            style.textContent = [
-                '.playhead-line-body{position:absolute;top:24px;width:1px;background:#ef4444;pointer-events:none;z-index:35;transform:translateX(-0.5px);}',
-                '.playhead-head{position:absolute;top:2px;width:10px;height:16px;background:transparent;border:1px solid #ef4444;border-radius:0 0 3px 3px;transform:translateX(-5px);cursor:ew-resize;z-index:50;}',
-                '.playhead-head::after{content:"";position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);border-left:4px solid transparent;border-right:4px solid transparent;border-top:4px solid #ef4444;}',
-                '.timeline-select-no-arrow{-webkit-appearance:none;-moz-appearance:none;appearance:none;}',
-                '.master-volume-popup{display:none;}',
-                '.master-volume-popup.show{display:flex;}',
-                '.track-header-container{position:relative;display:flex;flex-direction:column;overflow:hidden;}',
-                '.track-header-list{scrollbar-width:none;-ms-overflow-style:none;}',
-                '.track-header-list::-webkit-scrollbar{display:none;}',
-                '.track-header-inner{position:relative;}',
-                '.has-submenu{position:relative;}',
-                '.clip.dragging{opacity:0.5;}',
-                '.clip-drag-ghost{position:absolute;pointer-events:none;z-index:1000;border-radius:4px;border:2px solid rgba(255,255,255,0.8);box-shadow:0 4px 12px rgba(0,0,0,0.4);overflow:hidden;}',
-                '.header-resize-handle{position:absolute;right:0;width:3px;cursor:col-resize;background:transparent;z-index:60;transition:background 0.15s;}',
-                '.header-resize-handle:hover,.header-resize-handle.resizing{background:#3b82f6;}',
-                '.timeline-scroll-enhanced::-webkit-scrollbar{width:8px;height:8px;}',
-                '.timeline-scroll-enhanced::-webkit-scrollbar-track{background:rgba(0,0,0,0.1);}',
-                '.timeline-scroll-enhanced::-webkit-scrollbar-thumb{background:rgba(100,100,100,0.5);border-radius:4px;}',
-                '.timeline-scroll-enhanced:hover::-webkit-scrollbar{width:14px;height:14px;}',
-                '.timeline-scroll-enhanced:hover::-webkit-scrollbar-thumb{background:rgba(100,100,100,0.7);}',
-                '.timeline-scroll-enhanced{scrollbar-width:thin;scrollbar-color:rgba(100,100,100,0.5) rgba(0,0,0,0.1);}',
-                '.clip-filmstrip{display:flex;overflow:hidden;}',
-                '.clip-filmstrip-frame{flex-shrink:0;height:100%;background-size:cover;background-position:center;background-repeat:no-repeat;border-right:1px solid rgba(0,0,0,0.3);}',
-                '.clip-waveform-bars{position:absolute;inset:0;display:flex;align-items:flex-end;gap:1px;padding:2px;}',
-                '.clip-waveform-bar{position:absolute;bottom:0;background:rgba(59,130,246,0.7);border-radius:1px 1px 0 0;min-height:2px;transition:background 0.1s;}',
-                '.clip-waveform-bar.silent{background:rgba(100,100,100,0.3);}',
-                '.clip.sound .clip-waveform-bar{background:rgba(34,197,94,0.7);}',
-                '.clip.sound .clip-waveform-bar.silent{background:rgba(100,100,100,0.3);}'
-            ].join('');
-            document.head.appendChild(style);
-        },
-        
-        // ========== 썸네일 ==========
-        generateThumbnailsForNewClips: function() { 
-            var self = this; 
-            this.vm.clips.forEach(function(clip) { 
-                if (clip.type === 'video' && clip.src) { 
-                    if (!self.thumbnailCache[clip.id]) self.generateVideoThumbnails(clip); 
-                    self.cacheVideoMetadata(clip); 
-                } 
-            }); 
-        },
-        generateVideoThumbnails: function(clip) {
-            if (!clip.src) return; 
-            var self = this;
-            var video = document.createElement('video'); 
-            video.crossOrigin = 'anonymous'; 
-            video.muted = true; 
-            video.preload = 'metadata';
-            video.onloadedmetadata = function() {
-                var duration = video.duration || clip.duration || 10;
-                var frameCount = Math.min(60, Math.max(10, Math.ceil(duration)));
-                var frames = {}; var loaded = 0;
-                var captureFrame = function(index) { video.currentTime = (index / frameCount) * duration; };
-                video.onseeked = function() {
-                    var canvas = document.createElement('canvas'); canvas.width = 80; canvas.height = 45;
-                    var ctx = canvas.getContext('2d'); ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    try { frames[loaded] = canvas.toDataURL('image/jpeg', 0.6); } catch (err) { frames[loaded] = null; }
-                    loaded++; 
-                    if (loaded < frameCount) captureFrame(loaded); 
-                    else { self.thumbnailCache[clip.id] = frames; video.remove(); }
-                };
-                captureFrame(0);
-            };
-            video.onerror = function() { self.thumbnailCache[clip.id] = {}; };
-            video.src = clip.src;
-        },
-        getFilmstripFrames: function(clip) {
-            var clipPixelWidth = this.getClipPixelWidth(clip);
-            var pps = this.pixelsPerSecond;
-            var dynamicFrameWidth;
-            if (pps >= 100) dynamicFrameWidth = this.MAX_FILMSTRIP_FRAME_WIDTH;
-            else if (pps >= 50) dynamicFrameWidth = 60;
-            else if (pps >= 20) dynamicFrameWidth = this.FILMSTRIP_FRAME_WIDTH;
-            else if (pps >= 10) dynamicFrameWidth = 30;
-            else dynamicFrameWidth = this.MIN_FILMSTRIP_FRAME_WIDTH;
-            
-            var frameCount = Math.max(1, Math.ceil(clipPixelWidth / dynamicFrameWidth));
-            var actualFrameWidth = clipPixelWidth / frameCount;
-            var frames = [];
-            var cached = this.thumbnailCache[clip.id] || {};
-            var cachedKeys = Object.keys(cached);
-            var cachedCount = cachedKeys.length;
-            for (var i = 0; i < frameCount; i++) {
-                var framePosition = i / frameCount;
-                var thumbnailIndex = Math.floor(framePosition * cachedCount);
-                var src = cached[thumbnailIndex] || (clip.type === 'image' ? clip.src : null);
-                frames.push({ width: actualFrameWidth, src: src });
-            }
-            return frames;
-        },
-        
-        // ========== 클립 스타일 ==========
-        getClipStyle: function(clip, track) {
-            var h = this.getTrackHeight(track.id);
-            var isDraggingThis = this.isDraggingClip && this.draggingClipIds.indexOf(clip.id) >= 0;
-            
-            return {
-                left: clip.start * this.pixelsPerSecond + 'px',
-                width: Math.max(20, clip.duration * this.pixelsPerSecond) + 'px',
-                top: '1px',
-                height: (h - 2) + 'px',
-                opacity: isDraggingThis ? '0.5' : '1'
-            };
-        },
-        getClipClasses: function(clip) { 
-            var sel = this.selectedClipIds.indexOf(clip.id) >= 0; 
-            var isDraggingThis = this.isDraggingClip && this.draggingClipIds.indexOf(clip.id) >= 0;
-            
-            var classes = {
-                'clip-selected': sel && this.selectedClipIds.length === 1, 
-                'clip-multi-selected': sel && this.selectedClipIds.length > 1, 
-                'dragging': isDraggingThis
-            };
-            
-            if (clip.type === 'sound') classes['sound'] = true;
-            if (clip.type === 'video') classes['video'] = true;
-            if (clip.type === 'image') classes['image'] = true;
-            
-            return classes;
-        },
+        injectStyles: function() { if (document.getElementById('timeline-custom-styles')) return; var style = document.createElement('style'); style.id = 'timeline-custom-styles'; style.textContent = '.playhead-line-body{position:absolute;top:24px;width:1px;background:#ef4444;pointer-events:none;z-index:35;transform:translateX(-0.5px);}.playhead-head{position:absolute;top:2px;width:10px;height:16px;background:transparent;border:1px solid #ef4444;border-radius:0 0 3px 3px;transform:translateX(-5px);cursor:ew-resize;z-index:50;}.playhead-head::after{content:"";position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);border-left:4px solid transparent;border-right:4px solid transparent;border-top:4px solid #ef4444;}.timeline-select-no-arrow{-webkit-appearance:none;-moz-appearance:none;appearance:none;}.master-volume-popup{display:none;}.master-volume-popup.show{display:flex;}.track-header-container{position:relative;display:flex;flex-direction:column;overflow:hidden;}.track-header-list{scrollbar-width:none;-ms-overflow-style:none;}.track-header-list::-webkit-scrollbar{display:none;}.track-header-inner{position:relative;}.has-submenu{position:relative;}.clip.dragging{opacity:0.5;}.clip-drag-ghost{position:absolute;pointer-events:none;z-index:1000;border-radius:4px;border:2px solid rgba(255,255,255,0.8);box-shadow:0 4px 12px rgba(0,0,0,0.4);overflow:hidden;}.header-resize-handle{position:absolute;right:0;width:3px;cursor:col-resize;background:transparent;z-index:60;transition:background 0.15s;}.header-resize-handle:hover,.header-resize-handle.resizing{background:#3b82f6;}.timeline-scroll-enhanced::-webkit-scrollbar{width:8px;height:8px;}.timeline-scroll-enhanced::-webkit-scrollbar-track{background:rgba(0,0,0,0.1);}.timeline-scroll-enhanced::-webkit-scrollbar-thumb{background:rgba(100,100,100,0.5);border-radius:4px;}.timeline-scroll-enhanced:hover::-webkit-scrollbar{width:14px;height:14px;}.timeline-scroll-enhanced:hover::-webkit-scrollbar-thumb{background:rgba(100,100,100,0.7);}.timeline-scroll-enhanced{scrollbar-width:thin;scrollbar-color:rgba(100,100,100,0.5) rgba(0,0,0,0.1);}.clip-filmstrip{display:flex;overflow:hidden;}.clip-filmstrip-frame{flex-shrink:0;height:100%;background-size:cover;background-position:center;background-repeat:no-repeat;border-right:1px solid rgba(0,0,0,0.3);}.clip-waveform-bars{position:absolute;inset:0;display:flex;align-items:flex-end;gap:1px;padding:2px;}.clip-waveform-bar{position:absolute;bottom:0;background:rgba(59,130,246,0.7);border-radius:1px 1px 0 0;min-height:2px;transition:background 0.1s;}.clip-waveform-bar.silent{background:rgba(100,100,100,0.3);}.clip.sound .clip-waveform-bar{background:rgba(34,197,94,0.7);}.clip.sound .clip-waveform-bar.silent{background:rgba(100,100,100,0.3);}'; document.head.appendChild(style); },
+        generateThumbnailsForNewClips: function() { var self = this; this.vm.clips.forEach(function(clip) { if (clip.type === 'video' && clip.src) { if (!self.thumbnailCache[clip.id]) self.generateVideoThumbnails(clip); self.cacheVideoMetadata(clip); } }); },
+        generateVideoThumbnails: function(clip) { if (!clip.src) return; var self = this; var video = document.createElement('video'); video.crossOrigin = 'anonymous'; video.muted = true; video.preload = 'metadata'; video.onloadedmetadata = function() { var duration = video.duration || clip.duration || 10; var frameCount = Math.min(60, Math.max(10, Math.ceil(duration))); var frames = {}; var loaded = 0; var captureFrame = function(index) { video.currentTime = (index / frameCount) * duration; }; video.onseeked = function() { var canvas = document.createElement('canvas'); canvas.width = 80; canvas.height = 45; var ctx = canvas.getContext('2d'); ctx.drawImage(video, 0, 0, canvas.width, canvas.height); try { frames[loaded] = canvas.toDataURL('image/jpeg', 0.6); } catch (err) { frames[loaded] = null; } loaded++; if (loaded < frameCount) captureFrame(loaded); else { self.thumbnailCache[clip.id] = frames; video.remove(); } }; captureFrame(0); }; video.onerror = function() { self.thumbnailCache[clip.id] = {}; }; video.src = clip.src; },
+        getFilmstripFrames: function(clip) { var clipPixelWidth = this.getClipPixelWidth(clip); var pps = this.pixelsPerSecond; var dynamicFrameWidth; if (pps >= 100) dynamicFrameWidth = this.MAX_FILMSTRIP_FRAME_WIDTH; else if (pps >= 50) dynamicFrameWidth = 60; else if (pps >= 20) dynamicFrameWidth = this.FILMSTRIP_FRAME_WIDTH; else if (pps >= 10) dynamicFrameWidth = 30; else dynamicFrameWidth = this.MIN_FILMSTRIP_FRAME_WIDTH; var frameCount = Math.max(1, Math.ceil(clipPixelWidth / dynamicFrameWidth)); var actualFrameWidth = clipPixelWidth / frameCount; var frames = []; var cached = this.thumbnailCache[clip.id] || {}; var cachedKeys = Object.keys(cached); var cachedCount = cachedKeys.length; for (var i = 0; i < frameCount; i++) { var framePosition = i / frameCount; var thumbnailIndex = Math.floor(framePosition * cachedCount); var src = cached[thumbnailIndex] || (clip.type === 'image' ? clip.src : null); frames.push({ width: actualFrameWidth, src: src }); } return frames; },
+        getClipStyle: function(clip, track) { var h = this.getTrackHeight(track.id); var isDraggingThis = this.isDraggingClip && this.draggingClipIds.indexOf(clip.id) >= 0; return { left: clip.start * this.pixelsPerSecond + 'px', width: Math.max(20, clip.duration * this.pixelsPerSecond) + 'px', top: '1px', height: (h - 2) + 'px', opacity: isDraggingThis ? '0.5' : '1' }; },
+        getClipClasses: function(clip) { var sel = this.selectedClipIds.indexOf(clip.id) >= 0; var isDraggingThis = this.isDraggingClip && this.draggingClipIds.indexOf(clip.id) >= 0; var classes = { 'clip-selected': sel && this.selectedClipIds.length === 1, 'clip-multi-selected': sel && this.selectedClipIds.length > 1, 'dragging': isDraggingThis }; if (clip.type === 'sound') classes['sound'] = true; if (clip.type === 'video') classes['video'] = true; if (clip.type === 'image') classes['image'] = true; return classes; },
         getClipPixelWidth: function(clip) { return Math.max(20, clip.duration * this.pixelsPerSecond); },
-        getClipBackgroundStyle: function(clip, track) { 
-            return { background: 'linear-gradient(180deg, ' + (track.color || '#3b82f6') + '50 0%, ' + (track.color || '#3b82f6') + '30 100%)' }; 
-        },
+        getClipBackgroundStyle: function(clip, track) { return { background: 'linear-gradient(180deg, ' + (track.color || '#3b82f6') + '50 0%, ' + (track.color || '#3b82f6') + '30 100%)' }; },
+        selectClip: function(clipId, mod) { mod = mod || {}; var self = this; var clip = this.vm.clips.find(function(c) { return c.id === clipId; }); if (!clip) return; if (mod.ctrlKey || mod.metaKey) { var idx = this.selectedClipIds.indexOf(clipId); if (idx >= 0) this.selectedClipIds.splice(idx, 1); else this.selectedClipIds.push(clipId); } else if (mod.shiftKey && this.lastSelectedClipId && this.lastSelectedTrackId === clip.trackId) { var tc = this.vm.clips.filter(function(c) { return c.trackId === clip.trackId; }).sort(function(a, b) { return a.start - b.start; }); var li = -1, ci = -1; for (var i = 0; i < tc.length; i++) { if (tc[i].id === self.lastSelectedClipId) li = i; if (tc[i].id === clipId) ci = i; } if (li >= 0 && ci >= 0) this.selectedClipIds = tc.slice(Math.min(li, ci), Math.max(li, ci) + 1).map(function(c) { return c.id; }); } else { this.selectedClipIds = [clipId]; } this.lastSelectedClipId = clipId; this.lastSelectedTrackId = clip.trackId; this.syncVmSelectedClip(); },
+        clearSelection: function() { this.selectedClipIds = []; this.lastSelectedClipId = null; this.lastSelectedTrackId = null; this.syncVmSelectedClip(); },
+        syncVmSelectedClip: function() { var self = this; this.vm.selectedClip = this.selectedClipIds.length === 1 ? this.vm.clips.find(function(c) { return c.id === self.selectedClipIds[0]; }) || null : null; },
+        onClipMouseDown: function(e, clip, track) { if (track.isLocked) return; this.dragStartX = e.clientX; this.dragStartY = e.clientY; var sc = this.$refs.timelineScrollContainer; this.dragStartScrollLeft = sc ? sc.scrollLeft : 0; this.pendingClickClipId = clip.id; this.pendingClickModifiers = { ctrlKey: e.ctrlKey, metaKey: e.metaKey, shiftKey: e.shiftKey }; var trackIndex = -1; for (var i = 0; i < this.vm.tracks.length; i++) { if (this.vm.tracks[i].id === track.id) { trackIndex = i; break; } } this.currentDragTrackIndex = trackIndex; this.originalTrackIndex = trackIndex; if (this.selectedClipIds.indexOf(clip.id) < 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey) { this.selectedClipIds = [clip.id]; this.lastSelectedClipId = clip.id; this.lastSelectedTrackId = clip.trackId; this.syncVmSelectedClip(); } this.draggingClipIds = this.selectedClipIds.slice(); if (this.draggingClipIds.indexOf(clip.id) < 0) this.draggingClipIds = [clip.id]; this.dragOriginalState = {}; var self = this; this.draggingClipIds.forEach(function(id) { var c = self.vm.clips.find(function(cl) { return cl.id === id; }); if (c) { self.dragOriginalState[id] = { start: c.start, trackId: c.trackId }; } }); },
+        onTrackLaneMouseDown: function(e, track) { if (!e.target.closest('.clip')) this.clearSelection(); },
+        onDocumentClick: function(e) { if (!e.target.closest('.context-menu') && !e.target.closest('.clip-volume-popup')) this.closeContextMenus(); if (!e.target.closest('.resolution-dropdown-wrapper')) this.isResolutionDropdownOpen = false; if (!e.target.closest('.aspect-ratio-dropdown-wrapper')) this.isAspectDropdownOpen = false; if (!e.target.closest('.clip-volume-popup') && !e.target.closest('.ctx-item')) this.volumePopup.visible = false; },
+        onDocumentKeyDown: function(e) { if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') { e.preventDefault(); this.undo(); return; } if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) { e.preventDefault(); this.redo(); return; } if (e.key === 'Delete' && this.hasSelectedClips) { e.preventDefault(); this.deleteSelectedClips(); return; } if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') { e.preventDefault(); this.selectedClipIds = this.vm.clips.map(function(c) { return c.id; }); this.syncVmSelectedClip(); return; } if (e.key === 'Escape') { this.clearSelection(); this.isResolutionDropdownOpen = false; this.isAspectDropdownOpen = false; this.volumePopup.visible = false; this.wheelAdjustMode.active = false; if (this.isDraggingClip) { this.cancelDrag(); } return; } if (e.shiftKey && e.key.toLowerCase() === 's') { e.preventDefault(); this.cutAtPlayhead(); return; } if (e.shiftKey && e.key.toLowerCase() === 'a') { e.preventDefault(); this.cutAndDeleteLeftSelected(); return; } if (e.shiftKey && e.key.toLowerCase() === 'd') { e.preventDefault(); this.cutAndDeleteRightSelected(); return; } },
+        onDocumentMouseMove: function(e) { var self = this; if (this.isResizingHeader && !this.isTrackHeaderCollapsed) { var newWidth = this.resizeStartWidth + (e.clientX - this.resizeStartX); this.trackHeaderWidth = Math.max(this.minHeaderWidth, Math.min(this.initialHeaderWidth, newWidth)); } if (this.isResizingTrack && this.resizingTrackId) { this.trackHeights[this.resizingTrackId] = Math.max(this.minTrackHeight, this.resizeStartHeight + (e.clientY - this.resizeStartY)); this.trackHeights = Object.assign({}, this.trackHeights); } if (this.isDraggingPlayhead) this.updatePlayheadPosition(e); if (this.isDraggingMasterVolume) this.updateMasterVolumeFromEvent(e); if (this.isDraggingVolumePopup) this.updateVolumePopupFromEvent(e); if (this.isDraggingClipVolume && this.volumeDragClip) { var dy = this.volumeDragStartY - e.clientY; var newVol = Math.max(0, Math.min(200, Math.round(this.volumeDragStartVolume + dy * 2))); this.volumeDragClip.volume = newVol; if (window.PreviewRenderer) window.PreviewRenderer.updateClipVolume(this.volumeDragClip.id, newVol / 100); } if (this.pendingClickClipId && !this.isDraggingClip && this.draggingClipIds.length > 0) { if (Math.abs(e.clientX - this.dragStartX) > 3 || Math.abs(e.clientY - this.dragStartY) > 3) { this.isDraggingClip = true; this.pendingClickClipId = null; this.createDragGhost(); } } if (this.isDraggingClip && this.draggingClipIds.length > 0) { this.lastDragEvent = e; if (!this.dragRAF) { this.dragRAF = requestAnimationFrame(function() { self.processDragMove(); self.dragRAF = null; }); } } if (this.isResizingClip && this.resizingClip) this.handleClipResize(e); },
+        createDragGhost: function() { if (this.draggingClipIds.length === 0) return; var self = this; var firstClipId = this.draggingClipIds[0]; var firstClip = this.vm.clips.find(function(c) { return c.id === firstClipId; }); if (!firstClip) return; var track = this.vm.tracks.find(function(t) { return t.id === firstClip.trackId; }); var trackHeight = track ? this.getTrackHeight(track.id) : this.defaultTrackHeight; var clipWidth = firstClip.duration * this.pixelsPerSecond; var trackY = 0; for (var i = 0; i < this.vm.tracks.length; i++) { if (this.vm.tracks[i].id === firstClip.trackId) break; trackY += this.getTrackHeight(this.vm.tracks[i].id); } this.dragGhost = { visible: true, style: { left: (firstClip.start * this.pixelsPerSecond) + 'px', top: (trackY + 24 + 1) + 'px', width: clipWidth + 'px', height: (trackHeight - 2) + 'px' }, name: firstClip.name || 'Clip', bgColor: track ? track.color : '#3b82f6' }; },
+        processDragMove: function() { var e = this.lastDragEvent; if (!e || !this.isDraggingClip) return; var dx = e.clientX - this.dragStartX; var lane = document.getElementById('timeline-lane-container'); if (lane) { var rect = lane.getBoundingClientRect(); var relY = e.clientY - rect.top - 24; var newIdx = this.getTrackIndexFromY(relY); if (newIdx !== -1 && newIdx !== this.currentDragTrackIndex) { var target = this.vm.tracks[newIdx]; if (target && !target.isLocked) { this.currentDragTrackIndex = newIdx; } } } if (this.dragGhost.visible && this.draggingClipIds.length > 0) { var firstClipId = this.draggingClipIds[0]; var firstClip = this.vm.clips.find(function(c) { return c.id === firstClipId; }); var origState = this.dragOriginalState[firstClipId]; if (firstClip && origState) { var newLeft = (origState.start * this.pixelsPerSecond) + dx; var trackY = 0; for (var i = 0; i < this.currentDragTrackIndex && i < this.vm.tracks.length; i++) { trackY += this.getTrackHeight(this.vm.tracks[i].id); } var targetTrack = this.vm.tracks[this.currentDragTrackIndex]; var trackHeight = targetTrack ? this.getTrackHeight(targetTrack.id) : this.defaultTrackHeight; this.dragGhost.style = { left: Math.max(0, newLeft) + 'px', top: (trackY + 24 + 1) + 'px', width: (firstClip.duration * this.pixelsPerSecond) + 'px', height: (trackHeight - 2) + 'px' }; if (targetTrack) { this.dragGhost.bgColor = targetTrack.color || '#3b82f6'; } } } },
+        onDocumentMouseUp: function(e) { var self = this; if (this.isResizingClip && this.resizeOriginalState) { this.saveToHistory(); this.resizeOriginalState = null; } if (this.isDraggingClip && this.draggingClipIds.length > 0) { this.finalizeDrop(e); } if (this.pendingClickClipId && !this.isDraggingClip) { this.selectClip(this.pendingClickClipId, this.pendingClickModifiers || {}); } this.pendingClickClipId = null; this.pendingClickModifiers = null; this.isResizingHeader = false; this.isResizingTrack = false; this.resizingTrackId = null; this.isDraggingPlayhead = false; this.isDraggingClip = false; this.draggingClipIds = []; this.dragOriginalState = {}; this.currentDragTrackIndex = null; this.originalTrackIndex = null; this.dragGhost.visible = false; this.isResizingClip = false; this.resizingClip = null; if (this.isDraggingMasterVolume) this.isDraggingMasterVolume = false; this.isDraggingClipVolume = false; this.volumeDragClip = null; this.isDraggingVolumePopup = false; if (this.dragRAF) { cancelAnimationFrame(this.dragRAF); this.dragRAF = null; } },
         
-        // ========== 클립 선택 ==========
-        selectClip: function(clipId, mod) {
-            mod = mod || {}; var self = this;
-            var clip = this.vm.clips.find(function(c) { return c.id === clipId; }); 
-            if (!clip) return;
-            
-            if (mod.ctrlKey || mod.metaKey) { 
-                var idx = this.selectedClipIds.indexOf(clipId); 
-                if (idx >= 0) this.selectedClipIds.splice(idx, 1); 
-                else this.selectedClipIds.push(clipId); 
-            }
-            else if (mod.shiftKey && this.lastSelectedClipId && this.lastSelectedTrackId === clip.trackId) { 
-                var tc = this.vm.clips.filter(function(c) { return c.trackId === clip.trackId; }).sort(function(a, b) { return a.start - b.start; }); 
-                var li = -1, ci = -1; 
-                for (var i = 0; i < tc.length; i++) { 
-                    if (tc[i].id === self.lastSelectedClipId) li = i; 
-                    if (tc[i].id === clipId) ci = i; 
-                } 
-                if (li >= 0 && ci >= 0) this.selectedClipIds = tc.slice(Math.min(li, ci), Math.max(li, ci) + 1).map(function(c) { return c.id; }); 
-            }
-            else { this.selectedClipIds = [clipId]; }
-            
-            this.lastSelectedClipId = clipId; 
-            this.lastSelectedTrackId = clip.trackId; 
-            this.syncVmSelectedClip();
-        },
-        clearSelection: function() { 
-            this.selectedClipIds = []; 
-            this.lastSelectedClipId = null; 
-            this.lastSelectedTrackId = null; 
-            this.syncVmSelectedClip(); 
-        },
-        syncVmSelectedClip: function() { 
-            var self = this; 
-            this.vm.selectedClip = this.selectedClipIds.length === 1 ? this.vm.clips.find(function(c) { return c.id === self.selectedClipIds[0]; }) || null : null; 
-        },
-        
-        // ========== 클립 드래그 ==========
-        onClipMouseDown: function(e, clip, track) {
-            if (track.isLocked) return;
-            
-            this.dragStartX = e.clientX; 
-            this.dragStartY = e.clientY;
-            var sc = this.$refs.timelineScrollContainer;
-            this.dragStartScrollLeft = sc ? sc.scrollLeft : 0;
-            
-            this.pendingClickClipId = clip.id; 
-            this.pendingClickModifiers = { ctrlKey: e.ctrlKey, metaKey: e.metaKey, shiftKey: e.shiftKey };
-            
-            var trackIndex = -1; 
-            for (var i = 0; i < this.vm.tracks.length; i++) { 
-                if (this.vm.tracks[i].id === track.id) { trackIndex = i; break; } 
-            }
-            this.currentDragTrackIndex = trackIndex;
-            this.originalTrackIndex = trackIndex;
-            
-            if (this.selectedClipIds.indexOf(clip.id) < 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey) { 
-                this.selectedClipIds = [clip.id]; 
-                this.lastSelectedClipId = clip.id; 
-                this.lastSelectedTrackId = clip.trackId; 
-                this.syncVmSelectedClip(); 
-            }
-            
-            this.draggingClipIds = this.selectedClipIds.slice(); 
-            if (this.draggingClipIds.indexOf(clip.id) < 0) this.draggingClipIds = [clip.id];
-            
-            this.dragOriginalState = {};
-            var self = this;
-            this.draggingClipIds.forEach(function(id) { 
-                var c = self.vm.clips.find(function(cl) { return cl.id === id; }); 
-                if (c) { 
-                    self.dragOriginalState[id] = { start: c.start, trackId: c.trackId };
-                } 
-            });
-        },
-        onTrackLaneMouseDown: function(e, track) { 
-            if (!e.target.closest('.clip')) this.clearSelection(); 
-        },
-        
-        // ========== 문서 이벤트 핸들러 ==========
-        onDocumentClick: function(e) { 
-            if (!e.target.closest('.context-menu') && !e.target.closest('.clip-volume-popup')) this.closeContextMenus(); 
-            if (!e.target.closest('.resolution-dropdown-wrapper')) this.isResolutionDropdownOpen = false; 
-            if (!e.target.closest('.aspect-ratio-dropdown-wrapper')) this.isAspectDropdownOpen = false; 
-            if (!e.target.closest('.clip-volume-popup') && !e.target.closest('.ctx-item')) this.volumePopup.visible = false; 
-        },
-        onDocumentKeyDown: function(e) {
-            if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') { 
-                e.preventDefault(); 
-                this.undo(); 
-                return; 
-            }
-            if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) { 
-                e.preventDefault(); 
-                this.redo(); 
-                return; 
-            }
-            if (e.key === 'Delete' && this.hasSelectedClips) {
-                e.preventDefault();
-                this.deleteSelectedClips();
-                return;
-            }
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') { 
-                e.preventDefault(); 
-                this.selectedClipIds = this.vm.clips.map(function(c) { return c.id; }); 
-                this.syncVmSelectedClip(); 
-                return;
-            }
-            if (e.key === 'Escape') { 
-                this.clearSelection(); 
-                this.isResolutionDropdownOpen = false; 
-                this.isAspectDropdownOpen = false; 
-                this.volumePopup.visible = false; 
-                this.wheelAdjustMode.active = false;
-                if (this.isDraggingClip) {
-                    this.cancelDrag();
-                }
-                return;
-            }
-            if (e.shiftKey && e.key.toLowerCase() === 's') {
-                e.preventDefault();
-                this.cutAtPlayhead();
-                return;
-            }
-            if (e.shiftKey && e.key.toLowerCase() === 'a') {
-                e.preventDefault();
-                this.cutAndDeleteLeftSelected();
-                return;
-            }
-            if (e.shiftKey && e.key.toLowerCase() === 'd') {
-                e.preventDefault();
-                this.cutAndDeleteRightSelected();
-                return;
-            }
-        },
-        onDocumentMouseMove: function(e) {
-            var self = this;
-            
-            if (this.isResizingHeader && !this.isTrackHeaderCollapsed) { 
-                var newWidth = this.resizeStartWidth + (e.clientX - this.resizeStartX); 
-                this.trackHeaderWidth = Math.max(this.minHeaderWidth, Math.min(this.initialHeaderWidth, newWidth)); 
-            }
-            
-            if (this.isResizingTrack && this.resizingTrackId) { 
-                this.trackHeights[this.resizingTrackId] = Math.max(this.minTrackHeight, this.resizeStartHeight + (e.clientY - this.resizeStartY)); 
-                this.trackHeights = Object.assign({}, this.trackHeights); 
-            }
-            
-            if (this.isDraggingPlayhead) this.updatePlayheadPosition(e);
-            
-            if (this.isDraggingMasterVolume) this.updateMasterVolumeFromEvent(e);
-            if (this.isDraggingVolumePopup) this.updateVolumePopupFromEvent(e);
-            if (this.isDraggingClipVolume && this.volumeDragClip) { 
-                var dy = this.volumeDragStartY - e.clientY; 
-                var newVol = Math.max(0, Math.min(200, Math.round(this.volumeDragStartVolume + dy * 2))); 
-                this.volumeDragClip.volume = newVol; 
-                if (window.PreviewRenderer) window.PreviewRenderer.updateClipVolume(this.volumeDragClip.id, newVol / 100); 
-            }
-            
-            if (this.pendingClickClipId && !this.isDraggingClip && this.draggingClipIds.length > 0) { 
-                if (Math.abs(e.clientX - this.dragStartX) > 3 || Math.abs(e.clientY - this.dragStartY) > 3) { 
-                    this.isDraggingClip = true;
-                    this.pendingClickClipId = null;
-                    this.createDragGhost();
-                } 
-            }
-            
-            if (this.isDraggingClip && this.draggingClipIds.length > 0) {
-                this.lastDragEvent = e;
-                if (!this.dragRAF) {
-                    this.dragRAF = requestAnimationFrame(function() {
-                        self.processDragMove();
-                        self.dragRAF = null;
-                    });
-                }
-            }
-            
-            if (this.isResizingClip && this.resizingClip) this.handleClipResize(e);
-        },
-        
-        // ========== 드래그 고스트 ==========
-        createDragGhost: function() {
-            if (this.draggingClipIds.length === 0) return;
-            
-            var self = this;
-            var firstClipId = this.draggingClipIds[0];
-            var firstClip = this.vm.clips.find(function(c) { return c.id === firstClipId; });
-            if (!firstClip) return;
-            
-            var track = this.vm.tracks.find(function(t) { return t.id === firstClip.trackId; });
-            var trackHeight = track ? this.getTrackHeight(track.id) : this.defaultTrackHeight;
-            var clipWidth = firstClip.duration * this.pixelsPerSecond;
-            
-            var trackY = 0;
-            for (var i = 0; i < this.vm.tracks.length; i++) {
-                if (this.vm.tracks[i].id === firstClip.trackId) break;
-                trackY += this.getTrackHeight(this.vm.tracks[i].id);
-            }
-            
-            this.dragGhost = {
-                visible: true,
-                style: {
-                    left: (firstClip.start * this.pixelsPerSecond) + 'px',
-                    top: (trackY + 24 + 1) + 'px',
-                    width: clipWidth + 'px',
-                    height: (trackHeight - 2) + 'px'
-                },
-                name: firstClip.name || 'Clip',
-                bgColor: track ? track.color : '#3b82f6'
-            };
-        },
-// 코드연결지점
-        // ========== RAF 기반 드래그 처리 ==========
-        processDragMove: function() {
-            var e = this.lastDragEvent;
-            if (!e || !this.isDraggingClip) return;
-            
-            var dx = e.clientX - this.dragStartX;
-            var dy = e.clientY - this.dragStartY;
-            
-            var lane = document.getElementById('timeline-lane-container');
-            if (lane) {
-                var rect = lane.getBoundingClientRect();
-                var relY = e.clientY - rect.top - 24;
-                var newIdx = this.getTrackIndexFromY(relY);
-                
-                if (newIdx !== -1 && newIdx !== this.currentDragTrackIndex) {
-                    var target = this.vm.tracks[newIdx];
-                    if (target && !target.isLocked) {
-                        this.currentDragTrackIndex = newIdx;
-                    }
-                }
-            }
-            
-            if (this.dragGhost.visible && this.draggingClipIds.length > 0) {
-                var firstClipId = this.draggingClipIds[0];
-                var firstClip = this.vm.clips.find(function(c) { return c.id === firstClipId; });
-                var origState = this.dragOriginalState[firstClipId];
-                
-                if (firstClip && origState) {
-                    var newLeft = (origState.start * this.pixelsPerSecond) + dx;
-                    
-                    var trackY = 0;
-                    for (var i = 0; i < this.currentDragTrackIndex && i < this.vm.tracks.length; i++) {
-                        trackY += this.getTrackHeight(this.vm.tracks[i].id);
-                    }
-                    
-                    var targetTrack = this.vm.tracks[this.currentDragTrackIndex];
-                    var trackHeight = targetTrack ? this.getTrackHeight(targetTrack.id) : this.defaultTrackHeight;
-                    
-                    this.dragGhost.style = {
-                        left: Math.max(0, newLeft) + 'px',
-                        top: (trackY + 24 + 1) + 'px',
-                        width: (firstClip.duration * this.pixelsPerSecond) + 'px',
-                        height: (trackHeight - 2) + 'px'
-                    };
-                    
-                    if (targetTrack) {
-                        this.dragGhost.bgColor = targetTrack.color || '#3b82f6';
-                    }
-                }
-            }
-        },
-        
-        // ========== 드롭 시 유효 위치 계산 & 겹침 방지 ==========
-        onDocumentMouseUp: function(e) {
-            var self = this;
-            
-            if (this.isResizingClip && this.resizeOriginalState) {
-                this.saveToHistory();
-                this.resizeOriginalState = null;
-            }
-            
-            if (this.isDraggingClip && this.draggingClipIds.length > 0) {
-                this.finalizeDrop(e);
-            }
-            
-            if (this.pendingClickClipId && !this.isDraggingClip) {
-                this.selectClip(this.pendingClickClipId, this.pendingClickModifiers || {});
-            }
-            
-            this.pendingClickClipId = null; 
-            this.pendingClickModifiers = null;
-            this.isResizingHeader = false; 
-            this.isResizingTrack = false; 
-            this.resizingTrackId = null;
-            this.isDraggingPlayhead = false; 
-            this.isDraggingClip = false;
-            this.draggingClipIds = []; 
-            this.dragOriginalState = {};
-            this.currentDragTrackIndex = null;
-            this.originalTrackIndex = null;
-            this.dragGhost.visible = false;
-            this.isResizingClip = false; 
-            this.resizingClip = null;
-            if (this.isDraggingMasterVolume) this.isDraggingMasterVolume = false;
-            this.isDraggingClipVolume = false; 
-            this.volumeDragClip = null;
-            this.isDraggingVolumePopup = false;
-            if (this.dragRAF) {
-                cancelAnimationFrame(this.dragRAF);
-                this.dragRAF = null;
-            }
-        },
-        
+        // ========== 핵심 수정: finalizeDrop - 공간 없으면 원래 위치로 복귀 ==========
         finalizeDrop: function(e) {
             var self = this;
             var dx = e.clientX - this.dragStartX;
             var dt = dx / this.pixelsPerSecond;
+            
+            // 이동량이 너무 작으면 무시 (클릭으로 간주)
+            if (Math.abs(dx) < 5) {
+                this.restoreOriginalPositions();
+                return;
+            }
             
             var newTrackId = null;
             var newTrackIndex = this.currentDragTrackIndex;
@@ -1242,7 +421,10 @@ const TimelinePanel = {
                 newTrackId = this.vm.tracks[newTrackIndex].id;
             }
             
+            // 각 클립의 새 위치 계산
             var newPositions = {};
+            var hasValidPosition = true;
+            
             this.draggingClipIds.forEach(function(id) {
                 var clip = self.vm.clips.find(function(c) { return c.id === id; });
                 var orig = self.dragOriginalState[id];
@@ -1251,6 +433,7 @@ const TimelinePanel = {
                 var newStart = Math.max(0, orig.start + dt);
                 var targetTrackId = newTrackId || orig.trackId;
                 
+                // 스냅 적용
                 if (self.vm.isMagnet) {
                     var snap = self.findSnapPosition(newStart, clip, self.draggingClipIds);
                     if (snap.snapped) newStart = snap.position;
@@ -1259,34 +442,28 @@ const TimelinePanel = {
                 newPositions[id] = { start: newStart, trackId: targetTrackId, duration: clip.duration };
             });
             
-            var needNewTrack = false;
+            // 겹침 검사 - 공간이 있는지 확인
+            var allValid = true;
             Object.keys(newPositions).forEach(function(id) {
                 var pos = newPositions[id];
-                var clip = self.vm.clips.find(function(c) { return c.id === id; });
-                if (!clip) return;
+                var tempClip = { id: id, start: pos.start, duration: pos.duration, trackId: pos.trackId };
                 
-                var tempClip = { id: id, start: pos.start, duration: clip.duration, trackId: pos.trackId };
                 if (self.checkClipOverlap(tempClip, self.draggingClipIds)) {
-                    var validPos = self.findValidDropPosition(tempClip, self.draggingClipIds);
-                    if (validPos.valid) {
-                        newPositions[id].start = validPos.position;
-                    } else {
-                        needNewTrack = true;
+                    // 겹침 발생 - 정확한 위치에 공간이 있는지 확인
+                    var hasSpace = self.checkExactSpaceAvailable(tempClip, self.draggingClipIds);
+                    if (!hasSpace) {
+                        allValid = false;
                     }
                 }
             });
             
-            if (needNewTrack) {
-                var newTrack = this.createNewTrackNear(newTrackIndex);
-                Object.keys(newPositions).forEach(function(id) {
-                    var pos = newPositions[id];
-                    var tempClip = { id: id, start: pos.start, duration: pos.duration, trackId: pos.trackId };
-                    if (self.checkClipOverlap(tempClip, self.draggingClipIds)) {
-                        newPositions[id].trackId = newTrack.id;
-                    }
-                });
+            // 공간이 없으면 원래 위치로 복귀
+            if (!allValid) {
+                this.restoreOriginalPositions();
+                return;
             }
             
+            // 최종 위치 적용
             Object.keys(newPositions).forEach(function(id) {
                 var clip = self.vm.clips.find(function(c) { return c.id === id; });
                 if (clip) {
@@ -1298,87 +475,8 @@ const TimelinePanel = {
             this.saveToHistory();
         },
         
-        createNewTrackNear: function(nearIndex) {
-            var colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899'];
-            var insertIndex = Math.min(nearIndex + 1, this.vm.tracks.length);
-            
-            var newTrack = {
-                id: 't_' + Date.now(),
-                name: 'NONE',
-                color: colors[this.vm.tracks.length % colors.length],
-                isHidden: false,
-                isLocked: false,
-                isMain: false
-            };
-            
-            this.vm.tracks.splice(insertIndex, 0, newTrack);
-            this.trackHeights[newTrack.id] = this.defaultTrackHeight;
-            this.trackHeights = Object.assign({}, this.trackHeights);
-            this.updateTrackYPositions();
-            
-            return newTrack;
-        },
-        
-        checkClipOverlap: function(clip, excludeIds) {
-            var self = this;
-            excludeIds = excludeIds || [];
-            
-            var trackClips = this.vm.clips.filter(function(c) {
-                return c.trackId === clip.trackId && c.id !== clip.id && excludeIds.indexOf(c.id) < 0;
-            });
-            
-            var clipEnd = clip.start + clip.duration;
-            
-            for (var i = 0; i < trackClips.length; i++) {
-                var other = trackClips[i];
-                var otherEnd = other.start + other.duration;
-                
-                if (clip.start < otherEnd - this.CLIP_MIN_GAP && clipEnd > other.start + this.CLIP_MIN_GAP) {
-                    return true;
-                }
-            }
-            
-            return false;
-        },
-        
-        findValidDropPosition: function(clip, excludeIds) {
-            var self = this;
-            var trackClips = this.vm.clips.filter(function(c) {
-                return c.trackId === clip.trackId && c.id !== clip.id && excludeIds.indexOf(c.id) < 0;
-            }).sort(function(a, b) { return a.start - b.start; });
-            
-            var clipDuration = clip.duration;
-            var desiredStart = clip.start;
-            
-            if (trackClips.length === 0) {
-                return { valid: true, position: Math.max(0, desiredStart) };
-            }
-            
-            if (trackClips[0].start >= clipDuration + this.CLIP_MIN_GAP) {
-                var pos = Math.min(desiredStart, trackClips[0].start - clipDuration - this.CLIP_MIN_GAP);
-                if (pos >= 0) return { valid: true, position: pos };
-            }
-            
-            for (var i = 0; i < trackClips.length - 1; i++) {
-                var gapStart = trackClips[i].start + trackClips[i].duration + this.CLIP_MIN_GAP;
-                var gapEnd = trackClips[i + 1].start - this.CLIP_MIN_GAP;
-                
-                if (gapEnd - gapStart >= clipDuration) {
-                    if (desiredStart >= gapStart && desiredStart + clipDuration <= gapEnd) {
-                        return { valid: true, position: desiredStart };
-                    }
-                    if (Math.abs(desiredStart - gapStart) < Math.abs(desiredStart - (gapEnd - clipDuration))) {
-                        return { valid: true, position: gapStart };
-                    }
-                    return { valid: true, position: gapEnd - clipDuration };
-                }
-            }
-            
-            var lastEnd = trackClips[trackClips.length - 1].start + trackClips[trackClips.length - 1].duration;
-            return { valid: true, position: Math.max(desiredStart, lastEnd + this.CLIP_MIN_GAP) };
-        },
-        
-        cancelDrag: function() {
+        // 원래 위치로 복귀
+        restoreOriginalPositions: function() {
             var self = this;
             this.draggingClipIds.forEach(function(id) {
                 var clip = self.vm.clips.find(function(c) { return c.id === id; });
@@ -1388,517 +486,101 @@ const TimelinePanel = {
                     clip.trackId = orig.trackId;
                 }
             });
-            
-            this.isDraggingClip = false;
-            this.draggingClipIds = [];
-            this.dragGhost.visible = false;
-            if (this.dragRAF) {
-                cancelAnimationFrame(this.dragRAF);
-                this.dragRAF = null;
-            }
         },
         
-        // ========== 클립 리사이즈 ==========
-        startClipResize: function(e, clip, dir) { 
-            var self = this; 
-            var t = this.vm.tracks.find(function(tr) { return tr.id === clip.trackId; }); 
-            if (t && t.isLocked) return; 
-            e.preventDefault(); 
-            this.isResizingClip = true; 
-            this.resizingClip = clip; 
-            this.resizeDirection = dir; 
-            this.dragStartX = e.clientX; 
-            this.resizeStartClipStart = clip.start; 
-            this.resizeStartClipDuration = clip.duration;
-            this.resizeOriginalState = {
-                clipId: clip.id,
-                start: clip.start,
-                duration: clip.duration
-            };
-        },
-        handleClipResize: function(e) {
-            var dt = (e.clientX - this.dragStartX) / this.pixelsPerSecond;
-            var clip = this.resizingClip;
-            var trackClips = this.getClipsInTrack(clip.trackId, [clip.id]);
+        // 정확한 위치에 공간이 있는지 확인 (양끝으로 밀어넣지 않음)
+        checkExactSpaceAvailable: function(clip, excludeIds) {
+            var self = this;
+            excludeIds = excludeIds || [];
             
-            if (this.resizeDirection === 'left') {
-                var ns = this.resizeStartClipStart + dt;
-                var nd = this.resizeStartClipDuration - dt;
-                
-                if (ns < 0) { nd += ns; ns = 0; }
-                if (nd < 0.5) { nd = 0.5; ns = this.resizeStartClipStart + this.resizeStartClipDuration - 0.5; }
-                
-                for (var i = 0; i < trackClips.length; i++) {
-                    var other = trackClips[i];
-                    var otherEnd = other.start + other.duration;
-                    if (otherEnd > ns && other.start < this.resizeStartClipStart) {
-                        ns = otherEnd + this.CLIP_MIN_GAP;
-                        nd = this.resizeStartClipStart + this.resizeStartClipDuration - ns;
-                        break;
-                    }
-                }
-                
-                clip.start = ns;
-                clip.duration = Math.max(0.5, nd);
-            } else {
-                var nd2 = this.resizeStartClipDuration + dt;
-                if (nd2 < 0.5) nd2 = 0.5;
-                
-                var clipEnd = clip.start + nd2;
-                
-                for (var j = 0; j < trackClips.length; j++) {
-                    var other2 = trackClips[j];
-                    if (other2.start > clip.start && clipEnd > other2.start) {
-                        nd2 = other2.start - clip.start - this.CLIP_MIN_GAP;
-                        break;
-                    }
-                }
-                
-                clip.duration = Math.max(0.5, nd2);
-            }
-        },
-        
-        // ========== 유틸리티 ==========
-        getClipsInTrack: function(trackId, excludeClipIds) {
-            excludeClipIds = excludeClipIds || [];
-            return this.vm.clips.filter(function(c) {
-                return c.trackId === trackId && excludeClipIds.indexOf(c.id) < 0;
+            var trackClips = this.vm.clips.filter(function(c) {
+                return c.trackId === clip.trackId && c.id !== clip.id && excludeIds.indexOf(c.id) < 0;
             }).sort(function(a, b) { return a.start - b.start; });
-        },
-        findSnapPosition: function(ns, clip, excludeIds) {
-            excludeIds = excludeIds || []; 
-            var sd = 10 / this.pixelsPerSecond; 
-            var ce = ns + clip.duration;
             
-            if (Math.abs(ns - this.vm.currentTime) < sd) return { snapped: true, position: this.vm.currentTime };
-            if (Math.abs(ce - this.vm.currentTime) < sd) return { snapped: true, position: this.vm.currentTime - clip.duration };
+            var clipStart = clip.start;
+            var clipEnd = clip.start + clip.duration;
             
-            for (var i = 0; i < this.vm.clips.length; i++) { 
-                var c = this.vm.clips[i]; 
-                if (c.id === clip.id || excludeIds.indexOf(c.id) >= 0) continue; 
-                if (Math.abs(ns - (c.start + c.duration)) < sd) return { snapped: true, position: c.start + c.duration }; 
-                if (Math.abs(ns - c.start) < sd) return { snapped: true, position: c.start }; 
-                if (Math.abs(ce - c.start) < sd) return { snapped: true, position: c.start - clip.duration }; 
-            }
-            return { snapped: false, position: ns };
-        },
-        isClipAtPlayhead: function(clip) { 
-            return this.vm.currentTime > clip.start && this.vm.currentTime < clip.start + clip.duration; 
-        },
-        getVisibleClipsForTrack: function(trackId) { 
-            var self = this; 
-            return this.vm.clips.filter(function(c) { return c.trackId === trackId && self.isClipVisible(c); }); 
-        },
-        isClipVisible: function(clip) { 
-            var s = clip.start * this.pixelsPerSecond; 
-            var en = (clip.start + clip.duration) * this.pixelsPerSecond; 
-            return en >= this.scrollLeft - 100 && s <= this.scrollLeft + this.viewportWidth + 100; 
-        },
-        formatClipDuration: function(d) { 
-            if (!d) return '0:00'; 
-            var h = Math.floor(d/3600); 
-            var m = Math.floor((d%3600)/60); 
-            var s = Math.floor(d%60); 
-            return h > 0 ? h + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0') : m + ':' + String(s).padStart(2,'0'); 
-        },
-        formatRulerTime: function(s) { 
-            if (s >= 3600) { var h = Math.floor(s/3600); var m = Math.floor((s%3600)/60); var sec = Math.floor(s%60); return h + ':' + String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0'); } 
-            else if (s >= 60) { var m2 = Math.floor(s/60); var sec2 = Math.floor(s%60); return m2 + ':' + String(sec2).padStart(2,'0'); } 
-            return s + 's'; 
-        },
-        
-        // ========== 트랙 관리 ==========
-        startTrackDrag: function(e, track, idx) { 
-            this.draggingTrackId = track.id; 
-            this.draggingTrackIndex = idx; 
-            e.dataTransfer.effectAllowed = 'move'; 
-            e.dataTransfer.setData('text/plain', track.id); 
-        },
-        handleTrackDragOver: function(e, track) { 
-            if (this.draggingTrackId && this.draggingTrackId !== track.id) this.dragOverTrackId = track.id; 
-        },
-        handleTrackDragLeave: function() { this.dragOverTrackId = null; },
-        handleTrackDrop: function(e, targetTrack, targetIdx) { 
-            if (!this.draggingTrackId || this.draggingTrackId === targetTrack.id) { this.endTrackDrag(); return; } 
-            var fromIdx = this.draggingTrackIndex; 
-            if (fromIdx !== targetIdx) { 
-                var tracks = this.vm.tracks.slice(); 
-                var moved = tracks.splice(fromIdx, 1)[0]; 
-                tracks.splice(targetIdx, 0, moved); 
-                this.vm.tracks = tracks; 
-            } 
-            this.endTrackDrag(); 
-        },
-        endTrackDrag: function() { 
-            this.draggingTrackId = null; 
-            this.draggingTrackIndex = null; 
-            this.dragOverTrackId = null; 
-        },
-        moveTrackUp: function(idx) { 
-            if (idx <= 0) return; 
-            var t = this.vm.tracks.slice(); 
-            var temp = t[idx - 1]; t[idx - 1] = t[idx]; t[idx] = temp; 
-            this.vm.tracks = t; 
-            this.closeContextMenus(); 
-        },
-        moveTrackDown: function(idx) { 
-            if (idx >= this.vm.tracks.length - 1) return; 
-            var t = this.vm.tracks.slice(); 
-            var temp = t[idx]; t[idx] = t[idx + 1]; t[idx + 1] = temp; 
-            this.vm.tracks = t; 
-            this.closeContextMenus(); 
-        },
-        startTrackResize: function(e, track) { 
-            this.isResizingTrack = true; 
-            this.resizingTrackId = track.id; 
-            this.resizeStartY = e.clientY; 
-            this.resizeStartHeight = this.getTrackHeight(track.id); 
-        },
-        addTrack: function() { 
-            var colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899']; 
-            var t = { id: 't_' + Date.now(), name: 'NONE', color: colors[this.vm.tracks.length % colors.length], isHidden: false, isLocked: false, isMain: false }; 
-            this.vm.tracks.push(t); 
-            this.trackHeights[t.id] = this.defaultTrackHeight; 
-            this.trackHeights = Object.assign({}, this.trackHeights); 
-        },
-        deleteTrack: function(track, idx) { 
-            if (this.vm.tracks.length <= 1) return; 
-            this.vm.clips = this.vm.clips.filter(function(c) { return c.trackId !== track.id; }); 
-            delete this.trackHeights[track.id]; 
-            this.trackHeights = Object.assign({}, this.trackHeights); 
-            this.vm.tracks.splice(idx, 1); 
-            this.closeContextMenus(); 
-        },
-        duplicateTrack: function(track) { 
-            var idx = -1; 
-            for (var i = 0; i < this.vm.tracks.length; i++) { if (this.vm.tracks[i].id === track.id) { idx = i; break; } } 
-            var nt = Object.assign({}, track, { id: 't_' + Date.now(), name: track.name === 'NONE' ? 'NONE' : track.name + ' (복사)', isMain: false }); 
-            this.vm.tracks.splice(idx + 1, 0, nt); 
-            this.trackHeights[nt.id] = this.getTrackHeight(track.id); 
-            this.trackHeights = Object.assign({}, this.trackHeights); 
-            this.closeContextMenus(); 
-        },
-        setMainTrack: function(track) { 
-            this.vm.tracks.forEach(function(t) { t.isMain = false; }); 
-            track.isMain = true; 
-        },
-        changeTrackColor: function(track) { 
-            var self = this; 
-            Swal.fire({ title: '트랙 색상', input: 'text', inputValue: track.color, showCancelButton: true, background: '#1e1e1e', color: '#fff' }).then(function(result) { if (result.value) track.color = result.value; self.closeContextMenus(); }); 
-        },
-        updateTrackName: function(track, v) { track.name = v.trim() === '' ? 'NONE' : v; },
-        initTrackHeights: function() { 
-            var self = this; 
-            this.vm.tracks.forEach(function(t) { if (!self.trackHeights[t.id]) self.trackHeights[t.id] = self.defaultTrackHeight; }); 
-            this.updateTrackYPositions(); 
-        },
-        
-        // ========== 컨텍스트 메뉴 ==========
-        openTrackContextMenu: function(e, track, idx) { 
-            this.clipContextMenu = null; 
-            this.heightSubmenu.visible = false; 
-            this.trackContextMenu = { x: e.clientX, y: e.clientY, track: track, index: idx }; 
-        },
-        openClipContextMenu: function(e, track, clip) { 
-            clip = clip || null; 
-            this.trackContextMenu = null; 
-            this.heightSubmenu.visible = false; 
-            if (clip && this.selectedClipIds.indexOf(clip.id) < 0) { this.selectedClipIds = [clip.id]; this.syncVmSelectedClip(); } 
-            this.clipContextMenu = { x: e.clientX, y: e.clientY, track: track, clip: clip, time: this.getTimeFromMouseEvent(e) }; 
-        },
-        getTimeFromMouseEvent: function(e) { 
-            var lane = document.getElementById('timeline-lane-container'); 
-            if (!lane) return 0; 
-            return Math.max(0, (e.clientX - lane.getBoundingClientRect().left) / this.pixelsPerSecond); 
-        },
-        closeContextMenus: function() { 
-            this.trackContextMenu = null; 
-            this.clipContextMenu = null; 
-            this.heightSubmenu.visible = false; 
-        },
-        
-        // ========== 클립 조작 ==========
-        duplicateClip: function(clip) { 
-            var self = this;
-            var nc = Object.assign({}, clip, { id: 'c_' + Date.now(), start: clip.start + clip.duration + 0.5 }); 
-            var validPos = this.findValidDropPosition(nc, []);
-            if (validPos.valid) nc.start = validPos.position;
-            this.vm.clips.push(nc); 
-        },
-        deleteClip: function(clip) { 
-            this.vm.clips = this.vm.clips.filter(function(c) { return c.id !== clip.id; }); 
-            this.selectedClipIds = this.selectedClipIds.filter(function(id) { return id !== clip.id; }); 
-            this.syncVmSelectedClip(); 
-        },
-        addClipAtPosition: function() { 
-            if (!this.clipContextMenu) return; 
-            var t = this.clipContextMenu.track; 
-            var time = this.clipContextMenu.time || 0; 
-            var newClip = { id: 'c_' + Date.now(), trackId: t.id, name: 'New Clip', start: time, duration: 5, type: 'video', volume: 100 };
-            var validPos = this.findValidDropPosition(newClip, []);
-            if (validPos.valid) newClip.start = validPos.position;
-            this.vm.clips.push(newClip); 
-        },
-        deleteSelectedClips: function() { 
-            if (!this.hasSelectedClips) return; 
-            var self = this; 
-            this.vm.clips = this.vm.clips.filter(function(c) { return self.selectedClipIds.indexOf(c.id) < 0; }); 
-            this.selectedClipIds = []; 
-            this.syncVmSelectedClip(); 
-        },
-        cutAtPlayhead: function() { 
-            if (!this.hasSelectedClips) return; 
-            var self = this; 
-            this.selectedClipIds.forEach(function(cid) { 
-                var c = self.vm.clips.find(function(cl) { return cl.id === cid; }); 
-                if (c && self.isClipAtPlayhead(c)) { 
-                    var origDur = c.duration; 
-                    var relTime = self.vm.currentTime - c.start; 
-                    c.duration = relTime; 
-                    self.vm.clips.push(Object.assign({}, c, { id: 'c_' + Date.now(), start: self.vm.currentTime, duration: origDur - relTime })); 
-                } 
-            }); 
-        },
-        cutAtPlayheadForClip: function(clip) { 
-            if (!this.isClipAtPlayhead(clip)) return; 
-            var origDur = clip.duration; 
-            var relTime = this.vm.currentTime - clip.start; 
-            clip.duration = relTime; 
-            this.vm.clips.push(Object.assign({}, clip, { id: 'c_' + Date.now(), start: this.vm.currentTime, duration: origDur - relTime })); 
-        },
-        cutAndDeleteLeftSelected: function() { 
-            if (!this.hasSelectedClips) return; 
-            var self = this; 
-            this.selectedClipIds.forEach(function(cid) { 
-                var c = self.vm.clips.find(function(cl) { return cl.id === cid; }); 
-                if (c && self.isClipAtPlayhead(c)) { 
-                    c.duration = c.start + c.duration - self.vm.currentTime; 
-                    c.start = self.vm.currentTime; 
-                } 
-            }); 
-        },
-        cutAndDeleteRightSelected: function() { 
-            if (!this.hasSelectedClips) return; 
-            var self = this; 
-            this.selectedClipIds.forEach(function(cid) { 
-                var c = self.vm.clips.find(function(cl) { return cl.id === cid; }); 
-                if (c && self.isClipAtPlayhead(c)) { 
-                    c.duration = self.vm.currentTime - c.start; 
-                } 
-            }); 
-        },
-        cutAndDeleteLeftForClip: function(clip) { 
-            if (!this.isClipAtPlayhead(clip)) return; 
-            clip.duration = clip.start + clip.duration - this.vm.currentTime; 
-            clip.start = this.vm.currentTime; 
-        },
-        cutAndDeleteRightForClip: function(clip) { 
-            if (!this.isClipAtPlayhead(clip)) return; 
-            clip.duration = this.vm.currentTime - clip.start; 
-        },
-        
-        // ========== 사운드 분리 ==========
-        canExtractAudio: function(clip) {
-            return clip && clip.type === 'video' && clip.src;
-        },
-        toggleClipMute: function(clip) {
-            if (!clip) return;
-            clip.isMuted = !clip.isMuted;
-        },
-        extractAudioFromClip: function(clip) {
-            if (!this.canExtractAudio(clip)) return;
+            // 빈 트랙이면 항상 가능
+            if (trackClips.length === 0) return true;
             
-            var self = this;
-            var audioTrack = this.vm.tracks.find(function(t) { return t.type === 'audio'; });
-            if (!audioTrack) {
-                audioTrack = {
-                    id: 't_audio_' + Date.now(),
-                    name: 'Audio',
-                    type: 'audio',
-                    color: '#22c55e',
-                    isHidden: false,
-                    isLocked: false,
-                    isMain: false
-                };
-                this.vm.tracks.push(audioTrack);
-                this.trackHeights[audioTrack.id] = this.defaultTrackHeight;
-                this.trackHeights = Object.assign({}, this.trackHeights);
-            }
-            
-            var audioClip = {
-                id: 'c_audio_' + Date.now(),
-                trackId: audioTrack.id,
-                name: clip.name + ' (Audio)',
-                start: clip.start,
-                duration: clip.duration,
-                type: 'sound',
-                src: clip.src,
-                volume: clip.volume || 100,
-                sourceClipId: clip.id
-            };
-            
-            var validPos = this.findValidDropPosition(audioClip, []);
-            if (validPos.valid) audioClip.start = validPos.position;
-            
-            Swal.fire({
-                title: '사운드 분리',
-                text: '원본 비디오 클립을 음소거 하시겠습니까?',
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonText: '음소거',
-                cancelButtonText: '유지',
-                background: '#1e1e1e',
-                color: '#fff',
-                confirmButtonColor: '#3b82f6'
-            }).then(function(result) {
-                if (result.isConfirmed) {
-                    clip.isMuted = true;
+            // 겹치는 클립이 있는지 확인
+            for (var i = 0; i < trackClips.length; i++) {
+                var other = trackClips[i];
+                var otherStart = other.start;
+                var otherEnd = other.start + other.duration;
+                
+                // 겹침 체크 (약간의 여유 포함)
+                if (clipStart < otherEnd - this.CLIP_MIN_GAP && clipEnd > otherStart + this.CLIP_MIN_GAP) {
+                    return false; // 겹침 발생 - 공간 없음
                 }
-                self.vm.clips.push(audioClip);
-            });
+            }
+            
+            return true; // 겹침 없음 - 공간 있음
         },
         
-        // ========== 클립 내보내기 ==========
-        exportClipToAsset: function(clip) {
-            var clipData = clip.id ? clip : this.vm.clips.find(function(c) { return c.id === clip.id; });
-            if (!clipData) clipData = clip;
-            var event = new CustomEvent('wai-clip-to-asset', {
-                detail: { id: clipData.id, name: clipData.name || 'Clip', type: clipData.type || 'video', src: clipData.src || '', duration: clipData.duration || 0, resolution: clipData.resolution || '' },
-                bubbles: true
-            });
-            document.dispatchEvent(event);
-        },
+        checkClipOverlap: function(clip, excludeIds) { var self = this; excludeIds = excludeIds || []; var trackClips = this.vm.clips.filter(function(c) { return c.trackId === clip.trackId && c.id !== clip.id && excludeIds.indexOf(c.id) < 0; }); var clipEnd = clip.start + clip.duration; for (var i = 0; i < trackClips.length; i++) { var other = trackClips[i]; var otherEnd = other.start + other.duration; if (clip.start < otherEnd - this.CLIP_MIN_GAP && clipEnd > other.start + this.CLIP_MIN_GAP) { return true; } } return false; },
         
-        // ========== 플레이헤드 ==========
-        handleLaneMouseDown: function(e) { 
-            if (e.target.id === 'timeline-ruler' || e.target.closest('#timeline-ruler')) this.updatePlayheadPosition(e); 
-        },
-        startPlayheadDrag: function(e) { 
-            this.isDraggingPlayhead = true; 
-            this.updatePlayheadPosition(e); 
-        },
-        updatePlayheadPosition: function(e) { 
-            var lane = document.getElementById('timeline-lane-container'); 
-            if (!lane) return; 
-            var time = Math.max(0, (e.clientX - lane.getBoundingClientRect().left) / this.pixelsPerSecond); 
-            if (this.vm.isMagnet) { 
-                var snap = null; 
-                var minD = 10 / this.pixelsPerSecond; 
-                this.vm.clips.forEach(function(c) { 
-                    if (Math.abs(time - c.start) < minD) { minD = Math.abs(time - c.start); snap = c.start; } 
-                    if (Math.abs(time - (c.start + c.duration)) < minD) { minD = Math.abs(time - (c.start + c.duration)); snap = c.start + c.duration; } 
-                }); 
-                if (snap !== null) time = snap; 
-            } 
-            this.vm.currentTime = time; 
-        },
-        
-        // ========== 재생 컨트롤 ==========
-        togglePlayback: function() { 
-            if (typeof this.vm.togglePlayback === 'function') this.vm.togglePlayback(); 
-            else this.vm.isPlaying = !this.vm.isPlaying; 
-        },
-        seekToStart: function() { 
-            if (typeof this.vm.seekToStart === 'function') this.vm.seekToStart(); 
-            else this.vm.currentTime = 0; 
-        },
-        seekToEnd: function() { 
-            var max = 0; 
-            this.vm.clips.forEach(function(c) { if (c.start + c.duration > max) max = c.start + c.duration; }); 
-            this.vm.currentTime = max; 
-        },
-        seekBackward: function() {
-            var newTime = Math.max(0, this.vm.currentTime - 5);
-            this.vm.currentTime = newTime;
-        },
-        seekForward: function() {
-            var maxTime = this.maxClipEnd;
-            var newTime = Math.min(maxTime, this.vm.currentTime + 5);
-            this.vm.currentTime = newTime;
-        },
-        
-        // ========== 레이아웃 ==========
-        adjustLayout: function() { 
-            var p = document.getElementById('preview-main-container'); 
-            if (p) p.style.height = this.vm.isTimelineCollapsed ? 'calc(100% - 32px)' : '50%'; 
-            this.calculateDynamicZoomRange(); 
-        },
-        toggleCollapse: function() { 
-            this.vm.isTimelineCollapsed = !this.vm.isTimelineCollapsed; 
-            var self = this; 
-            this.$nextTick(function() { self.adjustLayout(); }); 
-        },
-        startHeaderResize: function(e) { 
-            if (this.isTrackHeaderCollapsed) return; 
-            this.isResizingHeader = true; 
-            this.resizeStartX = e.clientX; 
-            this.resizeStartWidth = this.trackHeaderWidth; 
-        },
-        onWindowResize: function() { 
-            this.adjustLayout(); 
-            this.updateViewportSize(); 
-            this.updateTrackYPositions(); 
-        },
-        
-        // ========== 외부 드래그 ==========
-        onExternalDragOver: function(e) { 
-            if (e.dataTransfer.types.indexOf('text/wai-asset') >= 0) { 
-                e.preventDefault(); 
-                e.dataTransfer.dropEffect = 'copy'; 
-                this.isExternalDragOver = true; 
-                this.updateDropIndicator(e); 
-            } 
-        },
-        onExternalDragLeave: function(e) { 
-            var rect = e.currentTarget.getBoundingClientRect(); 
-            if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) { 
-                this.isExternalDragOver = false; 
-                this.dropIndicator.visible = false; 
-            } 
-        },
-        updateDropIndicator: function(e) { 
-            var lane = document.getElementById('timeline-lane-container'); 
-            if (!lane) return; 
-            var rect = lane.getBoundingClientRect(); 
-            var relY = e.clientY - rect.top - 24; 
-            var accH = 0; 
-            var targetTrack = null; 
-            for (var i = 0; i < this.vm.tracks.length; i++) { 
-                var t = this.vm.tracks[i]; 
-                var h = this.getTrackHeight(t.id); 
-                if (relY >= accH && relY < accH + h) { targetTrack = t; break; } 
-                accH += h; 
-            } 
-            if (!targetTrack) { this.dropIndicator.visible = false; return; } 
-            var dropTime = Math.max(0, (e.clientX - rect.left) / this.pixelsPerSecond); 
-            this.dropIndicator = { visible: true, trackId: targetTrack.id, left: dropTime * this.pixelsPerSecond, width: 5 * this.pixelsPerSecond }; 
-        },
-        onExternalDrop: function(e) { 
-            e.preventDefault(); 
-            this.isExternalDragOver = false; 
-            this.dropIndicator.visible = false; 
-            var assetData; 
-            try { var raw = e.dataTransfer.getData('text/wai-asset'); if (!raw) return; assetData = JSON.parse(raw); } catch (err) { return; } 
-            var assets = Array.isArray(assetData) ? assetData : [assetData]; 
-            if (assets.length === 0) return; 
-            var lane = document.getElementById('timeline-lane-container'); 
-            var dropTime = this.vm.currentTime; 
-            var targetTrackId = null; 
-            if (lane) { 
-                var rect = lane.getBoundingClientRect(); 
-                dropTime = Math.max(0, (e.clientX - rect.left) / this.pixelsPerSecond); 
-                var relY = e.clientY - rect.top - 24; 
-                var accH = 0; 
-                for (var i = 0; i < this.vm.tracks.length; i++) { 
-                    var t = this.vm.tracks[i]; 
-                    var h = this.getTrackHeight(t.id); 
-                    if (relY >= accH && relY < accH + h) { targetTrackId = t.id; break; } 
-                    accH += h; 
-                } 
-            } 
-            document.dispatchEvent(new CustomEvent('wai-timeline-drop', { detail: { assets: assets, dropTime: dropTime, targetTrackId: targetTrackId }, bubbles: true })); 
-        }
+        cancelDrag: function() { this.restoreOriginalPositions(); this.isDraggingClip = false; this.draggingClipIds = []; this.dragGhost.visible = false; if (this.dragRAF) { cancelAnimationFrame(this.dragRAF); this.dragRAF = null; } },
+        startClipResize: function(e, clip, dir) { var self = this; var t = this.vm.tracks.find(function(tr) { return tr.id === clip.trackId; }); if (t && t.isLocked) return; e.preventDefault(); this.isResizingClip = true; this.resizingClip = clip; this.resizeDirection = dir; this.dragStartX = e.clientX; this.resizeStartClipStart = clip.start; this.resizeStartClipDuration = clip.duration; this.resizeOriginalState = { clipId: clip.id, start: clip.start, duration: clip.duration }; },
+        handleClipResize: function(e) { var dt = (e.clientX - this.dragStartX) / this.pixelsPerSecond; var clip = this.resizingClip; var trackClips = this.getClipsInTrack(clip.trackId, [clip.id]); if (this.resizeDirection === 'left') { var ns = this.resizeStartClipStart + dt; var nd = this.resizeStartClipDuration - dt; if (ns < 0) { nd += ns; ns = 0; } if (nd < 0.5) { nd = 0.5; ns = this.resizeStartClipStart + this.resizeStartClipDuration - 0.5; } for (var i = 0; i < trackClips.length; i++) { var other = trackClips[i]; var otherEnd = other.start + other.duration; if (otherEnd > ns && other.start < this.resizeStartClipStart) { ns = otherEnd + this.CLIP_MIN_GAP; nd = this.resizeStartClipStart + this.resizeStartClipDuration - ns; break; } } clip.start = ns; clip.duration = Math.max(0.5, nd); } else { var nd2 = this.resizeStartClipDuration + dt; if (nd2 < 0.5) nd2 = 0.5; var clipEnd = clip.start + nd2; for (var j = 0; j < trackClips.length; j++) { var other2 = trackClips[j]; if (other2.start > clip.start && clipEnd > other2.start) { nd2 = other2.start - clip.start - this.CLIP_MIN_GAP; break; } } clip.duration = Math.max(0.5, nd2); } },
+        getClipsInTrack: function(trackId, excludeClipIds) { excludeClipIds = excludeClipIds || []; return this.vm.clips.filter(function(c) { return c.trackId === trackId && excludeClipIds.indexOf(c.id) < 0; }).sort(function(a, b) { return a.start - b.start; }); },
+        findSnapPosition: function(ns, clip, excludeIds) { excludeIds = excludeIds || []; var sd = 10 / this.pixelsPerSecond; var ce = ns + clip.duration; if (Math.abs(ns - this.vm.currentTime) < sd) return { snapped: true, position: this.vm.currentTime }; if (Math.abs(ce - this.vm.currentTime) < sd) return { snapped: true, position: this.vm.currentTime - clip.duration }; for (var i = 0; i < this.vm.clips.length; i++) { var c = this.vm.clips[i]; if (c.id === clip.id || excludeIds.indexOf(c.id) >= 0) continue; if (Math.abs(ns - (c.start + c.duration)) < sd) return { snapped: true, position: c.start + c.duration }; if (Math.abs(ns - c.start) < sd) return { snapped: true, position: c.start }; if (Math.abs(ce - c.start) < sd) return { snapped: true, position: c.start - clip.duration }; } return { snapped: false, position: ns }; },
+        isClipAtPlayhead: function(clip) { return this.vm.currentTime > clip.start && this.vm.currentTime < clip.start + clip.duration; },
+        getVisibleClipsForTrack: function(trackId) { var self = this; return this.vm.clips.filter(function(c) { return c.trackId === trackId && self.isClipVisible(c); }); },
+        isClipVisible: function(clip) { var s = clip.start * this.pixelsPerSecond; var en = (clip.start + clip.duration) * this.pixelsPerSecond; return en >= this.scrollLeft - 100 && s <= this.scrollLeft + this.viewportWidth + 100; },
+        formatClipDuration: function(d) { if (!d) return '0:00'; var h = Math.floor(d/3600); var m = Math.floor((d%3600)/60); var s = Math.floor(d%60); return h > 0 ? h + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0') : m + ':' + String(s).padStart(2,'0'); },
+        formatRulerTime: function(s) { if (s >= 3600) { var h = Math.floor(s/3600); var m = Math.floor((s%3600)/60); var sec = Math.floor(s%60); return h + ':' + String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0'); } else if (s >= 60) { var m2 = Math.floor(s/60); var sec2 = Math.floor(s%60); return m2 + ':' + String(sec2).padStart(2,'0'); } return s + 's'; },
+        startTrackDrag: function(e, track, idx) { this.draggingTrackId = track.id; this.draggingTrackIndex = idx; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', track.id); },
+        handleTrackDragOver: function(e, track) { if (this.draggingTrackId && this.draggingTrackId !== track.id) this.dragOverTrackId = track.id; },
+        handleTrackDragLeave: function() { this.dragOverTrackId = null; },
+        handleTrackDrop: function(e, targetTrack, targetIdx) { if (!this.draggingTrackId || this.draggingTrackId === targetTrack.id) { this.endTrackDrag(); return; } var fromIdx = this.draggingTrackIndex; if (fromIdx !== targetIdx) { var tracks = this.vm.tracks.slice(); var moved = tracks.splice(fromIdx, 1)[0]; tracks.splice(targetIdx, 0, moved); this.vm.tracks = tracks; } this.endTrackDrag(); },
+        endTrackDrag: function() { this.draggingTrackId = null; this.draggingTrackIndex = null; this.dragOverTrackId = null; },
+        moveTrackUp: function(idx) { if (idx <= 0) return; var t = this.vm.tracks.slice(); var temp = t[idx - 1]; t[idx - 1] = t[idx]; t[idx] = temp; this.vm.tracks = t; this.closeContextMenus(); },
+        moveTrackDown: function(idx) { if (idx >= this.vm.tracks.length - 1) return; var t = this.vm.tracks.slice(); var temp = t[idx]; t[idx] = t[idx + 1]; t[idx + 1] = temp; this.vm.tracks = t; this.closeContextMenus(); },
+        startTrackResize: function(e, track) { this.isResizingTrack = true; this.resizingTrackId = track.id; this.resizeStartY = e.clientY; this.resizeStartHeight = this.getTrackHeight(track.id); },
+        addTrack: function() { var colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899']; var t = { id: 't_' + Date.now(), name: 'NONE', color: colors[this.vm.tracks.length % colors.length], isHidden: false, isLocked: false, isMain: false }; this.vm.tracks.push(t); this.trackHeights[t.id] = this.defaultTrackHeight; this.trackHeights = Object.assign({}, this.trackHeights); },
+        deleteTrack: function(track, idx) { if (this.vm.tracks.length <= 1) return; this.vm.clips = this.vm.clips.filter(function(c) { return c.trackId !== track.id; }); delete this.trackHeights[track.id]; this.trackHeights = Object.assign({}, this.trackHeights); this.vm.tracks.splice(idx, 1); this.closeContextMenus(); },
+        duplicateTrack: function(track) { var idx = -1; for (var i = 0; i < this.vm.tracks.length; i++) { if (this.vm.tracks[i].id === track.id) { idx = i; break; } } var nt = Object.assign({}, track, { id: 't_' + Date.now(), name: track.name === 'NONE' ? 'NONE' : track.name + ' (복사)', isMain: false }); this.vm.tracks.splice(idx + 1, 0, nt); this.trackHeights[nt.id] = this.getTrackHeight(track.id); this.trackHeights = Object.assign({}, this.trackHeights); this.closeContextMenus(); },
+        setMainTrack: function(track) { this.vm.tracks.forEach(function(t) { t.isMain = false; }); track.isMain = true; },
+        changeTrackColor: function(track) { var self = this; Swal.fire({ title: '트랙 색상', input: 'text', inputValue: track.color, showCancelButton: true, background: '#1e1e1e', color: '#fff' }).then(function(result) { if (result.value) track.color = result.value; self.closeContextMenus(); }); },
+        updateTrackName: function(track, v) { track.name = v.trim() === '' ? 'NONE' : v; },
+        initTrackHeights: function() { var self = this; this.vm.tracks.forEach(function(t) { if (!self.trackHeights[t.id]) self.trackHeights[t.id] = self.defaultTrackHeight; }); this.updateTrackYPositions(); },
+        openTrackContextMenu: function(e, track, idx) { this.clipContextMenu = null; this.heightSubmenu.visible = false; this.trackContextMenu = { x: e.clientX, y: e.clientY, track: track, index: idx }; },
+        openClipContextMenu: function(e, track, clip) { clip = clip || null; this.trackContextMenu = null; this.heightSubmenu.visible = false; if (clip && this.selectedClipIds.indexOf(clip.id) < 0) { this.selectedClipIds = [clip.id]; this.syncVmSelectedClip(); } this.clipContextMenu = { x: e.clientX, y: e.clientY, track: track, clip: clip, time: this.getTimeFromMouseEvent(e) }; },
+        getTimeFromMouseEvent: function(e) { var lane = document.getElementById('timeline-lane-container'); if (!lane) return 0; return Math.max(0, (e.clientX - lane.getBoundingClientRect().left) / this.pixelsPerSecond); },
+        closeContextMenus: function() { this.trackContextMenu = null; this.clipContextMenu = null; this.heightSubmenu.visible = false; },
+        duplicateClip: function(clip) { var self = this; var nc = Object.assign({}, clip, { id: 'c_' + Date.now(), start: clip.start + clip.duration + 0.5 }); this.vm.clips.push(nc); },
+        deleteClip: function(clip) { this.vm.clips = this.vm.clips.filter(function(c) { return c.id !== clip.id; }); this.selectedClipIds = this.selectedClipIds.filter(function(id) { return id !== clip.id; }); this.syncVmSelectedClip(); },
+        addClipAtPosition: function() { if (!this.clipContextMenu) return; var t = this.clipContextMenu.track; var time = this.clipContextMenu.time || 0; var newClip = { id: 'c_' + Date.now(), trackId: t.id, name: 'New Clip', start: time, duration: 5, type: 'video', volume: 100 }; this.vm.clips.push(newClip); },
+        deleteSelectedClips: function() { if (!this.hasSelectedClips) return; var self = this; this.vm.clips = this.vm.clips.filter(function(c) { return self.selectedClipIds.indexOf(c.id) < 0; }); this.selectedClipIds = []; this.syncVmSelectedClip(); },
+        cutAtPlayhead: function() { if (!this.hasSelectedClips) return; var self = this; this.selectedClipIds.forEach(function(cid) { var c = self.vm.clips.find(function(cl) { return cl.id === cid; }); if (c && self.isClipAtPlayhead(c)) { var origDur = c.duration; var relTime = self.vm.currentTime - c.start; c.duration = relTime; self.vm.clips.push(Object.assign({}, c, { id: 'c_' + Date.now(), start: self.vm.currentTime, duration: origDur - relTime })); } }); },
+        cutAtPlayheadForClip: function(clip) { if (!this.isClipAtPlayhead(clip)) return; var origDur = clip.duration; var relTime = this.vm.currentTime - clip.start; clip.duration = relTime; this.vm.clips.push(Object.assign({}, clip, { id: 'c_' + Date.now(), start: this.vm.currentTime, duration: origDur - relTime })); },
+        cutAndDeleteLeftSelected: function() { if (!this.hasSelectedClips) return; var self = this; this.selectedClipIds.forEach(function(cid) { var c = self.vm.clips.find(function(cl) { return cl.id === cid; }); if (c && self.isClipAtPlayhead(c)) { c.duration = c.start + c.duration - self.vm.currentTime; c.start = self.vm.currentTime; } }); },
+        cutAndDeleteRightSelected: function() { if (!this.hasSelectedClips) return; var self = this; this.selectedClipIds.forEach(function(cid) { var c = self.vm.clips.find(function(cl) { return cl.id === cid; }); if (c && self.isClipAtPlayhead(c)) { c.duration = self.vm.currentTime - c.start; } }); },
+        cutAndDeleteLeftForClip: function(clip) { if (!this.isClipAtPlayhead(clip)) return; clip.duration = clip.start + clip.duration - this.vm.currentTime; clip.start = this.vm.currentTime; },
+        cutAndDeleteRightForClip: function(clip) { if (!this.isClipAtPlayhead(clip)) return; clip.duration = this.vm.currentTime - clip.start; },
+        canExtractAudio: function(clip) { return clip && clip.type === 'video' && clip.src; },
+        toggleClipMute: function(clip) { if (!clip) return; clip.isMuted = !clip.isMuted; },
+        extractAudioFromClip: function(clip) { if (!this.canExtractAudio(clip)) return; var self = this; var audioTrack = this.vm.tracks.find(function(t) { return t.type === 'audio'; }); if (!audioTrack) { audioTrack = { id: 't_audio_' + Date.now(), name: 'Audio', type: 'audio', color: '#22c55e', isHidden: false, isLocked: false, isMain: false }; this.vm.tracks.push(audioTrack); this.trackHeights[audioTrack.id] = this.defaultTrackHeight; this.trackHeights = Object.assign({}, this.trackHeights); } var audioClip = { id: 'c_audio_' + Date.now(), trackId: audioTrack.id, name: clip.name + ' (Audio)', start: clip.start, duration: clip.duration, type: 'sound', src: clip.src, volume: clip.volume || 100, sourceClipId: clip.id }; Swal.fire({ title: '사운드 분리', text: '원본 비디오 클립을 음소거 하시겠습니까?', icon: 'question', showCancelButton: true, confirmButtonText: '음소거', cancelButtonText: '유지', background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6' }).then(function(result) { if (result.isConfirmed) { clip.isMuted = true; } self.vm.clips.push(audioClip); }); },
+        exportClipToAsset: function(clip) { var clipData = clip.id ? clip : this.vm.clips.find(function(c) { return c.id === clip.id; }); if (!clipData) clipData = clip; var event = new CustomEvent('wai-clip-to-asset', { detail: { id: clipData.id, name: clipData.name || 'Clip', type: clipData.type || 'video', src: clipData.src || '', duration: clipData.duration || 0, resolution: clipData.resolution || '' }, bubbles: true }); document.dispatchEvent(event); },
+        handleLaneMouseDown: function(e) { if (e.target.id === 'timeline-ruler' || e.target.closest('#timeline-ruler')) this.updatePlayheadPosition(e); },
+        startPlayheadDrag: function(e) { this.isDraggingPlayhead = true; this.updatePlayheadPosition(e); },
+        updatePlayheadPosition: function(e) { var lane = document.getElementById('timeline-lane-container'); if (!lane) return; var time = Math.max(0, (e.clientX - lane.getBoundingClientRect().left) / this.pixelsPerSecond); if (this.vm.isMagnet) { var snap = null; var minD = 10 / this.pixelsPerSecond; this.vm.clips.forEach(function(c) { if (Math.abs(time - c.start) < minD) { minD = Math.abs(time - c.start); snap = c.start; } if (Math.abs(time - (c.start + c.duration)) < minD) { minD = Math.abs(time - (c.start + c.duration)); snap = c.start + c.duration; } }); if (snap !== null) time = snap; } this.vm.currentTime = time; },
+        togglePlayback: function() { if (typeof this.vm.togglePlayback === 'function') this.vm.togglePlayback(); else this.vm.isPlaying = !this.vm.isPlaying; },
+        seekToStart: function() { if (typeof this.vm.seekToStart === 'function') this.vm.seekToStart(); else this.vm.currentTime = 0; },
+        seekToEnd: function() { var max = 0; this.vm.clips.forEach(function(c) { if (c.start + c.duration > max) max = c.start + c.duration; }); this.vm.currentTime = max; },
+        seekBackward: function() { var newTime = Math.max(0, this.vm.currentTime - 5); this.vm.currentTime = newTime; },
+        seekForward: function() { var maxTime = this.maxClipEnd; var newTime = Math.min(maxTime, this.vm.currentTime + 5); this.vm.currentTime = newTime; },
+        adjustLayout: function() { var p = document.getElementById('preview-main-container'); if (p) p.style.height = this.vm.isTimelineCollapsed ? 'calc(100% - 32px)' : '50%'; this.calculateDynamicZoomRange(); },
+        toggleCollapse: function() { this.vm.isTimelineCollapsed = !this.vm.isTimelineCollapsed; var self = this; this.$nextTick(function() { self.adjustLayout(); }); },
+        startHeaderResize: function(e) { if (this.isTrackHeaderCollapsed) return; this.isResizingHeader = true; this.resizeStartX = e.clientX; this.resizeStartWidth = this.trackHeaderWidth; },
+        onWindowResize: function() { this.adjustLayout(); this.updateViewportSize(); this.updateTrackYPositions(); },
+        onExternalDragOver: function(e) { if (e.dataTransfer.types.indexOf('text/wai-asset') >= 0) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; this.isExternalDragOver = true; this.updateDropIndicator(e); } },
+        onExternalDragLeave: function(e) { var rect = e.currentTarget.getBoundingClientRect(); if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) { this.isExternalDragOver = false; this.dropIndicator.visible = false; } },
+        updateDropIndicator: function(e) { var lane = document.getElementById('timeline-lane-container'); if (!lane) return; var rect = lane.getBoundingClientRect(); var relY = e.clientY - rect.top - 24; var accH = 0; var targetTrack = null; for (var i = 0; i < this.vm.tracks.length; i++) { var t = this.vm.tracks[i]; var h = this.getTrackHeight(t.id); if (relY >= accH && relY < accH + h) { targetTrack = t; break; } accH += h; } if (!targetTrack) { this.dropIndicator.visible = false; return; } var dropTime = Math.max(0, (e.clientX - rect.left) / this.pixelsPerSecond); this.dropIndicator = { visible: true, trackId: targetTrack.id, left: dropTime * this.pixelsPerSecond, width: 5 * this.pixelsPerSecond }; },
+        onExternalDrop: function(e) { e.preventDefault(); this.isExternalDragOver = false; this.dropIndicator.visible = false; var assetData; try { var raw = e.dataTransfer.getData('text/wai-asset'); if (!raw) return; assetData = JSON.parse(raw); } catch (err) { return; } var assets = Array.isArray(assetData) ? assetData : [assetData]; if (assets.length === 0) return; var lane = document.getElementById('timeline-lane-container'); var dropTime = this.vm.currentTime; var targetTrackId = null; if (lane) { var rect = lane.getBoundingClientRect(); dropTime = Math.max(0, (e.clientX - rect.left) / this.pixelsPerSecond); var relY = e.clientY - rect.top - 24; var accH = 0; for (var i = 0; i < this.vm.tracks.length; i++) { var t = this.vm.tracks[i]; var h = this.getTrackHeight(t.id); if (relY >= accH && relY < accH + h) { targetTrackId = t.id; break; } accH += h; } } document.dispatchEvent(new CustomEvent('wai-timeline-drop', { detail: { assets: assets, dropTime: dropTime, targetTrackId: targetTrackId }, bubbles: true })); }
     }
 };
 
 window.TimelinePanel = TimelinePanel;
+
