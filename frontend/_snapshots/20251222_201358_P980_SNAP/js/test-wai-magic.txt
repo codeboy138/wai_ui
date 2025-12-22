@@ -1,2 +1,0 @@
-이 파일은 wai_magic 동작 확인용 테스트입니다.
-이 줄들이 C:\wai-ui\frontend\js\test-wai-magic.txt 로 저장되어야 합니다.
