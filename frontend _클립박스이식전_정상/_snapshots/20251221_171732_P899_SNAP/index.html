@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WAI Studio - Professional Editor</title>
+
+    <!-- 1. External Libraries -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- 2. Tailwind Config -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bg: { dark: '#09090b', panel: '#18181b', hover: '#27272a', input: '#202023' },
+                        ui: { border: '#27272a', selected: '#3f3f46', accent: '#3b82f6', danger: '#ef4444', success: '#22c55e' },
+                        text: { main: '#f4f4f5', sub: '#a1a1aa', inv: '#18181b' }
+                    },
+                    fontSize: { 'xxs': '10px' },
+                    spacing: { '15px': '15px' }
+                }
+            }
+        }
+    </script>
+
+    <!-- 3. Custom CSS -->
+    <link rel="stylesheet" href="css/main.css">
+</head>
+
+<body id="app-root-container" class="flex flex-col text-xs">
+    <div id="app-vue-root" class="flex flex-col h-screen">
+
+        <!-- Header -->
+        <header id="header-main-panel" class="h-12 bg-bg-panel border-b border-ui-border flex items-center justify-between shrink-0 select-none px-[15px]">
+            <div class="flex items-center h-full gap-2">
+                <div id="header-main-logo-label" class="font-bold text-lg tracking-tighter text-text-main mr-2" title="WAI Studio 홈">WAI</div>
+
+                <div id="header-main-menu-container" class="relative group h-full flex items-center mr-2">
+                    <button class="text-lg text-text-sub hover:text-text-main" title="메인 메뉴 (준비 중)"><i class="fa-solid fa-bars"></i></button>
+                </div>
+
+                <!-- 메인메뉴 -->
+                <nav id="header-nav-container" class="flex items-center gap-[6px] h-full">
+                    <button id="header-nav-explore-btn" class="nav-btn" @click="firePython('nav_explore')" data-action="py:nav_explore" title="프로젝트 탐색 열기">탐색</button>
+                    
+                    <div id="header-nav-create-wrapper" class="header-menu-wrapper h-full" :class="{ 'open': headerMenus.create }">
+                        <button id="header-nav-create-btn" class="nav-btn" :class="{ 'active': headerMenus.create }" @click="toggleHeaderMenu('create')" data-action="js:toggleCreateMenu" title="제작 메뉴">제작</button>
+                        <div class="header-menu-dropdown">
+                            <div id="header-menu-create-project" class="header-menu-item" @click="openProjectManager" data-action="js:openProjectManager"><span>프로젝트 관리</span></div>
+                        </div>
+                    </div>
+                    
+                    <div id="header-nav-assets-wrapper" class="header-menu-wrapper h-full" :class="{ 'open': headerMenus.assets }">
+                        <button id="header-nav-assets-btn" class="nav-btn" :class="{ 'active': headerMenus.assets }" @click="toggleHeaderMenu('assets')" data-action="js:toggleAssetsMenu" title="자산 메뉴">자산</button>
+                        <div class="header-menu-dropdown">
+                            <div id="header-menu-assets-manage-wrapper" class="header-submenu-wrapper" :class="{ 'open': headerSubmenus.assetManage }">
+                                <div id="header-menu-assets-manage" class="header-menu-item" @click="toggleHeaderSubmenu('assetManage')" data-action="js:toggleAssetManageSubmenu">
+                                    <span>자산 관리</span>
+                                    <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                                </div>
+                                <div class="header-submenu">
+                                    <div id="header-submenu-asset-video" class="header-submenu-item" @click="openAssetManager('video')" data-action="js:openAssetManagerVideo">영상</div>
+                                    <div id="header-submenu-asset-image" class="header-submenu-item" @click="openImageAssetModal" data-action="js:openImageAssetModal">이미지</div>
+                                    <div id="header-submenu-asset-sound" class="header-submenu-item" @click="openAssetManager('sound')" data-action="js:openAssetManagerSound">사운드</div>
+                                    <div id="header-submenu-asset-effect" class="header-submenu-item" @click="openImageEffectModal" data-action="js:openImageEffectModal">이미지효과</div>
+                                </div>
+                            </div>
+                            <div id="header-menu-assets-visualization" class="header-menu-item" @click="openVisualizationModal" data-action="js:openVisualizationModal"><span>시각화</span></div>
+                        </div>
+                    </div>
+                    
+                    <button id="header-nav-operation-btn" class="nav-btn" @click="firePython('nav_operation')" data-action="py:nav_operation" title="운영 패널 열기">운영</button>
+                    <button id="header-nav-research-btn" class="nav-btn" @click="firePython('nav_research')" data-action="py:nav_research" title="연구 패널 열기">연구</button>
+                    
+                    <div id="header-nav-settings-wrapper" class="header-menu-wrapper h-full" :class="{ 'open': headerMenus.settings }">
+                        <button id="header-nav-settings-btn" class="nav-btn" :class="{ 'active': headerMenus.settings }" @click="toggleHeaderMenu('settings')" data-action="js:toggleSettingsMenu" title="설정 메뉴">설정</button>
+                        <div class="header-menu-dropdown">
+                            <div id="header-menu-settings-api" class="header-menu-item" @click="openApiManagerModal" data-action="js:openApiManagerModal"><span>API 관리</span></div>
+                            <div id="header-menu-settings-account" class="header-menu-item" @click="openAccountManager" data-action="js:openAccountManager"><span>계정관리</span></div>
+                            <div id="header-menu-settings-logout" class="header-menu-item" @click="handleLogout" data-action="js:handleLogout"><span>로그아웃</span></div>
+                        </div>
+                    </div>
+                </nav>
+            </div>
+
+            <div class="flex items-center h-full gap-0">
+                <button id="header-dev-inspect-btn" class="h-6 px-3 border border-ui-border rounded-l text-text-sub hover:text-white hover:bg-bg-hover flex items-center gap-1 transition-colors" :class="{'bg-ui-selected text-text-main': isDevModeActive}" @click="toggleDevMode('active')" data-action="js:toggleDevModeActive" title="Inspect 모드 토글"><i class="fa-solid fa-magnifying-glass"></i> Inspect</button>
+                <button id="header-dev-mode-btn" class="h-6 px-3 border border-ui-border border-l-0 rounded-r text-text-sub hover:text-white hover:bg-bg-hover flex items-center gap-1 mr-4 transition-colors" :class="{'bg-ui-selected text-text-main': isDevModeFull}" @click="toggleDevMode('full')" data-action="js:toggleDevModeFull" title="개발자 모드 토글"><i class="fa-solid fa-code"></i> Dev</button>
+
+                <div id="header-window-controls-container" class="flex items-center h-full ml-4 border-l border-ui-border">
+                    <button id="header-window-min-btn" class="win-btn" @click="firePython('win_min')" data-action="py:win_min" title="창 최소화"><i class="fa-solid fa-window-minimize"></i></button>
+                    <button id="header-window-max-btn" class="win-btn" @click="firePython('win_max')" data-action="py:win_max" title="창 최대화/복원"><i class="fa-regular fa-square"></i></button>
+                    <button id="header-window-close-btn" class="win-btn close" @click="firePython('win_close')" data-action="py:win_close" title="앱 종료"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Layout -->
+        <main id="main-layout-root" class="flex-1 flex overflow-hidden relative">
+            <!-- Left Panel -->
+            <aside id="main-left-panel" class="bg-bg-panel flex flex-col relative border-r border-ui-border" :style="{ width: leftPanelWidth + 'px', minWidth: '180px' }">
+                <div class="flex-1 flex items-center justify-center text-text-sub opacity-30">
+                    <div class="text-center">
+                        <i class="fa-solid fa-layer-group text-2xl mb-2"></i>
+                        <div class="text-[10px]">좌측 패널</div>
+                    </div>
+                </div>
+                <div id="main-left-resizer-v" class="panel-resizer-v right-0" title="좌측 패널 너비 조절" data-action="js:resizePanelLeft"></div>
+            </aside>
+
+            <!-- Center Panel -->
+            <section id="main-center-panel" class="flex-1 flex flex-col bg-bg-dark min-w-[400px] relative overflow-hidden">
+                <div id="preview-main-container" class="relative flex flex-col" :style="{ height: previewContainerHeight }">
+                    <div id="preview-canvas-wrapper" class="flex-1 relative overflow-hidden bg-black flex items-center justify-center" @mouseleave="mouseCoord = {x: 0, y: 0}; isMouseOverCanvas = false">
+                        <div id="preview-canvas-viewport">
+                            <div id="preview-canvas-scaler" :class="['canvas-scaler', 'canvas-ar-' + (aspectRatio || '16:9').replace(':','-')]" :style="canvasScalerStyle">
+                                <canvas id="preview-render-canvas"></canvas>
+                                <preview-canvas 
+                                    :canvas-boxes="allVisibleBoxes" 
+                                    :canvas-size="canvasSize" 
+                                    :selected-box-id="selectedBoxId"
+                                    :current-time="currentTime"
+                                    :is-playing="isPlaying"
+                                    @select-box="setSelectedBoxId"
+                                ></preview-canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="main-center-timeline-resizer-h" class="panel-resizer-h" title="타임라인 높이 조절" data-action="js:resizePanelCenter"></div>
+                <timeline-panel :vm="$data" :style="{ height: timelineContainerHeight }"></timeline-panel>
+            </section>
+
+                        <!-- Right Panel -->
+            <aside id="main-right-panel" class="bg-bg-panel flex flex-col relative border-l border-ui-border" :style="{ width: rightPanelWidth + 'px', minWidth: '250px' }">
+                <div id="main-right-resizer-v" class="panel-resizer-v left-0" title="우측 패널 너비 조절" data-action="js:resizePanelRight"></div>
+                <div class="flex-1 overflow-y-auto flex flex-col" id="main-right-vue-root">
+                    
+                    <!-- 레이어 관리 (최상단) -->
+                    <layer-panel :vm="$data"></layer-panel>
+                    
+                    <!-- 미디어 자산 콜랩스 -->
+                    <div class="border-b border-ui-border">
+                        <div 
+                            class="flex items-center justify-between p-2 cursor-pointer hover:bg-bg-hover"
+                            @click="toggleMediaAssetPanel"
+                        >
+                            <div class="flex items-center gap-2">
+                                <i :class="mediaAssetCollapsed ? 'fas fa-chevron-right' : 'fas fa-chevron-down'" class="text-xs w-3 text-text-sub"></i>
+                                <i class="fas fa-folder-open text-ui-accent"></i>
+                                <span class="text-xs font-medium">미디어 자산</span>
+                                <span class="text-xxs text-text-sub">({{ mediaAssetCount }})</span>
+                            </div>
+                            <button 
+                                v-if="mediaAssetCount > 0"
+                                @click.stop="clearMediaAssets" 
+                                class="p-1 hover:bg-ui-danger rounded text-xxs text-text-sub hover:text-white"
+                                title="모두 삭제"
+                            >
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                        
+                        <!-- 미디어 자산 목록 -->
+                        <div 
+                            v-show="!mediaAssetCollapsed"
+                            class="media-asset-drop-zone p-2 min-h-[80px] max-h-[200px] overflow-y-auto"
+                            @drop="onMediaAssetDrop"
+                            @dragover="onMediaAssetDragOver"
+                        >
+                            <!-- 빈 상태 -->
+                            <div 
+                                v-if="mediaAssets.length === 0" 
+                                class="flex flex-col items-center justify-center h-16 text-text-sub text-xxs border border-dashed border-ui-border rounded"
+                            >
+                                <i class="fas fa-cloud-upload-alt text-lg mb-1"></i>
+                                <span>자산을 여기에 드롭하세요</span>
+                            </div>
+
+                            <!-- 자산 목록 -->
+                            <div v-else class="space-y-1">
+                                <div
+                                    v-for="asset in mediaAssets"
+                                    :key="asset.id"
+                                    class="media-asset-item flex items-center gap-2 p-1.5 rounded bg-bg-input hover:bg-bg-hover cursor-move group"
+                                    draggable="true"
+                                    @dragstart="onMediaAssetDragStart($event, asset)"
+                                    @dblclick="onMediaAssetDoubleClick(asset)"
+                                    :title="asset.name + ' (더블클릭: 타임라인 추가)'"
+                                >
+                                    <!-- 썸네일 -->
+                                    <div class="w-8 h-8 bg-bg-dark rounded overflow-hidden flex-shrink-0 flex items-center justify-center">
+                                        <img 
+                                            v-if="asset.thumbnail" 
+                                            :src="asset.thumbnail" 
+                                            class="w-full h-full object-cover"
+                                        />
+                                        <i v-else :class="getAssetIcon(asset.type)" class="text-sm text-text-sub"></i>
+                                    </div>
+                                    
+                                    <!-- 정보 -->
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-xxs font-medium truncate">{{ asset.name }}</div>
+                                        <div class="text-xxs text-text-sub flex items-center gap-1">
+                                            <i :class="getAssetIcon(asset.type)" class="text-xxs"></i>
+                                            <span>{{ formatAssetDuration(asset.duration) }}</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- 삭제 버튼 -->
+                                    <button 
+                                        @click.stop="removeMediaAsset(asset.id)"
+                                        class="p-1 opacity-0 group-hover:opacity-100 hover:bg-ui-danger rounded transition-opacity"
+                                        title="삭제"
+                                    >
+                                        <i class="fas fa-times text-xxs"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Effects Library -->
+                    <div class="flex-1 bg-bg-dark border-t border-ui-border p-2">
+                        <div class="text-[10px] text-text-sub text-center opacity-30 mt-4">Effects Library</div>
+                    </div>
+                </div>
+            </aside>
+
+        </main>
+
+        <!-- Modals -->
+        <project-modal v-if="projectManagerModal.isOpen" @close="closeProjectManager"></project-modal>
+        <layer-config-modal v-if="layerConfig.isOpen && layerConfigBox" :box="layerConfigBox" @close="closeLayerConfig" @delete="deleteLayerFromConfig"></layer-config-modal>
+        <layer-template-modal v-if="layerTemplateModal.isOpen" :templates="layerTemplates" :folders="layerTemplateFolders" @close="closeLayerTemplateModal" @delete-template="deleteLayerTemplate" @load-template="loadLayerTemplate" @update-templates="updateLayerTemplates" @update-folders="updateLayerTemplateFolders"></layer-template-modal>
+        <asset-manager-modal v-if="assetManagerModal.isOpen" :asset-type="assetManagerModal.assetType" @close="closeAssetManager"></asset-manager-modal>
+        <image-asset-modal v-if="imageAssetModal.isOpen" @close="closeImageAssetModal"></image-asset-modal>
+        <image-effect-modal v-if="imageEffectModal.isOpen" @close="closeImageEffectModal"></image-effect-modal>
+        <visualization-modal v-if="visualizationModal.isOpen" @close="closeVisualizationModal"></visualization-modal>
+        <api-manager-modal v-if="apiManagerModal.isOpen" @close="closeApiManagerModal"></api-manager-modal>
+
+        <!-- Dev Overlay -->
+        <div class="dev-overlay" id="dev-overlay-root" v-if="inspector.tag">
+            <div id="dev-overlay-highlight" class="dev-highlight" :style="highlightStyle"></div>
+            <div id="dev-overlay-tooltip" class="dev-tooltip" :style="tooltipStyle" @click="copyInspectorId">
+                <div class="dev-tooltip-header">
+                    <span style="color:#d97706;">#{{ inspector.id || '(no-id)' }}</span>
+                    <span style="color:#1d4ed8;"> {{ inspector.tag }}</span>
+                    <span v-if="inspector.className" style="color:#16a34a;"> .{{ inspector.className.split(' ')[0] }}</span>
+                </div>
+                <div class="dev-tooltip-meta">Size: {{ inspector.w }} x {{ inspector.h }}</div>
+                <template v-if="isDevModeActive && !isDevModeFull">
+                    <div class="dev-tooltip-hint">클릭하면 현재 요소의 ID가 클립보드에 복사됩니다.</div>
+                </template>
+                <template v-if="isDevModeFull">
+                    <div class="dev-tooltip-devinfo" v-if="inspector.dataDev">{{ inspector.dataDev }}</div>
+                    <div class="dev-tooltip-devinfo" v-else>Spec: NOT FOUND</div>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS Modules (Load Order Matters) -->
+    <!-- 1. Utils & Specs -->
+    <script src="js/utils/constants.js"></script>
+    <script src="docs/element-specs.js"></script>
+    
+    <!-- 2. Components (Dependencies First) -->
+    <script src="js/components/DropdownMenu.js"></script>
+    <script src="js/components/RulerLine.js"></script>
+    <script src="js/components/ProjectModal.js"></script>
+    <script src="js/components/AssetManagerModal.js"></script>
+    <script src="js/components/ImageAssetModal.js"></script>
+    <script src="js/components/ImageEffectModal.js"></script>
+    <script src="js/components/VisualizationModal.js"></script>
+    <script src="js/components/ApiManagerModal.js"></script>
+    <script src="js/components/LayerConfigModal.js"></script>
+    <script src="js/components/LayerTemplateModal.js"></script>
+    <script src="js/components/LayerPanel.js"></script>
+    <script src="js/components/PreviewCanvas.js"></script>
+    <script src="js/components/TimelinePanel.js"></script>
+    
+    <!-- 3. Core (Last) -->
+    <script src="js/core/preview-renderer.js"></script>
+    <script src="js/core/app-root.js"></script>
+    <script src="js/core/bootstrap.js"></script>
+</body>
+</html>
