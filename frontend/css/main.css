@@ -1015,7 +1015,7 @@ html, body {
 }
 
 /* ================================
-   컨텍스트 메뉴
+   컨텍스트 메뉴 - 기본
    ================================ */
 .context-menu {
     position: fixed;
@@ -1024,8 +1024,24 @@ html, body {
     border-radius: 6px;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
     z-index: 9999;
-    padding: 4px 0;
-    min-width: 160px;
+    padding: 3px 0;
+    min-width: 140px;
+}
+
+/* 컨텍스트 메뉴 - 컴팩트 버전 (축소된 글자 크기) */
+.context-menu.context-menu--compact {
+    min-width: 130px;
+}
+
+.context-menu.context-menu--compact .ctx-item {
+    padding: 5px 10px;
+    font-size: 10px;
+    gap: 6px;
+}
+
+.context-menu.context-menu--compact .ctx-item i {
+    font-size: 9px;
+    width: 12px;
 }
 
 .ctx-item {
@@ -1081,6 +1097,189 @@ html, body {
     width: 16px;
     text-align: center;
     color: var(--color-text-sub);
+}
+
+/* ================================
+   속도 조절 팝업
+   ================================ */
+.speed-editor-popup {
+    position: fixed;
+    background: var(--color-bg-panel);
+    border: 1px solid var(--color-ui-border);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+    z-index: 10000;
+    width: 280px;
+    overflow: hidden;
+}
+
+.speed-editor-popup__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: var(--color-bg-hover);
+    border-bottom: 1px solid var(--color-ui-border);
+}
+
+.speed-editor-popup__title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--color-text-main);
+}
+
+.speed-editor-popup__close {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--color-text-sub);
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 10px;
+}
+
+.speed-editor-popup__close:hover {
+    background: var(--color-bg-input);
+    color: var(--color-text-main);
+}
+
+.speed-editor-popup__body {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.speed-editor-popup__presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.speed-preset-btn {
+    padding: 4px 8px;
+    font-size: 10px;
+    background: var(--color-bg-input);
+    border: 1px solid var(--color-ui-border);
+    border-radius: 4px;
+    color: var(--color-text-main);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.speed-preset-btn:hover {
+    border-color: var(--color-ui-accent);
+    background: var(--color-bg-hover);
+}
+
+.speed-preset-btn.active {
+    background: var(--color-ui-accent);
+    border-color: var(--color-ui-accent);
+    color: white;
+}
+
+.speed-editor-popup__custom {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.speed-editor-popup__label {
+    font-size: 10px;
+    color: var(--color-text-sub);
+    min-width: 28px;
+}
+
+.speed-slider {
+    flex: 1;
+    height: 4px;
+    -webkit-appearance: none;
+    background: var(--color-bg-input);
+    border-radius: 2px;
+    outline: none;
+}
+
+.speed-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    background: var(--color-ui-accent);
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.speed-input {
+    width: 50px;
+    padding: 4px 6px;
+    font-size: 10px;
+    background: var(--color-bg-input);
+    border: 1px solid var(--color-ui-border);
+    border-radius: 4px;
+    color: var(--color-text-main);
+    text-align: right;
+}
+
+.speed-input:focus {
+    outline: none;
+    border-color: var(--color-ui-accent);
+}
+
+.speed-editor-popup__unit {
+    font-size: 10px;
+    color: var(--color-text-sub);
+}
+
+.speed-editor-popup__info {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px;
+    background: var(--color-bg-dark);
+    border-radius: 4px;
+    font-size: 10px;
+    color: var(--color-text-sub);
+}
+
+.speed-editor-popup__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--color-ui-border);
+    background: var(--color-bg-hover);
+}
+
+.speed-editor-popup__btn {
+    padding: 6px 14px;
+    font-size: 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.speed-editor-popup__btn--cancel {
+    background: transparent;
+    border: 1px solid var(--color-ui-border);
+    color: var(--color-text-main);
+}
+
+.speed-editor-popup__btn--cancel:hover {
+    background: var(--color-bg-input);
+}
+
+.speed-editor-popup__btn--apply {
+    background: var(--color-ui-accent);
+    border: 1px solid var(--color-ui-accent);
+    color: white;
+}
+
+.speed-editor-popup__btn--apply:hover {
+    background: var(--color-ui-selected);
 }
 
 /* ================================
