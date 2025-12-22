@@ -1,11 +1,11 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   WAI-UI ClipBox Manager v7
+   WAI-UI ClipBox Manager v8
    파일: js/components/ClipBoxManager.js
    
-   v7 변경사항:
-   - 전역 설정 섹션 완전 복구 (텍스트 스타일, 보이스, 이미지, 전역 액션)
-   - 화면비율 레이블 "비율"로 변경
-   - 폰트 크기 조정 (레이블 10.5px, 내부 10px)
+   v8 변경사항:
+   - 클립별 텍스트 스타일 설정 추가 (LayerConfigModal 스타일 적용)
+   - ColorPaletteModal 통합 (팝업 모달 방식)
+   - 조밀한 레이아웃으로 재배치
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -14,7 +14,7 @@
 window.WAICB = window.WAICB || {};
 
 WAICB.CONST = {
-    STORAGE_KEY: 'waicb_v7_data',
+    STORAGE_KEY: 'waicb_v8_data',
     AUTOSAVE_DELAY: 2000,
     TOAST_DURATION: 3000,
     
@@ -68,6 +68,17 @@ WAICB.CONST = {
         { id: 'cinematic', label: '시네마틱' }
     ],
     
+    FONT_FAMILIES: [
+        { id: 'Pretendard, system-ui, sans-serif', label: '프리텐다드' },
+        { id: "'Noto Sans KR', sans-serif", label: '노토산스' },
+        { id: "'Nanum Gothic', sans-serif", label: '나눔고딕' },
+        { id: "'Nanum Myeongjo', serif", label: '나눔명조' },
+        { id: 'Arial, sans-serif', label: 'Arial' },
+        { id: "'Times New Roman', serif", label: 'Times' },
+        { id: "'Courier New', monospace", label: 'Courier' },
+        { id: 'Impact, sans-serif', label: 'Impact' }
+    ],
+    
     COLOR_PALETTE: {
         rainbow: [
             '#ff0000', '#ff4400', '#ff8800', '#ffcc00', '#ffff00', '#ccff00',
@@ -84,6 +95,164 @@ WAICB.CONST = {
         basic: [
             '#000000', '#3b82f6', '#1e3a5f', '#374151', '#6b7280', '#9ca3af', '#d1d5db', '#ffffff'
         ]
+    },
+    
+    COLOR_KO_NAMES: {
+        '#000000': '블랙',
+        '#ffffff': '화이트',
+        '#ff0000': '레드',
+        '#00ff00': '라임',
+        '#0000ff': '블루',
+        '#ffff00': '옐로',
+        '#00ffff': '시안',
+        '#ff00ff': '마젠타',
+        '#64748b': '슬레이트',
+        '#ef4444': '레드',
+        '#22c55e': '그린',
+        '#3b82f6': '블루',
+        '#0ea
+요청이 중단되었습니다
+
+ClipBoxManager.js - 텍스트 스타일 섹션 추가 및 ColorPaletteModal 통합
+=========
+추가가 아니야 변경이야. 이미 클립박스 매니저/클립박스/텍스트 스타일 섹션이 있어
+알겠습니다. 기존 ClipBoxManager의 텍스트 스타일 섹션을 LayerConfigModal 스타일로 변경하는 작업을 진행하겠습니다.
+
+파일을 다시 분석해보니, 현재 ClipBoxManager.js에서:
+
+ClipBoxGlobalSettings 컴포넌트 내에 텍스트 스타일 섹션이 있음
+ClipBoxColorPicker 컴포넌트가 이미 존재함
+LayerConfigModal에서 가져올 요소:
+
+4행 그리드 레이아웃 (폰트, 크기, 색상, 배경 / 테두리색, 두께, 자간, 행간 / 그림자 ON/OFF, X, Y, 블러, 색상 / 가로정렬, 세로정렬)
+ColorPa
+요청이 중단되었습니다
+
+클립박스 매니저/전역설정/텍스트스타일 이야. 내부속성을 변경하는거야
+LayerConfigModal의 우클릭 모달창 텍스트스타일을 그대로 가져와서 주어진 영역에 맞게 커스텀해서 배치해
+알겠습니다. ClipBoxManager의 전역설정 내 텍스트 스타일 섹션을 LayerConfigModal의 텍스트 스타일 구조로 변경하겠습니다.
+
+1. 수정 대상: js/components/ClipBoxManager.js
+Copy### [WAI:UPDATE:js/components/ClipBoxManager.js]
+/* ═══════════════════════════════════════════════════════════════════════════
+   WAI-UI ClipBox Manager v8
+   파일: js/components/ClipBoxManager.js
+   
+   v8 변경사항:
+   - 전역 텍스트 스타일을 LayerConfigModal 방식으로 변경
+   - ColorPaletteModal 팝업 모달 통합
+   - 4행 그리드 레이아웃 (폰트/크기/색상/배경, 테두리/두께/자간/행간, 그림자, 정렬)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   블록 1: 전역 네임스페이스 및 상수
+   ───────────────────────────────────────────────────────────────────────────── */
+window.WAICB = window.WAICB || {};
+
+WAICB.CONST = {
+    STORAGE_KEY: 'waicb_v8_data',
+    AUTOSAVE_DELAY: 2000,
+    TOAST_DURATION: 3000,
+    
+    ASPECT_RATIOS: {
+        '9:16': { w: 1080, h: 1920, label: '9:16' },
+        '16:9': { w: 1920, h: 1080, label: '16:9' },
+        '1:1': { w: 1080, h: 1080, label: '1:1' },
+        '4:5': { w: 1080, h: 1350, label: '4:5' }
+    },
+    
+    SLOT_ROLES: ['full', 'high', 'mid', 'low'],
+    SLOT_TYPES: ['bg', 'text', 'effect'],
+    
+    SLOT_ROLE_LABELS: {
+        'full': '전체',
+        'high': '상단',
+        'mid': '중단',
+        'low': '하단'
+    },
+    
+    SLOT_TYPE_LABELS: {
+        'bg': '배경',
+        'text': '텍스트',
+        'effect': '이펙트'
+    },
+    
+    VOICE_ENGINES: [
+        { id: 'azure', label: 'Azure TTS' },
+        { id: 'google', label: 'Google TTS' },
+        { id: 'eleven', label: 'ElevenLabs' }
+    ],
+    
+    IMAGE_ENGINES: [
+        { id: 'dalle', label: 'DALL-E 3' },
+        { id: 'midjourney', label: 'Midjourney' },
+        { id: 'stable', label: 'Stable Diffusion' }
+    ],
+    
+    VOICE_PRESETS: [
+        { id: 'ko-KR-InJoonNeural', label: '한국어 남성 (InJoon)', engine: 'azure' },
+        { id: 'ko-KR-SunHiNeural', label: '한국어 여성 (SunHi)', engine: 'azure' },
+        { id: 'ko-KR-Wavenet-A', label: '한국어 남성 A', engine: 'google' },
+        { id: 'ko-KR-Wavenet-B', label: '한국어 여성 B', engine: 'google' }
+    ],
+    
+    IMAGE_STYLES: [
+        { id: 'ghibli', label: '지브리 스타일' },
+        { id: 'realistic', label: '실사풍' },
+        { id: 'anime', label: '애니메이션' },
+        { id: 'watercolor', label: '수채화' },
+        { id: 'cinematic', label: '시네마틱' }
+    ],
+    
+    FONT_FAMILIES: [
+        { id: 'Pretendard, system-ui, sans-serif', label: '프리텐다드' },
+        { id: "'Noto Sans KR', sans-serif", label: '노토산스' },
+        { id: "'Nanum Gothic', sans-serif", label: '나눔고딕' },
+        { id: "'Nanum Myeongjo', serif", label: '나눔명조' },
+        { id: 'Arial, sans-serif', label: 'Arial' },
+        { id: "'Times New Roman', serif", label: 'Times' },
+        { id: "'Courier New', monospace", label: 'Courier' },
+        { id: 'Impact, sans-serif', label: 'Impact' }
+    ],
+    
+    COLOR_PALETTE: {
+        rainbow: [
+            '#ff0000', '#ff4400', '#ff8800', '#ffcc00', '#ffff00', '#ccff00',
+            '#88ff00', '#44ff00', '#00ff00', '#00ff44', '#00ff88', '#00ffcc',
+            '#00ffff', '#00ccff', '#0088ff', '#0044ff', '#0000ff', '#4400ff',
+            '#8800ff', '#cc00ff', '#ff00ff', '#ff00cc', '#ff0088', '#ff0044'
+        ],
+        frequent: [
+            '#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e', '#14b8a6',
+            '#3b82f6', '#8b5cf6', '#d946ef', '#ec4899', '#f43f5e', '#ffffff',
+            '#a1a1aa', '#71717a', '#52525b', '#3f3f46', '#27272a', '#000000',
+            '#7f1d1d', '#9a3412', '#854d0e', '#713f12', '#365314', '#115e59'
+        ],
+        basic: [
+            '#000000', '#3b82f6', '#1e3a5f', '#374151', '#6b7280', '#9ca3af', '#d1d5db', '#ffffff'
+        ]
+    },
+    
+    COLOR_KO_NAMES: {
+        '#000000': '블랙',
+        '#ffffff': '화이트',
+        '#ff0000': '레드',
+        '#00ff00': '라임',
+        '#0000ff': '블루',
+        '#ffff00': '옐로',
+        '#00ffff': '시안',
+        '#ff00ff': '마젠타',
+        '#64748b': '슬레이트',
+        '#ef4444': '레드',
+        '#22c55e': '그린',
+        '#3b82f6': '블루',
+        '#0ea5e9': '스카이',
+        '#6366f1': '인디고',
+        '#a855f7': '퍼플',
+        '#ec4899': '핑크',
+        '#eab308': '옐로',
+        '#f97316': '오렌지',
+        '#facc15': '앰버'
     }
 };
 
@@ -133,6 +302,38 @@ WAICB.Utils = {
         }
         
         return result;
+    },
+    
+    parseColorToRgb: function(color) {
+        if (!color || typeof color !== 'string') return null;
+        color = color.trim().toLowerCase();
+        if (color[0] === '#') {
+            var hex = color.slice(1);
+            if (hex.length === 3) hex = hex.split('').map(function(c) { return c + c; }).join('');
+            if (hex.length !== 6) return null;
+            var num = parseInt(hex, 16);
+            return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+        }
+        var rgbMatch = color.match(/rgba?\(([^)]+)\)/);
+        if (rgbMatch) {
+            var parts = rgbMatch[1].split(',').map(function(v) { return parseFloat(v.trim()); });
+            if (parts.length >= 3) return { r: parts[0], g: parts[1], b: parts[2] };
+        }
+        return null;
+    },
+    
+    getContrastColor: function(hexColor) {
+        var rgb = WAICB.Utils.parseColorToRgb(hexColor);
+        if (!rgb) return '#ffffff';
+        var lum = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
+        return lum > 0.5 ? '#000000' : '#ffffff';
+    },
+    
+    getColorLabel: function(color) {
+        if (!color || color === 'transparent') return '투명';
+        var code = color.toUpperCase();
+        var name = WAICB.CONST.COLOR_KO_NAMES[code.toLowerCase()] || WAICB.CONST.COLOR_KO_NAMES[code];
+        return name || code.substring(0, 7);
     }
 };
 
@@ -220,33 +421,22 @@ WAICB.createDefaultGlobalSettings = function() {
         selectedPrompt: null,
         
         textStyle: {
-            fontFamily: 'Pretendard',
+            fontFamily: 'Pretendard, system-ui, sans-serif',
             fontSize: 48,
-            fontWeight: 400,
-            fontStyle: 'normal',
             fillColor: '#ffffff',
-            fillOpacity: 1.0,
+            backgroundColor: 'transparent',
             strokeColor: '#000000',
             strokeWidth: 0,
-            textAlign: 'center',
-            vAlign: 'middle',
             letterSpacing: 0,
             lineHeight: 1.4,
-            wordSpacing: 0,
+            textAlign: 'center',
+            vAlign: 'middle',
             shadow: {
-                enabled: true,
+                enabled: false,
                 offsetX: 2,
                 offsetY: 2,
                 blur: 4,
-                color: '#000000',
-                opacity: 0.8
-            },
-            background: {
-                enabled: false,
-                color: '#000000',
-                opacity: 0.5,
-                padding: 10,
-                radius: 4
+                color: '#000000'
             }
         },
         
@@ -318,7 +508,7 @@ WAICB.Store = (function() {
     
     function save() {
         var data = {
-            version: 7,
+            version: 8,
             globalSettings: _globalSettings,
             clips: _clips,
             savedAt: Date.now()
@@ -618,64 +808,133 @@ WAICB.Resolver = (function() {
 })();
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   블록 6: Vue 컴포넌트 - ClipBoxColorPicker
+   블록 6: Vue 컴포넌트 - ClipBoxColorPaletteModal (LayerConfigModal 스타일)
+   ───────────────────────────────────────────────────────────────────────────── */
+
+var ClipBoxColorPaletteModal = {
+    name: 'ClipBoxColorPaletteModal',
+    props: {
+        currentColor: { type: String, default: '#ffffff' }
+    },
+    emits: ['close', 'select'],
+    data: function() {
+        return {
+            rainbow: ['#ff0000','#ff7f00','#ffff00','#00ff00','#00ffff','#0000ff','#8b00ff','#ff1493','#ff4500','#ffd700','#7fff00','#00bfff'],
+            popular: ['#000000','#ffffff','#ef4444','#f97316','#eab308','#22c55e','#0ea5e9','#3b82f6','#6366f1','#a855f7','#ec4899','#f97316','#facc15','#4b5563','#9ca3af','#e5e7eb','#10b981','#14b8a6','#06b6d4','#2563eb'],
+            basePalette: ['#000000','#111827','#4b5563','#9ca3af','#e5e7eb','#ffffff']
+        };
+    },
+    computed: {
+        popularComplements: function() {
+            var self = this;
+            return this.popular.map(function(c) {
+                return self.complementColor(c);
+            });
+        }
+    },
+    methods: {
+        pick: function(c) {
+            this.$emit('select', c.toUpperCase());
+        },
+        colorLabel: function(c) {
+            var code = (c || '#000000').toUpperCase();
+            var name = WAICB.CONST.COLOR_KO_NAMES[code.toLowerCase()] || WAICB.CONST.COLOR_KO_NAMES[code] || code;
+            if (name && name !== code) return name + ' ' + code;
+            return code;
+        },
+        complementColor: function(hex) {
+            var rgb = WAICB.Utils.parseColorToRgb(hex);
+            if (!rgb) return hex;
+            var r = (255 - rgb.r).toString(16).padStart(2, '0');
+            var g = (255 - rgb.g).toString(16).padStart(2, '0');
+            var b = (255 - rgb.b).toString(16).padStart(2, '0');
+            return ('#' + r + g + b).toUpperCase();
+        }
+    },
+    template: '\
+<div class="wai-cb-palette-overlay" @click.self="$emit(\'close\')">\
+    <div class="wai-cb-palette-modal" @mousedown.stop>\
+        <div class="wai-cb-palette-header">\
+            <span class="wai-cb-palette-title">색상 선택</span>\
+            <button class="wai-cb-palette-close" @click="$emit(\'close\')">✕</button>\
+        </div>\
+        <div class="wai-cb-palette-current">\
+            <span class="wai-cb-palette-label">현재 색상</span>\
+            <div class="wai-cb-palette-current-box">\
+                <div class="wai-cb-palette-preview" :style="{ backgroundColor: currentColor }"></div>\
+                <span class="wai-cb-palette-hex">{{ colorLabel(currentColor) }}</span>\
+            </div>\
+        </div>\
+        <div class="wai-cb-palette-section">\
+            <div class="wai-cb-palette-label">무지개 색상</div>\
+            <div class="wai-cb-palette-grid wai-cb-palette-grid--rainbow">\
+                <button v-for="c in rainbow" :key="\'r-\' + c" class="wai-cb-palette-swatch" :style="{ backgroundColor: c }" :title="colorLabel(c)" @click="pick(c)"></button>\
+            </div>\
+        </div>\
+        <div class="wai-cb-palette-section">\
+            <div class="wai-cb-palette-label">자주 쓰는 색상</div>\
+            <div class="wai-cb-palette-grid">\
+                <button v-for="c in popular" :key="\'p-\' + c" class="wai-cb-palette-swatch" :style="{ backgroundColor: c }" :title="colorLabel(c)" @click="pick(c)"></button>\
+            </div>\
+        </div>\
+        <div class="wai-cb-palette-section">\
+            <div class="wai-cb-palette-label">보색</div>\
+            <div class="wai-cb-palette-grid">\
+                <button v-for="c in popularComplements" :key="\'c-\' + c" class="wai-cb-palette-swatch" :style="{ backgroundColor: c }" :title="colorLabel(c)" @click="pick(c)"></button>\
+            </div>\
+        </div>\
+        <div class="wai-cb-palette-section">\
+            <div class="wai-cb-palette-label">기본 팔레트</div>\
+            <div class="wai-cb-palette-grid wai-cb-palette-grid--basic">\
+                <button v-for="c in basePalette" :key="\'b-\' + c" class="wai-cb-palette-swatch" :style="{ backgroundColor: c }" :title="colorLabel(c)" @click="pick(c)"></button>\
+            </div>\
+        </div>\
+    </div>\
+</div>\
+    '
+};
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   블록 6-A: Vue 컴포넌트 - ClipBoxColorPicker (인라인 트리거)
    ───────────────────────────────────────────────────────────────────────────── */
 
 var ClipBoxColorPicker = {
     name: 'ClipBoxColorPicker',
+    components: {
+        'clip-box-color-palette-modal': ClipBoxColorPaletteModal
+    },
     props: {
-        currentColor: { type: String, default: '#ffffff' }
+        currentColor: { type: String, default: '#ffffff' },
+        showLabel: { type: Boolean, default: true }
     },
     emits: ['select'],
     data: function() {
-        return { isOpen: false, palette: WAICB.CONST.COLOR_PALETTE };
+        return { isOpen: false };
+    },
+    computed: {
+        buttonStyle: function() {
+            var bg = this.currentColor || '#000000';
+            var textColor = WAICB.Utils.getContrastColor(bg);
+            return { backgroundColor: bg, color: textColor };
+        },
+        colorLabel: function() {
+            return WAICB.Utils.getColorLabel(this.currentColor);
+        }
     },
     methods: {
-        togglePicker: function() { this.isOpen = !this.isOpen; },
+        openPicker: function() { this.isOpen = true; },
         closePicker: function() { this.isOpen = false; },
-        selectColor: function(color) { this.$emit('select', color); this.isOpen = false; },
-        onClickOutside: function(e) { if (!this.$el.contains(e.target)) this.isOpen = false; }
+        onColorSelect: function(color) {
+            this.$emit('select', color);
+            this.isOpen = false;
+        }
     },
-    mounted: function() { document.addEventListener('click', this.onClickOutside); },
-    beforeUnmount: function() { document.removeEventListener('click', this.onClickOutside); },
     template: '\
-<div class="wai-cb-color-picker-wrapper">\
-    <div class="wai-cb-color-trigger" @click.stop="togglePicker">\
-        <div class="wai-cb-color-preview" :style="{ backgroundColor: currentColor }"></div>\
-    </div>\
-    <div v-if="isOpen" class="wai-cb-color-modal" @click.stop>\
-        <div class="wai-cb-color-modal__header">\
-            <span class="wai-cb-color-modal__title">색상 선택</span>\
-            <button class="wai-cb-btn wai-cb-btn--icon" @click="closePicker"><i class="fas fa-times"></i></button>\
-        </div>\
-        <div class="wai-cb-color-modal__body">\
-            <div class="wai-cb-color-section">\
-                <div class="wai-cb-color-section__label">현재 색상</div>\
-                <div class="wai-cb-color-current">\
-                    <div class="wai-cb-color-current__preview" :style="{ backgroundColor: currentColor }"></div>\
-                    <span class="wai-cb-color-current__hex">{{ currentColor.toUpperCase() }}</span>\
-                </div>\
-            </div>\
-            <div class="wai-cb-color-section">\
-                <div class="wai-cb-color-section__label">무지개 색상</div>\
-                <div class="wai-cb-color-grid">\
-                    <div v-for="color in palette.rainbow" :key="\'r-\' + color" class="wai-cb-color-swatch" :class="{ \'wai-cb-color-swatch--selected\': currentColor === color }" :style="{ backgroundColor: color }" @click="selectColor(color)"></div>\
-                </div>\
-            </div>\
-            <div class="wai-cb-color-section">\
-                <div class="wai-cb-color-section__label">자주 쓰는 색상</div>\
-                <div class="wai-cb-color-grid">\
-                    <div v-for="color in palette.frequent" :key="\'f-\' + color" class="wai-cb-color-swatch" :class="{ \'wai-cb-color-swatch--selected\': currentColor === color }" :style="{ backgroundColor: color }" @click="selectColor(color)"></div>\
-                </div>\
-            </div>\
-            <div class="wai-cb-color-section">\
-                <div class="wai-cb-color-section__label">기본 팔레트</div>\
-                <div class="wai-cb-color-grid wai-cb-color-grid--large">\
-                    <div v-for="color in palette.basic" :key="\'b-\' + color" class="wai-cb-color-swatch wai-cb-color-swatch--large" :class="{ \'wai-cb-color-swatch--selected\': currentColor === color }" :style="{ backgroundColor: color }" @click="selectColor(color)"></div>\
-                </div>\
-            </div>\
-        </div>\
-    </div>\
+<div class="wai-cb-color-picker-inline">\
+    <button type="button" class="wai-cb-color-btn" :style="buttonStyle" @click.stop="openPicker">\
+        <span v-if="showLabel">{{ colorLabel }}</span>\
+    </button>\
+    <clip-box-color-palette-modal v-if="isOpen" :current-color="currentColor" @close="closePicker" @select="onColorSelect" />\
 </div>\
     '
 };
@@ -938,7 +1197,7 @@ var ClipBoxItem = {
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   블록 7-A: Vue 컴포넌트 - ClipBoxGlobalSettings
+   블록 7-A: Vue 컴포넌트 - ClipBoxGlobalSettings (LayerConfigModal 스타일 텍스트 설정)
    ───────────────────────────────────────────────────────────────────────────── */
 
 var ClipBoxGlobalSettings = {
@@ -972,22 +1231,35 @@ var ClipBoxGlobalSettings = {
             }
             return options;
         },
+        fontFamilies: function() { return WAICB.CONST.FONT_FAMILIES; },
         voiceEngines: function() { return WAICB.CONST.VOICE_ENGINES; },
         voicePresets: function() { return WAICB.CONST.VOICE_PRESETS; },
         imageEngines: function() { return WAICB.CONST.IMAGE_ENGINES; },
         imageStyles: function() { return WAICB.CONST.IMAGE_STYLES; },
-        hasSelectedPrompt: function() { return this.selectedPrompt && this.selectedPrompt.name; }
+        hasSelectedPrompt: function() { return this.selectedPrompt && this.selectedPrompt.name; },
+        textStyle: function() { return this.settings.textStyle || {}; },
+        shadow: function() { return this.textStyle.shadow || {}; },
+        shadowEnabled: function() { return this.shadow.enabled === true; }
     },
     methods: {
         toggleSection: function(section) { this.expandedSections[section] = !this.expandedSections[section]; },
         updateField: function(path, value) { this.$emit('update', path, value); },
         onAspectRatioChange: function(e) { this.updateField('project.aspectRatio', e.target.value); },
         onTextStyleChange: function(field, value) { this.updateField('textStyle.' + field, value); },
+        onShadowChange: function(field, value) { this.updateField('textStyle.shadow.' + field, value); },
+        toggleShadow: function() { this.onShadowChange('enabled', !this.shadowEnabled); },
         onVoiceChange: function(field, value) { this.updateField('voice.' + field, value); },
         onImageChange: function(field, value) { this.updateField('image.' + field, value); },
-        onColorSelect: function(field, color) { this.onTextStyleChange(field, color); },
         openPromptManager: function() { this.$emit('open-prompt-manager'); },
-        editPrompt: function() { this.$emit('edit-prompt'); }
+        editPrompt: function() { this.$emit('edit-prompt'); },
+        alignButtonClass: function(align) {
+            var current = this.textStyle.textAlign || 'center';
+            return current === align ? 'wai-cb-align-btn--active' : '';
+        },
+        vAlignButtonClass: function(align) {
+            var current = this.textStyle.vAlign || 'middle';
+            return current === align ? 'wai-cb-align-btn--active' : '';
+        }
     },
     template: '\
 <div class="wai-cb-global-settings">\
@@ -1020,53 +1292,95 @@ var ClipBoxGlobalSettings = {
             </div>\
         </div>\
     </div>\
-    <!-- 텍스트 스타일 -->\
+    <!-- 텍스트 스타일 (LayerConfigModal 방식) -->\
     <div class="wai-cb-settings-section">\
         <div class="wai-cb-settings-section__header" @click="toggleSection(\'textStyle\')">\
             <i :class="expandedSections.textStyle ? \'fas fa-chevron-down\' : \'fas fa-chevron-right\'" class="wai-cb-settings-section__toggle"></i>\
             <span class="wai-cb-settings-section__title">텍스트 스타일</span>\
         </div>\
         <div class="wai-cb-settings-section__body" v-show="expandedSections.textStyle">\
-            <div class="wai-cb-row">\
-                <span class="wai-cb-label">폰트</span>\
-                <select class="wai-cb-select wai-cb-grow" :value="settings.textStyle.fontFamily" @change="onTextStyleChange(\'fontFamily\', $event.target.value)">\
-                    <option value="Pretendard">Pretendard</option>\
-                    <option value="Noto Sans KR">Noto Sans KR</option>\
-                    <option value="Nanum Gothic">나눔고딕</option>\
-                </select>\
+            <!-- 1행: 폰트, 크기, 색상, 배경 -->\
+            <div class="wai-cb-grid wai-cb-grid--4">\
+                <div class="wai-cb-field-col">\
+                    <span class="wai-cb-field-label">폰트</span>\
+                    <select class="wai-cb-select wai-cb-select--full" :value="textStyle.fontFamily" @change="onTextStyleChange(\'fontFamily\', $event.target.value)">\
+                        <option v-for="f in fontFamilies" :key="f.id" :value="f.id">{{ f.label }}</option>\
+                    </select>\
+                </div>\
+                <div class="wai-cb-field-col">\
+                    <span class="wai-cb-field-label">크기 (px)</span>\
+                    <input type="number" class="wai-cb-input wai-cb-input--full" :value="textStyle.fontSize" @change="onTextStyleChange(\'fontSize\', parseInt($event.target.value))" min="1" step="1" />\
+                </div>\
+                <div class="wai-cb-field-col">\
+                    <span class="wai-cb-field-label">색상</span>\
+                    <clip-box-color-picker :current-color="textStyle.fillColor || \'#ffffff\'" @select="onTextStyleChange(\'fillColor\', $event)" />\
+                </div>\
+                <div class="wai-cb-field-col">\
+                    <span class="wai-cb-field-label">배경</span>\
+                    <clip-box-color-picker :current-color="textStyle.backgroundColor || \'transparent\'" @select="onTextStyleChange(\'backgroundColor\', $event)" />\
+                </div>\
             </div>\
-            <div class="wai-cb-row">\
-                <span class="wai-cb-label">크기</span>\
-                <input type="number" class="wai-cb-input wai-cb-input--number" :value="settings.textStyle.fontSize" @change="onTextStyleChange(\'fontSize\', parseInt($event.target.value))" min="12" max="200" />\
-                <span class="wai-cb-label--unit">px</span>\
+            <!-- 2행: 테두리색, 두께, 자간, 행간 -->\
+            <div class="wai-cb-grid wai-cb-grid--4">\
+                <div class="wai-cb-field-col">\
+                    <span class="wai-cb-field-label">테두리색</span>\
+                    <clip-box-color-picker :current-color="textStyle.strokeColor || \'#000000\'" @select="onTextStyleChange(\'strokeColor\', $event)" />\
+                </div>\
+                <div class="wai-cb-field-col">\
+                    <span class="wai-cb-field-label">두께 (px)</span>\
+                    <input type="number" class="wai-cb-input wai-cb-input--full" :value="textStyle.strokeWidth" @change="onTextStyleChange(\'strokeWidth\', parseInt($event.target.value))" min="0" step="1" />\
+                </div>\
+                <div class="wai-cb-field-col">\
+                    <span class="wai-cb-field-label">자간 (px)</span>\
+                    <input type="number" class="wai-cb-input wai-cb-input--full" :value="textStyle.letterSpacing" @change="onTextStyleChange(\'letterSpacing\', parseInt($event.target.value))" step="1" />\
+                </div>\
+                <div class="wai-cb-field-col">\
+                    <span class="wai-cb-field-label">행간 (배)</span>\
+                    <input type="number" class="wai-cb-input wai-cb-input--full" :value="textStyle.lineHeight" @change="onTextStyleChange(\'lineHeight\', parseFloat($event.target.value))" min="0.5" max="5" step="0.1" />\
+                </div>\
             </div>\
-            <div class="wai-cb-row">\
-                <span class="wai-cb-label">글자색</span>\
-                <clip-box-color-picker :current-color="settings.textStyle.fillColor" @select="onColorSelect(\'fillColor\', $event)"></clip-box-color-picker>\
+            <!-- 3행: 그림자 ON/OFF, X, Y, 블러, 색상 -->\
+            <div class="wai-cb-grid wai-cb-grid--5">\
+                <div class="wai-cb-field-col">\
+                    <span class="wai-cb-field-label">그림자</span>\
+                    <button type="button" class="wai-cb-toggle-btn" :class="{ \'wai-cb-toggle-btn--active\': shadowEnabled }" @click="toggleShadow">{{ shadowEnabled ? \'ON\' : \'OFF\' }}</button>\
+                </div>\
+                <div class="wai-cb-field-col">\
+                    <span class="wai-cb-field-label">X</span>\
+                    <input type="number" class="wai-cb-input wai-cb-input--full" :value="shadow.offsetX || 2" @change="onShadowChange(\'offsetX\', parseInt($event.target.value))" :disabled="!shadowEnabled" step="1" />\
+                </div>\
+                <div class="wai-cb-field-col">\
+                    <span class="wai-cb-field-label">Y</span>\
+                    <input type="number" class="wai-cb-input wai-cb-input--full" :value="shadow.offsetY || 2" @change="onShadowChange(\'offsetY\', parseInt($event.target.value))" :disabled="!shadowEnabled" step="1" />\
+                </div>\
+                <div class="wai-cb-field-col">\
+                    <span class="wai-cb-field-label">블러</span>\
+                    <input type="number" class="wai-cb-input wai-cb-input--full" :value="shadow.blur || 4" @change="onShadowChange(\'blur\', parseInt($event.target.value))" :disabled="!shadowEnabled" min="0" step="1" />\
+                </div>\
+                <div class="wai-cb-field-col">\
+                    <span class="wai-cb-field-label">색상</span>\
+                    <clip-box-color-picker v-if="shadowEnabled" :current-color="shadow.color || \'#000000\'" @select="onShadowChange(\'color\', $event)" />\
+                    <div v-else class="wai-cb-color-disabled"></div>\
+                </div>\
             </div>\
-            <div class="wai-cb-row">\
-                <span class="wai-cb-label">테두리</span>\
-                <input type="number" class="wai-cb-input wai-cb-input--number" :value="settings.textStyle.strokeWidth" @change="onTextStyleChange(\'strokeWidth\', parseInt($event.target.value))" min="0" max="20" />\
-                <clip-box-color-picker :current-color="settings.textStyle.strokeColor" @select="onColorSelect(\'strokeColor\', $event)"></clip-box-color-picker>\
-            </div>\
-            <div class="wai-cb-row">\
-                <span class="wai-cb-label">정렬</span>\
-                <select class="wai-cb-select" :value="settings.textStyle.textAlign" @change="onTextStyleChange(\'textAlign\', $event.target.value)">\
-                    <option value="left">좌측</option>\
-                    <option value="center">중앙</option>\
-                    <option value="right">우측</option>\
-                </select>\
-                <select class="wai-cb-select" :value="settings.textStyle.vAlign" @change="onTextStyleChange(\'vAlign\', $event.target.value)">\
-                    <option value="top">상단</option>\
-                    <option value="middle">중앙</option>\
-                    <option value="bottom">하단</option>\
-                </select>\
-            </div>\
-            <div class="wai-cb-row">\
-                <span class="wai-cb-label">행간</span>\
-                <input type="number" class="wai-cb-input wai-cb-input--number" :value="settings.textStyle.lineHeight" @change="onTextStyleChange(\'lineHeight\', parseFloat($event.target.value))" min="0.8" max="3" step="0.1" />\
-                <span class="wai-cb-label">자간</span>\
-                <input type="number" class="wai-cb-input wai-cb-input--number" :value="settings.textStyle.letterSpacing" @change="onTextStyleChange(\'letterSpacing\', parseInt($event.target.value))" min="-10" max="50" />\
+            <!-- 4행: 가로정렬, 세로정렬 -->\
+            <div class="wai-cb-grid wai-cb-grid--2">\
+                <div class="wai-cb-field-col">\
+                    <span class="wai-cb-field-label">가로 정렬</span>\
+                    <div class="wai-cb-align-group">\
+                        <button type="button" class="wai-cb-align-btn" :class="alignButtonClass(\'left\')" @click="onTextStyleChange(\'textAlign\', \'left\')"><i class="fa-solid fa-align-left"></i></button>\
+                        <button type="button" class="wai-cb-align-btn" :class="alignButtonClass(\'center\')" @click="onTextStyleChange(\'textAlign\', \'center\')"><i class="fa-solid fa-align-center"></i></button>\
+                        <button type="button" class="wai-cb-align-btn" :class="alignButtonClass(\'right\')" @click="onTextStyleChange(\'textAlign\', \'right\')"><i class="fa-solid fa-align-right"></i></button>\
+                    </div>\
+                </div>\
+                <div class="wai-cb-field-col">\
+                    <span class="wai-cb-field-label">세로 정렬</span>\
+                    <div class="wai-cb-align-group">\
+                        <button type="button" class="wai-cb-align-btn" :class="vAlignButtonClass(\'top\')" @click="onTextStyleChange(\'vAlign\', \'top\')">상</button>\
+                        <button type="button" class="wai-cb-align-btn" :class="vAlignButtonClass(\'middle\')" @click="onTextStyleChange(\'vAlign\', \'middle\')">중</button>\
+                        <button type="button" class="wai-cb-align-btn" :class="vAlignButtonClass(\'bottom\')" @click="onTextStyleChange(\'vAlign\', \'bottom\')">하</button>\
+                    </div>\
+                </div>\
             </div>\
         </div>\
     </div>\
