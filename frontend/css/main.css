@@ -640,6 +640,47 @@ html, body {
 }
 
 /* ================================
+   클립 리사이즈 핸들 - 화살표 표시
+   ================================ */
+.clip-resize-handle {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 12px;
+    cursor: ew-resize;
+    z-index: 15;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    transition: background-color 0.15s;
+}
+
+.clip-resize-handle i {
+    font-size: 8px;
+    color: rgba(255, 255, 255, 0.4);
+    transition: color 0.15s;
+}
+
+.clip-resize-handle:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.clip-resize-handle:hover i {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.clip-resize-handle-left {
+    left: 0;
+    border-radius: 4px 0 0 4px;
+}
+
+.clip-resize-handle-right {
+    right: 0;
+    border-radius: 0 4px 4px 0;
+}
+
+/* ================================
    클립 타이틀 바
    ================================ */
 .clip-title-bar {
