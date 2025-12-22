@@ -279,6 +279,8 @@ const TimelinePanel = {
             </div>
         </div>
     `,
+// 코드연결지점
+// 코드연결지점
     data: function() {
         return {
             trackHeaderWidth: 180, initialHeaderWidth: 180, minHeaderWidth: 60, collapsedHeaderWidth: 28, 
@@ -531,7 +533,8 @@ const TimelinePanel = {
         
         clearSelection: function() { this.selectedClipIds = []; this.lastSelectedClipId = null; this.lastSelectedTrackId = null; this.syncVmSelectedClip(); },
         syncVmSelectedClip: function() { var self = this; this.vm.selectedClip = this.selectedClipIds.length === 1 ? this.vm.clips.find(function(c) { return c.id === self.selectedClipIds[0]; }) || null : null; },
-        
+// 코드연결지점
+// 코드연결지점
         // 수정된 onClipMouseDown - 클릭 상태 추적 개선
         onClipMouseDown: function(e, clip, track) {
             if (track.isLocked) return;
@@ -695,8 +698,10 @@ const TimelinePanel = {
             }
         },
         
-        // 수정된 onDocumentMouseUp - 단일/다중 선택 클립 재클릭 시 선택 해제
+        // 수정된 onDocumentMouseUp - 단일/다중 선택 클립 재클릭 시 선택 해제 + this 바인딩 수정
         onDocumentMouseUp: function(e) {
+            var self = this;
+            
             if (this.isResizingClip && this.resizeOriginalState) {
                 this.saveToHistory();
                 this.resizeOriginalState = null;
@@ -708,29 +713,30 @@ const TimelinePanel = {
             // 클릭만 한 경우 (드래그 없이)
             if (this.pendingClickClipId && !this.isDraggingClip) {
                 var mod = this.pendingClickModifiers || {};
+                var pendingId = this.pendingClickClipId;
                 
                 // Ctrl/Meta 클릭이면 토글
                 if (mod.ctrlKey || mod.metaKey) {
-                    this.selectClip(this.pendingClickClipId, mod);
+                    this.selectClip(pendingId, mod);
                 }
                 // 이미 선택된 클립을 다시 클릭한 경우 (단일 또는 다중 선택 상태에서)
                 else if (this.clickedOnSelectedClip && !mod.shiftKey) {
                     // 단일 선택 상태에서 같은 클립 클릭 -> 선택 해제
-                    if (this.selectedClipIds.length === 1 && this.selectedClipIds[0] === this.pendingClickClipId) {
+                    if (this.selectedClipIds.length === 1 && this.selectedClipIds[0] === pendingId) {
                         this.clearSelection();
                     }
                     // 다중 선택 상태에서 선택된 클립 중 하나 클릭 -> 해당 클립만 선택
                     else if (this.selectedClipIds.length > 1) {
-                        this.selectedClipIds = [this.pendingClickClipId];
-                        this.lastSelectedClipId = this.pendingClickClipId;
-                        var clip = this.vm.clips.find(function(c) { return c.id === this.pendingClickClipId; }.bind(this));
-                        if (clip) this.lastSelectedTrackId = clip.trackId;
+                        this.selectedClipIds = [pendingId];
+                        this.lastSelectedClipId = pendingId;
+                        var clip = this.vm.clips.find(function(c) { return c.id === pendingId; });
+                        if (clip) self.lastSelectedTrackId = clip.trackId;
                         this.syncVmSelectedClip();
                     }
                 }
                 // Shift 클릭
                 else if (mod.shiftKey) {
-                    this.selectClip(this.pendingClickClipId, mod);
+                    this.selectClip(pendingId, mod);
                 }
             }
             
@@ -1051,9 +1057,8 @@ const TimelinePanel = {
         onWindowResize: function() { this.adjustLayout(); this.updateViewportSize(); this.updateTrackYPositions(); },
         onExternalDragOver: function(e) { if (e.dataTransfer.types.indexOf('text/wai-asset') >= 0) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; this.isExternalDragOver = true; this.updateDropIndicator(e); } },
         onExternalDragLeave: function(e) { var rect = e.currentTarget.getBoundingClientRect(); if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) { this.isExternalDragOver = false; this.dropIndicator.visible = false; } },
-/* 코드연결지점 */
-/* 코드연결지점 */
         updateDropIndicator: function(e) { var lane = document.getElementById('timeline-lane-container'); if (!lane) return; var rect = lane.getBoundingClientRect(); var relY = e.clientY - rect.top - 24; var accH = 0; var targetTrack = null; for (var i = 0; i < this.vm.tracks.length; i++) { var t = this.vm.tracks[i]; var h = this.getTrackHeight(t.id); if (relY >= accH && relY < accH + h) { targetTrack = t; break; } accH += h; } if (!targetTrack) { this.dropIndicator.visible = false; return; } var dropTime = Math.max(0, (e.clientX - rect.left) / this.pixelsPerSecond); this.dropIndicator = { visible: true, trackId: targetTrack.id, left: dropTime * this.pixelsPerSecond, width: 5 * this.pixelsPerSecond }; },
+// 코드연결지점
         onExternalDrop: function(e) { e.preventDefault(); this.isExternalDragOver = false; this.dropIndicator.visible = false; var assetData; try { var raw = e.dataTransfer.getData('text/wai-asset'); if (!raw) return; assetData = JSON.parse(raw); } catch (err) { return; } var assets = Array.isArray(assetData) ? assetData : [assetData]; if (assets.length === 0) return; var lane = document.getElementById('timeline-lane-container'); var dropTime = this.vm.currentTime; var targetTrackId = null; if (lane) { var rect = lane.getBoundingClientRect(); dropTime = Math.max(0, (e.clientX - rect.left) / this.pixelsPerSecond); var relY = e.clientY - rect.top - 24; var accH = 0; for (var i = 0; i < this.vm.tracks.length; i++) { var t = this.vm.tracks[i]; var h = this.getTrackHeight(t.id); if (relY >= accH && relY < accH + h) { targetTrackId = t.id; break; } accH += h; } } document.dispatchEvent(new CustomEvent('wai-timeline-drop', { detail: { assets: assets, dropTime: dropTime, targetTrackId: targetTrackId }, bubbles: true })); }
     }
 };
