@@ -1,19 +1,12 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   WAI-UI ClipBox Manager Stylesheet v3
-   모든 클래스는 wai-cb- 접두어 사용하여 기존 스타일과 충돌 방지
-   
-   v3 변경사항:
-   - 우패널(LayerPanel, 미디어자산)과 스타일 통일
-   - 파랑 경계선 제거, 박스형 색상 코드 맞춤
-   - 아이콘/버튼 스타일 통일
-   - 글자 크기 통일
+   WAI-UI ClipBox Manager Stylesheet v4
+   v4: 색상 선택 모달, 프롬프트 미리보기, 모달 스타일 추가
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ═══════════════════════════════════════════════════════════════════════════
    SECTION 1: CSS 변수 (앱 공통 색상 사용)
    ═══════════════════════════════════════════════════════════════════════════ */
 :root {
-    /* ClipBox 전용 변수 - 앱 공통 색상과 통일 */
     --wai-cb-bg: #09090b;
     --wai-cb-bg-panel: #18181b;
     --wai-cb-bg-elevated: #27272a;
@@ -38,7 +31,6 @@
     --wai-cb-danger: #ef4444;
     --wai-cb-danger-soft: rgba(239, 68, 68, 0.12);
 
-    /* 간격 - 앱 공통과 통일 */
     --wai-cb-space-xs: 2px;
     --wai-cb-space-sm: 4px;
     --wai-cb-space-md: 6px;
@@ -48,7 +40,6 @@
     --wai-cb-radius: 4px;
     --wai-cb-radius-lg: 6px;
 
-    /* 폰트 - 앱 공통과 통일 (10px 기준) */
     --wai-cb-font-base: 10px;
     --wai-cb-font-sm: 10px;
     --wai-cb-font-xs: 9px;
@@ -78,15 +69,8 @@
     box-sizing: border-box;
 }
 
-.wai-cb-root h1,
-.wai-cb-root h2,
-.wai-cb-root h3 {
-    margin: 0;
-    font-weight: 600;
-}
-
 /* ═══════════════════════════════════════════════════════════════════════════
-   SECTION 3: 패널 시스템 - 파랑 경계선 제거, 박스형
+   SECTION 3: 패널 시스템
    ═══════════════════════════════════════════════════════════════════════════ */
 .wai-cb-panel {
     background: var(--wai-cb-bg-panel);
@@ -97,7 +81,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SECTION 4: 버튼 시스템 - 앱 공통 스타일
+   SECTION 4: 버튼 시스템
    ═══════════════════════════════════════════════════════════════════════════ */
 .wai-cb-btn {
     display: inline-flex;
@@ -115,7 +99,6 @@
     cursor: pointer;
     white-space: nowrap;
     user-select: none;
-    touch-action: manipulation;
     transition: all 0.15s;
 }
 
@@ -123,10 +106,6 @@
     border-color: var(--wai-cb-border-muted);
     background: var(--wai-cb-bg-hover);
     color: var(--wai-cb-text);
-}
-
-.wai-cb-btn:active {
-    transform: scale(0.98);
 }
 
 .wai-cb-btn:disabled {
@@ -167,11 +146,6 @@
     color: var(--wai-cb-text);
 }
 
-.wai-cb-btn--ghost.wai-cb-btn--active {
-    background: var(--wai-cb-bg-hover);
-    color: var(--wai-cb-text);
-}
-
 .wai-cb-btn--xs {
     padding: 2px 4px;
     height: 18px;
@@ -192,7 +166,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SECTION 5: 입력 필드 시스템 - 검정 배경 + 흰색 글씨
+   SECTION 5: 입력 필드 시스템
    ═══════════════════════════════════════════════════════════════════════════ */
 .wai-cb-input,
 .wai-cb-select,
@@ -226,15 +200,6 @@
 .wai-cb-input--number {
     width: 44px;
     text-align: right;
-    padding: var(--wai-cb-space-xs) var(--wai-cb-space-xs);
-}
-
-.wai-cb-input--color {
-    width: 24px;
-    height: 20px;
-    padding: 2px;
-    cursor: pointer;
-    background: transparent;
 }
 
 .wai-cb-textarea {
@@ -242,17 +207,12 @@
     min-height: 22px;
     resize: none;
     line-height: 1.4;
-    font-size: var(--wai-cb-font-base);
     overflow: hidden;
 }
 
 .wai-cb-textarea--auto {
     min-height: 22px;
     height: auto;
-}
-
-.wai-cb-textarea--sm {
-    min-height: 32px;
 }
 
 .wai-cb-checkbox {
@@ -271,38 +231,8 @@
     cursor: pointer;
 }
 
-.wai-cb-checkbox-label:hover {
-    color: var(--wai-cb-text);
-}
-
 /* ═══════════════════════════════════════════════════════════════════════════
-   SECTION 6: 배지 시스템
-   ═══════════════════════════════════════════════════════════════════════════ */
-.wai-cb-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 1px 4px;
-    border-radius: var(--wai-cb-radius);
-    background: var(--wai-cb-bg-elevated);
-    font-size: var(--wai-cb-font-xxs);
-    color: var(--wai-cb-text-muted);
-    cursor: default;
-}
-
-.wai-cb-badge--success {
-    color: var(--wai-cb-success);
-}
-
-.wai-cb-badge--warning {
-    color: var(--wai-cb-warning);
-}
-
-.wai-cb-badge--danger {
-    color: var(--wai-cb-danger);
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   SECTION 7: 레이블 및 텍스트
+   SECTION 6: 레이블 및 텍스트
    ═══════════════════════════════════════════════════════════════════════════ */
 .wai-cb-label {
     font-size: var(--wai-cb-font-base);
@@ -316,19 +246,6 @@
     color: var(--wai-cb-text-disabled);
 }
 
-.wai-cb-label--section {
-    display: block;
-    font-size: var(--wai-cb-font-xs);
-    color: var(--wai-cb-text-muted);
-    margin-bottom: 2px;
-    margin-top: var(--wai-cb-space-sm);
-}
-
-.wai-cb-text--small {
-    font-size: var(--wai-cb-font-xs);
-    color: var(--wai-cb-text-muted);
-}
-
 .wai-cb-text--hint {
     font-size: var(--wai-cb-font-xs);
     color: var(--wai-cb-text-disabled);
@@ -336,7 +253,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SECTION 8: 유틸리티 레이아웃
+   SECTION 7: 유틸리티 레이아웃
    ═══════════════════════════════════════════════════════════════════════════ */
 .wai-cb-row {
     display: flex;
@@ -367,12 +284,8 @@
     min-width: 0;
 }
 
-.wai-cb-shrink {
-    flex: 0 0 auto;
-}
-
 /* ═══════════════════════════════════════════════════════════════════════════
-   SECTION 9: 매니저 헤더 - 우패널과 통일
+   SECTION 8: 매니저 헤더
    ═══════════════════════════════════════════════════════════════════════════ */
 .wai-cb-manager__header {
     display: flex;
@@ -415,16 +328,34 @@
     gap: 2px;
 }
 
-.wai-cb-manager__slots-badge {
-    font-size: var(--wai-cb-font-xxs);
-    color: var(--wai-cb-accent);
-    background: var(--wai-cb-accent-soft);
-    padding: 1px 4px;
-    border-radius: var(--wai-cb-radius);
+/* ═══════════════════════════════════════════════════════════════════════════
+   SECTION 9: 설정 토글 버튼
+   ═══════════════════════════════════════════════════════════════════════════ */
+.wai-cb-settings-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--wai-cb-space-sm);
+    padding: var(--wai-cb-space-xs) var(--wai-cb-space-lg);
+    background: var(--wai-cb-bg-elevated);
+    border-bottom: 1px solid var(--wai-cb-border);
+    cursor: pointer;
+    font-size: var(--wai-cb-font-xs);
+    color: var(--wai-cb-text-muted);
+    transition: background 0.15s;
+}
+
+.wai-cb-settings-toggle:hover {
+    background: var(--wai-cb-bg-hover);
+    color: var(--wai-cb-text);
+}
+
+.wai-cb-settings-toggle i {
+    font-size: 8px;
+    width: 10px;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SECTION 10: 전역 설정 패널 - 콜랩스 스타일
+   SECTION 10: 전역 설정 패널
    ═══════════════════════════════════════════════════════════════════════════ */
 .wai-cb-global-panel {
     margin: 0;
@@ -434,21 +365,6 @@
     border-top: none;
     background: var(--wai-cb-bg-panel);
     padding: var(--wai-cb-space-sm) var(--wai-cb-space-lg);
-}
-
-.wai-cb-global-panel__header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding-bottom: var(--wai-cb-space-sm);
-    margin-bottom: var(--wai-cb-space-sm);
-    border-bottom: 1px solid var(--wai-cb-border);
-}
-
-.wai-cb-global-panel__title {
-    font-size: var(--wai-cb-font-base);
-    font-weight: 500;
-    color: var(--wai-cb-text);
 }
 
 .wai-cb-global-settings {
@@ -466,7 +382,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SECTION 11: 설정 섹션 (접이식) - 우패널과 통일
+   SECTION 11: 설정 섹션 (접이식)
    ═══════════════════════════════════════════════════════════════════════════ */
 .wai-cb-settings-section {
     border: 1px solid var(--wai-cb-border);
@@ -488,7 +404,6 @@
     background: var(--wai-cb-bg-elevated);
     cursor: pointer;
     user-select: none;
-    transition: background 0.15s;
     min-height: 22px;
 }
 
@@ -500,7 +415,6 @@
     font-size: 8px;
     color: var(--wai-cb-text-muted);
     width: 10px;
-    text-align: center;
 }
 
 .wai-cb-settings-section__title {
@@ -518,7 +432,41 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SECTION 12: 클립 리스트
+   SECTION 12: 프롬프트 미리보기
+   ═══════════════════════════════════════════════════════════════════════════ */
+.wai-cb-prompt-actions {
+    display: flex;
+    gap: var(--wai-cb-space-xs);
+}
+
+.wai-cb-prompt-preview {
+    padding: var(--wai-cb-space-sm);
+    background: var(--wai-cb-bg-sunken);
+    border: 1px solid var(--wai-cb-border);
+    border-radius: var(--wai-cb-radius);
+    margin-top: var(--wai-cb-space-xs);
+}
+
+.wai-cb-prompt-preview--empty {
+    text-align: center;
+    padding: var(--wai-cb-space-lg);
+}
+
+.wai-cb-prompt-preview__name {
+    font-size: var(--wai-cb-font-xs);
+    font-weight: 600;
+    color: var(--wai-cb-text);
+    margin-bottom: 2px;
+}
+
+.wai-cb-prompt-preview__content {
+    font-size: var(--wai-cb-font-xxs);
+    color: var(--wai-cb-text-muted);
+    line-height: 1.3;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SECTION 13: 클립 리스트
    ═══════════════════════════════════════════════════════════════════════════ */
 .wai-cb-clip-list {
     padding: var(--wai-cb-space-sm);
@@ -536,7 +484,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SECTION 13: 클립 아이템 - 상단바 높이 최소화
+   SECTION 14: 클립 아이템
    ═══════════════════════════════════════════════════════════════════════════ */
 .wai-cb-clip {
     position: relative;
@@ -576,50 +524,26 @@
     min-width: 20px;
 }
 
-.wai-cb-clip__status {
-    font-size: 9px;
-}
-
-.wai-cb-clip__status.wai-cb-status--idle {
-    opacity: 0.4;
-}
-
-.wai-cb-clip__status.wai-cb-status--generating {
-    animation: wai-cb-pulse 1s infinite;
-}
-
-.wai-cb-clip__status.wai-cb-status--done {
-    opacity: 1;
-}
-
-.wai-cb-clip__status.wai-cb-status--error {
-    color: var(--wai-cb-danger);
-}
-
 .wai-cb-clip__actions {
     display: flex;
     align-items: center;
     gap: 1px;
 }
 
-/* 클립 텍스트 영역 */
 .wai-cb-clip__text {
     margin-bottom: var(--wai-cb-space-xs);
 }
 
-/* 클립 토큰 영역 */
 .wai-cb-clip__tokens {
     margin-bottom: var(--wai-cb-space-xs);
 }
 
-/* 클립 섹션 컨테이너 */
 .wai-cb-clip__sections {
     display: flex;
     flex-direction: column;
     gap: var(--wai-cb-space-xs);
 }
 
-/* 클립 푸터 */
 .wai-cb-clip__footer {
     display: flex;
     justify-content: flex-end;
@@ -629,7 +553,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SECTION 14: 토큰 시스템
+   SECTION 15: 토큰 시스템
    ═══════════════════════════════════════════════════════════════════════════ */
 .wai-cb-tokens {
     background: var(--wai-cb-bg-sunken);
@@ -661,16 +585,11 @@
     font-size: var(--wai-cb-font-xxs);
     cursor: pointer;
     user-select: none;
-    transition: all 0.15s;
 }
 
 .wai-cb-token--text {
     background: var(--wai-cb-accent);
     color: white;
-}
-
-.wai-cb-token--text:hover {
-    background: #2563eb;
 }
 
 .wai-cb-token--linebreak {
@@ -686,7 +605,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SECTION 15: 접이식 섹션
+   SECTION 16: 접이식 섹션
    ═══════════════════════════════════════════════════════════════════════════ */
 .wai-cb-section {
     border: 1px solid var(--wai-cb-border);
@@ -702,8 +621,6 @@
     padding: var(--wai-cb-space-xs) var(--wai-cb-space-sm);
     background: var(--wai-cb-bg-elevated);
     cursor: pointer;
-    user-select: none;
-    transition: background 0.15s;
     min-height: 20px;
 }
 
@@ -727,14 +644,6 @@
 .wai-cb-section__status {
     font-size: var(--wai-cb-font-xxs);
     color: var(--wai-cb-text-muted);
-}
-
-.wai-cb-section__status.wai-cb-status--done {
-    color: var(--wai-cb-success);
-}
-
-.wai-cb-section__status.wai-cb-status--generating {
-    color: var(--wai-cb-warning);
 }
 
 .wai-cb-section__body {
@@ -762,7 +671,6 @@
     display: block;
 }
 
-/* 보이스 오버라이드 영역 */
 .wai-cb-voice-override {
     padding: var(--wai-cb-space-xs);
     background: var(--wai-cb-bg-panel);
@@ -771,14 +679,283 @@
     margin-bottom: var(--wai-cb-space-xs);
 }
 
-/* 슬롯 정보 */
-.wai-cb-slots-info {
+/* ═══════════════════════════════════════════════════════════════════════════
+   SECTION 17: 슬롯 설정 UI
+   ═══════════════════════════════════════════════════════════════════════════ */
+.wai-cb-slot-settings {
+    display: flex;
+    flex-direction: column;
+    gap: var(--wai-cb-space-sm);
+}
+
+.wai-cb-slots-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--wai-cb-space-xs);
+    padding: var(--wai-cb-space-lg);
+}
+
+.wai-cb-slot-group {
+    border: 1px solid var(--wai-cb-border);
+    border-radius: var(--wai-cb-radius);
+    overflow: hidden;
+}
+
+.wai-cb-slot-group__header {
+    display: flex;
+    align-items: center;
+    gap: var(--wai-cb-space-sm);
+    padding: var(--wai-cb-space-xs) var(--wai-cb-space-sm);
+    background: var(--wai-cb-bg-elevated);
+    border-bottom: 1px solid var(--wai-cb-border);
+    font-size: var(--wai-cb-font-xs);
+}
+
+.wai-cb-slot-item {
     padding: var(--wai-cb-space-sm);
+    border-bottom: 1px solid var(--wai-cb-border);
+}
+
+.wai-cb-slot-item:last-child {
+    border-bottom: none;
+}
+
+.wai-cb-slot-item__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--wai-cb-space-xs);
+}
+
+.wai-cb-slot-item__label {
+    font-size: var(--wai-cb-font-xs);
+    font-weight: 500;
+    color: var(--wai-cb-text);
+}
+
+.wai-cb-slot-item__actions {
+    display: flex;
+    gap: 2px;
+}
+
+.wai-cb-slot-item__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--wai-cb-space-xs);
+}
+
+.wai-cb-slot-preview {
+    border-radius: var(--wai-cb-radius);
+    overflow: hidden;
+    background: var(--wai-cb-bg-sunken);
+}
+
+.wai-cb-slot-preview--empty {
+    padding: var(--wai-cb-space-lg);
     text-align: center;
 }
 
+.wai-cb-slot-preview__img {
+    width: 100%;
+    max-height: 60px;
+    object-fit: cover;
+    display: block;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
-   SECTION 16: 토스트 알림
+   SECTION 18: 색상 선택 모달 (LayerPanel 스타일)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.wai-cb-color-picker-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.wai-cb-color-trigger {
+    display: flex;
+    align-items: center;
+    gap: var(--wai-cb-space-xs);
+    cursor: pointer;
+}
+
+.wai-cb-color-preview {
+    width: 20px;
+    height: 20px;
+    border-radius: var(--wai-cb-radius);
+    border: 1px solid var(--wai-cb-border-muted);
+    transition: transform 0.15s;
+}
+
+.wai-cb-color-trigger:hover .wai-cb-color-preview {
+    transform: scale(1.1);
+    border-color: #fff;
+}
+
+.wai-cb-color-label {
+    font-size: var(--wai-cb-font-xs);
+    color: var(--wai-cb-text-muted);
+}
+
+.wai-cb-color-modal {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 1000;
+    width: 280px;
+    background: var(--wai-cb-bg-panel);
+    border: 1px solid var(--wai-cb-border);
+    border-radius: var(--wai-cb-radius-lg);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    margin-top: 4px;
+}
+
+.wai-cb-color-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--wai-cb-space-sm) var(--wai-cb-space-lg);
+    border-bottom: 1px solid var(--wai-cb-border);
+}
+
+.wai-cb-color-modal__title {
+    font-size: var(--wai-cb-font-sm);
+    font-weight: 500;
+    color: var(--wai-cb-text);
+}
+
+.wai-cb-color-modal__body {
+    padding: var(--wai-cb-space-lg);
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.wai-cb-color-section {
+    margin-bottom: var(--wai-cb-space-lg);
+}
+
+.wai-cb-color-section:last-child {
+    margin-bottom: 0;
+}
+
+.wai-cb-color-section__label {
+    font-size: var(--wai-cb-font-xs);
+    color: var(--wai-cb-text-muted);
+    margin-bottom: var(--wai-cb-space-sm);
+}
+
+.wai-cb-color-current {
+    display: flex;
+    align-items: center;
+    gap: var(--wai-cb-space-lg);
+    padding: var(--wai-cb-space-sm);
+    background: var(--wai-cb-bg-sunken);
+    border-radius: var(--wai-cb-radius);
+}
+
+.wai-cb-color-current__preview {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--wai-cb-radius);
+    border: 1px solid var(--wai-cb-border-muted);
+}
+
+.wai-cb-color-current__hex {
+    font-size: var(--wai-cb-font-sm);
+    font-family: monospace;
+    color: var(--wai-cb-text);
+}
+
+.wai-cb-color-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 2px;
+}
+
+.wai-cb-color-grid--large {
+    grid-template-columns: repeat(8, 1fr);
+}
+
+.wai-cb-color-swatch {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 2px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+}
+
+.wai-cb-color-swatch:hover {
+    transform: scale(1.15);
+    border-color: #fff;
+    z-index: 1;
+}
+
+.wai-cb-color-swatch--selected {
+    border-color: #fff;
+    box-shadow: 0 0 0 1px var(--wai-cb-accent);
+}
+
+.wai-cb-color-swatch--large {
+    border-radius: var(--wai-cb-radius);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SECTION 19: 모달 오버레이
+   ═══════════════════════════════════════════════════════════════════════════ */
+.wai-cb-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.wai-cb-modal {
+    background: var(--wai-cb-bg-panel);
+    border: 1px solid var(--wai-cb-border);
+    border-radius: var(--wai-cb-radius-lg);
+    width: 400px;
+    max-width: 90vw;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.wai-cb-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--wai-cb-space-lg);
+    border-bottom: 1px solid var(--wai-cb-border);
+}
+
+.wai-cb-modal__title {
+    font-size: var(--wai-cb-font-sm);
+    font-weight: 600;
+    color: var(--wai-cb-text);
+}
+
+.wai-cb-modal__body {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--wai-cb-space-lg);
+}
+
+.wai-cb-modal__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--wai-cb-space-sm);
+    padding: var(--wai-cb-space-lg);
+    border-top: 1px solid var(--wai-cb-border);
+}
+
+/* 코드연결지점 */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SECTION 20: 토스트 알림
    ═══════════════════════════════════════════════════════════════════════════ */
 .wai-cb-toast-container {
     position: fixed;
@@ -828,7 +1005,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SECTION 17: 스크롤바
+   SECTION 21: 스크롤바
    ═══════════════════════════════════════════════════════════════════════════ */
 .wai-cb-root::-webkit-scrollbar {
     width: 5px;
@@ -847,8 +1024,21 @@
     background: var(--wai-cb-border-muted);
 }
 
+.wai-cb-color-modal__body::-webkit-scrollbar {
+    width: 4px;
+}
+
+.wai-cb-color-modal__body::-webkit-scrollbar-track {
+    background: var(--wai-cb-bg-sunken);
+}
+
+.wai-cb-color-modal__body::-webkit-scrollbar-thumb {
+    background: var(--wai-cb-border);
+    border-radius: 2px;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
-   SECTION 18: 애니메이션
+   SECTION 22: 애니메이션
    ═══════════════════════════════════════════════════════════════════════════ */
 @keyframes wai-cb-pulse {
     0%, 100% {
@@ -859,159 +1049,35 @@
     }
 }
 
-@keyframes wai-cb-flash {
-    0% {
-        border-color: #fff;
-    }
-    100% {
-        border-color: var(--wai-cb-border-muted);
-    }
+.wai-cb-status--generating {
+    animation: wai-cb-pulse 1s infinite;
 }
 
-.wai-cb-token--flash {
-    animation: wai-cb-flash 0.3s ease-out;
+.wai-cb-status--done {
+    color: var(--wai-cb-success);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   SECTION 19: 슬롯 설정 UI
-   ═══════════════════════════════════════════════════════════════════════════ */
-.wai-cb-slot-settings {
-    display: flex;
-    flex-direction: column;
-    gap: var(--wai-cb-space-sm);
-}
-
-.wai-cb-slots-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--wai-cb-space-xs);
-    padding: var(--wai-cb-space-lg);
-}
-
-.wai-cb-slot-group {
-    border: 1px solid var(--wai-cb-border);
-    border-radius: var(--wai-cb-radius);
-    overflow: hidden;
-}
-
-.wai-cb-slot-group__header {
-    padding: var(--wai-cb-space-xs) var(--wai-cb-space-sm);
-    background: var(--wai-cb-bg-elevated);
-    border-bottom: 1px solid var(--wai-cb-border);
-    font-size: var(--wai-cb-font-xs);
-}
-
-.wai-cb-slot-item {
-    padding: var(--wai-cb-space-sm);
-    border-bottom: 1px solid var(--wai-cb-border);
-}
-
-.wai-cb-slot-item:last-child {
-    border-bottom: none;
-}
-
-.wai-cb-slot-item__header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: var(--wai-cb-space-xs);
-}
-
-.wai-cb-slot-item__label {
-    font-size: var(--wai-cb-font-xs);
-    font-weight: 500;
-    color: var(--wai-cb-text);
-}
-
-.wai-cb-slot-item__actions {
-    display: flex;
-    gap: 2px;
-}
-
-.wai-cb-slot-item__body {
-    display: flex;
-    flex-direction: column;
-    gap: var(--wai-cb-space-xs);
-}
-
-.wai-cb-slot-media {
-    padding: var(--wai-cb-space-xs);
-    background: var(--wai-cb-bg-sunken);
-    border-radius: var(--wai-cb-radius);
-    text-align: center;
-}
-
-.wai-cb-slot-preview {
-    border-radius: var(--wai-cb-radius);
-    overflow: hidden;
-    background: var(--wai-cb-bg-sunken);
-}
-
-.wai-cb-slot-preview--empty {
-    padding: var(--wai-cb-space-lg);
-    text-align: center;
-}
-
-.wai-cb-slot-preview__img {
-    width: 100%;
-    max-height: 60px;
-    object-fit: cover;
-    display: block;
+.wai-cb-status--error {
+    color: var(--wai-cb-danger);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SECTION 20: 색상 선택 드롭다운
-   ═══════════════════════════════════════════════════════════════════════════ */
-.wai-cb-color-picker {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 2px;
-    padding: var(--wai-cb-space-xs);
-    background: var(--wai-cb-bg-elevated);
-    border: 1px solid var(--wai-cb-border);
-    border-radius: var(--wai-cb-radius);
-}
-
-.wai-cb-color-swatch {
-    width: 16px;
-    height: 16px;
-    border-radius: 2px;
-    cursor: pointer;
-    border: 1px solid transparent;
-    transition: all 0.15s;
-}
-
-.wai-cb-color-swatch:hover {
-    transform: scale(1.1);
-    border-color: #fff;
-}
-
-.wai-cb-color-swatch--selected {
-    border-color: #fff;
-    box-shadow: 0 0 0 1px var(--wai-cb-accent);
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   SECTION 21: 반응형
+   SECTION 23: 반응형
    ═══════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 767px) {
-    :root {
-        --wai-cb-input-h: 26px;
-        --wai-cb-btn-h: 24px;
+    .wai-cb-color-modal {
+        width: 260px;
     }
-
-    .wai-cb-manager__header {
-        flex-direction: column;
-        align-items: stretch;
-        gap: var(--wai-cb-space-sm);
+    
+    .wai-cb-color-grid {
+        grid-template-columns: repeat(8, 1fr);
     }
-
-    .wai-cb-manager__actions {
-        justify-content: flex-end;
+    
+    .wai-cb-color-grid--large {
+        grid-template-columns: repeat(6, 1fr);
     }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   END OF CLIPBOX v3 STYLESHEET
+   END OF CLIPBOX v4 STYLESHEET
    ═══════════════════════════════════════════════════════════════════════════ */
