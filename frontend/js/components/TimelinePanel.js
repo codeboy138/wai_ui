@@ -174,8 +174,8 @@ const TimelinePanel = {
                                     </div>
                                     <div class="clip-volume-line" :style="{ bottom: getVolumeLinePosition(clip) + '%' }" @mousedown.stop="startClipVolumeDrag($event, clip)"></div>
                                 </div>
-                                <div class="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20" style="z-index:15;" @mousedown.stop="startClipResize($event, clip, 'left')"></div>
-                                <div class="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20" style="z-index:15;" @mousedown.stop="startClipResize($event, clip, 'right')"></div>
+                                <div class="clip-resize-handle clip-resize-handle-left" @mousedown.stop="startClipResize($event, clip, 'left')"><i class="fa-solid fa-chevron-left"></i></div>
+                                <div class="clip-resize-handle clip-resize-handle-right" @mousedown.stop="startClipResize($event, clip, 'right')"><i class="fa-solid fa-chevron-right"></i></div>
                             </div>
                         </div>
                         <div class="playhead-line-body" :style="{ left: vm.currentTime * pixelsPerSecond + 'px', height: totalTrackHeight + 'px' }"></div>
@@ -289,9 +289,7 @@ const TimelinePanel = {
             minTrackHeight: 20, defaultTrackHeight: 40,
             trackHeightPresets: { low: 20, medium: 40, high: 80, default: 40 },
             heightSubmenu: { visible: false, x: 0, y: 0, target: 'this' }, heightSubmenuCloseTimer: null,
-            // 편집 서브메뉴
             editSubmenu: { visible: false, x: 0, y: 0 }, editSubmenuCloseTimer: null,
-            // 속도 조절 팝업
             speedEditorPopup: { visible: false, x: 0, y: 0, clip: null, speed: 1.0, originalDuration: 0, resultDuration: 0, originalSpeed: 1.0 },
             speedPresets: [
                 { value: 0.25, label: '0.25x' },
@@ -312,6 +310,7 @@ const TimelinePanel = {
             isResizingClip: false, resizingClip: null, resizeDirection: null, 
             resizeStartClipStart: 0, resizeStartClipDuration: 0, resizeOriginalState: null,
             isDraggingPlayhead: false, pendingClickClipId: null, pendingClickModifiers: null,
+            clickedOnSelectedClip: false,
             isResolutionDropdownOpen: false, isAspectDropdownOpen: false, 
             isExternalDragOver: false, isDraggingClipOut: false, clipDragOutData: null,
             aspectRatioOptions: [
@@ -422,7 +421,6 @@ const TimelinePanel = {
         if (this.editSubmenuCloseTimer) clearTimeout(this.editSubmenuCloseTimer);
     },
     methods: {
-        // 트랙 번호 생성 (아래부터 1번)
         getTrackPlaceholder: function(index) {
             var trackNumber = this.vm.tracks.length - index;
             return 'Track ' + trackNumber;
@@ -446,7 +444,6 @@ const TimelinePanel = {
         },
         getContextMenuStyle: function(menu) { if (!menu) return {}; var x = menu.x, y = menu.y, vw = window.innerWidth, vh = window.innerHeight; if (x + this.contextMenuWidth > vw) x = vw - this.contextMenuWidth - 10; if (y + this.contextMenuHeight > vh) y = vh - this.contextMenuHeight - 10; if (x < 10) x = 10; if (y < 10) y = 10; return { top: y + 'px', left: x + 'px' }; },
         getHeightSubmenuStyle: function() { var x = this.heightSubmenu.x, y = this.heightSubmenu.y, vw = window.innerWidth, vh = window.innerHeight; if (x + this.submenuWidth > vw) x = this.heightSubmenu.x - this.submenuWidth - this.contextMenuWidth; if (y + this.submenuHeight > vh) y = vh - this.submenuHeight - 10; if (x < 10) x = 10; if (y < 10) y = 10; return { top: y + 'px', left: x + 'px' }; },
-        // 편집 서브메뉴 스타일
         getEditSubmenuStyle: function() { 
             var x = this.editSubmenu.x, y = this.editSubmenu.y, vw = window.innerWidth, vh = window.innerHeight; 
             if (x + this.submenuWidth > vw) x = this.editSubmenu.x - this.submenuWidth - this.contextMenuWidth; 
@@ -464,7 +461,6 @@ const TimelinePanel = {
         openHeightSubmenu: function(e, target) { if (this.heightSubmenuCloseTimer) { clearTimeout(this.heightSubmenuCloseTimer); this.heightSubmenuCloseTimer = null; } var rect = e.currentTarget.getBoundingClientRect(); this.heightSubmenu = { visible: true, x: rect.right, y: rect.top, target: target }; },
         scheduleCloseHeightSubmenu: function() { var self = this; this.heightSubmenuCloseTimer = setTimeout(function() { self.heightSubmenu.visible = false; }, 150); },
         cancelCloseHeightSubmenu: function() { if (this.heightSubmenuCloseTimer) { clearTimeout(this.heightSubmenuCloseTimer); this.heightSubmenuCloseTimer = null; } },
-        // 편집 서브메뉴
         openEditSubmenu: function(e) { 
             if (this.editSubmenuCloseTimer) { clearTimeout(this.editSubmenuCloseTimer); this.editSubmenuCloseTimer = null; } 
             var rect = e.currentTarget.getBoundingClientRect(); 
@@ -504,11 +500,39 @@ const TimelinePanel = {
         getClipClasses: function(clip) { var sel = this.selectedClipIds.indexOf(clip.id) >= 0; var isDraggingThis = this.isDraggingClip && this.draggingClipIds.indexOf(clip.id) >= 0; var classes = { 'clip-selected': sel && this.selectedClipIds.length === 1, 'clip-multi-selected': sel && this.selectedClipIds.length > 1, 'dragging': isDraggingThis }; if (clip.type === 'sound') classes['sound'] = true; if (clip.type === 'video') classes['video'] = true; if (clip.type === 'image') classes['image'] = true; return classes; },
         getClipPixelWidth: function(clip) { return Math.max(20, clip.duration * this.pixelsPerSecond); },
         getClipBackgroundStyle: function(clip, track) { return { background: 'linear-gradient(180deg, ' + (track.color || '#3b82f6') + '50 0%, ' + (track.color || '#3b82f6') + '30 100%)' }; },
-        selectClip: function(clipId, mod) { mod = mod || {}; var self = this; var clip = this.vm.clips.find(function(c) { return c.id === clipId; }); if (!clip) return; if (mod.ctrlKey || mod.metaKey) { var idx = this.selectedClipIds.indexOf(clipId); if (idx >= 0) this.selectedClipIds.splice(idx, 1); else this.selectedClipIds.push(clipId); } else if (mod.shiftKey && this.lastSelectedClipId && this.lastSelectedTrackId === clip.trackId) { var tc = this.vm.clips.filter(function(c) { return c.trackId === clip.trackId; }).sort(function(a, b) { return a.start - b.start; }); var li = -1, ci = -1; for (var i = 0; i < tc.length; i++) { if (tc[i].id === self.lastSelectedClipId) li = i; if (tc[i].id === clipId) ci = i; } if (li >= 0 && ci >= 0) this.selectedClipIds = tc.slice(Math.min(li, ci), Math.max(li, ci) + 1).map(function(c) { return c.id; }); } else { this.selectedClipIds = [clipId]; } this.lastSelectedClipId = clipId; this.lastSelectedTrackId = clip.trackId; this.syncVmSelectedClip(); },
+        
+        // 수정된 selectClip - Ctrl+클릭으로 선택된 클립 토글
+        selectClip: function(clipId, mod) { 
+            mod = mod || {}; 
+            var self = this; 
+            var clip = this.vm.clips.find(function(c) { return c.id === clipId; }); 
+            if (!clip) return; 
+            
+            if (mod.ctrlKey || mod.metaKey) { 
+                var idx = this.selectedClipIds.indexOf(clipId); 
+                if (idx >= 0) {
+                    // 이미 선택된 클립 -> 선택 해제
+                    this.selectedClipIds.splice(idx, 1); 
+                } else {
+                    this.selectedClipIds.push(clipId); 
+                }
+            } else if (mod.shiftKey && this.lastSelectedClipId && this.lastSelectedTrackId === clip.trackId) { 
+                var tc = this.vm.clips.filter(function(c) { return c.trackId === clip.trackId; }).sort(function(a, b) { return a.start - b.start; }); 
+                var li = -1, ci = -1; 
+                for (var i = 0; i < tc.length; i++) { if (tc[i].id === self.lastSelectedClipId) li = i; if (tc[i].id === clipId) ci = i; } 
+                if (li >= 0 && ci >= 0) this.selectedClipIds = tc.slice(Math.min(li, ci), Math.max(li, ci) + 1).map(function(c) { return c.id; }); 
+            } else { 
+                this.selectedClipIds = [clipId]; 
+            } 
+            this.lastSelectedClipId = clipId; 
+            this.lastSelectedTrackId = clip.trackId; 
+            this.syncVmSelectedClip(); 
+        },
+        
         clearSelection: function() { this.selectedClipIds = []; this.lastSelectedClipId = null; this.lastSelectedTrackId = null; this.syncVmSelectedClip(); },
         syncVmSelectedClip: function() { var self = this; this.vm.selectedClip = this.selectedClipIds.length === 1 ? this.vm.clips.find(function(c) { return c.id === self.selectedClipIds[0]; }) || null : null; },
         
-        // 개선된 onClipMouseDown - 클립 내 클릭 오프셋 저장
+        // 수정된 onClipMouseDown - 클릭 상태 추적 개선
         onClipMouseDown: function(e, clip, track) {
             if (track.isLocked) return;
             
@@ -532,16 +556,25 @@ const TimelinePanel = {
             this.currentDragTrackIndex = trackIndex;
             this.originalTrackIndex = trackIndex;
             
-            // 다중 선택 상태에서 선택된 클립을 클릭하면 선택 유지
-            if (this.selectedClipIds.indexOf(clip.id) < 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+            // 클릭한 클립이 이미 선택되어 있는지 확인
+            var isAlreadySelected = this.selectedClipIds.indexOf(clip.id) >= 0;
+            this.clickedOnSelectedClip = isAlreadySelected;
+            
+            // Ctrl/Meta 키가 눌리지 않았고, 클립이 선택되지 않은 경우에만 즉시 선택
+            if (!e.ctrlKey && !e.metaKey && !e.shiftKey && !isAlreadySelected) {
                 this.selectedClipIds = [clip.id];
                 this.lastSelectedClipId = clip.id;
                 this.lastSelectedTrackId = clip.trackId;
                 this.syncVmSelectedClip();
             }
             
-            this.draggingClipIds = this.selectedClipIds.slice();
-            if (this.draggingClipIds.indexOf(clip.id) < 0) this.draggingClipIds = [clip.id];
+            // 드래그용 클립 ID 설정
+            if (isAlreadySelected) {
+                // 이미 선택된 클립을 클릭 -> 모든 선택된 클립을 드래그
+                this.draggingClipIds = this.selectedClipIds.slice();
+            } else {
+                this.draggingClipIds = [clip.id];
+            }
             
             this.dragOriginalState = {};
             var self = this;
@@ -553,7 +586,6 @@ const TimelinePanel = {
         
         onTrackLaneMouseDown: function(e, track) { if (!e.target.closest('.clip')) this.clearSelection(); },
         onDocumentClick: function(e) { 
-            // 컨텍스트 메뉴 외부 클릭 시 닫기 (클립 선택은 유지)
             if (!e.target.closest('.context-menu') && !e.target.closest('.clip-volume-popup') && !e.target.closest('.speed-editor-popup')) {
                 this.closeContextMenus(); 
             }
@@ -563,7 +595,6 @@ const TimelinePanel = {
         },
         onDocumentKeyDown: function(e) { if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') { e.preventDefault(); this.undo(); return; } if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) { e.preventDefault(); this.redo(); return; } if (e.key === 'Delete' && this.hasSelectedClips) { e.preventDefault(); this.deleteSelectedClips(); return; } if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') { e.preventDefault(); this.selectedClipIds = this.vm.clips.map(function(c) { return c.id; }); this.syncVmSelectedClip(); return; } if (e.key === 'Escape') { this.clearSelection(); this.isResolutionDropdownOpen = false; this.isAspectDropdownOpen = false; this.volumePopup.visible = false; this.speedEditorPopup.visible = false; this.wheelAdjustMode.active = false; if (this.isDraggingClip) { this.cancelDrag(); } return; } if (e.shiftKey && e.key.toLowerCase() === 's') { e.preventDefault(); this.cutAtPlayhead(); return; } if (e.shiftKey && e.key.toLowerCase() === 'a') { e.preventDefault(); this.cutAndDeleteLeftSelected(); return; } if (e.shiftKey && e.key.toLowerCase() === 'd') { e.preventDefault(); this.cutAndDeleteRightSelected(); return; } },
         
-        // 개선된 onDocumentMouseMove - 직접 업데이트로 1:1 추적
         onDocumentMouseMove: function(e) {
             if (this.isResizingHeader && !this.isTrackHeaderCollapsed) {
                 this.trackHeaderWidth = Math.max(this.minHeaderWidth, Math.min(this.initialHeaderWidth, this.resizeStartWidth + (e.clientX - this.resizeStartX)));
@@ -582,16 +613,15 @@ const TimelinePanel = {
                 if (window.PreviewRenderer) window.PreviewRenderer.updateClipVolume(this.volumeDragClip.id, newVol / 100);
             }
             
-            // 드래그 시작 감지
             if (this.pendingClickClipId && !this.isDraggingClip && this.draggingClipIds.length > 0) {
                 if (Math.abs(e.clientX - this.dragStartX) > 3 || Math.abs(e.clientY - this.dragStartY) > 3) {
                     this.isDraggingClip = true;
                     this.pendingClickClipId = null;
+                    this.clickedOnSelectedClip = false;
                     this.createDragGhost();
                 }
             }
             
-            // 드래그 중 - 직접 업데이트 (RAF 제거)
             if (this.isDraggingClip && this.draggingClipIds.length > 0) {
                 this.updateDragPosition(e);
             }
@@ -620,7 +650,6 @@ const TimelinePanel = {
             };
         },
         
-        // 새 메서드: 드래그 위치 직접 업데이트
         updateDragPosition: function(e) {
             var lane = document.getElementById('timeline-lane-container');
             if (!lane) return;
@@ -641,7 +670,6 @@ const TimelinePanel = {
                 var firstClip = this.vm.clips.find(function(c) { return c.id === firstClipId; });
                 if (!firstClip) return;
                 
-                // 마우스 위치에서 오프셋을 뺀 위치 계산 (1:1 추적)
                 var mouseXInLane = e.clientX - rect.left;
                 var newLeft = mouseXInLane - this.dragClipOffset;
                 newLeft = Math.max(0, newLeft);
@@ -667,6 +695,7 @@ const TimelinePanel = {
             }
         },
         
+        // 수정된 onDocumentMouseUp - 단일/다중 선택 클립 재클릭 시 선택 해제
         onDocumentMouseUp: function(e) {
             if (this.isResizingClip && this.resizeOriginalState) {
                 this.saveToHistory();
@@ -675,12 +704,39 @@ const TimelinePanel = {
             if (this.isDraggingClip && this.draggingClipIds.length > 0) {
                 this.finalizeDrop(e);
             }
+            
+            // 클릭만 한 경우 (드래그 없이)
             if (this.pendingClickClipId && !this.isDraggingClip) {
-                this.selectClip(this.pendingClickClipId, this.pendingClickModifiers || {});
+                var mod = this.pendingClickModifiers || {};
+                
+                // Ctrl/Meta 클릭이면 토글
+                if (mod.ctrlKey || mod.metaKey) {
+                    this.selectClip(this.pendingClickClipId, mod);
+                }
+                // 이미 선택된 클립을 다시 클릭한 경우 (단일 또는 다중 선택 상태에서)
+                else if (this.clickedOnSelectedClip && !mod.shiftKey) {
+                    // 단일 선택 상태에서 같은 클립 클릭 -> 선택 해제
+                    if (this.selectedClipIds.length === 1 && this.selectedClipIds[0] === this.pendingClickClipId) {
+                        this.clearSelection();
+                    }
+                    // 다중 선택 상태에서 선택된 클립 중 하나 클릭 -> 해당 클립만 선택
+                    else if (this.selectedClipIds.length > 1) {
+                        this.selectedClipIds = [this.pendingClickClipId];
+                        this.lastSelectedClipId = this.pendingClickClipId;
+                        var clip = this.vm.clips.find(function(c) { return c.id === this.pendingClickClipId; }.bind(this));
+                        if (clip) this.lastSelectedTrackId = clip.trackId;
+                        this.syncVmSelectedClip();
+                    }
+                }
+                // Shift 클릭
+                else if (mod.shiftKey) {
+                    this.selectClip(this.pendingClickClipId, mod);
+                }
             }
             
             this.pendingClickClipId = null;
             this.pendingClickModifiers = null;
+            this.clickedOnSelectedClip = false;
             this.isResizingHeader = false;
             this.isResizingTrack = false;
             this.resizingTrackId = null;
@@ -700,7 +756,7 @@ const TimelinePanel = {
             this.isDraggingVolumePopup = false;
         },
         
-        // 개선된 finalizeDrop - 겹침 시 좌우 공간 탐색
+        // 수정된 finalizeDrop - 공간 없으면 원래 자리로 복귀
         finalizeDrop: function(e) {
             var self = this;
             var lane = document.getElementById('timeline-lane-container');
@@ -716,8 +772,9 @@ const TimelinePanel = {
                 newTrackId = this.vm.tracks[newTrackIndex].id;
             }
             
-            // 각 클립에 대해 최적 위치 계산
             var allSuccess = true;
+            var clipUpdates = [];
+            
             this.draggingClipIds.forEach(function(id) {
                 var clip = self.vm.clips.find(function(c) { return c.id === id; });
                 var orig = self.dragOriginalState[id];
@@ -726,32 +783,33 @@ const TimelinePanel = {
                 var targetTrackId = newTrackId || orig.trackId;
                 var desiredStart = dropTime;
                 
-                // 스냅 적용
                 if (self.vm.isMagnet) {
                     var snap = self.findSnapPosition(desiredStart, clip, self.draggingClipIds);
                     if (snap.snapped) desiredStart = snap.position;
                 }
                 
-                // 최적 위치 찾기 (겹침 시 좌우 공간 탐색)
                 var finalPosition = self.findBestDropPosition(clip, targetTrackId, desiredStart, self.draggingClipIds);
                 
                 if (finalPosition !== null) {
-                    clip.start = finalPosition;
-                    clip.trackId = targetTrackId;
+                    clipUpdates.push({ clip: clip, start: finalPosition, trackId: targetTrackId });
                 } else {
-                    // 공간 없음 - 원래 위치 유지
-                    clip.start = orig.start;
-                    clip.trackId = orig.trackId;
+                    // 공간 없음 - 원래 위치로 복귀
                     allSuccess = false;
                 }
             });
             
-            if (allSuccess) {
+            if (allSuccess && clipUpdates.length > 0) {
+                clipUpdates.forEach(function(update) {
+                    update.clip.start = update.start;
+                    update.clip.trackId = update.trackId;
+                });
                 this.saveToHistory();
+            } else {
+                // 하나라도 실패하면 모두 원래 위치로
+                this.restoreOriginalPositions();
             }
         },
         
-        // 새 메서드: 최적 드롭 위치 찾기
         findBestDropPosition: function(clip, trackId, desiredStart, excludeIds) {
             excludeIds = excludeIds || [];
             var self = this;
@@ -761,63 +819,20 @@ const TimelinePanel = {
             }).sort(function(a, b) { return a.start - b.start; });
             
             var duration = clip.duration;
-            var clipEnd = desiredStart + duration;
             
-            // 빈 트랙이면 바로 성공
             if (trackClips.length === 0) {
                 return Math.max(0, desiredStart);
             }
             
-            // 1. 원하는 위치에 공간이 있는지 확인
+            // 원하는 위치에 공간이 있는지 확인
             if (!this.hasOverlapAt(desiredStart, duration, trackClips)) {
                 return Math.max(0, desiredStart);
             }
             
-            // 2. 겹치는 클립들 찾기
-            var overlappingClips = trackClips.filter(function(other) {
-                var otherEnd = other.start + other.duration;
-                return desiredStart < otherEnd && clipEnd > other.start;
-            });
-            
-            if (overlappingClips.length === 0) {
-                return Math.max(0, desiredStart);
-            }
-            
-            // 3. 좌우 공간 탐색
-            var candidates = [];
-            
-            // 왼쪽 끝 (0 위치)
-            if (!this.hasOverlapAt(0, duration, trackClips)) {
-                candidates.push({ pos: 0, distance: desiredStart });
-            }
-            
-            // 각 클립 뒤 공간
-            for (var i = 0; i < trackClips.length; i++) {
-                var afterPos = trackClips[i].start + trackClips[i].duration + this.CLIP_MIN_GAP;
-                if (!this.hasOverlapAt(afterPos, duration, trackClips)) {
-                    candidates.push({ pos: afterPos, distance: Math.abs(afterPos - desiredStart) });
-                }
-            }
-            
-            // 각 클립 앞 공간
-            for (var j = 0; j < trackClips.length; j++) {
-                var beforePos = trackClips[j].start - duration - this.CLIP_MIN_GAP;
-                if (beforePos >= 0 && !this.hasOverlapAt(beforePos, duration, trackClips)) {
-                    candidates.push({ pos: beforePos, distance: Math.abs(beforePos - desiredStart) });
-                }
-            }
-            
-            // 가장 가까운 후보 선택
-            if (candidates.length > 0) {
-                candidates.sort(function(a, b) { return a.distance - b.distance; });
-                return candidates[0].pos;
-            }
-            
-            // 공간 없음
+            // 겹치면 null 반환 (원래 자리로 복귀하도록)
             return null;
         },
         
-        // 새 메서드: 특정 위치에 겹침이 있는지 확인
         hasOverlapAt: function(start, duration, trackClips) {
             var end = start + duration;
             for (var i = 0; i < trackClips.length; i++) {
@@ -870,21 +885,29 @@ const TimelinePanel = {
         updateTrackName: function(track, v) { track.name = v.trim() === '' ? 'NONE' : v; },
         initTrackHeights: function() { var self = this; this.vm.tracks.forEach(function(t) { if (!self.trackHeights[t.id]) self.trackHeights[t.id] = self.defaultTrackHeight; }); this.updateTrackYPositions(); },
         openTrackContextMenu: function(e, track, idx) { this.clipContextMenu = null; this.heightSubmenu.visible = false; this.editSubmenu.visible = false; this.trackContextMenu = { x: e.clientX, y: e.clientY, track: track, index: idx }; },
-        // 수정: 클립 우클릭 시 다중 선택 유지
+        
+        // 수정된 openClipContextMenu - 다중 선택 유지
         openClipContextMenu: function(e, track, clip) { 
             clip = clip || null; 
             this.trackContextMenu = null; 
             this.heightSubmenu.visible = false; 
             this.editSubmenu.visible = false;
-            // 다중 선택된 상태에서 선택된 클립을 우클릭하면 선택 유지
-            if (clip && this.selectedClipIds.indexOf(clip.id) < 0) { 
+            
+            if (clip) {
+                var isAlreadySelected = this.selectedClipIds.indexOf(clip.id) >= 0;
                 // 선택되지 않은 클립을 우클릭하면 해당 클립만 선택
-                this.selectedClipIds = [clip.id]; 
-                this.syncVmSelectedClip(); 
+                if (!isAlreadySelected) {
+                    this.selectedClipIds = [clip.id];
+                    this.lastSelectedClipId = clip.id;
+                    this.lastSelectedTrackId = clip.trackId;
+                    this.syncVmSelectedClip();
+                }
+                // 이미 선택된 클립을 우클릭하면 기존 선택 유지 (아무것도 하지 않음)
             }
-            // 이미 선택된 클립을 우클릭하면 기존 다중 선택 유지
+            
             this.clipContextMenu = { x: e.clientX, y: e.clientY, track: track, clip: clip, time: this.getTimeFromMouseEvent(e) }; 
         },
+        
         getTimeFromMouseEvent: function(e) { var lane = document.getElementById('timeline-lane-container'); if (!lane) return 0; return Math.max(0, (e.clientX - lane.getBoundingClientRect().left) / this.pixelsPerSecond); },
         closeContextMenus: function() { this.trackContextMenu = null; this.clipContextMenu = null; this.heightSubmenu.visible = false; this.editSubmenu.visible = false; },
         duplicateClip: function(clip) { var nc = Object.assign({}, clip, { id: 'c_' + Date.now(), start: clip.start + clip.duration + 0.5 }); this.vm.clips.push(nc); },
@@ -902,7 +925,6 @@ const TimelinePanel = {
         extractAudioFromClip: function(clip) { if (!this.canExtractAudio(clip)) return; var self = this; var audioTrack = this.vm.tracks.find(function(t) { return t.type === 'audio'; }); if (!audioTrack) { audioTrack = { id: 't_audio_' + Date.now(), name: 'Audio', type: 'audio', color: '#22c55e', isHidden: false, isLocked: false, isMain: false }; this.vm.tracks.push(audioTrack); this.trackHeights[audioTrack.id] = this.defaultTrackHeight; this.trackHeights = Object.assign({}, this.trackHeights); } var audioClip = { id: 'c_audio_' + Date.now(), trackId: audioTrack.id, name: clip.name + ' (Audio)', start: clip.start, duration: clip.duration, type: 'sound', src: clip.src, volume: clip.volume || 100, sourceClipId: clip.id }; Swal.fire({ title: '사운드 분리', text: '원본 비디오 클립을 음소거 하시겠습니까?', icon: 'question', showCancelButton: true, confirmButtonText: '음소거', cancelButtonText: '유지', background: '#1e1e1e', color: '#fff', confirmButtonColor: '#3b82f6' }).then(function(result) { if (result.isConfirmed) clip.isMuted = true; self.vm.clips.push(audioClip); }); },
         exportClipToAsset: function(clip) { var clipData = clip.id ? clip : this.vm.clips.find(function(c) { return c.id === clip.id; }); if (!clipData) clipData = clip; var event = new CustomEvent('wai-clip-to-asset', { detail: { id: clipData.id, name: clipData.name || 'Clip', type: clipData.type || 'video', src: clipData.src || '', duration: clipData.duration || 0, resolution: clipData.resolution || '' }, bubbles: true }); document.dispatchEvent(event); },
         
-        // === 클립 합치기 기능 ===
         mergeSelectedClips: function() {
             if (this.selectedClipIds.length < 2) {
                 this.closeContextMenus();
@@ -910,12 +932,10 @@ const TimelinePanel = {
             }
             
             var self = this;
-            // 선택된 클립들 가져오기
             var selectedClips = this.selectedClipIds.map(function(id) {
                 return self.vm.clips.find(function(c) { return c.id === id; });
             }).filter(function(c) { return c; });
             
-            // 같은 트랙에 있는지 확인
             var trackIds = {};
             selectedClips.forEach(function(c) { trackIds[c.trackId] = true; });
             
@@ -931,32 +951,26 @@ const TimelinePanel = {
                 return;
             }
             
-            // 시작 시간순으로 정렬
             selectedClips.sort(function(a, b) { return a.start - b.start; });
             
-            // 첫 번째 클립을 기준으로 합치기
             var firstClip = selectedClips[0];
             var lastClip = selectedClips[selectedClips.length - 1];
             var newDuration = (lastClip.start + lastClip.duration) - firstClip.start;
             
-            // 첫 번째 클립 수정
             firstClip.duration = newDuration;
             firstClip.name = firstClip.name + ' (합침)';
             
-            // 나머지 클립 삭제
             var idsToRemove = selectedClips.slice(1).map(function(c) { return c.id; });
             this.vm.clips = this.vm.clips.filter(function(c) {
                 return idsToRemove.indexOf(c.id) < 0;
             });
             
-            // 선택 초기화
             this.selectedClipIds = [firstClip.id];
             this.syncVmSelectedClip();
             this.saveToHistory();
             this.closeContextMenus();
         },
         
-        // === 속도 조절 팝업 ===
         openSpeedEditor: function() {
             var clip = this.clipContextMenu ? this.clipContextMenu.clip : null;
             if (!clip) {
@@ -967,7 +981,6 @@ const TimelinePanel = {
             var x = this.clipContextMenu.x;
             var y = this.clipContextMenu.y;
             
-            // 화면 경계 처리
             var popupWidth = 280;
             var popupHeight = 220;
             if (x + popupWidth > window.innerWidth) x = window.innerWidth - popupWidth - 20;
@@ -1008,12 +1021,10 @@ const TimelinePanel = {
             var newSpeed = this.speedEditorPopup.speed;
             var baseDuration = clip.originalDuration || clip.duration;
             
-            // 원본 duration 저장 (최초 1회)
             if (!clip.originalDuration) {
                 clip.originalDuration = clip.duration;
             }
             
-            // 속도에 따른 duration 조정
             clip.duration = baseDuration / newSpeed;
             clip.playbackSpeed = newSpeed;
             
@@ -1040,7 +1051,8 @@ const TimelinePanel = {
         onWindowResize: function() { this.adjustLayout(); this.updateViewportSize(); this.updateTrackYPositions(); },
         onExternalDragOver: function(e) { if (e.dataTransfer.types.indexOf('text/wai-asset') >= 0) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; this.isExternalDragOver = true; this.updateDropIndicator(e); } },
         onExternalDragLeave: function(e) { var rect = e.currentTarget.getBoundingClientRect(); if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) { this.isExternalDragOver = false; this.dropIndicator.visible = false; } },
-// 코드연결지점
+/* 코드연결지점 */
+/* 코드연결지점 */
         updateDropIndicator: function(e) { var lane = document.getElementById('timeline-lane-container'); if (!lane) return; var rect = lane.getBoundingClientRect(); var relY = e.clientY - rect.top - 24; var accH = 0; var targetTrack = null; for (var i = 0; i < this.vm.tracks.length; i++) { var t = this.vm.tracks[i]; var h = this.getTrackHeight(t.id); if (relY >= accH && relY < accH + h) { targetTrack = t; break; } accH += h; } if (!targetTrack) { this.dropIndicator.visible = false; return; } var dropTime = Math.max(0, (e.clientX - rect.left) / this.pixelsPerSecond); this.dropIndicator = { visible: true, trackId: targetTrack.id, left: dropTime * this.pixelsPerSecond, width: 5 * this.pixelsPerSecond }; },
         onExternalDrop: function(e) { e.preventDefault(); this.isExternalDragOver = false; this.dropIndicator.visible = false; var assetData; try { var raw = e.dataTransfer.getData('text/wai-asset'); if (!raw) return; assetData = JSON.parse(raw); } catch (err) { return; } var assets = Array.isArray(assetData) ? assetData : [assetData]; if (assets.length === 0) return; var lane = document.getElementById('timeline-lane-container'); var dropTime = this.vm.currentTime; var targetTrackId = null; if (lane) { var rect = lane.getBoundingClientRect(); dropTime = Math.max(0, (e.clientX - rect.left) / this.pixelsPerSecond); var relY = e.clientY - rect.top - 24; var accH = 0; for (var i = 0; i < this.vm.tracks.length; i++) { var t = this.vm.tracks[i]; var h = this.getTrackHeight(t.id); if (relY >= accH && relY < accH + h) { targetTrackId = t.id; break; } accH += h; } } document.dispatchEvent(new CustomEvent('wai-timeline-drop', { detail: { assets: assets, dropTime: dropTime, targetTrackId: targetTrackId }, bubbles: true })); }
     }
